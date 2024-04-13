@@ -1,9 +1,10 @@
 // Obfuscation of C? Why not?
 // Coded by (C) DosX, 2024
 //
-//  no_obf       = disable obfuscation
-//  no_cflow     = disable control flow obfuscation
-//  no_antidebug = disable antidebug protection
+//  no_obf         = disable obfuscation
+//  no_cflow       = disable control flow obfuscation
+//  no_antidebug   = disable antidebug protection
+//  hide_antidebug = [!! UNSAFE !!] use dynamic calls to hide antidebugger
 //
 // GitHub:
 //  https://github.com/DosX-dev/obfus.h
@@ -109,7 +110,7 @@ int condition_Proxy(int junk, int condition) {
 
 #if !no_cflow
 
-#define if(condition) if ((RND(0, 1000)) > _0 && _1 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000), condition) && ((int)condition_True() || (int)_0)))
+#define if(condition) if ((RND(0, 1000)) > _0 && _1 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000), condition) && ((int)condition_True() && int_Proxy(RND(0, 1000)) < RND(1001, 10000) || (int)_0)))
 #define else                                                \
     else if (_0 > RND(0, 1000)) {                           \
         junkFunc(RND(0, 1000));                             \
