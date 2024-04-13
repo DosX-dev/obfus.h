@@ -4,7 +4,7 @@
 
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
-- 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops
+- 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
 
 ## Usage
 
@@ -22,7 +22,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D no_cflow 1  -D no_antidebug 1
+> tcc "app.c" -w  -D no_cflow  -D no_antidebug
 > ```
 
 ⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
