@@ -110,7 +110,7 @@ int condition_Proxy(int junk, int condition) {
         int_Proxy(_3 - __COUNTER__);                       \
     }                                                      \
     else if (FALSE) {                                      \
-        __asm__("jmp 0");                                  \
+        NOP_FLOOD;                                         \
     }                                                      \
     else if (FALSE * (int_Proxy(_3) ? _2 : _0)) {          \
         NOP_FLOOD;                                         \
