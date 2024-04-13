@@ -715,5 +715,5 @@ int toupperProxy(int c) { return toupper(c); }
 #define fma(x, y, z) fma(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE), double_Proxy(FALSE + z * TRUE))
 
 #else
-#warning Obfuscation disabled! Use '-D tccflow' option to protect your code.
+#warning Obfuscation disabled!
 #endif;
