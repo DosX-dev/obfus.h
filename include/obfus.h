@@ -80,9 +80,11 @@ int int_Proxy(int value) {
     if (rndValueToProxy == value)
         return rndValueToProxy;
 
-    junkFunc(_0, _3);
+    junkFunc(RND(0, 100000), RND(0, 100000));
+
     FAKE_CPUID;
-    return ((value * _1) + ((_4 * RND(0, 1000)) - _8) * _0);
+
+    return ((value * _1) + ((_4 * RND(0, 100000)) - _8) * _0);
 }
 
 double double_Proxy(double value) {
@@ -110,23 +112,23 @@ int condition_Proxy(int junk, int condition) {
 
 #if !no_cflow
 
-#define if(condition) if ((RND(0, 1000)) > _0 && _1 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000), condition) && ((int)condition_True() && int_Proxy(RND(0, 1000)) < RND(1001, 10000) || (int)_0)))
-#define else                                                \
-    else if (_0 > RND(0, 1000)) {                           \
-        junkFunc(RND(0, 1000));                             \
-    }                                                       \
-    else if (RND(0, 1000) == (RND(0, 1000) + 321)) {        \
-        int_Proxy(_3 - RND(0, 1000));                       \
-    }                                                       \
-    else if ((FALSE * (RND(0, 1000) * 12))) {               \
-        NOP_FLOOD;                                          \
-    }                                                       \
-    else if (FALSE * (int_Proxy(RND(0, 1000)) ? _2 : _0)) { \
-        NOP_FLOOD;                                          \
-    }                                                       \
+#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+#define else                                                                            \
+    else if (_0 > RND(0, 1000)) {                                                       \
+        junkFunc(RND(0, 1000));                                                         \
+    }                                                                                   \
+    else if (RND(0, 10) == (RND(11, 100))) {                                            \
+        int_Proxy(_3 - RND(0, 10000));                                                  \
+    }                                                                                   \
+    else if (FALSE * RND(0, 1000)) {                                                    \
+        NOP_FLOOD;                                                                      \
+    }                                                                                   \
+    else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999999) : RND(1, 99999999))) { \
+        NOP_FLOOD;                                                                      \
+    }                                                                                   \
     else
 
-#define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && condition_Proxy(RND(0, 1000), condition) && _5)
+#define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000))) + FALSE || _1)
 
 #endif
@@ -394,7 +396,7 @@ void printf_custom(int junk, const char *format, ...) {
     do {                                          \
         junkFunc((RND(0, 1000) * 3) < _0);        \
         printf_custom(RND(0, 1000), __VA_ARGS__); \
-    } while (_0 > (RND(0, 1000) * _2) + 82)
+    } while (_0 > (RND(0, 100000000000) * _2) + 82)
 
 // scanf
 char *getScanfName_Proxy() {
