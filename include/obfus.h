@@ -23,6 +23,9 @@
 #warning The obfuscator will work better with compilers that support the __COUNTER__ constant
 #endif
 
+// Thanks to @horsicq && @ac3ss0r
+#define RND(min, max) (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
+
 void junkFunc(int z, ...) {
     __asm__("nop");
     return;
@@ -51,33 +54,38 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
                      _0 = 0, _1 = 1, _2 = 2, _3 = 3, _4 = 4,
                      _5 = 5, _6 = 6, _7 = 7, _8 = 8, _9 = 9;
 
-#define TRUE ((((_9 + _7 + ((__COUNTER__ * 2) * _0))) / _8) - _1)
-#define FALSE ((_3 + _6 + ((__COUNTER__ * 3) * _0)) - _9)
+#define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
+#define FALSE ((_3 + _6 + (RND(0, 1000) * _0)) - _9)
 
 #define FAKE_CPUID __asm__("nop\ncpuid\nnop\n")
 
 #define sizeof(x) \
-    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + ((__COUNTER__ + 78) * _0)) / 2
+    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
 
-#define NOP_FLOOD                               \
-    (__COUNTER__ * 4) + int_Proxy(__COUNTER__); \
-    if (junkFunc) {                             \
-        __asm__("nop");                         \
-    }                                           \
-    do {                                        \
-        __asm__(                                \
-            "nop\n"                             \
-            "nop");                             \
-    } while (_0)
+#define NOP_FLOOD                             \
+    (RND(0, 1000)) + int_Proxy(RND(0, 1000)); \
+    if (junkFunc) {                           \
+        __asm__("nop");                       \
+    }                                         \
+    do {                                      \
+        __asm__(                              \
+            "nop\n"                           \
+            "nop");                           \
+    } while (RND(0, 200) * _0)
+
+static char rndValueToProxy = RND(0, 10);
 
 int int_Proxy(int value) {
+    if (rndValueToProxy == value)
+        return rndValueToProxy;
+
     junkFunc(_0, _3);
     FAKE_CPUID;
-    return ((value * _1) + (_4 * _2) - _8);
+    return ((value * _1) + ((_4 * RND(0, 1000)) - _8) * _0);
 }
 
 double double_Proxy(double value) {
-    junkFunc(_2, _6);
+    junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
@@ -101,24 +109,24 @@ int condition_Proxy(int junk, int condition) {
 
 #if !no_cflow
 
-#define if(condition) if ((__COUNTER__ * 2) > _0 && _1 && (_2 > condition_True() && condition_Proxy(__COUNTER__, condition) && ((int)condition_True() || (int)_0)))
-#define else                                               \
-    else if (_0 > __COUNTER__) {                           \
-        junkFunc(__COUNTER__ / 2);                         \
-    }                                                      \
-    else if ((__COUNTER__ + 831) == (__COUNTER__ + 321)) { \
-        int_Proxy(_3 - __COUNTER__);                       \
-    }                                                      \
-    else if (FALSE) {                                      \
-        NOP_FLOOD;                                         \
-    }                                                      \
-    else if (FALSE * (int_Proxy(_3) ? _2 : _0)) {          \
-        NOP_FLOOD;                                         \
-    }                                                      \
+#define if(condition) if ((RND(0, 1000)) > _0 && _1 && (_2 > condition_True() && condition_Proxy(RND(0, 1000), condition) && ((int)condition_True() || (int)_0)))
+#define else                                                \
+    else if (_0 > RND(0, 1000)) {                           \
+        junkFunc(RND(0, 1000));                             \
+    }                                                       \
+    else if (RND(0, 1000) == (RND(0, 1000) + 321)) {        \
+        int_Proxy(_3 - RND(0, 1000));                       \
+    }                                                       \
+    else if ((FALSE * (RND(0, 1000) * 12))) {               \
+        NOP_FLOOD;                                          \
+    }                                                       \
+    else if (FALSE * (int_Proxy(RND(0, 1000)) ? _2 : _0)) { \
+        NOP_FLOOD;                                          \
+    }                                                       \
     else
 
-#define while(condition) while ((__COUNTER__ + 28) > _0 && _8 > _3 && condition_True() && condition_Proxy(__COUNTER__, condition) && _5)
-#define for(data) for (data && int_Proxy(TRUE * (__COUNTER__ + 11)) + FALSE || _1)
+#define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && condition_Proxy(RND(0, 1000), condition) && _5)
+#define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000))) + FALSE || _1)
 
 #endif
 
@@ -191,7 +199,7 @@ size_t strlen_custom(const char *str) {
         str += int_Proxy(_2 - _1);
     }
     FAKE_CPUID;
-    return int_Proxy(length + _0);
+    return int_Proxy(length + (RND(0, 1000) * _0));
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
@@ -376,16 +384,16 @@ void printf_custom(int junk, const char *format, ...) {
     va_end(args);
 
     HANDLE hConsole = int_Proxy(GetStdHandle(int_Proxy(STD_OUTPUT_HANDLE)));
-    junkFunc(__COUNTER__ * (int)hConsole + junk);
+    junkFunc(RND(0, 1000) * (int)hConsole + junk);
     WriteConsoleA(hConsole, buffer, strlen(buffer), NULL, NULL);
 }
 
 // printf as void
-#define printf(...)                              \
-    do {                                         \
-        junkFunc((__COUNTER__ * 3) < _0);        \
-        printf_custom(__COUNTER__, __VA_ARGS__); \
-    } while (_0 > (__COUNTER__ * 2) + 82)
+#define printf(...)                               \
+    do {                                          \
+        junkFunc((RND(0, 1000) * 3) < _0);        \
+        printf_custom(RND(0, 1000), __VA_ARGS__); \
+    } while (_0 > (RND(0, 1000) * _2) + 82)
 
 // scanf
 char *getScanfName_Proxy() {
