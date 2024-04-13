@@ -109,7 +109,7 @@ int condition_Proxy(int junk, int condition) {
 
 #if !no_cflow
 
-#define if(condition) if ((RND(0, 1000)) > _0 && _1 && (_2 > condition_True() && condition_Proxy(RND(0, 1000), condition) && ((int)condition_True() || (int)_0)))
+#define if(condition) if ((RND(0, 1000)) > _0 && _1 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000), condition) && ((int)condition_True() || (int)_0)))
 #define else                                                \
     else if (_0 > RND(0, 1000)) {                           \
         junkFunc(RND(0, 1000));                             \
