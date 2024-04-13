@@ -1,7 +1,3 @@
-
-; ---------------------------------------------------------------------------
-
-; enum _crt_app_type, copyof_1
 _crt_unknown_app  = 0
 _crt_console_app  = 1
 _crt_gui_app     = 2
@@ -10,22 +6,12 @@ _crt_gui_app     = 2
                 .mmx
                 .model flat
 
-; ===========================================================================
-
-; Segment type: Pure code
-; Segment permissions: Read/Execute
 _text           segment para public 'CODE' use32
                 assume cs:_text
-                ;org 401000h
+
                 assume es:nothing, ss:nothing, ds:_data, fs:nothing, gs:nothing
 
-; =============== S U B R O U T I N E =======================================
-
-; Attributes: bp-based frame
-
-; int __cdecl sub_401000(_DWORD, _DWORD, _DWORD)
-sub_401000      proc near               ; CODE XREF: start+8F↓p
-                                        ; .text:004011A7↓p
+sub_401000      proc near               
 
 Destination     = dword ptr -8
 var_4           = dword ptr -4
@@ -39,78 +25,69 @@ var_4           = dword ptr -4
                 mov     eax, 0
                 mov     [ebp+var_4], eax
 
-loc_40101A:                             ; CODE XREF: sub_401000+34↓j
+loc_40101A:                             
                 mov     eax, [ebp+var_4]
                 cmp     eax, 5
                 jge     loc_4010A7
                 jmp     loc_401036
-; ---------------------------------------------------------------------------
 
-loc_40102B:                             ; CODE XREF: sub_401000+A5↓j
+loc_40102B:                             
                 mov     eax, [ebp+var_4]
                 mov     ecx, eax
                 inc     eax
                 mov     [ebp+var_4], eax
                 jmp     short loc_40101A
-; ---------------------------------------------------------------------------
 
-loc_401036:                             ; CODE XREF: sub_401000+26↑j
+loc_401036:                             
                 mov     eax, 100h
-                push    eax             ; Size
+                push    eax             
                 call    malloc
                 add     esp, 4
                 mov     [ebp+Destination], eax
-                mov     eax, offset Source ; "%d) Hello, world!\n"
-                push    eax             ; Source
+                mov     eax, offset Source 
+                push    eax             
                 mov     eax, [ebp+Destination]
-                push    eax             ; Destination
+                push    eax             
                 call    strcpy
                 add     esp, 8
                 mov     eax, [ebp+var_4]
                 inc     eax
                 push    eax
                 mov     eax, [ebp+Destination]
-                push    eax             ; Format
+                push    eax             
                 mov     eax, [ebp+Destination]
-                push    eax             ; Buffer
+                push    eax             
                 call    sprintf
                 add     esp, 0Ch
                 mov     eax, [ebp+Destination]
                 cmp     eax, 0
                 jz      loc_40108B
                 mov     eax, [ebp+Destination]
-                push    eax             ; Format
+                push    eax             
                 call    printf
                 add     esp, 4
                 jmp     loc_401099
-; ---------------------------------------------------------------------------
 
-loc_40108B:                             ; CODE XREF: sub_401000+74↑j
-                mov     eax, offset Format ; "Error!"
-                push    eax             ; Format
+loc_40108B:                             
+                mov     eax, offset Format 
+                push    eax             
                 call    printf
                 add     esp, 4
 
-loc_401099:                             ; CODE XREF: sub_401000+86↑j
+loc_401099:                             
                 mov     eax, [ebp+Destination]
-                push    eax             ; Block
+                push    eax             
                 call    free
                 add     esp, 4
                 jmp     short loc_40102B
-; ---------------------------------------------------------------------------
 
-loc_4010A7:                             ; CODE XREF: sub_401000+20↑j
+loc_4010A7:                             
                 call    _getch
                 leave
                 retn
 sub_401000      endp
 
-; ---------------------------------------------------------------------------
                 align 10h
-
-; =============== S U B R O U T I N E =======================================
-
-; Attributes: noreturn bp-based frame
 
                 public start
 start           proc near
@@ -131,13 +108,13 @@ var_18          = byte ptr -18h
                 mov     eax, 0
                 mov     [ebp+var_1C], eax
                 mov     eax, 1
-                push    eax             ; Type
+                push    eax             
                 call    __set_app_type
                 add     esp, 4
                 mov     eax, 30000h
-                push    eax             ; Mask
+                push    eax             
                 mov     eax, 10000h
-                push    eax             ; NewValue
+                push    eax             
                 call    _controlfp
                 add     esp, 8
                 mov     eax, ds:__argc
@@ -167,15 +144,14 @@ var_18          = byte ptr -18h
                 push    eax
                 call    sub_401000
                 add     esp, 0Ch
-                push    eax             ; Code
+                push    eax             
                 call    exit
 start           endp
 
-; ---------------------------------------------------------------------------
                 add     esp, 4
                 leave
                 retn
-; ---------------------------------------------------------------------------
+
                 push    ebp
                 mov     ebp, esp
                 sub     esp, 4
@@ -207,7 +183,7 @@ start           endp
                 add     esp, 0Ch
                 leave
                 retn
-; ---------------------------------------------------------------------------
+
                 align 4
                 xchg    ebp, [esp]
                 push    ebp
@@ -215,7 +191,7 @@ start           endp
                 push    ecx
                 mov     ecx, ebp
 
-loc_4011BF:                             ; CODE XREF: .text:004011D1↓j
+loc_4011BF:                             
                 sub     ecx, 1000h
                 test    [ecx], eax
                 sub     eax, 1000h
@@ -228,27 +204,19 @@ loc_4011BF:                             ; CODE XREF: .text:004011D1↓j
                 mov     ecx, [eax]
                 jmp     dword ptr [eax+4]
 
-; =============== S U B R O U T I N E =======================================
+sub_4011E0      proc near               
 
-
-sub_4011E0      proc near               ; CODE XREF: sub_4011E4↓p
-                                        ; .text:004011EE↓p
                 mov     eax, [ebp-14h]
                 retn
 sub_4011E0      endp
 
-
-; =============== S U B R O U T I N E =======================================
-
-
-sub_4011E4      proc near               ; CODE XREF: .text:004011F4↓p
+sub_4011E4      proc near               
                 call    sub_4011E0
                 mov     eax, [eax]
                 mov     eax, [eax]
                 retn
 sub_4011E4      endp
 
-; ---------------------------------------------------------------------------
                 call    sub_4011E0
                 push    eax
                 call    sub_4011E4
@@ -256,21 +224,15 @@ sub_4011E4      endp
                 call    _XcptFilter
                 add     esp, 8
                 retn
-; ---------------------------------------------------------------------------
+
                 db 8Bh
                 dd 0D9E8E865h, 50FFFFFFh, 0A7E8h, 0
 dword_401214    dd 0FFFFFFFFh, 4011EEh, 401203h
-                                        ; DATA XREF: sub_401225+22↓o
-; ---------------------------------------------------------------------------
 
-loc_401220:                             ; DATA XREF: sub_401225+1A↓o
+loc_401220:                             
                 jmp     loc_4012C0
 
-; =============== S U B R O U T I N E =======================================
-
-
-; _DWORD __cdecl sub_401225(_DWORD)
-sub_401225      proc near               ; CODE XREF: start+E↑p
+sub_401225      proc near               
 
 arg_0           = dword ptr  4
 arg_4           = byte ptr  8
@@ -295,64 +257,51 @@ arg_4           = byte ptr  8
                 retn
 sub_401225      endp
 
-; ---------------------------------------------------------------------------
-                align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION malloc. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 4
-; [00000006 BYTES: COLLAPSED FUNCTION strcpy. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION sprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 4
-; [00000006 BYTES: COLLAPSED FUNCTION printf. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION free. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 4
-; [00000006 BYTES: COLLAPSED FUNCTION _getch. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION __set_app_type. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 4
-; [00000006 BYTES: COLLAPSED FUNCTION _controlfp. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION __getmainargs. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 4
-; [00000006 BYTES: COLLAPSED FUNCTION exit. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION _XcptFilter. PRESS CTRL-NUMPAD+ TO EXPAND]
-                align 4
-; [00000006 BYTES: COLLAPSED FUNCTION _exit. PRESS CTRL-NUMPAD+ TO EXPAND]
                 align 10h
 
-loc_4012C0:                             ; CODE XREF: .text:loc_401220↑j
+                align 4
+
+                align 10h
+
+                align 4
+
+                align 10h
+
+                align 4
+
+                align 10h
+
+                align 4
+
+                align 10h
+
+                align 4
+
+                align 10h
+
+                align 4
+
+                align 10h
+
+loc_4012C0:                             
                 jmp     ds:_except_handler3
-; ---------------------------------------------------------------------------
+
                 align 200h
                 dd 300h dup(?)
 _text           ends
 
-; Section 2. (virtual address 00002000)
-; Virtual size                  : 00000190 (    400.)
-; Section size in file          : 00000200 (    512.)
-; Offset to raw data for section: 00000600
-; Flags C0000040: Data Readable Writable
-; Alignment     : default
-; ===========================================================================
-
-; Segment type: Pure data
-; Segment permissions: Read/Write
 _data           segment para public 'DATA' use32
                 assume cs:_data
-                ;org 402000h
-; char Source[]
+
 Source          db '%d) Hello, world!',0Ah,0
-                                        ; DATA XREF: sub_401000+47↑o
-; char Format[]
-Format          db 'Error!',0           ; DATA XREF: sub_401000:loc_40108B↑o
+
+Format          db 'Error!',0           
                 align 10h
-__IMPORT_DESCRIPTOR_msvcrt dd rva off_40208C ; Import Name Table
-                dd 0                    ; Time stamp
-                dd 0                    ; Forwarder Chain
-                dd rva aMsvcrtDll       ; DLL Name
-                dd rva __imp_malloc     ; Import Address Table
+__IMPORT_DESCRIPTOR_msvcrt dd rva off_40208C 
+                dd 0                    
+                dd 0                    
+                dd rva aMsvcrtDll       
+                dd rva __imp_malloc     
                 db    0
                 db    0
                 db    0
@@ -375,62 +324,40 @@ __IMPORT_DESCRIPTOR_msvcrt dd rva off_40208C ; Import Name Table
                 db    0
 _data           ends
 
-;
-; Imports from msvcrt.dll
-;
-; ===========================================================================
+                extrn __imp_malloc:dword 
 
-; Segment type: Externs
-; _idata
-; void *(__cdecl *malloc)(size_t Size)
-                extrn __imp_malloc:dword ; DATA XREF: malloc↑r
-                                        ; .data:00402030↑o
-; char *(__cdecl *strcpy)(char *Destination, const char *Source)
-                extrn __imp_strcpy:dword ; DATA XREF: strcpy↑r
-; int (*sprintf)(char *const Buffer, const char *const Format, ...)
-                extrn __imp_sprintf:dword ; DATA XREF: sprintf↑r
-; int (*printf)(const char *const Format, ...)
-                extrn __imp_printf:dword ; DATA XREF: printf↑r
-; void (__cdecl *free)(void *Block)
-                extrn __imp_free:dword  ; DATA XREF: free↑r
-; int (__cdecl *_getch)()
-                extrn __imp__getch:dword ; DATA XREF: _getch↑r
-; void (__cdecl *__set_app_type)(_crt_app_type Type)
+                extrn __imp_strcpy:dword 
+
+                extrn __imp_sprintf:dword 
+
+                extrn __imp_printf:dword 
+
+                extrn __imp_free:dword  
+
+                extrn __imp__getch:dword 
+
                 extrn __imp___set_app_type:dword
-                                        ; DATA XREF: __set_app_type↑r
-; unsigned int (__cdecl *_controlfp)(unsigned int NewValue, unsigned int Mask)
-                extrn __imp__controlfp:dword ; DATA XREF: _controlfp↑r
-; int _argc
-                extrn __argc:dword      ; DATA XREF: start+40↑r
-                                        ; start+6E↑r ...
-; char **_argv
-                extrn __argv:dword      ; DATA XREF: start+46↑r
-                                        ; start+74↑r ...
-; char **environ
-                extrn _environ:dword    ; DATA XREF: start+4C↑r
-                                        ; start+7A↑r ...
+
+                extrn __imp__controlfp:dword 
+
+                extrn __argc:dword      
+
+                extrn __argv:dword      
+
+                extrn _environ:dword    
+
                 extrn __imp___getmainargs:dword
-                                        ; DATA XREF: __getmainargs↑r
-; void (__cdecl __noreturn *exit)(int Code)
-                extrn __imp_exit:dword  ; DATA XREF: exit↑r
-                extrn __imp__XcptFilter:dword ; DATA XREF: _XcptFilter↑r
-; void (__cdecl __noreturn *_exit)(int Code)
-                extrn __imp__exit:dword ; DATA XREF: _exit↑r
+
+                extrn __imp_exit:dword  
+                extrn __imp__XcptFilter:dword 
+
+                extrn __imp__exit:dword 
                 extrn _except_handler3:dword
-                                        ; DATA XREF: .text:loc_4012C0↑r
 
-
-;
-; Import names for msvcrt.dll
-;
-; ===========================================================================
-
-; Segment type: Pure data
-; Segment permissions: Read/Write
 _data           segment para public 'DATA' use32
                 assume cs:_data
-                ;org 40208Ch
-off_40208C      dd rva word_4020DB      ; DATA XREF: .data:__IMPORT_DESCRIPTOR_msvcrt↑o
+
+off_40208C      dd rva word_4020DB      
                 dd rva word_4020E4
                 dd rva word_4020ED
                 dd rva word_4020F7
@@ -447,43 +374,42 @@ off_40208C      dd rva word_4020DB      ; DATA XREF: .data:__IMPORT_DESCRIPTOR_m
                 dd rva word_402170
                 dd rva word_402178
                 dd 0
-aMsvcrtDll      db 'msvcrt.dll',0       ; DATA XREF: .data:0040202C↑o
-word_4020DB     dw 0                    ; DATA XREF: .data:off_40208C↑o
+aMsvcrtDll      db 'msvcrt.dll',0       
+word_4020DB     dw 0                    
                 db 'malloc',0
-word_4020E4     dw 0                    ; DATA XREF: .data:00402090↑o
+word_4020E4     dw 0                    
                 db 'strcpy',0
-word_4020ED     dw 0                    ; DATA XREF: .data:00402094↑o
+word_4020ED     dw 0                    
                 db 'sprintf',0
-word_4020F7     dw 0                    ; DATA XREF: .data:00402098↑o
+word_4020F7     dw 0                    
                 db 'printf',0
-word_402100     dw 0                    ; DATA XREF: .data:0040209C↑o
+word_402100     dw 0                    
                 db 'free',0
-word_402107     dw 0                    ; DATA XREF: .data:004020A0↑o
+word_402107     dw 0                    
                 db '_getch',0
-word_402110     dw 0                    ; DATA XREF: .data:004020A4↑o
+word_402110     dw 0                    
                 db '__set_app_type',0
-word_402121     dw 0                    ; DATA XREF: .data:004020A8↑o
+word_402121     dw 0                    
                 db '_controlfp',0
-word_40212E     dw 0                    ; DATA XREF: .data:004020AC↑o
+word_40212E     dw 0                    
                 db '__argc',0
-word_402137     dw 0                    ; DATA XREF: .data:004020B0↑o
+word_402137     dw 0                    
                 db '__argv',0
-word_402140     dw 0                    ; DATA XREF: .data:004020B4↑o
+word_402140     dw 0                    
                 db '_environ',0
-word_40214B     dw 0                    ; DATA XREF: .data:004020B8↑o
+word_40214B     dw 0                    
                 db '__getmainargs',0
-word_40215B     dw 0                    ; DATA XREF: .data:004020BC↑o
+word_40215B     dw 0                    
                 db 'exit',0
-word_402162     dw 0                    ; DATA XREF: .data:004020C0↑o
+word_402162     dw 0                    
                 db '_XcptFilter',0
-word_402170     dw 0                    ; DATA XREF: .data:004020C4↑o
+word_402170     dw 0                    
                 db '_exit',0
-word_402178     dw 0                    ; DATA XREF: .data:004020C8↑o
+word_402178     dw 0                    
                 db '_except_handler3',0
                 align 4
-dword_40218C    dd 0                    ; DATA XREF: start+59↑r
+dword_40218C    dd 0                    
                 align 1000h
 _data           ends
-
 
                 end start

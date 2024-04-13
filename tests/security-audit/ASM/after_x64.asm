@@ -1,44 +1,32 @@
+RUNTIME_FUNCTION struc 
 
-RUNTIME_FUNCTION struc ; (sizeof=0xC, mappedto_1)
-                        ; XREF: .pdata:ExceptionDir/r
-                        ; .pdata:000000000040600C/r ...
-FunctionStart dd ?      ; offset rva
-FunctionEnd dd ?        ; offset rva pastend
-UnwindInfo dd ?         ; offset rva
+FunctionStart dd ?      
+FunctionEnd dd ?        
+UnwindInfo dd ?         
 RUNTIME_FUNCTION ends
 
+UNWIND_INFO_HDR struc 
 
-UNWIND_INFO_HDR struc ; (sizeof=0x4, mappedto_2)
-                        ; XREF: .text:stru_401020/r
-                        ; .text:stru_404410/r
-Ver3_Flags db ?         ; base 16
-PrologSize db ?         ; base 16
-CntUnwindCodes db ?     ; base 16
-FrReg_FrRegOff db ?     ; base 16
+Ver3_Flags db ?         
+PrologSize db ?         
+CntUnwindCodes db ?     
+FrReg_FrRegOff db ?     
 UNWIND_INFO_HDR ends
 
+UNWIND_CODE struc 
 
-UNWIND_CODE struc ; (sizeof=0x2, mappedto_3)
-                        ; XREF: .text:0000000000401024/r
-                        ; .text:0000000000401026/r ...
-PrologOff db ?          ; base 16
-OpCode_OpInfo db ?      ; base 16
+PrologOff db ?          
+OpCode_OpInfo db ?      
 UNWIND_CODE ends
 
 .686p
 .mmx
 .model flat
 
-
-; Segment type: Pure code
-; Segment permissions: Read/Execute
 _text segment para public 'CODE' use64
 assume cs:_text
-;org 401000h
+
 assume es:nothing, ss:nothing, ds:_data, fs:nothing, gs:nothing
-
-
-; Attributes: bp-based frame
 
 sub_401000 proc near
 
@@ -64,11 +52,8 @@ sub_401000 endp
 algn_40101E:
 align 20h
 stru_401020 UNWIND_INFO_HDR <1, 4, 2, 5>
-UNWIND_CODE <4, 3>      ; UWOP_SET_FPREG
-UNWIND_CODE <1, 50h>    ; UWOP_PUSH_NONVOL
-
-
-; Attributes: bp-based frame
+UNWIND_CODE <4, 3>      
+UNWIND_CODE <1, 50h>    
 
 sub_401028 proc near
 
@@ -103,10 +88,6 @@ leave
 retn
 sub_401028 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_401085 proc near
 
 arg_0= qword ptr  10h
@@ -135,10 +116,6 @@ movsd   xmm0, xmm1
 leave
 retn
 sub_401085 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4010D2 proc near
 push    rbp
@@ -172,10 +149,6 @@ locret_401129:
 leave
 retn
 sub_4010D2 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40112B proc near
 
@@ -321,10 +294,6 @@ leave
 retn
 sub_40112B endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40130B proc near
 
 var_20= qword ptr -20h
@@ -383,7 +352,7 @@ div     rcx
 mov     rcx, [rbp+var_8]
 add     rcx, rax
 movsx   eax, cs:byte_405054
-mov     edx, 54h ; 'T'
+mov     edx, 54h 
 imul    eax, edx
 movsxd  rax, eax
 add     rcx, rax
@@ -471,7 +440,7 @@ movsx   edx, cs:byte_40505A
 add     ecx, edx
 movsx   edx, cs:byte_405054
 mov     [rbp+var_20], rax
-mov     eax, 21h ; '!'
+mov     eax, 21h 
 imul    edx, eax
 add     ecx, edx
 movsx   eax, cs:byte_40505D
@@ -495,7 +464,7 @@ mov     rax, [rbp+var_18]
 mov     rcx, rax
 add     rax, 1
 mov     [rbp+var_18], rax
-mov     eax, 25h ; '%'
+mov     eax, 25h 
 mov     [rcx], al
 mov     rax, [rbp+var_18]
 mov     rcx, rax
@@ -519,11 +488,6 @@ leave
 retn
 sub_40130B endp
 
-
-
-; Attributes: bp-based frame
-
-; __int64 __fastcall sub_4015B4(int, int, int, int, LPVOID)
 sub_4015B4 proc near
 
 lpReserved= qword ptr -10h
@@ -546,25 +510,21 @@ nop
 cpuid
 nop
 mov     rax, [rbp+arg_20]
-mov     [rsp+30h+lpReserved], rax ; lpReserved
+mov     [rsp+30h+lpReserved], rax 
 mov     rax, [rbp+lpNumberOfCharsWritten]
-mov     r9, rax         ; lpNumberOfCharsWritten
+mov     r9, rax         
 mov     eax, [rbp+nNumberOfCharsToWrite]
-mov     r8, rax         ; nNumberOfCharsToWrite
+mov     r8, rax         
 mov     rax, [rbp+lpBuffer]
 mov     r11, rax
 mov     rax, [rbp+hConsoleOutput]
 mov     r10, rax
-mov     rcx, r10        ; hConsoleOutput
-mov     rdx, r11        ; lpBuffer
+mov     rcx, r10        
+mov     rdx, r11        
 call    WriteConsoleA
 leave
 retn
 sub_4015B4 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_401604 proc near
 
@@ -584,15 +544,11 @@ mov     r10, rax
 mov     rcx, r10
 call    sub_401028
 mov     r10, rax
-mov     rcx, r10        ; nStdHandle
+mov     rcx, r10        
 call    GetStdHandle
 leave
 retn
 sub_401604 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_401632 proc near
 
@@ -613,16 +569,12 @@ mov     rax, [rbp+lpProcName]
 mov     r11, rax
 mov     rax, [rbp+hModule]
 mov     r10, rax
-mov     rcx, r10        ; hModule
-mov     rdx, r11        ; lpProcName
+mov     rcx, r10        
+mov     rdx, r11        
 call    GetProcAddress
 leave
 retn
 sub_401632 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_401664 proc near
 
@@ -639,15 +591,11 @@ cpuid
 nop
 mov     rax, [rbp+lpModuleName]
 mov     r10, rax
-mov     rcx, r10        ; lpModuleName
+mov     rcx, r10        
 call    GetModuleHandleA
 leave
 retn
 sub_401664 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_401688 proc near
 
@@ -666,7 +614,7 @@ mov     [rbp+arg_0], rcx
 mov     [rbp+arg_8], rdx
 
 loc_40169B:
-mov     eax, 28h ; '('
+mov     eax, 28h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401F3A
@@ -707,8 +655,8 @@ mov     eax, 0Fh
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
-add     eax, 38h ; '8'
-mov     eax, 20h ; ' '
+add     eax, 38h 
+mov     eax, 20h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_4017C3
@@ -742,7 +690,7 @@ nop
 loc_4017C3:
 nop
 nop
-mov     eax, 2Eh ; '.'
+mov     eax, 2Eh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401838
@@ -768,7 +716,7 @@ jz      loc_401838
 jmp     loc_4017C3
 
 loc_401838:
-mov     eax, 28h ; '('
+mov     eax, 28h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_40193A
@@ -836,7 +784,7 @@ jmp     locret_401F45
 jmp     loc_401EEC
 
 loc_40193A:
-mov     eax, 2Eh ; '.'
+mov     eax, 2Eh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_4019DB
@@ -875,7 +823,7 @@ call    sub_401000
 jmp     loc_401EEC
 
 loc_4019DB:
-mov     eax, 38h ; '8'
+mov     eax, 38h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401A74
@@ -912,7 +860,7 @@ call    sub_401028
 jmp     loc_401EEC
 
 loc_401A74:
-mov     eax, 40h ; '@'
+mov     eax, 40h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401C2A
@@ -927,13 +875,13 @@ movsx   eax, cs:byte_405057
 movsx   ecx, cs:byte_40505A
 add     eax, ecx
 movsx   ecx, cs:byte_405054
-mov     edx, 5Dh ; ']'
+mov     edx, 5Dh 
 imul    ecx, edx
 add     eax, ecx
 movsx   ecx, cs:byte_40505D
 sub     eax, ecx
 mov     r11, rax
-mov     eax, 21h ; '!'
+mov     eax, 21h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -949,12 +897,12 @@ jnz     loc_401B18
 jmp     loc_401C2A
 
 loc_401B18:
-mov     eax, 23h ; '#'
+mov     eax, 23h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
 add     eax, 88h
-mov     eax, 48h ; 'H'
+mov     eax, 48h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401BB0
@@ -967,7 +915,7 @@ cmp     ecx, eax
 jle     loc_401BB0
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 25h ; '%'
+mov     eax, 25h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -988,7 +936,7 @@ nop
 loc_401BB0:
 nop
 nop
-mov     eax, 42h ; 'B'
+mov     eax, 42h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401C25
@@ -1001,7 +949,7 @@ cmp     eax, 0
 jz      loc_401C25
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 27h ; '''
+mov     eax, 27h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1017,7 +965,7 @@ loc_401C25:
 jmp     loc_401EEC
 
 loc_401C2A:
-mov     eax, 52h ; 'R'
+mov     eax, 52h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401E1D
@@ -1032,7 +980,7 @@ movsx   eax, cs:byte_405057
 movsx   ecx, cs:byte_40505A
 add     eax, ecx
 movsx   ecx, cs:byte_405054
-mov     edx, 78h ; 'x'
+mov     edx, 78h 
 imul    ecx, edx
 add     eax, ecx
 movsx   ecx, cs:byte_40505D
@@ -1057,7 +1005,7 @@ loc_401CC3:
 mov     ecx, dword ptr [rbp+var_10]
 imul    ecx, eax
 mov     r11, rcx
-mov     eax, 2Ah ; '*'
+mov     eax, 2Ah 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1073,12 +1021,12 @@ jnz     loc_401D0B
 jmp     loc_401E1D
 
 loc_401D0B:
-mov     eax, 2Ch ; ','
+mov     eax, 2Ch 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
 add     eax, 0ACh
-mov     eax, 5Ah ; 'Z'
+mov     eax, 5Ah 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401DA3
@@ -1091,7 +1039,7 @@ cmp     ecx, eax
 jle     loc_401DA3
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 2Eh ; '.'
+mov     eax, 2Eh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1112,7 +1060,7 @@ nop
 loc_401DA3:
 nop
 nop
-mov     eax, 4Bh ; 'K'
+mov     eax, 4Bh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401E18
@@ -1125,7 +1073,7 @@ cmp     eax, 0
 jz      loc_401E18
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 30h ; '0'
+mov     eax, 30h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1141,7 +1089,7 @@ loc_401E18:
 jmp     loc_401EEC
 
 loc_401E1D:
-mov     eax, 62h ; 'b'
+mov     eax, 62h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_401EEC
@@ -1168,7 +1116,7 @@ cmp     ecx, eax
 mov     eax, 0
 setnle  al
 mov     r11, rax
-mov     eax, 32h ; '2'
+mov     eax, 32h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1224,10 +1172,6 @@ leave
 retn
 sub_401688 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_401F47 proc near
 
 var_8= qword ptr -8
@@ -1244,7 +1188,7 @@ movsxd  rax, eax
 mov     [rbp+var_8], rax
 
 loc_401F64:
-mov     eax, 4Fh ; 'O'
+mov     eax, 4Fh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_40202B
@@ -1261,7 +1205,7 @@ cmp     ecx, 0
 mov     eax, 1
 setnz   al
 mov     r11, rax
-mov     eax, 34h ; '4'
+mov     eax, 34h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1307,10 +1251,6 @@ leave
 retn
 sub_401F47 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402050 proc near
 
 var_B0= qword ptr -0B0h
@@ -1336,7 +1276,7 @@ sub     rsp, 0D0h
 
 loc_40205B:
 mov     [rbp+arg_0], rcx
-mov     eax, 6Ah ; 'j'
+mov     eax, 6Ah 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_4023AE
@@ -1352,7 +1292,7 @@ cmp     rax, 0
 mov     eax, 0
 setz    al
 mov     r11, rax
-mov     eax, 36h ; '6'
+mov     eax, 36h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1372,11 +1312,11 @@ movsx   eax, cs:byte_40505A
 mov     r10, rax
 mov     rcx, r10
 call    sub_40130B
-lea     rcx, Source     ; "%d%d"
+lea     rcx, Source     
 mov     r11, rcx
 mov     r10, rax
-mov     rcx, r10        ; Destination
-mov     rdx, r11        ; Source
+mov     rcx, r10        
+mov     rdx, r11        
 call    strcat
 movsx   ecx, cs:byte_405056
 mov     [rsp+0D0h+var_88], rcx
@@ -1397,15 +1337,15 @@ mov     r8, rcx
 mov     r11, rax
 lea     rax, [rbp+Buffer]
 mov     r10, rax
-mov     rcx, r10        ; Buffer
-mov     rdx, r11        ; Format
+mov     rcx, r10        
+mov     rdx, r11        
 call    sprintf
 lea     rax, [rbp+Buffer]
 mov     r10, rax
 mov     rcx, r10
 call    sub_401664
 mov     [rbp+var_28], rax
-mov     eax, 6Eh ; 'n'
+mov     eax, 6Eh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_4023AE
@@ -1421,7 +1361,7 @@ cmp     rax, 0
 mov     eax, 1
 setnz   al
 mov     r11, rax
-mov     eax, 38h ; '8'
+mov     eax, 38h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1504,27 +1444,27 @@ mov     [rcx], al
 nop
 cpuid
 nop
-lea     rax, aC         ; "%c"
+lea     rax, aC         
 mov     r11, rax
-lea     rax, Destination ; "Library"
+lea     rax, Destination 
 mov     r10, rax
-mov     rcx, r10        ; Destination
-mov     rdx, r11        ; Source
+mov     rcx, r10        
+mov     rdx, r11        
 call    strcat
 movsx   ecx, cs:byte_405050
 mov     r8, rcx
 mov     r11, rax
 lea     rax, [rbp+Source]
 mov     r10, rax
-mov     rcx, r10        ; Buffer
-mov     rdx, r11        ; Format
+mov     rcx, r10        
+mov     rdx, r11        
 call    sprintf
 lea     rax, [rbp+Source]
 mov     r11, rax
 lea     rax, byte_4054A0
 mov     r10, rax
-mov     rcx, r10        ; Destination
-mov     rdx, r11        ; Source
+mov     rcx, r10        
+mov     rdx, r11        
 call    strcat
 mov     r11, rax
 mov     rax, [rbp+var_28]
@@ -1535,7 +1475,7 @@ call    sub_401632
 mov     cs:qword_405060, rax
 
 loc_4023AE:
-mov     eax, 72h ; 'r'
+mov     eax, 72h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_402454
@@ -1551,7 +1491,7 @@ cmp     rax, 0
 mov     eax, 1
 setnz   al
 mov     r11, rax
-mov     eax, 3Ah ; ':'
+mov     eax, 3Ah 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1571,7 +1511,7 @@ mov     rax, [rbp+arg_0]
 mov     r10, rax
 mov     rcx, r10
 mov     r11, cs:qword_405060
-call    r11 ; qword_405060
+call    r11 
 jmp     locret_40245E
 
 loc_402454:
@@ -1581,10 +1521,6 @@ locret_40245E:
 leave
 retn
 sub_402050 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402460 proc near
 
@@ -1604,10 +1540,6 @@ leave
 retn
 sub_402460 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402480 proc near
 
 arg_0= qword ptr  10h
@@ -1625,10 +1557,6 @@ call    sub_402460
 leave
 retn
 sub_402480 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4024A0 proc near
 
@@ -1648,10 +1576,6 @@ leave
 retn
 sub_4024A0 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4024C0 proc near
 
 arg_0= qword ptr  10h
@@ -1669,10 +1593,6 @@ call    sub_4024A0
 leave
 retn
 sub_4024C0 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4024E0 proc near
 
@@ -1692,10 +1612,6 @@ leave
 retn
 sub_4024E0 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402500 proc near
 
 arg_0= qword ptr  10h
@@ -1714,22 +1630,18 @@ leave
 retn
 sub_402500 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402520 proc near
 push    rbp
 mov     rbp, rsp
 sub     rsp, 20h
 
 loc_40252B:
-mov     eax, 3Ch ; '<'
+mov     eax, 3Ch 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
 add     eax, 0ECh
-mov     eax, 7Ah ; 'z'
+mov     eax, 7Ah 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_4025C3
@@ -1742,7 +1654,7 @@ cmp     ecx, eax
 jle     loc_4025C3
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 3Eh ; '>'
+mov     eax, 3Eh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1763,7 +1675,7 @@ nop
 loc_4025C3:
 nop
 nop
-mov     eax, 5Bh ; '['
+mov     eax, 5Bh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_402638
@@ -1776,7 +1688,7 @@ cmp     eax, 0
 jz      loc_402638
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 40h ; '@'
+mov     eax, 40h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1789,7 +1701,7 @@ jz      loc_402638
 jmp     loc_4025C3
 
 loc_402638:
-mov     eax, 42h ; 'B'
+mov     eax, 42h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -1807,7 +1719,7 @@ cmp     ecx, eax
 jle     loc_4026D0
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 44h ; 'D'
+mov     eax, 44h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1828,7 +1740,7 @@ nop
 loc_4026D0:
 nop
 nop
-mov     eax, 61h ; 'a'
+mov     eax, 61h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_402745
@@ -1841,7 +1753,7 @@ cmp     eax, 0
 jz      loc_402745
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 46h ; 'F'
+mov     eax, 46h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1859,24 +1771,16 @@ leave
 retn
 sub_402520 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40274C proc near
 push    rbp
 mov     rbp, rsp
 sub     rsp, 0
 
-loc_402757:             ; Trap to Debugger
+loc_402757:             
 int     3
 leave
 retn
 sub_40274C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40275A proc near
 
@@ -1890,7 +1794,7 @@ mov     rbp, rsp
 sub     rsp, 40h
 
 loc_402765:
-mov     eax, 48h ; 'H'
+mov     eax, 48h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -1908,7 +1812,7 @@ cmp     ecx, eax
 jle     loc_4027FD
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 4Ah ; 'J'
+mov     eax, 4Ah 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -1929,7 +1833,7 @@ nop
 loc_4027FD:
 nop
 nop
-mov     eax, 67h ; 'g'
+mov     eax, 67h 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_402872
@@ -1942,7 +1846,7 @@ cmp     eax, 0
 jz      loc_402872
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 4Ch ; 'L'
+mov     eax, 4Ch 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2018,7 +1922,7 @@ mov     eax, 1
 
 loc_40295F:
 mov     r11, rax
-mov     eax, 4Eh ; 'N'
+mov     eax, 4Eh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2035,7 +1939,7 @@ jmp     loc_402A01
 
 loc_4029A1:
 call    sub_40274C
-int     3               ; Trap to Debugger
+int     3               
 movsx   eax, cs:byte_405054
 movsx   ecx, cs:byte_405054
 cdq
@@ -2071,11 +1975,11 @@ movsx   ecx, cs:byte_405056
 cmp     ecx, eax
 jle     loc_402AA2
 movsx   eax, cs:byte_405054
-cmp     eax, 4Fh ; 'O'
+cmp     eax, 4Fh 
 mov     eax, 0
 setnle  al
 mov     r11, rax
-mov     eax, 51h ; 'Q'
+mov     eax, 51h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2091,7 +1995,7 @@ jnz     loc_402A8D
 jmp     loc_402AA2
 
 loc_402A8D:
-mov     eax, 29h ; ')'
+mov     eax, 29h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401000
@@ -2111,7 +2015,7 @@ cmp     ecx, eax
 jle     loc_402B3B
 mov     eax, 0
 mov     r11, rax
-mov     eax, 56h ; 'V'
+mov     eax, 56h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2128,7 +2032,7 @@ jmp     loc_402B3B
 
 loc_402B21:
 movsx   eax, cs:byte_405057
-sub     eax, 57h ; 'W'
+sub     eax, 57h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -2156,7 +2060,7 @@ add     eax, ecx
 movsx   ecx, cs:byte_40505D
 sub     eax, ecx
 mov     r11, rax
-mov     eax, 5Ah ; 'Z'
+mov     eax, 5Ah 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2172,7 +2076,7 @@ jnz     loc_402BDF
 jmp     loc_402CF1
 
 loc_402BDF:
-mov     eax, 5Ch ; '\'
+mov     eax, 5Ch 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -2190,7 +2094,7 @@ cmp     ecx, eax
 jle     loc_402C77
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 5Eh ; '^'
+mov     eax, 5Eh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2211,7 +2115,7 @@ nop
 loc_402C77:
 nop
 nop
-mov     eax, 7Bh ; '{'
+mov     eax, 7Bh 
 movsx   ecx, cs:byte_405054
 cmp     eax, ecx
 jle     loc_402CEC
@@ -2224,7 +2128,7 @@ cmp     eax, 0
 jz      loc_402CEC
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 60h ; '`'
+mov     eax, 60h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2280,7 +2184,7 @@ loc_402D8A:
 mov     ecx, dword ptr [rbp+var_10]
 imul    ecx, eax
 mov     r11, rcx
-mov     eax, 63h ; 'c'
+mov     eax, 63h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2296,7 +2200,7 @@ jnz     loc_402DD2
 jmp     loc_402EE4
 
 loc_402DD2:
-mov     eax, 65h ; 'e'
+mov     eax, 65h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -2314,7 +2218,7 @@ cmp     ecx, eax
 jle     loc_402E6A
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 67h ; 'g'
+mov     eax, 67h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2348,7 +2252,7 @@ cmp     eax, 0
 jz      loc_402EDF
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 69h ; 'i'
+mov     eax, 69h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2373,7 +2277,7 @@ loc_402EF9:
 movsx   eax, cs:byte_40505B
 movsxd  rax, eax
 mov     r10, rax
-mov     rcx, r10        ; Size
+mov     rcx, r10        
 call    malloc
 mov     [rbp+var_18], rax
 movsx   eax, cs:byte_405057
@@ -2411,7 +2315,7 @@ mov     rcx, [rbp+var_18]
 add     rcx, rax
 movsx   eax, cs:byte_405045
 mov     [rcx], al
-mov     eax, 6Bh ; 'k'
+mov     eax, 6Bh 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -2429,7 +2333,7 @@ cmp     ecx, eax
 jle     loc_403040
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 6Dh ; 'm'
+mov     eax, 6Dh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2463,7 +2367,7 @@ cmp     eax, 0
 jz      loc_4030B5
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 6Fh ; 'o'
+mov     eax, 6Fh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2512,7 +2416,7 @@ mov     rcx, [rbp+var_18]
 add     rcx, rax
 movsx   eax, cs:byte_405040
 mov     [rcx], al
-mov     eax, 71h ; 'q'
+mov     eax, 71h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -2530,7 +2434,7 @@ cmp     ecx, eax
 jle     loc_4031ED
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 73h ; 's'
+mov     eax, 73h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2564,7 +2468,7 @@ cmp     eax, 0
 jz      loc_403262
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 75h ; 'u'
+mov     eax, 75h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2582,10 +2486,6 @@ leave
 retn
 sub_40275A endp
 
-
-
-; Attributes: bp-based frame
-
 sub_403268 proc near
 push    rbp
 mov     rbp, rsp
@@ -2596,10 +2496,6 @@ call    sub_40275A
 leave
 retn
 sub_403268 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40327A proc near
 push    rbp
@@ -2612,10 +2508,6 @@ leave
 retn
 sub_40327A endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40328C proc near
 push    rbp
 mov     rbp, rsp
@@ -2626,10 +2518,6 @@ call    sub_40327A
 leave
 retn
 sub_40328C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40329E proc near
 push    rbp
@@ -2642,10 +2530,6 @@ leave
 retn
 sub_40329E endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4032B0 proc near
 push    rbp
 mov     rbp, rsp
@@ -2656,10 +2540,6 @@ call    sub_40329E
 leave
 retn
 sub_4032B0 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4032C2 proc near
 push    rbp
@@ -2672,10 +2552,6 @@ leave
 retn
 sub_4032C2 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4032D4 proc near
 push    rbp
 mov     rbp, rsp
@@ -2686,10 +2562,6 @@ call    sub_4032C2
 leave
 retn
 sub_4032D4 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4032E6 proc near
 push    rbp
@@ -2702,10 +2574,6 @@ leave
 retn
 sub_4032E6 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4032F8 proc near
 push    rbp
 mov     rbp, rsp
@@ -2716,10 +2584,6 @@ call    sub_4032E6
 leave
 retn
 sub_4032F8 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40330A proc near
 push    rbp
@@ -2732,10 +2596,6 @@ leave
 retn
 sub_40330A endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40331C proc near
 push    rbp
 mov     rbp, rsp
@@ -2746,10 +2606,6 @@ call    sub_40330A
 leave
 retn
 sub_40331C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40332E proc near
 push    rbp
@@ -2762,10 +2618,6 @@ leave
 retn
 sub_40332E endp
 
-
-
-; Attributes: bp-based frame
-
 sub_403340 proc near
 push    rbp
 mov     rbp, rsp
@@ -2776,10 +2628,6 @@ call    sub_40332E
 leave
 retn
 sub_403340 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403352 proc near
 push    rbp
@@ -2792,10 +2640,6 @@ leave
 retn
 sub_403352 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_403364 proc near
 push    rbp
 mov     rbp, rsp
@@ -2806,10 +2650,6 @@ call    sub_403352
 leave
 retn
 sub_403364 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403376 proc near
 push    rbp
@@ -2822,10 +2662,6 @@ leave
 retn
 sub_403376 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_403388 proc near
 push    rbp
 mov     rbp, rsp
@@ -2836,10 +2672,6 @@ call    sub_403376
 leave
 retn
 sub_403388 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40339A proc near
 
@@ -2862,7 +2694,7 @@ mov     [rbp+arg_0], rcx
 mov     [rbp+arg_8], rdx
 mov     [rbp+arg_10], r8
 mov     [rbp+arg_18], r9
-mov     eax, 77h ; 'w'
+mov     eax, 77h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401028
@@ -2880,7 +2712,7 @@ cmp     ecx, eax
 jle     loc_40344D
 lea     rax, sub_401000
 mov     r11, rax
-mov     eax, 79h ; 'y'
+mov     eax, 79h 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2914,7 +2746,7 @@ cmp     eax, 0
 jz      loc_4034C2
 movsx   eax, cs:byte_405054
 mov     r11, rax
-mov     eax, 7Bh ; '{'
+mov     eax, 7Bh 
 mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
@@ -2986,7 +2818,7 @@ call    sub_401028
 movsxd  rax, eax
 mov     qword ptr [rbp+var_418], rax
 mov     eax, [rbp+var_418]
-mov     ecx, 7Dh ; '}'
+mov     ecx, 7Dh 
 imul    eax, ecx
 mov     ecx, dword ptr [rbp+arg_0]
 add     eax, ecx
@@ -2998,24 +2830,20 @@ mov     r10, rax
 mov     rcx, r10
 call    sub_401F47
 mov     rcx, 0
-mov     [rsp+450h+var_430], rcx ; LPVOID
+mov     [rsp+450h+var_430], rcx 
 mov     rcx, 0
-mov     r9, rcx         ; int
-mov     r8, rax         ; int
+mov     r9, rcx         
+mov     r8, rax         
 lea     rax, [rbp+var_400]
 mov     r11, rax
 mov     rax, qword ptr [rbp+var_418]
 mov     r10, rax
-mov     rcx, r10        ; int
-mov     rdx, r11        ; int
+mov     rcx, r10        
+mov     rdx, r11        
 call    sub_4015B4
 leave
 retn
 sub_40339A endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40362C proc near
 push    rbp
@@ -3026,14 +2854,10 @@ loc_403637:
 nop
 cpuid
 nop
-lea     rax, aScanf     ; "scanf"
+lea     rax, aScanf     
 leave
 retn
 sub_40362C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403644 proc near
 push    rbp
@@ -3044,14 +2868,10 @@ loc_40364F:
 nop
 cpuid
 nop
-lea     rax, aSprintf   ; "sprintf"
+lea     rax, aSprintf   
 leave
 retn
 sub_403644 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40365C proc near
 push    rbp
@@ -3062,14 +2882,10 @@ loc_403667:
 nop
 cpuid
 nop
-lea     rax, aFclose    ; "fclose"
+lea     rax, aFclose    
 leave
 retn
 sub_40365C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403674 proc near
 push    rbp
@@ -3080,14 +2896,10 @@ loc_40367F:
 nop
 cpuid
 nop
-lea     rax, aFopen     ; "fopen"
+lea     rax, aFopen     
 leave
 retn
 sub_403674 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40368C proc near
 push    rbp
@@ -3098,14 +2910,10 @@ loc_403697:
 nop
 cpuid
 nop
-lea     rax, aFread     ; "fread"
+lea     rax, aFread     
 leave
 retn
 sub_40368C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4036A4 proc near
 push    rbp
@@ -3116,14 +2924,10 @@ loc_4036AF:
 nop
 cpuid
 nop
-lea     rax, aFwrite    ; "fwrite"
+lea     rax, aFwrite    
 leave
 retn
 sub_4036A4 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4036BC proc near
 push    rbp
@@ -3134,14 +2938,10 @@ loc_4036C7:
 nop
 cpuid
 nop
-lea     rax, aExit      ; "exit"
+lea     rax, aExit      
 leave
 retn
 sub_4036BC endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4036D4 proc near
 push    rbp
@@ -3152,14 +2952,10 @@ loc_4036DF:
 nop
 cpuid
 nop
-lea     rax, aStrcpy    ; "strcpy"
+lea     rax, aStrcpy    
 leave
 retn
 sub_4036D4 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4036EC proc near
 push    rbp
@@ -3170,14 +2966,10 @@ loc_4036F7:
 nop
 cpuid
 nop
-lea     rax, aStrtok    ; "strtok"
+lea     rax, aStrtok    
 leave
 retn
 sub_4036EC endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403704 proc near
 
@@ -3197,20 +2989,16 @@ mov     eax, dword ptr [rbp+arg_8]
 movsx   ecx, cs:byte_405055
 imul    eax, ecx
 mov     rcx, [rbp+Size]
-mov     r8, rcx         ; Size
+mov     r8, rcx         
 mov     r11, rax
 mov     rax, [rbp+arg_0]
 mov     r10, rax
-mov     rcx, r10        ; void *
-mov     rdx, r11        ; Val
+mov     rcx, r10        
+mov     rdx, r11        
 call    memset
 leave
 retn
 sub_403704 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403746 proc near
 push    rbp
@@ -3221,14 +3009,10 @@ loc_403751:
 nop
 cpuid
 nop
-lea     rax, aMemcpy    ; "memcpy"
+lea     rax, aMemcpy    
 leave
 retn
 sub_403746 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40375E proc near
 push    rbp
@@ -3239,14 +3023,10 @@ loc_403769:
 nop
 cpuid
 nop
-lea     rax, aStrchr    ; "strchr"
+lea     rax, aStrchr    
 leave
 retn
 sub_40375E endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403776 proc near
 push    rbp
@@ -3257,14 +3037,10 @@ loc_403781:
 nop
 cpuid
 nop
-lea     rax, aStrrchr   ; "strrchr"
+lea     rax, aStrrchr   
 leave
 retn
 sub_403776 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40378E proc near
 push    rbp
@@ -3275,14 +3051,10 @@ loc_403799:
 nop
 cpuid
 nop
-lea     rax, aRand      ; "rand"
+lea     rax, aRand      
 leave
 retn
 sub_40378E endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4037A6 proc near
 push    rbp
@@ -3293,14 +3065,10 @@ loc_4037B1:
 nop
 cpuid
 nop
-lea     rax, aRealloc   ; "realloc"
+lea     rax, aRealloc   
 leave
 retn
 sub_4037A6 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4037BE proc near
 
@@ -3318,16 +3086,12 @@ mov     rax, [rbp+Size]
 mov     r11, rax
 mov     rax, [rbp+Count]
 mov     r10, rax
-mov     rcx, r10        ; Count
-mov     rdx, r11        ; Size
+mov     rcx, r10        
+mov     rdx, r11        
 call    calloc
 leave
 retn
 sub_4037BE endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4037EC proc near
 
@@ -3368,10 +3132,6 @@ leave
 retn
 sub_4037EC endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40384E proc near
 
 arg_0= qword ptr  10h
@@ -3389,10 +3149,6 @@ call    gets
 leave
 retn
 sub_40384E endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40386E proc near
 
@@ -3431,10 +3187,6 @@ leave
 retn
 sub_40386E endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4038C0 proc near
 
 Buffer= qword ptr  10h
@@ -3450,21 +3202,17 @@ mov     [rbp+Buffer], rcx
 mov     [rbp+Format], rdx
 mov     [rbp+ArgList], r8
 mov     rax, [rbp+ArgList]
-mov     r8, rax         ; ArgList
+mov     r8, rax         
 mov     rax, [rbp+Format]
 mov     r11, rax
 mov     rax, [rbp+Buffer]
 mov     r10, rax
-mov     rcx, r10        ; Buffer
-mov     rdx, r11        ; Format
+mov     rcx, r10        
+mov     rdx, r11        
 call    vsprintf
 leave
 retn
 sub_4038C0 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4038F9 proc near
 
@@ -3497,10 +3245,6 @@ leave
 retn
 sub_4038F9 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40393D proc near
 
 VarName= qword ptr  10h
@@ -3513,15 +3257,11 @@ loc_403948:
 mov     [rbp+VarName], rcx
 mov     rax, [rbp+VarName]
 mov     r10, rax
-mov     rcx, r10        ; VarName
+mov     rcx, r10        
 call    getenv
 leave
 retn
 sub_40393D endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40395D proc near
 
@@ -3535,15 +3275,11 @@ loc_403968:
 mov     [rbp+Command], rcx
 mov     rax, [rbp+Command]
 mov     r10, rax
-mov     rcx, r10        ; Command
+mov     rcx, r10        
 call    system
 leave
 retn
 sub_40395D endp
-
-
-
-; Attributes: noreturn bp-based frame
 
 sub_40397D proc near
 push    rbp
@@ -3557,9 +3293,6 @@ sub_40397D endp
 leave
 retn
 
-
-; Attributes: bp-based frame
-
 sub_40398F proc near
 
 arg_0= qword ptr  10h
@@ -3572,15 +3305,11 @@ loc_40399A:
 mov     [rbp+arg_0], rcx
 mov     rax, [rbp+arg_0]
 mov     r10, rax
-mov     rcx, r10        ; void (__cdecl *)()
+mov     rcx, r10        
 call    atexit
 leave
 retn
 sub_40398F endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4039AF proc near
 
@@ -3598,17 +3327,13 @@ mov     rax, qword ptr [rbp+SizeInBytes]
 mov     r11, rax
 mov     rax, [rbp+DstBuf]
 mov     r10, rax
-mov     rcx, r10        ; DstBuf
-mov     rdx, r11        ; SizeInBytes
+mov     rcx, r10        
+mov     rdx, r11        
 call    _getcwd
 movsxd  rax, eax
 leave
 retn
 sub_4039AF endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4039E0 proc near
 
@@ -3622,15 +3347,11 @@ loc_4039EB:
 mov     qword ptr [rbp+C], rcx
 mov     eax, [rbp+C]
 mov     r10, rax
-mov     rcx, r10        ; C
+mov     rcx, r10        
 call    tolower
 leave
 retn
 sub_4039E0 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4039FF proc near
 
@@ -3644,15 +3365,11 @@ loc_403A0A:
 mov     qword ptr [rbp+C], rcx
 mov     eax, [rbp+C]
 mov     r10, rax
-mov     rcx, r10        ; C
+mov     rcx, r10        
 call    toupper
 leave
 retn
 sub_4039FF endp
-
-
-
-; Attributes: bp-based frame
 
 sub_403A1E proc near
 
@@ -3737,7 +3454,7 @@ mov     rcx, r10
 call    sub_401028
 movsxd  rax, eax
 mov     r10, rax
-mov     rcx, r10        ; Size
+mov     rcx, r10        
 call    malloc
 mov     [rbp+Block], rax
 call    sub_403388
@@ -3752,7 +3469,7 @@ mov     r10, rax
 mov     rcx, r10
 mov     rdx, r11
 call    sub_401632
-lea     rcx, aDHelloWorld ; "%d) Hello, world!\n"
+lea     rcx, aDHelloWorld 
 mov     r11, rcx
 mov     rcx, [rbp+Block]
 mov     r10, rcx
@@ -3893,7 +3610,7 @@ jnz     loc_403D91
 jmp     loc_403DA6
 
 loc_403D91:
-mov     eax, 45h ; 'E'
+mov     eax, 45h 
 mov     r10, rax
 mov     rcx, r10
 call    sub_401000
@@ -4174,7 +3891,7 @@ setl    al
 mov     r10, rax
 mov     rcx, r10
 call    sub_401000
-lea     rax, aError     ; "Error!"
+lea     rax, aError     
 mov     r11, rax
 mov     eax, 0A4h
 mov     r10, rax
@@ -4212,7 +3929,7 @@ jmp     loc_4041EB
 loc_4042AA:
 mov     rax, [rbp+Block]
 mov     r10, rax
-mov     rcx, r10        ; Block
+mov     rcx, r10        
 call    free
 jmp     loc_403A4A
 
@@ -4237,10 +3954,6 @@ leave
 retn
 sub_403A1E endp
 
-
-
-; Attributes: bp-based frame
-
 sub_404303 proc near
 
 Buffer= qword ptr  10h
@@ -4258,15 +3971,15 @@ mov     [rbp+BufferCount], rdx
 mov     [rbp+Format], r8
 mov     [rbp+ArgList], r9
 mov     rax, [rbp+ArgList]
-mov     r9, rax         ; ArgList
+mov     r9, rax         
 mov     rax, [rbp+Format]
-mov     r8, rax         ; Format
+mov     r8, rax         
 mov     rax, [rbp+BufferCount]
 mov     r11, rax
 mov     rax, [rbp+Buffer]
 mov     r10, rax
-mov     rcx, r10        ; Buffer
-mov     rdx, r11        ; BufferCount
+mov     rcx, r10        
+mov     rdx, r11        
 call    _vsnprintf
 leave
 retn
@@ -4274,9 +3987,6 @@ sub_404303 endp
 
 algn_404347:
 align 8
-
-
-; Attributes: noreturn bp-based frame
 
 public start
 start proc near
@@ -4295,14 +4005,14 @@ mov     eax, 0
 mov     [rbp+var_4], eax
 mov     eax, 1
 mov     r10, rax
-mov     rcx, r10        ; Type
+mov     rcx, r10        
 call    __set_app_type
 mov     eax, 30000h
 mov     r11, rax
 mov     eax, 10000h
 mov     r10, rax
-mov     rcx, r10        ; NewValue
-mov     rdx, r11        ; Mask
+mov     rcx, r10        
+mov     rdx, r11        
 call    _controlfp
 mov     rax, cs:__argc
 mov     rcx, cs:__argv
@@ -4334,7 +4044,7 @@ mov     rcx, r10
 mov     rdx, r11
 call    sub_403A1E
 mov     r10, rax
-mov     rcx, r10        ; Code
+mov     rcx, r10        
 call    exit
 start endp
 
@@ -4343,13 +4053,11 @@ retn
 algn_40440F:
 align 10h
 stru_404410 UNWIND_INFO_HDR <1, 4, 2, 5>
-UNWIND_CODE <4, 3>      ; UWOP_SET_FPREG
-UNWIND_CODE <1, 50h>    ; UWOP_PUSH_NONVOL
+UNWIND_CODE <4, 3>      
+UNWIND_CODE <1, 50h>    
 push    rbp
 mov     rbp, rsp
 sub     rsp, 30h
-
-
 
 sub_404423 proc near
 mov     [rbp+10h], rcx
@@ -4364,8 +4072,8 @@ mov     eax, 30000h
 mov     r11, rax
 mov     eax, 10000h
 mov     r10, rax
-mov     rcx, r10        ; NewValue
-mov     rdx, r11        ; Mask
+mov     rcx, r10        
+mov     rdx, r11        
 call    _controlfp
 mov     rax, cs:__argc
 mov     rcx, cs:__argv
@@ -4387,108 +4095,99 @@ sub_404423 endp
 
 algn_40449B:
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION WriteConsoleA. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION GetStdHandle. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION GetProcAddress. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION GetModuleHandleA. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION strcat. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION sprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION IsDebuggerPresent. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION malloc. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION memset. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION calloc. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION gets. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION vsprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION getenv. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION system. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION abort. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION atexit. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION _getcwd. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION tolower. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION toupper. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION free. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION _getch. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION _vsnprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION __set_app_type. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION _controlfp. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 20h
-; [00000006 BYTES: COLLAPSED FUNCTION __getmainargs. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION exit. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 100h
 dq 140h dup(?)
 _text ends
 
-; Section 2. (virtual address 00005000)
-; Virtual size                  : 000004AC (   1196.)
-; Section size in file          : 00000600 (   1536.)
-; Offset to raw data for section: 00003800
-; Flags C0000040: Data Readable Writable
-; Alignment     : default
-
-; Segment type: Pure data
-; Segment permissions: Read/Write
 _data segment para public 'DATA' use64
 assume cs:_data
-;org 405000h
+
 aAbcdefghijklmn:
 text "UTF-16LE", 'abcdefghijklmnopqrstu'
 text "UTF-16LE", 'vwxyz'
 byte_405034 db 61h
-db  62h ; b
+db  62h 
 byte_405036 db 63h
 byte_405037 db 64h
 byte_405038 db 65h
-db  66h ; f
-db  67h ; g
-db  68h ; h
-db  69h ; i
-db  6Ah ; j
+db  66h 
+db  67h 
+db  68h 
+db  69h 
+db  6Ah 
 byte_40503E db 6Bh
 byte_40503F db 6Ch
 byte_405040 db 6Dh
 byte_405041 db 6Eh
 byte_405042 db 6Fh
-db  70h ; p
-db  71h ; q
+db  70h 
+db  71h 
 byte_405045 db 72h
 byte_405046 db 73h
 byte_405047 db 74h
-db  75h ; u
+db  75h 
 byte_405049 db 76h
-db  77h ; w
-db  78h ; x
-db  79h ; y
-db  7Ah ; z
-db  53h ; S
+db  77h 
+db  78h 
+db  79h 
+db  7Ah 
+db  53h 
 byte_40504F db 4Ch
 byte_405050 db 41h
-db  49h ; I
-db  44h ; D
-db  50h ; P
+db  49h 
+db  44h 
+db  50h 
 byte_405054 db 0
 byte_405055 db 1
 byte_405056 db 2
@@ -4501,11 +4200,11 @@ byte_40505C db 8
 byte_40505D db 9
 align 20h
 qword_405060 dq 0
-; char Source[]
+
 Source db '%d%d',0
-; char Destination[]
+
 Destination db 'Library',0
-; char aC[]
+
 aC db '%c',0
 qword_405078 dq 0
 aScanf db 'scanf',0
@@ -4525,16 +4224,16 @@ aRealloc db 'realloc',0
 aDHelloWorld db '%d) Hello, world!',0Ah,0
 aError db 'Error!',0
 align 20h
-__IMPORT_DESCRIPTOR_kernel32 dd rva off_405234 ; Import Name Table
-dd 0                    ; Time stamp
-dd 0                    ; Forwarder Chain
-dd rva aKernel32Dll     ; DLL Name
-dd rva __imp_WriteConsoleA ; Import Address Table
-__IMPORT_DESCRIPTOR_msvcrt dd rva off_405264 ; Import Name Table
-dd 0                    ; Time stamp
-dd 0                    ; Forwarder Chain
-dd rva aMsvcrtDll       ; DLL Name
-dd rva __imp_strcat     ; Import Address Table
+__IMPORT_DESCRIPTOR_kernel32 dd rva off_405234 
+dd 0                    
+dd 0                    
+dd rva aKernel32Dll     
+dd rva __imp_WriteConsoleA 
+__IMPORT_DESCRIPTOR_msvcrt dd rva off_405264 
+dd 0                    
+dd 0                    
+dd rva aMsvcrtDll       
+dd rva __imp_strcat     
 db    0
 db    0
 db    0
@@ -4557,92 +4256,72 @@ db    0
 db    0
 _data ends
 
-;
-; Imports from kernel32.dll
-;
-
-; Segment type: Externs
-; _idata
-; BOOL (__stdcall *WriteConsoleA)(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 extrn __imp_WriteConsoleA:qword
-; HANDLE (__stdcall *GetStdHandle)(DWORD nStdHandle)
+
 extrn __imp_GetStdHandle:qword
-; FARPROC (__stdcall *GetProcAddress)(HMODULE hModule, LPCSTR lpProcName)
+
 extrn __imp_GetProcAddress:qword
-; HMODULE (__stdcall *GetModuleHandleA)(LPCSTR lpModuleName)
+
 extrn __imp_GetModuleHandleA:qword
-; BOOL (__stdcall *IsDebuggerPresent)()
+
 extrn __imp_IsDebuggerPresent:qword
 
-;
-; Imports from msvcrt.dll
-;
-; char *(__cdecl *strcat)(char *Destination, const char *Source)
 extrn __imp_strcat:qword
-; int (*sprintf)(char *const Buffer, const char *const Format, ...)
+
 extrn __imp_sprintf:qword
-; void *(__cdecl *malloc)(size_t Size)
+
 extrn __imp_malloc:qword
-; void *(__cdecl *memset)(void *, int Val, size_t Size)
+
 extrn __imp_memset:qword
-; void *(__cdecl *calloc)(size_t Count, size_t Size)
+
 extrn __imp_calloc:qword
 extrn __imp_gets:qword
-; int (__cdecl *vsprintf)(char *const Buffer, const char *const Format, va_list ArgList)
+
 extrn __imp_vsprintf:qword
-; char *(__cdecl *getenv)(const char *VarName)
+
 extrn __imp_getenv:qword
-; int (__cdecl *system)(const char *Command)
+
 extrn __imp_system:qword
-; void (__cdecl __noreturn *abort)()
+
 extrn __imp_abort:qword
-; int (__cdecl *atexit)(void (__cdecl *)())
+
 extrn __imp_atexit:qword
-; char *(__cdecl *_getcwd)(char *DstBuf, int SizeInBytes)
+
 extrn __imp__getcwd:qword
-; int (__cdecl *tolower)(int C)
+
 extrn __imp_tolower:qword
-; int (__cdecl *toupper)(int C)
+
 extrn __imp_toupper:qword
-; void (__cdecl *free)(void *Block)
+
 extrn __imp_free:qword
-; int (__cdecl *_getch)()
+
 extrn __imp__getch:qword
-; int (__cdecl *_vsnprintf)(char *const Buffer, const size_t BufferCount, const char *const Format, va_list ArgList)
+
 extrn __imp__vsnprintf:qword
-; void (__cdecl *__set_app_type)(_crt_app_type Type)
+
 extrn __imp___set_app_type:qword
-; unsigned int (__cdecl *_controlfp)(unsigned int NewValue, unsigned int Mask)
+
 extrn __imp__controlfp:qword
-; int _argc
+
 extrn __argc:qword
-; char **_argv
+
 extrn __argv:qword
-; char **environ
+
 extrn _environ:qword
 extrn __imp___getmainargs:qword
-; void (__cdecl __noreturn *exit)(int Code)
+
 extrn __imp_exit:qword
 
-
-;
-; Import names for kernel32.dll
-;
-
-; Segment type: Pure data
-; Segment permissions: Read/Write
 _data segment para public 'DATA' use64
 assume cs:_data
-;org 405234h
+
 off_405234 dq rva word_405339
 dq rva word_405349
 dq rva word_405358
 dq rva word_405369
 dq rva word_40537C
 dq 0
-;
-; Import names for msvcrt.dll
-;
+
 off_405264 dq rva word_40539B
 dq rva word_4053A4
 dq rva word_4053AE
@@ -4745,24 +4424,15 @@ db    0
 db    0
 db    0
 db    0
-; char byte_4054A0[8]
+
 byte_4054A0 db 8 dup(0)
 dword_4054A8 dd 0
 align 1000h
 _data ends
 
-; Section 3. (virtual address 00006000)
-; Virtual size                  : 00000360 (    864.)
-; Section size in file          : 00000400 (   1024.)
-; Offset to raw data for section: 00003E00
-; Flags 40000040: Data Readable
-; Alignment     : default
-
-; Segment type: Pure data
-; Segment permissions: Read
 _pdata segment para public 'DATA' use64
 assume cs:_pdata
-;org 406000h
+
 ExceptionDir RUNTIME_FUNCTION <rva loc_40100B, \
                   rva algn_40101E, \
                   rva stru_401020>
@@ -4981,6 +4651,5 @@ RUNTIME_FUNCTION <rva sub_404423, \
                   rva stru_404410>
 align 1000h
 _pdata ends
-
 
 end start

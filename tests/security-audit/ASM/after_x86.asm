@@ -1,6 +1,3 @@
-
-
-; enum _crt_app_type, copyof_1
 _crt_unknown_app  = 0
 _crt_console_app  = 1
 _crt_gui_app  = 2
@@ -9,16 +6,10 @@ _crt_gui_app  = 2
 .mmx
 .model flat
 
-
-; Segment type: Pure code
-; Segment permissions: Read/Execute
 _text segment para public 'CODE' use32
 assume cs:_text
-;org 401000h
+
 assume es:nothing, ss:nothing, ds:_data, fs:nothing, gs:nothing
-
-
-; Attributes: bp-based frame
 
 sub_401000 proc near
 push    ebp
@@ -29,10 +20,6 @@ nop
 leave
 retn
 sub_401000 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40100D proc near
 
@@ -85,9 +72,6 @@ fmul    qword ptr [ebp+8]
 leave
 retn
 
-
-; Attributes: bp-based frame
-
 sub_401097 proc near
 push    ebp
 mov     ebp, esp
@@ -119,10 +103,6 @@ locret_4010ED:
 leave
 retn
 sub_401097 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4010EF proc near
 
@@ -265,10 +245,6 @@ leave
 retn
 sub_4010EF endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4012BF proc near
 
 var_10= dword ptr -10h
@@ -317,7 +293,7 @@ div     ecx
 mov     ecx, [ebp+var_4]
 add     ecx, eax
 movsx   eax, byte_405054
-mov     edx, 54h ; 'T'
+mov     edx, 54h 
 imul    eax, edx
 add     ecx, eax
 shr     ecx, 1
@@ -402,7 +378,7 @@ movsx   edx, byte_40505A
 add     ecx, edx
 movsx   edx, byte_405054
 mov     [ebp+var_10], eax
-mov     eax, 21h ; '!'
+mov     eax, 21h 
 imul    edx, eax
 add     ecx, edx
 movsx   eax, byte_40505D
@@ -426,7 +402,7 @@ mov     eax, [ebp+var_C]
 mov     ecx, eax
 inc     eax
 mov     [ebp+var_C], eax
-mov     eax, 25h ; '%'
+mov     eax, 25h 
 mov     [ecx], al
 mov     eax, [ebp+var_C]
 mov     ecx, eax
@@ -450,11 +426,6 @@ leave
 retn
 sub_4012BF endp
 
-
-
-; Attributes: bp-based frame
-
-; int __cdecl sub_401511(HANDLE hConsoleOutput, void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 sub_401511 proc near
 
 hConsoleOutput= dword ptr  8
@@ -471,23 +442,19 @@ nop
 cpuid
 nop
 mov     eax, [ebp+lpReserved]
-push    eax             ; lpReserved
+push    eax             
 mov     eax, [ebp+lpNumberOfCharsWritten]
-push    eax             ; lpNumberOfCharsWritten
+push    eax             
 mov     eax, [ebp+nNumberOfCharsToWrite]
-push    eax             ; nNumberOfCharsToWrite
+push    eax             
 mov     eax, [ebp+lpBuffer]
-push    eax             ; lpBuffer
+push    eax             
 mov     eax, [ebp+hConsoleOutput]
-push    eax             ; hConsoleOutput
+push    eax             
 call    WriteConsoleA
 leave
 retn
 sub_401511 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_40153A proc near
 
@@ -504,17 +471,12 @@ mov     eax, [ebp+arg_0]
 push    eax
 call    sub_40100D
 add     esp, 4
-push    eax             ; nStdHandle
+push    eax             
 call    GetStdHandle
 leave
 retn
 sub_40153A endp
 
-
-
-; Attributes: bp-based frame
-
-; int __stdcall sub_40155C(HMODULE hModule, LPCSTR lpProcName)
 sub_40155C proc near
 
 hModule= dword ptr  8
@@ -528,19 +490,14 @@ nop
 cpuid
 nop
 mov     eax, [ebp+lpProcName]
-push    eax             ; lpProcName
+push    eax             
 mov     eax, [ebp+hModule]
-push    eax             ; hModule
+push    eax             
 call    GetProcAddress
 leave
 retn    8
 sub_40155C endp
 
-
-
-; Attributes: bp-based frame
-
-; int __cdecl sub_40157B(LPCSTR lpModuleName)
 sub_40157B proc near
 
 lpModuleName= dword ptr  8
@@ -553,7 +510,7 @@ nop
 cpuid
 nop
 mov     eax, [ebp+lpModuleName]
-push    eax             ; lpModuleName
+push    eax             
 call    GetModuleHandleA
 leave
 retn
@@ -565,7 +522,7 @@ sub     esp, 0Ch
 nop
 
 loc_40159E:
-mov     eax, 28h ; '('
+mov     eax, 28h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401DA9
@@ -605,8 +562,8 @@ mov     eax, 0Fh
 push    eax
 call    sub_40100D
 add     esp, 4
-add     eax, 38h ; '8'
-mov     eax, 20h ; ' '
+add     eax, 38h 
+mov     eax, 20h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_4016B2
@@ -639,7 +596,7 @@ nop
 loc_4016B2:
 nop
 nop
-mov     eax, 2Eh ; '.'
+mov     eax, 2Eh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401720
@@ -664,7 +621,7 @@ jz      loc_401720
 jmp     loc_4016B2
 
 loc_401720:
-mov     eax, 28h ; '('
+mov     eax, 28h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401810
@@ -731,7 +688,7 @@ jmp     locret_401DB4
 jmp     loc_401D6B
 
 loc_401810:
-mov     eax, 2Eh ; '.'
+mov     eax, 2Eh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_4018A8
@@ -769,7 +726,7 @@ add     esp, 4
 jmp     loc_401D6B
 
 loc_4018A8:
-mov     eax, 38h ; '8'
+mov     eax, 38h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401938
@@ -805,7 +762,7 @@ add     esp, 4
 jmp     loc_401D6B
 
 loc_401938:
-mov     eax, 40h ; '@'
+mov     eax, 40h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401AD5
@@ -820,13 +777,13 @@ movsx   eax, byte_405057
 movsx   ecx, byte_40505A
 add     eax, ecx
 movsx   ecx, byte_405054
-mov     edx, 5Dh ; ']'
+mov     edx, 5Dh 
 imul    ecx, edx
 add     eax, ecx
 movsx   ecx, byte_40505D
 sub     eax, ecx
 push    eax
-mov     eax, 21h ; '!'
+mov     eax, 21h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -841,12 +798,12 @@ jnz     loc_4019D5
 jmp     loc_401AD5
 
 loc_4019D5:
-mov     eax, 23h ; '#'
+mov     eax, 23h 
 push    eax
 call    sub_40100D
 add     esp, 4
 add     eax, 88h
-mov     eax, 48h ; 'H'
+mov     eax, 48h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401A62
@@ -859,7 +816,7 @@ cmp     ecx, eax
 jle     loc_401A62
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 25h ; '%'
+mov     eax, 25h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -879,7 +836,7 @@ nop
 loc_401A62:
 nop
 nop
-mov     eax, 42h ; 'B'
+mov     eax, 42h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401AD0
@@ -892,7 +849,7 @@ cmp     eax, 0
 jz      loc_401AD0
 movsx   eax, byte_405054
 push    eax
-mov     eax, 27h ; '''
+mov     eax, 27h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -907,7 +864,7 @@ loc_401AD0:
 jmp     loc_401D6B
 
 loc_401AD5:
-mov     eax, 52h ; 'R'
+mov     eax, 52h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401CAC
@@ -922,7 +879,7 @@ movsx   eax, byte_405057
 movsx   ecx, byte_40505A
 add     eax, ecx
 movsx   ecx, byte_405054
-mov     edx, 78h ; 'x'
+mov     edx, 78h 
 imul    ecx, edx
 add     eax, ecx
 movsx   ecx, byte_40505D
@@ -947,7 +904,7 @@ loc_401B6B:
 mov     ecx, [ebp-8]
 imul    ecx, eax
 push    ecx
-mov     eax, 2Ah ; '*'
+mov     eax, 2Ah 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -962,12 +919,12 @@ jnz     loc_401BAC
 jmp     loc_401CAC
 
 loc_401BAC:
-mov     eax, 2Ch ; ','
+mov     eax, 2Ch 
 push    eax
 call    sub_40100D
 add     esp, 4
 add     eax, 0ACh
-mov     eax, 5Ah ; 'Z'
+mov     eax, 5Ah 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401C39
@@ -980,7 +937,7 @@ cmp     ecx, eax
 jle     loc_401C39
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 2Eh ; '.'
+mov     eax, 2Eh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1000,7 +957,7 @@ nop
 loc_401C39:
 nop
 nop
-mov     eax, 4Bh ; 'K'
+mov     eax, 4Bh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401CA7
@@ -1013,7 +970,7 @@ cmp     eax, 0
 jz      loc_401CA7
 movsx   eax, byte_405054
 push    eax
-mov     eax, 30h ; '0'
+mov     eax, 30h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1028,7 +985,7 @@ loc_401CA7:
 jmp     loc_401D6B
 
 loc_401CAC:
-mov     eax, 62h ; 'b'
+mov     eax, 62h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401D6B
@@ -1055,7 +1012,7 @@ cmp     ecx, eax
 mov     eax, 0
 setnle  al
 push    eax
-mov     eax, 32h ; '2'
+mov     eax, 32h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1107,9 +1064,6 @@ locret_401DB4:
 leave
 retn
 
-
-; Attributes: bp-based frame
-
 sub_401DB6 proc near
 
 var_4= dword ptr -4
@@ -1123,7 +1077,7 @@ movsx   eax, byte_405054
 mov     [ebp+var_4], eax
 
 loc_401DCA:
-mov     eax, 4Fh ; 'O'
+mov     eax, 4Fh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_401E79
@@ -1140,7 +1094,7 @@ cmp     ecx, 0
 mov     eax, 0
 setnz   al
 push    eax
-mov     eax, 34h ; '4'
+mov     eax, 34h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1181,10 +1135,6 @@ leave
 retn
 sub_401DB6 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_401E94 proc near
 
 Source= byte ptr -5Ch
@@ -1202,7 +1152,7 @@ push    ebp
 mov     ebp, esp
 sub     esp, 5Ch
 nop
-mov     eax, 6Ah ; 'j'
+mov     eax, 6Ah 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_402149
@@ -1218,7 +1168,7 @@ cmp     eax, 0
 mov     eax, 0
 setz    al
 push    eax
-mov     eax, 36h ; '6'
+mov     eax, 36h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1237,9 +1187,9 @@ movsx   eax, byte_40505A
 push    eax
 call    sub_4012BF
 add     esp, 4
-mov     ecx, offset Source ; "%d%d"
-push    ecx             ; Source
-push    eax             ; Destination
+mov     ecx, offset Source 
+push    ecx             
+push    eax             
 call    strcat
 add     esp, 8
 movsx   ecx, byte_405056
@@ -1258,17 +1208,17 @@ movsx   ecx, byte_405038
 push    ecx
 movsx   ecx, byte_40503E
 push    ecx
-push    eax             ; Format
+push    eax             
 lea     eax, [ebp+Buffer]
-push    eax             ; Buffer
+push    eax             
 call    sprintf
 add     esp, 28h
 lea     eax, [ebp+Buffer]
-push    eax             ; lpModuleName
+push    eax             
 call    sub_40157B
 add     esp, 4
 mov     [ebp+hModule], eax
-mov     eax, 6Eh ; 'n'
+mov     eax, 6Eh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_402149
@@ -1284,7 +1234,7 @@ cmp     eax, 0
 mov     eax, 0
 setnz   al
 push    eax
-mov     eax, 38h ; '8'
+mov     eax, 38h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1361,33 +1311,33 @@ mov     [ecx], al
 nop
 cpuid
 nop
-mov     eax, offset aC  ; "%c"
-push    eax             ; Source
-mov     eax, offset Destination ; "Library"
-push    eax             ; Destination
+mov     eax, offset aC  
+push    eax             
+mov     eax, offset Destination 
+push    eax             
 call    strcat
 add     esp, 8
 movsx   ecx, byte_405050
 push    ecx
-push    eax             ; Format
+push    eax             
 lea     eax, [ebp+Source]
-push    eax             ; Buffer
+push    eax             
 call    sprintf
 add     esp, 0Ch
 lea     eax, [ebp+Source]
-push    eax             ; Source
+push    eax             
 mov     eax, offset byte_4053E4
-push    eax             ; Destination
+push    eax             
 call    strcat
 add     esp, 8
-push    eax             ; lpProcName
+push    eax             
 mov     eax, [ebp+hModule]
-push    eax             ; hModule
+push    eax             
 call    sub_40155C
 mov     dword_405060, eax
 
 loc_402149:
-mov     eax, 72h ; 'r'
+mov     eax, 72h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_4021DE
@@ -1403,7 +1353,7 @@ cmp     eax, 0
 mov     eax, 0
 setnz   al
 push    eax
-mov     eax, 3Ah ; ':'
+mov     eax, 3Ah 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1421,7 +1371,7 @@ loc_4021CD:
 mov     eax, [ebp+arg_0]
 push    eax
 mov     eax, dword_405060
-call    eax ; dword_405060
+call    eax 
 jmp     locret_4021E3
 
 loc_4021DE:
@@ -1431,10 +1381,6 @@ locret_4021E3:
 leave
 retn
 sub_401E94 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_4021E5 proc near
 
@@ -1452,10 +1398,6 @@ leave
 retn
 sub_4021E5 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_4021FD proc near
 
 arg_0= dword ptr  8
@@ -1471,10 +1413,6 @@ add     esp, 4
 leave
 retn
 sub_4021FD endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402215 proc near
 
@@ -1492,10 +1430,6 @@ leave
 retn
 sub_402215 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40222D proc near
 
 arg_0= dword ptr  8
@@ -1511,10 +1445,6 @@ add     esp, 4
 leave
 retn
 sub_40222D endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402245 proc near
 
@@ -1532,10 +1462,6 @@ leave
 retn
 sub_402245 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40225D proc near
 
 arg_0= dword ptr  8
@@ -1552,21 +1478,17 @@ leave
 retn
 sub_40225D endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402275 proc near
 push    ebp
 mov     ebp, esp
 sub     esp, 0
 nop
-mov     eax, 3Ch ; '<'
+mov     eax, 3Ch 
 push    eax
 call    sub_40100D
 add     esp, 4
 add     eax, 0ECh
-mov     eax, 7Ah ; 'z'
+mov     eax, 7Ah 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_40230C
@@ -1579,7 +1501,7 @@ cmp     ecx, eax
 jle     loc_40230C
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 3Eh ; '>'
+mov     eax, 3Eh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1599,7 +1521,7 @@ nop
 loc_40230C:
 nop
 nop
-mov     eax, 5Bh ; '['
+mov     eax, 5Bh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_40237A
@@ -1612,7 +1534,7 @@ cmp     eax, 0
 jz      loc_40237A
 movsx   eax, byte_405054
 push    eax
-mov     eax, 40h ; '@'
+mov     eax, 40h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1624,7 +1546,7 @@ jz      loc_40237A
 jmp     loc_40230C
 
 loc_40237A:
-mov     eax, 42h ; 'B'
+mov     eax, 42h 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -1642,7 +1564,7 @@ cmp     ecx, eax
 jle     loc_402407
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 44h ; 'D'
+mov     eax, 44h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1662,7 +1584,7 @@ nop
 loc_402407:
 nop
 nop
-mov     eax, 61h ; 'a'
+mov     eax, 61h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_402475
@@ -1675,7 +1597,7 @@ cmp     eax, 0
 jz      loc_402475
 movsx   eax, byte_405054
 push    eax
-mov     eax, 46h ; 'F'
+mov     eax, 46h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1692,23 +1614,15 @@ leave
 retn
 sub_402275 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_40247C proc near
 push    ebp
 mov     ebp, esp
 sub     esp, 0
 nop
-int     3               ; Trap to Debugger
+int     3               
 leave
 retn
 sub_40247C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402489 proc near
 
@@ -1723,7 +1637,7 @@ push    ebp
 mov     ebp, esp
 sub     esp, 18h
 nop
-mov     eax, 48h ; 'H'
+mov     eax, 48h 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -1741,7 +1655,7 @@ cmp     ecx, eax
 jle     loc_402520
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 4Ah ; 'J'
+mov     eax, 4Ah 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1761,7 +1675,7 @@ nop
 loc_402520:
 nop
 nop
-mov     eax, 67h ; 'g'
+mov     eax, 67h 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_40258E
@@ -1774,7 +1688,7 @@ cmp     eax, 0
 jz      loc_40258E
 movsx   eax, byte_405054
 push    eax
-mov     eax, 4Ch ; 'L'
+mov     eax, 4Ch 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1849,7 +1763,7 @@ mov     eax, 1
 
 loc_402674:
 push    eax
-mov     eax, 4Eh ; 'N'
+mov     eax, 4Eh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1865,7 +1779,7 @@ jmp     loc_40270F
 
 loc_4026AF:
 call    sub_40247C
-int     3               ; Trap to Debugger
+int     3               
 movsx   eax, byte_405054
 movsx   ecx, byte_405054
 cdq
@@ -1901,11 +1815,11 @@ movsx   ecx, byte_405056
 cmp     ecx, eax
 jle     loc_4027A7
 movsx   eax, byte_405054
-cmp     eax, 4Fh ; 'O'
+cmp     eax, 4Fh 
 mov     eax, 0
 setnle  al
 push    eax
-mov     eax, 51h ; 'Q'
+mov     eax, 51h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1920,7 +1834,7 @@ jnz     loc_402794
 jmp     loc_4027A7
 
 loc_402794:
-mov     eax, 29h ; ')'
+mov     eax, 29h 
 push    eax
 call    sub_401000
 add     esp, 4
@@ -1940,7 +1854,7 @@ cmp     ecx, eax
 jle     loc_402837
 mov     eax, 0
 push    eax
-mov     eax, 56h ; 'V'
+mov     eax, 56h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1956,7 +1870,7 @@ jmp     loc_402837
 
 loc_40281F:
 movsx   eax, byte_405057
-sub     eax, 57h ; 'W'
+sub     eax, 57h 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -1984,7 +1898,7 @@ add     eax, ecx
 movsx   ecx, byte_40505D
 sub     eax, ecx
 push    eax
-mov     eax, 5Ah ; 'Z'
+mov     eax, 5Ah 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -1999,7 +1913,7 @@ jnz     loc_4028D4
 jmp     loc_4029D4
 
 loc_4028D4:
-mov     eax, 5Ch ; '\'
+mov     eax, 5Ch 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -2017,7 +1931,7 @@ cmp     ecx, eax
 jle     loc_402961
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 5Eh ; '^'
+mov     eax, 5Eh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2037,7 +1951,7 @@ nop
 loc_402961:
 nop
 nop
-mov     eax, 7Bh ; '{'
+mov     eax, 7Bh 
 movsx   ecx, byte_405054
 cmp     eax, ecx
 jle     loc_4029CF
@@ -2050,7 +1964,7 @@ cmp     eax, 0
 jz      loc_4029CF
 movsx   eax, byte_405054
 push    eax
-mov     eax, 60h ; '`'
+mov     eax, 60h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2105,7 +2019,7 @@ loc_402A6A:
 mov     ecx, [ebp+var_8]
 imul    ecx, eax
 push    ecx
-mov     eax, 63h ; 'c'
+mov     eax, 63h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2120,7 +2034,7 @@ jnz     loc_402AAB
 jmp     loc_402BAB
 
 loc_402AAB:
-mov     eax, 65h ; 'e'
+mov     eax, 65h 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -2138,7 +2052,7 @@ cmp     ecx, eax
 jle     loc_402B38
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 67h ; 'g'
+mov     eax, 67h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2171,7 +2085,7 @@ cmp     eax, 0
 jz      loc_402BA6
 movsx   eax, byte_405054
 push    eax
-mov     eax, 69h ; 'i'
+mov     eax, 69h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2198,7 +2112,7 @@ fstp    st
 
 loc_402BC7:
 movsx   eax, byte_40505B
-push    eax             ; Size
+push    eax             
 call    malloc
 add     esp, 4
 mov     [ebp+var_14], eax
@@ -2234,7 +2148,7 @@ mov     ecx, [ebp+var_14]
 add     ecx, eax
 movsx   eax, byte_405045
 mov     [ecx], al
-mov     eax, 6Bh ; 'k'
+mov     eax, 6Bh 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -2252,7 +2166,7 @@ cmp     ecx, eax
 jle     loc_402CEA
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 6Dh ; 'm'
+mov     eax, 6Dh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2285,7 +2199,7 @@ cmp     eax, 0
 jz      loc_402D58
 movsx   eax, byte_405054
 push    eax
-mov     eax, 6Fh ; 'o'
+mov     eax, 6Fh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2329,7 +2243,7 @@ mov     ecx, [ebp+var_14]
 add     ecx, eax
 movsx   eax, byte_405040
 mov     [ecx], al
-mov     eax, 71h ; 'q'
+mov     eax, 71h 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -2347,7 +2261,7 @@ cmp     ecx, eax
 jle     loc_402E71
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 73h ; 's'
+mov     eax, 73h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2380,7 +2294,7 @@ cmp     eax, 0
 jz      loc_402EDF
 movsx   eax, byte_405054
 push    eax
-mov     eax, 75h ; 'u'
+mov     eax, 75h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2397,10 +2311,6 @@ leave
 retn
 sub_402489 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402EE4 proc near
 push    ebp
 mov     ebp, esp
@@ -2410,10 +2320,6 @@ call    sub_402489
 leave
 retn
 sub_402EE4 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402EF5 proc near
 push    ebp
@@ -2425,10 +2331,6 @@ leave
 retn
 sub_402EF5 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402F06 proc near
 push    ebp
 mov     ebp, esp
@@ -2438,10 +2340,6 @@ call    sub_402EF5
 leave
 retn
 sub_402F06 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402F17 proc near
 push    ebp
@@ -2453,10 +2351,6 @@ leave
 retn
 sub_402F17 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402F28 proc near
 push    ebp
 mov     ebp, esp
@@ -2466,10 +2360,6 @@ call    sub_402F17
 leave
 retn
 sub_402F28 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402F39 proc near
 push    ebp
@@ -2481,10 +2371,6 @@ leave
 retn
 sub_402F39 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402F4A proc near
 push    ebp
 mov     ebp, esp
@@ -2494,10 +2380,6 @@ call    sub_402F39
 leave
 retn
 sub_402F4A endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402F5B proc near
 push    ebp
@@ -2509,10 +2391,6 @@ leave
 retn
 sub_402F5B endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402F6C proc near
 push    ebp
 mov     ebp, esp
@@ -2522,10 +2400,6 @@ call    sub_402F5B
 leave
 retn
 sub_402F6C endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402F7D proc near
 push    ebp
@@ -2537,10 +2411,6 @@ leave
 retn
 sub_402F7D endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402F8E proc near
 push    ebp
 mov     ebp, esp
@@ -2550,10 +2420,6 @@ call    sub_402F7D
 leave
 retn
 sub_402F8E endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402F9F proc near
 push    ebp
@@ -2565,10 +2431,6 @@ leave
 retn
 sub_402F9F endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402FB0 proc near
 push    ebp
 mov     ebp, esp
@@ -2578,10 +2440,6 @@ call    sub_402F9F
 leave
 retn
 sub_402FB0 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402FC1 proc near
 push    ebp
@@ -2593,10 +2451,6 @@ leave
 retn
 sub_402FC1 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402FD2 proc near
 push    ebp
 mov     ebp, esp
@@ -2606,10 +2460,6 @@ call    sub_402FC1
 leave
 retn
 sub_402FD2 endp
-
-
-
-; Attributes: bp-based frame
 
 sub_402FE3 proc near
 push    ebp
@@ -2621,10 +2471,6 @@ leave
 retn
 sub_402FE3 endp
 
-
-
-; Attributes: bp-based frame
-
 sub_402FF4 proc near
 push    ebp
 mov     ebp, esp
@@ -2635,11 +2481,6 @@ leave
 retn
 sub_402FF4 endp
 
-
-
-; Attributes: bp-based frame
-
-; int __cdecl sub_403005(int, char *Format)
 sub_403005 proc near
 
 hConsoleOutput= dword ptr -410h
@@ -2654,7 +2495,7 @@ push    ebp
 mov     ebp, esp
 sub     esp, 410h
 nop
-mov     eax, 77h ; 'w'
+mov     eax, 77h 
 push    eax
 call    sub_40100D
 add     esp, 4
@@ -2672,7 +2513,7 @@ cmp     ecx, eax
 jle     loc_40309C
 mov     eax, offset sub_401000
 push    eax
-mov     eax, 79h ; 'y'
+mov     eax, 79h 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2705,7 +2546,7 @@ cmp     eax, 0
 jz      loc_40310A
 movsx   eax, byte_405054
 push    eax
-mov     eax, 7Bh ; '{'
+mov     eax, 7Bh 
 push    eax
 call    sub_4010EF
 add     esp, 8
@@ -2773,12 +2614,12 @@ imul    eax, edx
 add     ecx, eax
 shr     ecx, 1
 mov     eax, [ebp+ArgList]
-push    eax             ; ArgList
+push    eax             
 mov     eax, [ebp+Format]
-push    eax             ; Format
-push    ecx             ; BufferCount
+push    eax             
+push    ecx             
 lea     eax, [ebp+Buffer]
-push    eax             ; Buffer
+push    eax             
 call    sub_403DEF
 add     esp, 10h
 mov     eax, 0FFFFFFF5h
@@ -2793,7 +2634,7 @@ call    sub_40100D
 add     esp, 4
 mov     [ebp+hConsoleOutput], eax
 mov     eax, [ebp+hConsoleOutput]
-mov     ecx, 7Eh ; '~'
+mov     ecx, 7Eh 
 imul    eax, ecx
 mov     ecx, [ebp+arg_0]
 add     eax, ecx
@@ -2805,14 +2646,14 @@ push    eax
 call    sub_401DB6
 add     esp, 4
 mov     ecx, 0
-push    ecx             ; lpReserved
+push    ecx             
 mov     ecx, 0
-push    ecx             ; lpNumberOfCharsWritten
-push    eax             ; nNumberOfCharsToWrite
+push    ecx             
+push    eax             
 lea     eax, [ebp+Buffer]
-push    eax             ; lpBuffer
+push    eax             
 mov     eax, [ebp+hConsoleOutput]
-push    eax             ; hConsoleOutput
+push    eax             
 call    sub_401511
 add     esp, 14h
 leave
@@ -2826,12 +2667,9 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aScanf ; "scanf"
+mov     eax, offset aScanf 
 leave
 retn
-
-
-; Attributes: bp-based frame
 
 sub_403299 proc near
 push    ebp
@@ -2841,7 +2679,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aSprintf ; "sprintf"
+mov     eax, offset aSprintf 
 leave
 retn
 sub_403299 endp
@@ -2853,7 +2691,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aFclose ; "fclose"
+mov     eax, offset aFclose 
 leave
 retn
 push    ebp
@@ -2863,7 +2701,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aFopen ; "fopen"
+mov     eax, offset aFopen 
 leave
 retn
 push    ebp
@@ -2873,7 +2711,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aFread ; "fread"
+mov     eax, offset aFread 
 leave
 retn
 push    ebp
@@ -2883,7 +2721,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aFwrite ; "fwrite"
+mov     eax, offset aFwrite 
 leave
 retn
 push    ebp
@@ -2893,12 +2731,9 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aExit ; "exit"
+mov     eax, offset aExit 
 leave
 retn
-
-
-; Attributes: bp-based frame
 
 sub_403317 proc near
 push    ebp
@@ -2908,7 +2743,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aStrcpy ; "strcpy"
+mov     eax, offset aStrcpy 
 leave
 retn
 sub_403317 endp
@@ -2920,7 +2755,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aStrtok ; "strtok"
+mov     eax, offset aStrtok 
 leave
 retn
 push    ebp
@@ -2946,7 +2781,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aMemcpy ; "memcpy"
+mov     eax, offset aMemcpy 
 leave
 retn
 push    ebp
@@ -2956,7 +2791,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aStrchr ; "strchr"
+mov     eax, offset aStrchr 
 leave
 retn
 push    ebp
@@ -2966,7 +2801,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aStrrchr ; "strrchr"
+mov     eax, offset aStrrchr 
 leave
 retn
 push    ebp
@@ -2976,12 +2811,9 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aRand ; "rand"
+mov     eax, offset aRand 
 leave
 retn
-
-
-; Attributes: bp-based frame
 
 sub_4033BF proc near
 push    ebp
@@ -2991,7 +2823,7 @@ nop
 nop
 cpuid
 nop
-mov     eax, offset aRealloc ; "realloc"
+mov     eax, offset aRealloc 
 leave
 retn
 sub_4033BF endp
@@ -3190,9 +3022,6 @@ add     esp, 4
 leave
 retn
 
-
-; Attributes: bp-based frame
-
 sub_4035CE proc near
 
 var_24= dword ptr -24h
@@ -3272,7 +3101,7 @@ mov     eax, 100h
 push    eax
 call    sub_40100D
 add     esp, 4
-push    eax             ; Size
+push    eax             
 call    malloc
 add     esp, 4
 mov     [ebp+Block], eax
@@ -3282,11 +3111,11 @@ call    sub_40225D
 add     esp, 4
 mov     [ebp+hModule], eax
 call    sub_403317
-push    eax             ; lpProcName
+push    eax             
 mov     eax, [ebp+hModule]
-push    eax             ; hModule
+push    eax             
 call    sub_40155C
-mov     ecx, offset aDHelloWorld ; "%d) Hello, world!\n"
+mov     ecx, offset aDHelloWorld 
 push    ecx
 mov     ecx, [ebp+Block]
 push    ecx
@@ -3300,9 +3129,9 @@ call    sub_40225D
 add     esp, 4
 mov     [ebp+var_18], eax
 call    sub_403299
-push    eax             ; lpProcName
+push    eax             
 mov     eax, [ebp+var_18]
-push    eax             ; hModule
+push    eax             
 call    sub_40155C
 mov     ecx, [ebp+var_4]
 inc     ecx
@@ -3352,9 +3181,9 @@ push    eax
 call    sub_401000
 add     esp, 4
 mov     eax, [ebp+Block]
-push    eax             ; Format
+push    eax             
 mov     eax, 86h
-push    eax             ; int
+push    eax             
 call    sub_403005
 add     esp, 8
 mov     eax, 0A4h
@@ -3419,7 +3248,7 @@ jnz     loc_4038D5
 jmp     loc_4038E8
 
 loc_4038D5:
-mov     eax, 46h ; 'F'
+mov     eax, 46h 
 push    eax
 call    sub_401000
 add     esp, 4
@@ -3693,10 +3522,10 @@ setl    al
 push    eax
 call    sub_401000
 add     esp, 4
-mov     eax, offset Format ; "Error!"
-push    eax             ; Format
+mov     eax, offset Format 
+push    eax             
 mov     eax, 0A6h
-push    eax             ; int
+push    eax             
 call    sub_403005
 add     esp, 8
 mov     eax, 0C4h
@@ -3728,7 +3557,7 @@ jmp     loc_403CEF
 
 loc_403D9C:
 mov     eax, [ebp+Block]
-push    eax             ; Block
+push    eax             
 call    free
 add     esp, 4
 jmp     loc_4035F9
@@ -3754,11 +3583,6 @@ leave
 retn
 sub_4035CE endp
 
-
-
-; Attributes: bp-based frame
-
-; int __cdecl sub_403DEF(char *Buffer, size_t BufferCount, char *Format, va_list ArgList)
 sub_403DEF proc near
 
 Buffer= dword ptr  8
@@ -3771,13 +3595,13 @@ mov     ebp, esp
 sub     esp, 0
 nop
 mov     eax, [ebp+ArgList]
-push    eax             ; ArgList
+push    eax             
 mov     eax, [ebp+Format]
-push    eax             ; Format
+push    eax             
 mov     eax, [ebp+BufferCount]
-push    eax             ; BufferCount
+push    eax             
 mov     eax, [ebp+Buffer]
-push    eax             ; Buffer
+push    eax             
 call    _vsnprintf
 add     esp, 10h
 leave
@@ -3785,9 +3609,6 @@ retn
 sub_403DEF endp
 
 align 4
-
-
-; Attributes: noreturn bp-based frame
 
 public start
 start proc near
@@ -3808,13 +3629,13 @@ add     esp, 4
 mov     eax, 0
 mov     [ebp+var_1C], eax
 mov     eax, 1
-push    eax             ; Type
+push    eax             
 call    __set_app_type
 add     esp, 4
 mov     eax, 30000h
-push    eax             ; Mask
+push    eax             
 mov     eax, 10000h
-push    eax             ; NewValue
+push    eax             
 call    _controlfp
 add     esp, 8
 mov     eax, ds:__argc
@@ -3844,7 +3665,7 @@ mov     eax, [eax]
 push    eax
 call    sub_4035CE
 add     esp, 0Ch
-push    eax             ; Code
+push    eax             
 call    exit
 start endp
 
@@ -3902,15 +3723,10 @@ mov     esp, ecx
 mov     ecx, [eax]
 jmp     dword ptr [eax+4]
 
-
-
 sub_403F44 proc near
 mov     eax, [ebp-14h]
 retn
 sub_403F44 endp
-
-
-
 
 sub_403F48 proc near
 call    sub_403F44
@@ -3932,8 +3748,6 @@ dword_403F78 dd 0FFFFFFFFh, 403F52h, 403F67h
 
 loc_403F84:
 jmp     loc_4040A8
-
-
 
 sub_403F89 proc near
 
@@ -3961,61 +3775,61 @@ retn
 sub_403F89 endp
 
 align 8
-; [00000006 BYTES: COLLAPSED FUNCTION WriteConsoleA. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION GetStdHandle. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION GetProcAddress. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION GetModuleHandleA. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION strcat. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION sprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION IsDebuggerPresent. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION malloc. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION memset. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION calloc. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION gets. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION vsprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION getenv. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION system. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION abort. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION atexit. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION _getcwd. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION tolower. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION toupper. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION free. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION _getch. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION _vsnprintf. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION __set_app_type. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION _controlfp. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION __getmainargs. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION exit. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
-; [00000006 BYTES: COLLAPSED FUNCTION _XcptFilter. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 10h
-; [00000006 BYTES: COLLAPSED FUNCTION _exit. PRESS CTRL-NUMPAD+ TO EXPAND]
+
 align 4
 
 loc_4040A8:
@@ -4024,53 +3838,44 @@ align 200h
 dd 380h dup(?)
 _text ends
 
-; Section 2. (virtual address 00005000)
-; Virtual size                  : 000003F0 (   1008.)
-; Section size in file          : 00000400 (   1024.)
-; Offset to raw data for section: 00003400
-; Flags C0000040: Data Readable Writable
-; Alignment     : default
-
-; Segment type: Pure data
-; Segment permissions: Read/Write
 _data segment para public 'DATA' use32
 assume cs:_data
-;org 405000h
+
 aAbcdefghijklmn:
 text "UTF-16LE", 'abcdefghijklmnopqrstu'
 text "UTF-16LE", 'vwxyz'
 byte_405034 db 61h
-db  62h ; b
+db  62h 
 byte_405036 db 63h
 byte_405037 db 64h
 byte_405038 db 65h
-db  66h ; f
-db  67h ; g
-db  68h ; h
-db  69h ; i
-db  6Ah ; j
+db  66h 
+db  67h 
+db  68h 
+db  69h 
+db  6Ah 
 byte_40503E db 6Bh
 byte_40503F db 6Ch
 byte_405040 db 6Dh
 byte_405041 db 6Eh
 byte_405042 db 6Fh
-db  70h ; p
-db  71h ; q
+db  70h 
+db  71h 
 byte_405045 db 72h
 byte_405046 db 73h
 byte_405047 db 74h
-db  75h ; u
+db  75h 
 byte_405049 db 76h
-db  77h ; w
-db  78h ; x
-db  79h ; y
-db  7Ah ; z
-db  53h ; S
+db  77h 
+db  78h 
+db  79h 
+db  7Ah 
+db  53h 
 byte_40504F db 4Ch
 byte_405050 db 41h
-db  49h ; I
-db  44h ; D
-db  50h ; P
+db  49h 
+db  44h 
+db  50h 
 byte_405054 db 0
 byte_405055 db 1
 byte_405056 db 2
@@ -4083,11 +3888,11 @@ byte_40505C db 8
 byte_40505D db 9
 align 10h
 dword_405060 dd 0
-; char Source[]
+
 Source db '%d%d',0
-; char Destination[]
+
 Destination db 'Library',0
-; char aC[]
+
 aC db '%c',0
 align 8
 dbl_405078 dq 0.0
@@ -4106,19 +3911,19 @@ aStrrchr db 'strrchr',0
 aRand db 'rand',0
 aRealloc db 'realloc',0
 aDHelloWorld db '%d) Hello, world!',0Ah,0
-; char Format[]
+
 Format db 'Error!',0
 align 10h
-__IMPORT_DESCRIPTOR_kernel32 dd rva off_4051C4 ; Import Name Table
-dd 0                    ; Time stamp
-dd 0                    ; Forwarder Chain
-dd rva aKernel32Dll     ; DLL Name
-dd rva __imp_WriteConsoleA ; Import Address Table
-__IMPORT_DESCRIPTOR_msvcrt dd rva off_4051DC ; Import Name Table
-dd 0                    ; Time stamp
-dd 0                    ; Forwarder Chain
-dd rva aMsvcrtDll       ; DLL Name
-dd rva __imp_strcat     ; Import Address Table
+__IMPORT_DESCRIPTOR_kernel32 dd rva off_4051C4 
+dd 0                    
+dd 0                    
+dd rva aKernel32Dll     
+dd rva __imp_WriteConsoleA 
+__IMPORT_DESCRIPTOR_msvcrt dd rva off_4051DC 
+dd 0                    
+dd 0                    
+dd rva aMsvcrtDll       
+dd rva __imp_strcat     
 db    0
 db    0
 db    0
@@ -4141,96 +3946,76 @@ db    0
 db    0
 _data ends
 
-;
-; Imports from kernel32.dll
-;
-
-; Segment type: Externs
-; _idata
-; BOOL (__stdcall *WriteConsoleA)(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 extrn __imp_WriteConsoleA:dword
-; HANDLE (__stdcall *GetStdHandle)(DWORD nStdHandle)
+
 extrn __imp_GetStdHandle:dword
-; FARPROC (__stdcall *GetProcAddress)(HMODULE hModule, LPCSTR lpProcName)
+
 extrn __imp_GetProcAddress:dword
-; HMODULE (__stdcall *GetModuleHandleA)(LPCSTR lpModuleName)
+
 extrn __imp_GetModuleHandleA:dword
-; BOOL (__stdcall *IsDebuggerPresent)()
+
 extrn __imp_IsDebuggerPresent:dword
 
-;
-; Imports from msvcrt.dll
-;
-; char *(__cdecl *strcat)(char *Destination, const char *Source)
 extrn __imp_strcat:dword
-; int (*sprintf)(char *const Buffer, const char *const Format, ...)
+
 extrn __imp_sprintf:dword
-; void *(__cdecl *malloc)(size_t Size)
+
 extrn __imp_malloc:dword
-; void *(__cdecl *memset)(void *, int Val, size_t Size)
+
 extrn __imp_memset:dword
-; void *(__cdecl *calloc)(size_t Count, size_t Size)
+
 extrn __imp_calloc:dword
 extrn __imp_gets:dword
-; int (__cdecl *vsprintf)(char *const Buffer, const char *const Format, va_list ArgList)
+
 extrn __imp_vsprintf:dword
-; char *(__cdecl *getenv)(const char *VarName)
+
 extrn __imp_getenv:dword
-; int (__cdecl *system)(const char *Command)
+
 extrn __imp_system:dword
-; void (__cdecl __noreturn *abort)()
+
 extrn __imp_abort:dword
-; int (__cdecl *atexit)(void (__cdecl *)())
+
 extrn __imp_atexit:dword
-; char *(__cdecl *_getcwd)(char *DstBuf, int SizeInBytes)
+
 extrn __imp__getcwd:dword
-; int (__cdecl *tolower)(int C)
+
 extrn __imp_tolower:dword
-; int (__cdecl *toupper)(int C)
+
 extrn __imp_toupper:dword
-; void (__cdecl *free)(void *Block)
+
 extrn __imp_free:dword
-; int (__cdecl *_getch)()
+
 extrn __imp__getch:dword
-; int (__cdecl *_vsnprintf)(char *const Buffer, const size_t BufferCount, const char *const Format, va_list ArgList)
+
 extrn __imp__vsnprintf:dword
-; void (__cdecl *__set_app_type)(_crt_app_type Type)
+
 extrn __imp___set_app_type:dword
-; unsigned int (__cdecl *_controlfp)(unsigned int NewValue, unsigned int Mask)
+
 extrn __imp__controlfp:dword
-; int _argc
+
 extrn __argc:dword
-; char **_argv
+
 extrn __argv:dword
-; char **environ
+
 extrn _environ:dword
 extrn __imp___getmainargs:dword
-; void (__cdecl __noreturn *exit)(int Code)
+
 extrn __imp_exit:dword
 extrn __imp__XcptFilter:dword
-; void (__cdecl __noreturn *_exit)(int Code)
+
 extrn __imp__exit:dword
 extrn _except_handler3:dword
 
-
-;
-; Import names for kernel32.dll
-;
-
-; Segment type: Pure data
-; Segment permissions: Read/Write
 _data segment para public 'DATA' use32
 assume cs:_data
-;org 4051C4h
+
 off_4051C4 dd rva word_405259
 dd rva word_405269
 dd rva word_405278
 dd rva word_405289
 dd rva word_40529C
 dd 0
-;
-; Import names for msvcrt.dll
-;
+
 off_4051DC dd rva word_4052BB
 dd rva word_4052C4
 dd rva word_4052CE
@@ -4341,11 +4126,10 @@ db    0
 db    0
 db    0
 db    0
-; char byte_4053E4[8]
+
 byte_4053E4 db 8 dup(0)
 dword_4053EC dd 0
 align 1000h
 _data ends
-
 
 end start
