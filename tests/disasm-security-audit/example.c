@@ -3,7 +3,7 @@
 
 // #define no_cflow      1
 // #define no_antidebug  1
-#include "../include/obfus.h"
+#include "../../include/obfus.h"
 #include "example.h"  // test header import
 
 void main() {
