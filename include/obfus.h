@@ -170,6 +170,7 @@ char *getCharMask(int count) {
 
 // WriteConsoleA
 BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) {
+    BREAK_STACK;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
