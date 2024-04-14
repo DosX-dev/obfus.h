@@ -20,8 +20,7 @@
 // static const char OBFS_SECTION_NAME[] __attribute__((section(".obfs"))) = {0};
 
 #if !defined __COUNTER__
-#define __COUNTER__ 32
-#warning The obfuscator will work better with compilers that support the __COUNTER__ constant
+#error You are using too old a compiler version!
 #endif
 
 // Thanks to @horsicq && @ac3ss0r
