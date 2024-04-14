@@ -5,6 +5,7 @@
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
 - 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
+- 🚫 **Complex Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
 
 ## Usage
 
