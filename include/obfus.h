@@ -27,8 +27,21 @@
 // Thanks to @horsicq && @ac3ss0r
 #define RND(min, max) (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
 
+#define BREAK_STACK                    \
+    asm __volatile("xorl %eax, %eax"); \
+    asm __volatile("jz 1f");           \
+    asm __volatile(".byte 0x00");      \
+    asm __volatile("1:");
+
 void junkFunc(int z, ...) {
-    __asm__("nop");
+    BREAK_STACK;
+    __asm__ __volatile("nop");
+    return;
+}
+
+void junkFuncEmpty() {
+    BREAK_STACK;
+    __asm__ __volatile("nop");
     return;
 }
 
@@ -66,10 +79,10 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
 #define NOP_FLOOD                             \
     (RND(0, 1000)) + int_Proxy(RND(0, 1000)); \
     if (junkFunc) {                           \
-        __asm__("nop");                       \
+        __asm__ __volatile("nop");            \
     }                                         \
     do {                                      \
-        __asm__(                              \
+        __asm__ __volatile(                   \
             "nop\n"                           \
             "nop");                           \
     } while (RND(0, 200) * _0)
@@ -77,6 +90,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
 static char rndValueToProxy = RND(0, 10);
 
 int int_Proxy(int value) {
+    BREAK_STACK;
     if (rndValueToProxy == value)
         return rndValueToProxy;
 
@@ -88,17 +102,21 @@ int int_Proxy(int value) {
 }
 
 double double_Proxy(double value) {
+    BREAK_STACK;
     junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
 
 int condition_True() {
+    BREAK_STACK;
     FAKE_CPUID;
     return _1 && TRUE;
 }
 
 int condition_Proxy(int junk, int condition) {
+    BREAK_STACK;
+
     int result = int_Proxy(condition * _1);
     if (result == (FALSE * junk)) {
         return _8 - (_4 * _2) && !condition_True();
@@ -121,7 +139,7 @@ int condition_Proxy(int junk, int condition) {
         int_Proxy(_3 - RND(0, 10000));                                                  \
     }                                                                                   \
     else if (FALSE * RND(0, 1000)) {                                                    \
-        NOP_FLOOD;                                                                      \
+        BREAK_STACK;                                                                    \
     }                                                                                   \
     else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999999) : RND(1, 99999999))) { \
         NOP_FLOOD;                                                                      \
@@ -229,6 +247,7 @@ char *rot13_str(char input) {
 
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     // return LoadLibraryA(lpLibFileName);
 
     typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
@@ -284,6 +303,7 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 
 #if !defined no_antidebug
 int IsDebuggerPresent_Proxy() {
+    BREAK_STACK;
     NOP_FLOOD;
 #if defined hide_antidebug
     char result[32];
@@ -318,6 +338,7 @@ int IsDebuggerPresent_Proxy() {
 }
 
 void crash() {
+    BREAK_STACK;
     __asm__("int $3");
 }
 
@@ -339,6 +360,7 @@ void crash() {
 #endif
 
 char *getStdLibName() {
+    BREAK_STACK;
     NOP_FLOOD;
     junkFunc(_0 + _3);
     junkFunc(_3 - _2);
@@ -375,12 +397,16 @@ char *getStdLibName_13() { return getStdLibName_12(); }
 char *getStdLibName_14() { return getStdLibName_13(); }
 char *getStdLibName_15() { return getStdLibName_14(); }
 char *getStdLibName_16() { return getStdLibName_15(); }
-char *getStdLibName_Proxy() { return getStdLibName_16(); }
+char *getStdLibName_Proxy() {
+    BREAK_STACK;
+    return getStdLibName_16();
+}
 
 #define callfunc(name, ...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), name))(__VA_ARGS__);
 
 // printf
 void printf_custom(int junk, const char *format, ...) {
+    BREAK_STACK;
     char buffer[1024];
     va_list args;
     NOP_FLOOD;
@@ -396,6 +422,7 @@ void printf_custom(int junk, const char *format, ...) {
 // printf as void
 #define printf(...)                               \
     do {                                          \
+        BREAK_STACK;                              \
         junkFunc((RND(0, 1000) * 3) < _0);        \
         printf_custom(RND(0, 1000), __VA_ARGS__); \
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
