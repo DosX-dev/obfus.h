@@ -429,6 +429,7 @@ void printf_custom(int junk, const char *format, ...) {
 
 // scanf
 char *getScanfName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "scanf";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _s, _c, _a, _n, _f); result; });
@@ -437,6 +438,7 @@ char *getScanfName_Proxy() {
 
 // sprintf
 char *getSprintfName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "sprintf";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _p, _r, _i, _n, _t, _f); result; });
@@ -445,6 +447,7 @@ char *getSprintfName_Proxy() {
 
 // fclose
 char *getFcloseName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "fclose";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _c, _l, _o, _s, _e); result; });
@@ -453,6 +456,7 @@ char *getFcloseName_Proxy() {
 
 // fopen
 char *getFopenName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "fopen";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _o, _p, _e, _n); result; });
@@ -461,6 +465,7 @@ char *getFopenName_Proxy() {
 
 // fread
 char *getFreadName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "fread";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
@@ -469,6 +474,7 @@ char *getFreadName_Proxy() {
 
 // fwrite
 char *getFwriteName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "fwrite";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
@@ -477,6 +483,7 @@ char *getFwriteName_Proxy() {
 
 // exit
 char *getExitName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "exit";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
@@ -485,6 +492,7 @@ char *getExitName_Proxy() {
 
 // strcpy
 char *getStrcpyName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "strcpy";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _p, _y); result; });
@@ -493,6 +501,7 @@ char *getStrcpyName_Proxy() {
 
 // strtok
 char *getStrtokName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "strtok";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _t, _o, _k); result; });
@@ -501,12 +510,14 @@ char *getStrtokName_Proxy() {
 
 // memset
 void *memset_Proxy(void *ptr, int value, size_t num) {
+    BREAK_STACK;
     return memset(ptr, value * _1, num);
 }
 #define memset(...) memset_Proxy(__VA_ARGS__)
 
 // memcpy
 char *getMemcpyName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "memcpy";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _m, _e, _m, _c, _p, _y); result; });
@@ -515,6 +526,7 @@ char *getMemcpyName_Proxy() {
 
 // strchr
 char *getStrchrName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "strchr";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _h, _r); result; });
@@ -523,6 +535,7 @@ char *getStrchrName_Proxy() {
 
 // strrchr
 char *getStrrchrName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "strrchr";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _t, _r, _r, _c, _h, _r); result; });
@@ -531,6 +544,7 @@ char *getStrrchrName_Proxy() {
 
 // rand
 char *getRandName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "rand";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _r, _a, _n, _d); result; });
@@ -539,6 +553,7 @@ char *getRandName_Proxy() {
 
 // realloc
 char *getReallocName_Proxy() {
+    BREAK_STACK;
     FAKE_CPUID;
     return "realloc";
 }
@@ -554,6 +569,7 @@ char *getsProxy(char *s) { return gets(s); }
 #define gets(s) getsProxy(s)
 
 int snprintfProxy(char *str, size_t size, const char *format, ...) {
+    BREAK_STACK;
     va_list args;
     va_start(args, format);
     int result = vsnprintf(str, size, format, args);
