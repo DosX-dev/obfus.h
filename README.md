@@ -55,4 +55,4 @@ void main() {
 ![](before_and_after.png)
 
 ## Version
-The obfuscator was written with support for **Tiny C** of any version (even `0.9.24`). However, for best results, you should use the latest version of the compiler. It opens up more possibilities for confusion
+The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation.
