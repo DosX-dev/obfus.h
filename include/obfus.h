@@ -197,6 +197,7 @@ HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
 
 // strcmp
 int strcmp_custom(const char *str1, const char *str2) {
+    BREAK_STACK;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
         if ((int_Proxy(*str1) < int_Proxy(*str2)) && int_Proxy(_1)) {
@@ -214,6 +215,7 @@ int strcmp_custom(const char *str1, const char *str2) {
 
 // strlen
 size_t strlen_custom(const char *str) {
+    BREAK_STACK;
     size_t length = _0;
     while (*str != '\0') {
         length += int_Proxy(_1);
@@ -282,21 +284,27 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
 }
 
 char *LoadLibraryA_1(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_2(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_3(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_4(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_5(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
+    BREAK_STACK;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
 }
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
@@ -381,22 +389,70 @@ char *getStdLibName() {
     return msvcrtName;
 }
 
-char *getStdLibName_1() { return getStdLibName(); }
-char *getStdLibName_2() { return getStdLibName_1(); }
-char *getStdLibName_3() { return getStdLibName_2(); }
-char *getStdLibName_4() { return getStdLibName_3(); }
-char *getStdLibName_5() { return getStdLibName_4(); }
-char *getStdLibName_6() { return getStdLibName_5(); }
-char *getStdLibName_7() { return getStdLibName_6(); }
-char *getStdLibName_8() { return getStdLibName_7(); }
-char *getStdLibName_9() { return getStdLibName_8(); }
-char *getStdLibName_10() { return getStdLibName_9(); }
-char *getStdLibName_11() { return getStdLibName_10(); }
-char *getStdLibName_12() { return getStdLibName_11(); }
-char *getStdLibName_13() { return getStdLibName_12(); }
-char *getStdLibName_14() { return getStdLibName_13(); }
-char *getStdLibName_15() { return getStdLibName_14(); }
-char *getStdLibName_16() { return getStdLibName_15(); }
+char *getStdLibName_1() {
+    BREAK_STACK;
+    return getStdLibName();
+}
+char *getStdLibName_2() {
+    BREAK_STACK;
+    return getStdLibName_1();
+}
+char *getStdLibName_3() {
+    BREAK_STACK;
+    return getStdLibName_2();
+}
+char *getStdLibName_4() {
+    BREAK_STACK;
+    return getStdLibName_3();
+}
+char *getStdLibName_5() {
+    BREAK_STACK;
+    return getStdLibName_4();
+}
+char *getStdLibName_6() {
+    BREAK_STACK;
+    return getStdLibName_5();
+}
+char *getStdLibName_7() {
+    BREAK_STACK;
+    return getStdLibName_6();
+}
+char *getStdLibName_8() {
+    BREAK_STACK;
+    return getStdLibName_7();
+}
+char *getStdLibName_9() {
+    BREAK_STACK;
+    return getStdLibName_8();
+}
+char *getStdLibName_10() {
+    BREAK_STACK;
+    return getStdLibName_9();
+}
+char *getStdLibName_11() {
+    BREAK_STACK;
+    return getStdLibName_10();
+}
+char *getStdLibName_12() {
+    BREAK_STACK;
+    return getStdLibName_11();
+}
+char *getStdLibName_13() {
+    BREAK_STACK;
+    return getStdLibName_12();
+}
+char *getStdLibName_14() {
+    BREAK_STACK;
+    return getStdLibName_13();
+}
+char *getStdLibName_15() {
+    BREAK_STACK;
+    return getStdLibName_14();
+}
+char *getStdLibName_16() {
+    BREAK_STACK;
+    return getStdLibName_15();
+}
 char *getStdLibName_Proxy() {
     BREAK_STACK;
     return getStdLibName_16();
