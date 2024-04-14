@@ -663,10 +663,16 @@ int snprintfProxy(char *str, size_t size, const char *format, ...) {
 })(__VA_ARGS__))
 */
 
-int vsprintf_Proxy(char *str, const char *format, va_list args) { return vsprintf(str, format, args); }
+int vsprintf_Proxy(char *str, const char *format, va_list args) {
+    BREAK_STACK;
+    return vsprintf(str, format, args);
+}
 #define vsprintf(str, format, args) vsprintf_Proxy(str, format, args)
 
-int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) { return vsnprintf(str, size, format, args); }
+int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) {
+    BREAK_STACK;
+    return vsnprintf(str, size, format, args);
+}
 #define vsnprintf(str, size, format, args) vsnprintf_Proxy(str, size, format, args)
 
 char *getenv_Proxy(const char *name) {
