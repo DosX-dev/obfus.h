@@ -157,6 +157,7 @@ int condition_Proxy(int junk, int condition) {
 #endif
 
 char *getCharMask(int count) {
+    BREAK_STACK;
     static char mask[16];
     if (count <= _0 || count >= sizeof(mask)) {
         return NULL;
@@ -198,6 +199,7 @@ FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) {
 #define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
 
 HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
+    BREAK_STACK;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
 }
@@ -623,14 +625,23 @@ char *getReallocName_Proxy() {
 }
 #define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getReallocName_Proxy()))(__VA_ARGS__)
 
-void *callocProxy(size_t nmemb, size_t size) { return calloc(nmemb, size); }
-#define calloc(nmemb, size) callocProxy(nmemb, size)
+void *calloc_Proxy(size_t nmemb, size_t size) {
+    BREAK_STACK;
+    return calloc(nmemb, size);
+}
+#define calloc(nmemb, size) calloc_Proxy(nmemb, size)
 
-void *reallocProxy(void *ptr, size_t size) { return realloc(ptr, size); }
-#define realloc(ptr, size) reallocProxy(ptr, size)
+void *realloc_Proxy(void *ptr, size_t size) {
+    BREAK_STACK;
+    return realloc(ptr, size);
+}
+#define realloc(ptr, size) realloc_Proxy(ptr, size)
 
-char *getsProxy(char *s) { return gets(s); }
-#define gets(s) getsProxy(s)
+char *gets_Proxy(char *s) {
+    BREAK_STACK;
+    return gets(s);
+}
+#define gets(s) gets_Proxy(s)
 
 int snprintfProxy(char *str, size_t size, const char *format, ...) {
     BREAK_STACK;
@@ -652,32 +663,53 @@ int snprintfProxy(char *str, size_t size, const char *format, ...) {
 })(__VA_ARGS__))
 */
 
-int vsprintfProxy(char *str, const char *format, va_list args) { return vsprintf(str, format, args); }
-#define vsprintf(str, format, args) vsprintfProxy(str, format, args)
+int vsprintf_Proxy(char *str, const char *format, va_list args) { return vsprintf(str, format, args); }
+#define vsprintf(str, format, args) vsprintf_Proxy(str, format, args)
 
-int vsnprintfProxy(char *str, size_t size, const char *format, va_list args) { return vsnprintf(str, size, format, args); }
-#define vsnprintf(str, size, format, args) vsnprintfProxy(str, size, format, args)
+int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) { return vsnprintf(str, size, format, args); }
+#define vsnprintf(str, size, format, args) vsnprintf_Proxy(str, size, format, args)
 
-char *getenvProxy(const char *name) { return getenv(name); }
-#define getenv(name) getenvProxy(name)
+char *getenv_Proxy(const char *name) {
+    BREAK_STACK;
+    return getenv(name);
+}
+#define getenv(name) getenv_Proxy(name)
 
-int systemProxy(const char *command) { return system(command); }
-#define system(command) systemProxy(command)
+int system_Proxy(const char *command) {
+    BREAK_STACK;
+    return system(command);
+}
+#define system(command) system_Proxy(command)
 
-void abortProxy(void) { abort(); }
-#define abort() abortProxy()
+void abort_Proxy(void) {
+    BREAK_STACK;
+    abort();
+}
+#define abort() abort_Proxy()
 
-int atexitProxy(void (*func)(void)) { return atexit(func); }
-#define atexit(func) atexitProxy(func)
+int atexit_Proxy(void (*func)(void)) {
+    BREAK_STACK;
+    return atexit(func);
+}
+#define atexit(func) atexit_Proxy(func)
 
-char *getcwdProxy(char *buf, size_t size) { return getcwd(buf, size); }
-#define getcwd(buf, size) ((char *)getcwdProxy(buf, size))
+char *getcwd_Proxy(char *buf, size_t size) {
+    BREAK_STACK;
+    return getcwd(buf, size);
+}
+#define getcwd(buf, size) ((char *)getcwd_Proxy(buf, size))
 
-int tolowerProxy(int c) { return tolower(c); }
-#define tolower(c) tolowerProxy(c)
+int tolower_Proxy(int c) {
+    BREAK_STACK;
+    return tolower(c);
+}
+#define tolower(c) tolower_Proxy(c)
 
-int toupperProxy(int c) { return toupper(c); }
-#define toupper(c) toupperProxy(c)
+int toupper_Proxy(int c) {
+    BREAK_STACK;
+    return toupper(c);
+}
+#define toupper(c) toupper_Proxy(c)
 
 // getch, _getch
 #define _getch() int_Proxy(_getch() * TRUE)
