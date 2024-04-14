@@ -4,7 +4,7 @@
 //  no_obf         = disable obfuscation
 //  no_cflow       = disable control flow obfuscation
 //  no_antidebug   = disable antidebug protection
-//  hide_antidebug = [!! UNSAFE !!] use dynamic calls to hide antidebugger
+//  hide_antidebug = use dynamic calls to hide antidebugger
 //
 // GitHub:
 //  https://github.com/DosX-dev/obfus.h

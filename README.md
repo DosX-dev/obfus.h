@@ -18,7 +18,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > ```c
 > #define no_cflow       1  // Don't use Control-Flow obfuscation
 > #define no_antidebug   1  // Don't build in debugging protection
-> #define hide_antidebug 1  // (> UNSAFE <) use dynamic calls to hide antidebugger
+> #define hide_antidebug 1  // Use dynamic calls to hide antidebugger
 > ```
 > or use it with compiler args:
 > 
