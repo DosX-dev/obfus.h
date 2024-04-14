@@ -86,6 +86,12 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
             "nop");                           \
     } while (RND(0, 200) * _0)
 
+int malloc_Proxy(int *size) {
+    BREAK_STACK;
+    return malloc(size);
+}
+#define malloc(...) malloc_Proxy(__VA_ARGS__)
+
 static char rndValueToProxy = RND(0, 10);
 
 int int_Proxy(int value) {
@@ -177,6 +183,7 @@ BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNum
 
 // GetStdHandle
 HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
+    BREAK_STACK;
     FAKE_CPUID;
     return GetStdHandle(int_Proxy(nStdHandle));
 }
@@ -184,6 +191,7 @@ HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
 
 // GetProcAddress
 FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) {
+    BREAK_STACK;
     FAKE_CPUID;
     return GetProcAddress(hModule, lpProcName);
 }
@@ -766,7 +774,6 @@ int toupperProxy(int c) { return toupper(c); }
 #define WaitForMultipleObjects(nCount, lpHandles, bWaitAll, dwMilliseconds) WaitForMultipleObjects(int_Proxy(nCount), int_Proxy(lpHandles), int_Proxy(bWaitAll), int_Proxy(dwMilliseconds))
 
 #define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, int_Proxy(_Size *(TRUE + FALSE)))
-#define malloc(_Size) malloc(int_Proxy(_Size))
 
 #define abs(x) ((x) < FALSE ? -(x) : (x))
 #define fabs(x) fabs(double_Proxy(FALSE + x * TRUE))
