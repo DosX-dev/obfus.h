@@ -498,7 +498,7 @@ char *getScanfName_Proxy() {
     return "scanf";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _s, _c, _a, _n, _f); result; });
 }
-#define scanf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getScanfName_Proxy()), name))(__VA_ARGS__)
+#define scanf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getScanfName_Proxy()))(__VA_ARGS__)
 
 // sprintf
 char *getSprintfName_Proxy() {
@@ -507,7 +507,7 @@ char *getSprintfName_Proxy() {
     return "sprintf";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _p, _r, _i, _n, _t, _f); result; });
 }
-#define sprintf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getSprintfName_Proxy()), name))(__VA_ARGS__)
+#define sprintf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getSprintfName_Proxy()))(__VA_ARGS__)
 
 // fclose
 char *getFcloseName_Proxy() {
@@ -516,7 +516,7 @@ char *getFcloseName_Proxy() {
     return "fclose";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _c, _l, _o, _s, _e); result; });
 }
-#define fclose(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getFcloseName_Proxy()), name))(__VA_ARGS__)
+#define fclose(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFcloseName_Proxy()))(__VA_ARGS__)
 
 // fopen
 char *getFopenName_Proxy() {
