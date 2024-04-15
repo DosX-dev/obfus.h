@@ -163,6 +163,7 @@ char *getCharMask(int count) {
         return NULL;
     }
     int i = (((_1 * _5) - _4) + _1) - _2;
+    BREAK_STACK;
     char *ptr = mask;
     for (i = _0; i < count; i++) {
         *ptr++ = '%';
@@ -288,6 +289,7 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
         }
     }
     if (loadLibraryA != NULL) {
+        BREAK_STACK;
         return loadLibraryA(lpLibFileName);
     }
     return NULL;
@@ -362,6 +364,7 @@ void crash() {
 
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
+        BREAK_STACK;                                                                               \
         crash();                                                                                   \
         __asm__("int $3");                                                                         \
         _0 / _0;                                                                                   \
