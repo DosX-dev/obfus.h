@@ -35,10 +35,10 @@
 #define BREAK_STACK_2 \
     if (_0) __asm__ __volatile(".byte 00");
 
-#define BREAK_STACK_3                       \
-    switch (_0) {                           \
-        case 1:                             \
-            __asm__ __volatile(".byte 00"); \
+#define BREAK_STACK_3                         \
+    switch (_0) {                             \
+        case 1:                               \
+            __asm__ __volatile(".byte 0x0F"); \
     }
 
 void junkFunc(int z, ...) {
@@ -270,7 +270,7 @@ char *rot13_str(char input) {
 
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_3;
     // return LoadLibraryA(lpLibFileName);
 
     typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
