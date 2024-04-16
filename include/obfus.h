@@ -490,6 +490,7 @@ void printf_custom(int junk, const char *format, ...) {
 #define printf(...)                               \
     do {                                          \
         BREAK_STACK;                              \
+        ANTI_DEBUG;                               \
         junkFunc((RND(0, 1000) * 3) < _0);        \
         printf_custom(RND(0, 1000), __VA_ARGS__); \
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
