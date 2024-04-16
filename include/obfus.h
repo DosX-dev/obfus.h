@@ -26,20 +26,29 @@
 // Thanks to @horsicq && @ac3ss0r
 #define RND(min, max) (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
 
-#define BREAK_STACK                    \
-    asm __volatile("xorl %eax, %eax"); \
-    asm __volatile("jz 1f");           \
-    asm __volatile(".byte 0x00");      \
-    asm __volatile("1:");
+#define BREAK_STACK_1                      \
+    __asm__ __volatile("xorl %eax, %eax"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 00");        \
+    __asm__ __volatile("1:");
+
+#define BREAK_STACK_2 \
+    if (_0) __asm__(".byte 00");
+
+#define BREAK_STACK_3            \
+    switch (_0) {                \
+        case 1:                  \
+            __asm__(".byte 00"); \
+    }
 
 void junkFunc(int z, ...) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     __asm__ __volatile("nop");
     return;
 }
 
 void junkFuncEmpty() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     __asm__ __volatile("nop");
     return;
 }
@@ -87,7 +96,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     } while (RND(0, 200) * _0)
 
 int malloc_Proxy(int *size) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return malloc(size);
 }
 #define malloc(...) malloc_Proxy(__VA_ARGS__)
@@ -95,7 +104,7 @@ int malloc_Proxy(int *size) {
 static char rndValueToProxy = RND(0, 10);
 
 int int_Proxy(int value) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     if (rndValueToProxy == value)
         return rndValueToProxy;
 
@@ -107,20 +116,20 @@ int int_Proxy(int value) {
 }
 
 double double_Proxy(double value) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
 
 int condition_True() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return _1 && TRUE;
 }
 
 int condition_Proxy(int junk, int condition) {
-    BREAK_STACK;
+    BREAK_STACK_1;
 
     int result = int_Proxy(condition * _1);
     if (result == (FALSE * junk)) {
@@ -137,14 +146,15 @@ int condition_Proxy(int junk, int condition) {
 
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
 #define else                                                                            \
-    else if (_0 > RND(0, 1000)) {                                                       \
+    else if (_0 > RND(1, 1000)) {                                                       \
         junkFunc(RND(0, 1000));                                                         \
+        __asm__ __volatile(".byte 0x3C, 00");                                           \
     }                                                                                   \
     else if (RND(0, 10) == (RND(11, 100))) {                                            \
         int_Proxy(_3 - RND(0, 10000));                                                  \
     }                                                                                   \
     else if (FALSE * RND(0, 1000)) {                                                    \
-        BREAK_STACK;                                                                    \
+        BREAK_STACK_1;                                                                  \
     }                                                                                   \
     else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999999) : RND(1, 99999999))) { \
         NOP_FLOOD;                                                                      \
@@ -157,13 +167,13 @@ int condition_Proxy(int junk, int condition) {
 #endif
 
 char *getCharMask(int count) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     static char mask[16];
     if (count <= _0 || count >= sizeof(mask)) {
         return NULL;
     }
     int i = (((_1 * _5) - _4) + _1) - _2;
-    BREAK_STACK;
+    BREAK_STACK_1;
     char *ptr = mask;
     for (i = _0; i < count; i++) {
         *ptr++ = '%';
@@ -177,7 +187,7 @@ char *getCharMask(int count) {
 
 // WriteConsoleA
 BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
@@ -185,7 +195,7 @@ BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNum
 
 // GetStdHandle
 HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return GetStdHandle(int_Proxy(nStdHandle));
 }
@@ -193,14 +203,14 @@ HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
 
 // GetProcAddress
 FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return GetProcAddress(hModule, lpProcName);
 }
 #define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
 
 HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
 }
@@ -208,7 +218,7 @@ HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
 
 // strcmp
 int strcmp_custom(const char *str1, const char *str2) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
         if ((int_Proxy(*str1) < int_Proxy(*str2)) && int_Proxy(_1)) {
@@ -226,7 +236,7 @@ int strcmp_custom(const char *str1, const char *str2) {
 
 // strlen
 size_t strlen_custom(const char *str) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     size_t length = _0;
     while (*str != '\0') {
         length += int_Proxy(_1);
@@ -260,7 +270,7 @@ char *rot13_str(char input) {
 
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     // return LoadLibraryA(lpLibFileName);
 
     typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
@@ -289,41 +299,41 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
         }
     }
     if (loadLibraryA != NULL) {
-        BREAK_STACK;
+        BREAK_STACK_1;
         return loadLibraryA(lpLibFileName);
     }
     return NULL;
 }
 
 char *LoadLibraryA_1(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_2(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_3(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_4(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_5(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
 }
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
 #if !defined(no_antidebug) && no_antidebug != 1
 int IsDebuggerPresent_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_2;
     NOP_FLOOD;
 #if defined hide_antidebug
     char result[32];
@@ -358,13 +368,13 @@ int IsDebuggerPresent_Proxy() {
 }
 
 void crash() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     __asm__("int $3");
 }
 
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
-        BREAK_STACK;                                                                               \
+        BREAK_STACK_1;                                                                             \
         crash();                                                                                   \
         __asm__("int $3");                                                                         \
         _0 / _0;                                                                                   \
@@ -381,7 +391,7 @@ void crash() {
 #endif
 
 char *getStdLibName() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     NOP_FLOOD;
     junkFunc(_0 + _3);
     junkFunc(_3 - _2);
@@ -403,77 +413,77 @@ char *getStdLibName() {
 }
 
 char *getStdLibName_1() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName();
 }
 char *getStdLibName_2() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_1();
 }
 char *getStdLibName_3() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_2();
 }
 char *getStdLibName_4() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_3();
 }
 char *getStdLibName_5() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_4();
 }
 char *getStdLibName_6() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_5();
 }
 char *getStdLibName_7() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_6();
 }
 char *getStdLibName_8() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_7();
 }
 char *getStdLibName_9() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_8();
 }
 char *getStdLibName_10() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_9();
 }
 char *getStdLibName_11() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_10();
 }
 char *getStdLibName_12() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_11();
 }
 char *getStdLibName_13() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_12();
 }
 char *getStdLibName_14() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_13();
 }
 char *getStdLibName_15() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_14();
 }
 char *getStdLibName_16() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_15();
 }
 char *getStdLibName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getStdLibName_16();
 }
 
 // printf
 void printf_custom(int junk, const char *format, ...) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     char buffer[1024];
     va_list args;
     NOP_FLOOD;
@@ -489,7 +499,7 @@ void printf_custom(int junk, const char *format, ...) {
 // printf as void
 #define printf(...)                               \
     do {                                          \
-        BREAK_STACK;                              \
+        BREAK_STACK_1;                            \
         ANTI_DEBUG;                               \
         junkFunc((RND(0, 1000) * 3) < _0);        \
         printf_custom(RND(0, 1000), __VA_ARGS__); \
@@ -497,7 +507,7 @@ void printf_custom(int junk, const char *format, ...) {
 
 // scanf
 char *getScanfName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "scanf";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _s, _c, _a, _n, _f); result; });
@@ -506,7 +516,7 @@ char *getScanfName_Proxy() {
 
 // sprintf
 char *getSprintfName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "sprintf";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _p, _r, _i, _n, _t, _f); result; });
@@ -515,7 +525,7 @@ char *getSprintfName_Proxy() {
 
 // fclose
 char *getFcloseName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "fclose";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _c, _l, _o, _s, _e); result; });
@@ -524,7 +534,7 @@ char *getFcloseName_Proxy() {
 
 // fopen
 char *getFopenName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "fopen";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _o, _p, _e, _n); result; });
@@ -533,7 +543,7 @@ char *getFopenName_Proxy() {
 
 // fread
 char *getFreadName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "fread";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
@@ -542,7 +552,7 @@ char *getFreadName_Proxy() {
 
 // fwrite
 char *getFwriteName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "fwrite";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
@@ -551,7 +561,7 @@ char *getFwriteName_Proxy() {
 
 // exit
 char *getExitName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "exit";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
@@ -560,7 +570,7 @@ char *getExitName_Proxy() {
 
 // strcpy
 char *getStrcpyName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "strcpy";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _p, _y); result; });
@@ -569,7 +579,7 @@ char *getStrcpyName_Proxy() {
 
 // strtok
 char *getStrtokName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "strtok";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _t, _o, _k); result; });
@@ -578,14 +588,14 @@ char *getStrtokName_Proxy() {
 
 // memset
 void *memset_Proxy(void *ptr, int value, size_t num) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return memset(ptr, value * _1, num);
 }
 #define memset(...) memset_Proxy(__VA_ARGS__)
 
 // memcpy
 char *getMemcpyName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "memcpy";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _m, _e, _m, _c, _p, _y); result; });
@@ -594,7 +604,7 @@ char *getMemcpyName_Proxy() {
 
 // strchr
 char *getStrchrName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "strchr";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _h, _r); result; });
@@ -603,7 +613,7 @@ char *getStrchrName_Proxy() {
 
 // strrchr
 char *getStrrchrName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "strrchr";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _t, _r, _r, _c, _h, _r); result; });
@@ -612,7 +622,7 @@ char *getStrrchrName_Proxy() {
 
 // rand
 char *getRandName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "rand";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _r, _a, _n, _d); result; });
@@ -621,32 +631,32 @@ char *getRandName_Proxy() {
 
 // realloc
 char *getReallocName_Proxy() {
-    BREAK_STACK;
+    BREAK_STACK_1;
     FAKE_CPUID;
     return "realloc";
 }
 #define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getReallocName_Proxy()))(__VA_ARGS__)
 
 void *calloc_Proxy(size_t nmemb, size_t size) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return calloc(nmemb, size);
 }
 #define calloc(nmemb, size) calloc_Proxy(nmemb, size)
 
 void *realloc_Proxy(void *ptr, size_t size) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return realloc(ptr, size);
 }
 #define realloc(ptr, size) realloc_Proxy(ptr, size)
 
 char *gets_Proxy(char *s) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return gets(s);
 }
 #define gets(s) gets_Proxy(s)
 
 int snprintfProxy(char *str, size_t size, const char *format, ...) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     va_list args;
     va_start(args, format);
     int result = vsnprintf(str, size, format, args);
@@ -666,55 +676,55 @@ int snprintfProxy(char *str, size_t size, const char *format, ...) {
 */
 
 int vsprintf_Proxy(char *str, const char *format, va_list args) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return vsprintf(str, format, args);
 }
 #define vsprintf(str, format, args) vsprintf_Proxy(str, format, args)
 
 int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return vsnprintf(str, size, format, args);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_Proxy(str, size, format, args)
 
 char *getenv_Proxy(const char *name) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getenv(name);
 }
 #define getenv(name) getenv_Proxy(name)
 
 int system_Proxy(const char *command) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return system(command);
 }
 #define system(command) system_Proxy(command)
 
 void abort_Proxy(void) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     abort();
 }
 #define abort() abort_Proxy()
 
 int atexit_Proxy(void (*func)(void)) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return atexit(func);
 }
 #define atexit(func) atexit_Proxy(func)
 
 char *getcwd_Proxy(char *buf, size_t size) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return getcwd(buf, size);
 }
 #define getcwd(buf, size) ((char *)getcwd_Proxy(buf, size))
 
 int tolower_Proxy(int c) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return tolower(c);
 }
 #define tolower(c) tolower_Proxy(c)
 
 int toupper_Proxy(int c) {
-    BREAK_STACK;
+    BREAK_STACK_1;
     return toupper(c);
 }
 #define toupper(c) toupper_Proxy(c)
