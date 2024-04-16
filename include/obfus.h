@@ -133,7 +133,7 @@ int condition_Proxy(int junk, int condition) {
     return int_Proxy(condition);
 }
 
-#if !no_cflow
+#if !defined(no_cflow) && no_cflow != 1
 
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
 #define else                                                                            \
@@ -321,7 +321,7 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 }
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
-#if !defined no_antidebug
+#if !defined(no_antidebug) && no_antidebug != 1
 int IsDebuggerPresent_Proxy() {
     BREAK_STACK;
     NOP_FLOOD;
