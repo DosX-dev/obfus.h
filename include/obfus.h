@@ -33,12 +33,12 @@
     __asm__ __volatile("1:");
 
 #define BREAK_STACK_2 \
-    if (_0) __asm__(".byte 00");
+    if (_0) __asm__ __volatile(".byte 00");
 
-#define BREAK_STACK_3            \
-    switch (_0) {                \
-        case 1:                  \
-            __asm__(".byte 00"); \
+#define BREAK_STACK_3                       \
+    switch (_0) {                           \
+        case 1:                             \
+            __asm__ __volatile(".byte 00"); \
     }
 
 void junkFunc(int z, ...) {
@@ -53,8 +53,8 @@ void junkFuncEmpty() {
     return;
 }
 
-#define __CRASH        \
-    __asm__("int $3"); \
+#define __CRASH                   \
+    __asm__ __volatile("int $3"); \
     exit(1);
 
 volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
@@ -79,7 +79,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
 #define FALSE ((_3 + _6 + (RND(0, 1000) * _0)) - _9)
 
-#define FAKE_CPUID __asm__("nop\ncpuid\nnop\n")
+#define FAKE_CPUID __asm__ __volatile("nop\ncpuid\nnop\n")
 
 #define sizeof(x) \
     ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
@@ -369,14 +369,14 @@ int IsDebuggerPresent_Proxy() {
 
 void crash() {
     BREAK_STACK_1;
-    __asm__("int $3");
+    __asm__ __volatile("int $3");
 }
 
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
         BREAK_STACK_1;                                                                             \
         crash();                                                                                   \
-        __asm__("int $3");                                                                         \
+        __asm__ __volatile("int $3");                                                              \
         _0 / _0;                                                                                   \
         _1 / _0;                                                                                   \
         _2 / _0;                                                                                   \
