@@ -29,11 +29,11 @@
 #define BREAK_STACK_1                      \
     __asm__ __volatile("xorl %eax, %eax"); \
     __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 00");        \
+    __asm__ __volatile(".byte 0x00");      \
     __asm__ __volatile("1:");
 
 #define BREAK_STACK_2 \
-    if (_0) __asm__ __volatile(".byte 00");
+    if (_0) __asm__ __volatile(".byte 0x00");
 
 #define BREAK_STACK_3                         \
     switch (_0) {                             \
@@ -372,7 +372,7 @@ int IsDebuggerPresent_Proxy() {
 void crash() {
     BREAK_STACK_1;
     __asm__ __volatile("int $3");
-    __asm__ __volatile(".byte 00");
+    __asm__ __volatile(".byte 0x00");
 }
 
 #define ANTI_DEBUG                                                                                 \
