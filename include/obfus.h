@@ -9,7 +9,7 @@
 // GitHub:
 //  https://github.com/DosX-dev/obfus.h
 
-#if !no_obf
+#if !defined(no_obf) && no_obf != 1
 
 #include <conio.h>
 #include <stdio.h>
@@ -38,7 +38,7 @@
 #define BREAK_STACK_3                         \
     switch (_0) {                             \
         case 1:                               \
-            __asm__ __volatile(".byte 0x0F"); \
+            __asm__ __volatile(".byte 0x00"); \
     }
 
 void junkFunc(int z, ...) {
@@ -337,7 +337,10 @@ int IsDebuggerPresent_Proxy() {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
-#if defined hide_antidebug
+#if !defined(hide_antidebug) && hide_antidebug != 1
+    NOP_FLOOD;
+    return IsDebuggerPresent();
+#else
     char result[32];
     sprintf(result, strcat(getCharMask(_6), "%d%d"), _k, _e, _r, _n, _e, _l, _3, _2);
 
@@ -362,9 +365,6 @@ int IsDebuggerPresent_Proxy() {
     funcName[12] = _e;
 
     return ((BOOL(*)())GetProcAddress(LoadLibraryA(result), funcName))();
-#else
-    NOP_FLOOD;
-    return IsDebuggerPresent();
 #endif
     // return ((int (*)())GetProcAddress(LoadLibraryA("kernel32.dll"), "IsDebuggerPresent"))();
 }
@@ -372,18 +372,14 @@ int IsDebuggerPresent_Proxy() {
 void crash() {
     BREAK_STACK_1;
     __asm__ __volatile("int $3");
+    __asm__ __volatile(".byte 00");
 }
 
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
         BREAK_STACK_1;                                                                             \
+        __asm__ __volatile(".byte 0x00");                                                          \
         crash();                                                                                   \
-        __asm__ __volatile("int $3");                                                              \
-        _0 / _0;                                                                                   \
-        _1 / _0;                                                                                   \
-        _2 / _0;                                                                                   \
-        _3 / _0;                                                                                   \
-        _4 / _0;                                                                                   \
     } else {                                                                                       \
         0.0 / IsDebuggerPresent();                                                                 \
     };
