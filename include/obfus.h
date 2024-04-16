@@ -145,20 +145,21 @@ int condition_Proxy(int junk, int condition) {
 #if !defined(no_cflow) && no_cflow != 1
 
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
-#define else                                                                            \
-    else if (_0 > RND(1, 1000)) {                                                       \
-        junkFunc(RND(0, 1000));                                                         \
-        __asm__ __volatile(".byte 0x3C, 00");                                           \
-    }                                                                                   \
-    else if (RND(0, 10) == (RND(11, 100))) {                                            \
-        int_Proxy(_3 - RND(0, 10000));                                                  \
-    }                                                                                   \
-    else if (FALSE * RND(0, 1000)) {                                                    \
-        BREAK_STACK_1;                                                                  \
-    }                                                                                   \
-    else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999999) : RND(1, 99999999))) { \
-        NOP_FLOOD;                                                                      \
-    }                                                                                   \
+#define else                                                                      \
+    else if (_0 > RND(1, 1000)) {                                                 \
+        junkFunc(RND(0, 1000));                                                   \
+        __asm__ __volatile(".byte 0x3C");                                         \
+    }                                                                             \
+    else if (RND(0, 10) == (RND(11, 100))) {                                      \
+        BREAK_STACK_3;                                                            \
+        int_Proxy(_3 - RND(0, 10000));                                            \
+    }                                                                             \
+    else if (FALSE * RND(0, 1000)) {                                              \
+        BREAK_STACK_1;                                                            \
+    }                                                                             \
+    else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
+        __asm__ __volatile(".byte 0xEB");                                         \
+    }                                                                             \
     else
 
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
@@ -333,8 +334,9 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 
 #if !defined(no_antidebug) && no_antidebug != 1
 int IsDebuggerPresent_Proxy() {
-    BREAK_STACK_2;
+    BREAK_STACK_1;
     NOP_FLOOD;
+    BREAK_STACK_2;
 #if defined hide_antidebug
     char result[32];
     sprintf(result, strcat(getCharMask(_6), "%d%d"), _k, _e, _r, _n, _e, _l, _3, _2);
