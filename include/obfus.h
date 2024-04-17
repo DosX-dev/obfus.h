@@ -3,7 +3,7 @@
 //
 //  [Additional options]
 //  cflow_v2       = more powerful Control Flow obfuscation (slowly!)
-//  hide_antidebug = use dynamic calls to hide antidebugger
+//  antidebug_v2   = use better dynamic anti-debugging protection
 //
 //  [Disabling default features]
 //  no_cflow       = disable control flow obfuscation
@@ -360,7 +360,7 @@ int IsDebuggerPresent_Proxy() {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
-#if !defined(hide_antidebug) && hide_antidebug != 1
+#if !defined(antidebug_v2) && antidebug_v2 != 1
 
     // Standart antidebugger
     NOP_FLOOD;

@@ -18,8 +18,8 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > Available options for protection configuring:
 > ```c
 > // Additional options
-> #define cflow_v2       1  // more powerful Control Flow obfuscation (slowly!)
-> #define hide_antidebug 1  // Use dynamic calls to hide antidebugger
+> #define cflow_v2       1  // More powerful Control Flow obfuscation (slowly!)
+> #define antidebug_v2   1  // Use better dynamic anti-debugging protection
 > 
 > // Disabling default features
 > #define no_cflow       1  // Don't use Control-Flow obfuscation
