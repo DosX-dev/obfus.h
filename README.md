@@ -28,7 +28,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D no_cflow  -D no_antidebug
+> tcc "app.c" -w  -D no_cflow  -D antidebug_v2
 > ```
 
 ⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
