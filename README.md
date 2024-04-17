@@ -41,6 +41,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 
 // #define no_cflow      1
 // #define no_antidebug  1
+#define antidebug_v2 1
 #include "obfus.h"
 
 void main() {
