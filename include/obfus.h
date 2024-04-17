@@ -53,8 +53,9 @@ void junkFuncEmpty() {
     return;
 }
 
-#define __CRASH                   \
-    __asm__ __volatile("int $3"); \
+#define __CRASH                       \
+    __asm__ __volatile(".byte 0x00"); \
+    __asm__ __volatile("int $3");     \
     exit(1);
 
 volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
