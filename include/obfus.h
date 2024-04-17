@@ -354,15 +354,21 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 }
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
+// Anti-Debug (global)
 #if !defined(no_antidebug) && no_antidebug != 1
 int IsDebuggerPresent_Proxy() {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
 #if !defined(hide_antidebug) && hide_antidebug != 1
+
+    // Standart antidebugger
     NOP_FLOOD;
     return IsDebuggerPresent();
+
 #else
+
+    // Dynamic antidebugger
     char result[32];
     sprintf(result, strcat(getCharMask(_6), "%d%d"), _k, _e, _r, _n, _e, _l, _3, _2);
 
