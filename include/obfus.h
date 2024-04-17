@@ -54,7 +54,7 @@ void junkFuncEmpty() {
 }
 
 #define __CRASH                       \
-    __asm__ __volatile(".byte 0x00"); \
+    __asm__ __volatile(".byte 0xED"); \
     __asm__ __volatile("int $3");     \
     exit(1);
 
@@ -373,13 +373,16 @@ int IsDebuggerPresent_Proxy() {
 void crash() {
     BREAK_STACK_1;
     __asm__ __volatile("int $3");
-    __asm__ __volatile(".byte 0x00");
+    __asm__ __volatile(".byte 0xED, 0x00");
 }
 
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
+        __asm__ __volatile(".byte 0xED");                                                          \
         BREAK_STACK_1;                                                                             \
+        __asm__ __volatile(".byte 0x66, 0xC1, 0xE8, 0x05");                                        \
         __asm__ __volatile(".byte 0x00");                                                          \
+        __asm__ __volatile("ret");                                                                 \
         crash();                                                                                   \
     } else {                                                                                       \
         0.0 / IsDebuggerPresent();                                                                 \
@@ -394,9 +397,10 @@ char *getStdLibName() {
     NOP_FLOOD;
     junkFunc(_0 + _3);
     junkFunc(_3 - _2);
-    ANTI_DEBUG;
 
     char *msvcrtName = malloc(_7);
+
+    ANTI_DEBUG;
 
     msvcrtName[_3 + _2 + _1] = 0;
     msvcrtName[_1 + _2 + _2] = int_Proxy(_t);
@@ -499,7 +503,7 @@ void printf_custom(int junk, const char *format, ...) {
 #define printf(...)                               \
     do {                                          \
         BREAK_STACK_1;                            \
-        ANTI_DEBUG;                               \
+        getStdLibName();                          \
         junkFunc((RND(0, 1000) * 3) < _0);        \
         printf_custom(RND(0, 1000), __VA_ARGS__); \
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
