@@ -1,10 +1,15 @@
 // Obfuscation of C? Why not?
 // Coded by (C) DosX, 2024
 //
-//  no_obf         = disable obfuscation
+//  [Additional options]
+//  cflow_v2       = more powerful Control Flow obfuscation (slowly!)
+//  hide_antidebug = use dynamic calls to hide antidebugger
+//
+//  [Disabling default features]
 //  no_cflow       = disable control flow obfuscation
 //  no_antidebug   = disable antidebug protection
-//  hide_antidebug = use dynamic calls to hide antidebugger
+//
+//  no_obf         = disable obfuscation
 //
 // GitHub:
 //  https://github.com/DosX-dev/obfus.h
@@ -143,9 +148,24 @@ int condition_Proxy(int junk, int condition) {
     return int_Proxy(condition);
 }
 
+// Control Flow (global)
 #if !defined(no_cflow) && no_cflow != 1
 
+#if !defined(cflow_v2) && cflow_v2 != 1
+
+// Control flow obfuscation for 'if', V1
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+
+#else
+
+// Control flow obfuscation for 'if', V2 (strong!)
+#define if(condition)                      \
+    if (int_Proxy(RND(1, 1000000)) < _0) { \
+        __asm__ __volatile(".byte 0x00");  \
+    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 100000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
+
+#endif
+
 #define else                                                                      \
     else if (_0 > RND(1, 1000)) {                                                 \
         junkFunc(RND(0, 1000));                                                   \
@@ -164,7 +184,8 @@ int condition_Proxy(int junk, int condition) {
     else
 
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
-#define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000))) + FALSE || _1)
+
+#define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
 
@@ -347,23 +368,25 @@ int IsDebuggerPresent_Proxy() {
 
     char funcName[18];
     funcName[_9 + _8] = _0;
-    funcName[16] = _t;
-    funcName[_7] = _g;
-    funcName[_0] = _I;
-    funcName[_1] = _s;
-    funcName[14] = _e;
-    funcName[_9] = _r;
-    funcName[13] = _s;
-    funcName[15] = _n;
-    funcName[_2] = _D;
-    funcName[_3] = _e;
-    funcName[10] = _P;
-    funcName[_4] = _b;
-    funcName[_5] = _u;
-    funcName[_8] = _e;
-    funcName[11] = _r;
-    funcName[_6] = _g;
-    funcName[12] = _e;
+
+    funcName[_9 + _7 * _1] = _t;
+    funcName[_2 + _5 * _1] = _g;
+    funcName[_0 * _8 * _1] = _I;
+    funcName[_1 + _0 * _1] = _s;
+    funcName[_7 * _2 * _1] = _e;
+    funcName[_3 * _3 * _1] = _r;
+    funcName[_9 + _4 * _1] = _s;
+    funcName[_5 * _3 * _1] = _n;
+    BREAK_STACK_3;
+    funcName[_1 + _1 * _1] = _D;
+    funcName[_1 + _2 * _1] = _e;
+    funcName[_5 * _2 * _1] = _P;
+    funcName[_2 + _2 * _1] = _b;
+    funcName[_3 + _2 * _1] = _u;
+    funcName[_4 * _2 * _1] = _e;
+    funcName[_2 + _9 * _1] = _r;
+    funcName[_3 * _2 * _1] = _g;
+    funcName[_6 * _2 * _1] = _e;
 
     return ((BOOL(*)())GetProcAddress(LoadLibraryA(result), funcName))();
 #endif
