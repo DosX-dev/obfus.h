@@ -7,6 +7,7 @@
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
 - 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
 - 🚫 **Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
+- 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
 
 ## Usage
 
