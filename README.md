@@ -1,6 +1,7 @@
 ![](obfus.h.png)
 # obfus.h
-**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time obfuscating C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)**. It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler.
+
+**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time obfuscating C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)**. It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
 
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
