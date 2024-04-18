@@ -22,6 +22,10 @@
 #include <string.h>
 #include <windows.h>
 
+#if !defined __COUNTER__
+#error You are using too old a compiler version!
+#endif
+
 // Fake signatures ;)
 #if fake_signs && (__TINYC__ || __GNUC__)
 static const char *FAKE_ENIGMA_1[] __attribute__((section(".enigma1"))) = {0};
@@ -51,10 +55,6 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
                                     "SSIVDDP.DLL", "WIBUKEY",
                                     "\\\\.\\WIZZKEYRL",
                                     "\\\\.\\NVKEY"};
-#endif
-
-#if !defined __COUNTER__
-#error You are using too old a compiler version!
 #endif
 
 // Thanks to @horsicq && @ac3ss0r
