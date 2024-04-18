@@ -153,16 +153,18 @@ int condition_Proxy(int junk, int condition) {
 
 #if !defined(cflow_v2) && cflow_v2 != 1
 
-// Control flow obfuscation for 'if', V1
+// Control flow obfuscation for 'if' & 'for', V1
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+#define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #else
 
-// Control flow obfuscation for 'if', V2 (strong!)
+// Control flow obfuscation for 'if' & 'for', V2 (strong!)
 #define if(condition)                      \
     if (int_Proxy(RND(1, 1000000)) < _0) { \
         __asm__ __volatile(".byte 0x00");  \
     } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 100000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
+#define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
 
 #endif
 
@@ -184,8 +186,6 @@ int condition_Proxy(int junk, int condition) {
     else
 
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
-
-#define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
 
@@ -293,39 +293,45 @@ char *rot13_str(char input) {
 
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
-    BREAK_STACK_3;
-    // return LoadLibraryA(lpLibFileName);
+    switch (_0) {
+        case 1:
+            __asm__ __volatile(".byte 0x00");
+            break;
+        case 0:
+            BREAK_STACK_3;
+            // return LoadLibraryA(lpLibFileName);
 
-    typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
-    static LoadLibraryAFunc loadLibraryA = NULL;
-    if (loadLibraryA == NULL) {
-        char libName[32];
-        sprintf(libName, strcat(getCharMask(_6), "%d%d"), _k, _e, _r, _n, _e, _l, _3, _2);
+            typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
+            static LoadLibraryAFunc loadLibraryA = NULL;
+            if (loadLibraryA == NULL) {
+                char libName[32];
+                sprintf(libName, strcat(getCharMask(_6), "%d"), _k, _e, _r, _n, _e, _l, (_4 * _8));
 
-        HMODULE hKernel32 = GetModuleHandleA_Proxy(libName);
-        if (hKernel32 != NULL) {
-            FAKE_CPUID;
-            char _L_char = _L;
-            junkFunc(_0);
-            loadStr[_4] = int_Proxy(_0);
-            loadStr[_3] = int_Proxy(_d);
-            loadStr[_2] = int_Proxy(_a);
-            loadStr[_1] = int_Proxy(_o);
-            loadStr[_0] = int_Proxy(_L);
+                HMODULE hKernel32 = GetModuleHandleA_Proxy(libName);
+                if (hKernel32 != NULL) {
+                    FAKE_CPUID;
+                    char _L_char = _L;
+                    junkFunc(_0);
+                    loadStr[_4] = int_Proxy(_0);
+                    loadStr[_3] = int_Proxy(_d);
+                    loadStr[_2] = int_Proxy(_a);
+                    loadStr[_1] = int_Proxy(_o);
+                    loadStr[_0] = int_Proxy(_L);
 
-            char *funcName = malloc(32);
+                    char *funcName = malloc(32);
 
-            FAKE_CPUID;
+                    FAKE_CPUID;
 
-            sprintf(funcName, strcat("Library", "%c"), _A);  // _A = LoadLibrary{'A'}
-            loadLibraryA = (LoadLibraryAFunc)GetProcAddress(hKernel32, strcat(loadStr, funcName));
-        }
+                    sprintf(funcName, strcat("Library", "%c"), _A);  // _A = LoadLibrary{'A'}
+                    loadLibraryA = (LoadLibraryAFunc)GetProcAddress(hKernel32, strcat(loadStr, funcName));
+                }
+            }
+            if (loadLibraryA != NULL) {
+                BREAK_STACK_1;
+                return loadLibraryA(lpLibFileName);
+            }
+            return NULL;
     }
-    if (loadLibraryA != NULL) {
-        BREAK_STACK_1;
-        return loadLibraryA(lpLibFileName);
-    }
-    return NULL;
 }
 
 char *LoadLibraryA_1(LPCSTR lpLibFileName) {
