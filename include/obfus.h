@@ -4,6 +4,7 @@
 //  [Additional options]
 //  cflow_v2       = more powerful Control Flow obfuscation (slowly!)
 //  antidebug_v2   = use better dynamic anti-debugging protection
+//  fake_signs     = adds fake signatures of various protectors or packers
 //
 //  [Disabling default features]
 //  no_cflow       = disable control flow obfuscation
