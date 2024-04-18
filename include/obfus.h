@@ -22,7 +22,36 @@
 #include <string.h>
 #include <windows.h>
 
-// static const char OBFS_SECTION_NAME[] __attribute__((section(".obfs"))) = {0};
+// Fake signatures ;)
+#if fake_signs && (__TINYC__ || __GNUC__)
+static const char *FAKE_ENIGMA_1[] __attribute__((section(".enigma1"))) = {0};
+static const char *FAKE_ENIGMA_2[] __attribute__((section(".enigma2"))) = {0};
+static const char *FAKE_VMPROTECT_1[] __attribute__((section(".vmp0"))) = {0};  // (now is open-source)
+static const char *FAKE_VMPROTECT_2[] __attribute__((section(".vmp1"))) = {0};
+static const char *FAKE_VMPROTECT_3[] __attribute__((section(".vmp2"))) = {0};
+static const char *FAKE_THEMIDA[] __attribute__((section(".winlice"))) = {0};
+static const char *FAKE_UPX[] __attribute__((section("UPX0"))) = {0};
+static const char *FAKE_PETITE[] __attribute__((section(".petite"))) = {0};
+static const char *FAKE_RLP[] __attribute__((section(".rlp"))) = {0};
+static const char *FAKE_SECUROM[] __attribute__((section(".dsstext"))) = {0};
+static const char *FAKE_SQUISHY[] __attribute__((section("logicoma"))) = {0};
+static const char *FAKE_THEARK_1[] __attribute__((section("adr"))) = {0};
+static const char *FAKE_THEARK_2[] __attribute__((section("have"))) = {0};
+static const char *FAKE_THEARK_3[] __attribute__((section("30cm"))) = {0};
+static const char *FAKE_THEARK_4[] __attribute__((section(".tw"))) = {0};
+static const char *FAKE_THEARK_5[] __attribute__((section("logicoma"))) = {0};
+static const char *FAKE_ASPACK_1[] __attribute__((section(".aspack"))) = {0};
+static const char *FAKE_ASPACK_2[] __attribute__((section(".adata"))) = {0};
+static const char *FAKE_WIBUCODEMETER_1[] __attribute__((section("__wibu00"))) = {0};
+static const char *FAKE_WIBUCODEMETER_2[] __attribute__((section("__wibu01"))) = {0};
+static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
+                                    "MARXDEV1.SYS", "MxLPT_Sem",
+                                    "nethasp.ini", "sense4.dll",
+                                    "SNTNLUSB", "RNBOspro",
+                                    "SSIVDDP.DLL", "WIBUKEY",
+                                    "\\\\.\\WIZZKEYRL",
+                                    "\\\\.\\NVKEY"};
+#endif
 
 #if !defined __COUNTER__
 #error You are using too old a compiler version!
@@ -296,6 +325,7 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
     switch (_0) {
         case 1:
             __asm__ __volatile(".byte 0x00");
+
             break;
         case 0:
             BREAK_STACK_3;
