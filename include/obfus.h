@@ -1,19 +1,29 @@
-// Obfuscation of C? Why not?
-// Coded by (C) DosX, 2024
-//
-//  [Additional options]
-//  cflow_v2       = more powerful Control Flow obfuscation (slowly!)
-//  antidebug_v2   = use better dynamic anti-debugging protection
-//  fake_signs     = adds fake signatures of various protectors or packers
-//
-//  [Disabling default features]
-//  no_cflow       = disable control flow obfuscation
-//  no_antidebug   = disable antidebug protection
-//
-//  no_obf         = disable obfuscation
-//
-// GitHub:
-//  https://github.com/DosX-dev/obfus.h
+/*
+     ██████╗ ██████╗ ███████╗██╗   ██╗███████╗     ██╗
+    ██╔═══██╗██╔══██╗██╔════╝██║   ██║██╔════╝     ██║
+    ██║   ██║██████╔╝█████╗  ██║   ██║███████╗     ███████║
+    ██║   ██║██╔══██╗██╔══╝  ██║   ██║╚════██║     ██╔══██║
+    ╚██████╔╝██████╔╝██║     ╚██████╔╝███████║ ██╗ ██║  ██║
+     ╚═════╝ ╚═════╝ ╚═╝      ╚═════╝ ╚══════╝ ╚═╝ ╚═╝  ╚═╝
+
+          Very reliable armor for your C programs!
+                  Coded by (C) DosX, 2024
+
+ [Additional options]
+ ~ cflow_v2       = more powerful Control Flow obfuscation (slowly!)
+ ~ antidebug_v2   = use better dynamic anti-debugging protection
+ ~ fake_signs     = adds fake signatures of various protectors or packers
+
+ [Disabling default features]
+ ~ no_cflow       = disable control flow obfuscation
+ ~ no_antidebug   = disable antidebug protection
+
+ ~ no_obf         = disable obfuscation
+
+ GitHub:
+ -> https://github.com/DosX-dev/obfus.h
+
+*/
 
 #if !defined(no_obf) && no_obf != 1
 
