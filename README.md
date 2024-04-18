@@ -20,6 +20,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > // Additional options
 > #define cflow_v2       1  // More powerful Control Flow obfuscation (slowly!)
 > #define antidebug_v2   1  // Use better dynamic anti-debugging protection
+> #define fake_signs     1  // Adds fake signatures of various protectors or packers
 > 
 > // Disabling default features
 > #define no_cflow       1  // Don't use Control-Flow obfuscation
@@ -28,7 +29,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D no_cflow  -D antidebug_v2
+> tcc "app.c" -w  -D no_cflow  -D antidebug_v2  -D fake_signs
 > ```
 
 ⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
@@ -42,6 +43,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 // #define no_cflow      1
 // #define no_antidebug  1
 #define antidebug_v2 1
+#define fake_signs   1
 #include "obfus.h"
 
 void main() {
