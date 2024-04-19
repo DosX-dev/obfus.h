@@ -964,4 +964,4 @@ int toupper_Proxy(int c) {
 
 #else
 #warning Obfuscation disabled!
-#endif;
+#endif
