@@ -37,28 +37,35 @@
 #error You are using too old a compiler version!
 #endif
 
+#define SUPPORTED (__TINYC__ || __GNUC__)
+#define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
+
 // Fake signatures ;)
-#if defined(fake_signs) && (fake_signs != 0) && (__TINYC__ || __GNUC__)
-static const char *FAKE_ENIGMA_1[] __attribute__((section(".enigma1"))) = {0};
-static const char *FAKE_ENIGMA_2[] __attribute__((section(".enigma2"))) = {0};
-static const char *FAKE_VMPROTECT_1[] __attribute__((section(".vmp0"))) = {0};  // (now is open-source)
-static const char *FAKE_VMPROTECT_2[] __attribute__((section(".vmp1"))) = {0};
-static const char *FAKE_VMPROTECT_3[] __attribute__((section(".vmp2"))) = {0};
-static const char *FAKE_THEMIDA[] __attribute__((section(".winlice"))) = {0};
-static const char *FAKE_UPX[] __attribute__((section("UPX0"))) = {0};
-static const char *FAKE_PETITE[] __attribute__((section(".petite"))) = {0};
-static const char *FAKE_RLP[] __attribute__((section(".rlp"))) = {0};
-static const char *FAKE_SECUROM[] __attribute__((section(".dsstext"))) = {0};
-static const char *FAKE_SQUISHY[] __attribute__((section("logicoma"))) = {0};
-static const char *FAKE_THEARK_1[] __attribute__((section("adr"))) = {0};
-static const char *FAKE_THEARK_2[] __attribute__((section("have"))) = {0};
-static const char *FAKE_THEARK_3[] __attribute__((section("30cm"))) = {0};
-static const char *FAKE_THEARK_4[] __attribute__((section(".tw"))) = {0};
-static const char *FAKE_THEARK_5[] __attribute__((section("logicoma"))) = {0};
-static const char *FAKE_ASPACK_1[] __attribute__((section(".aspack"))) = {0};
-static const char *FAKE_ASPACK_2[] __attribute__((section(".adata"))) = {0};
-static const char *FAKE_WIBUCODEMETER_1[] __attribute__((section("__wibu00"))) = {0};
-static const char *FAKE_WIBUCODEMETER_2[] __attribute__((section("__wibu01"))) = {0};
+#if defined(fake_signs) && (fake_signs != 0) && SUPPORTED
+
+static const char *FAKE_ENIGMA_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
+static const char *FAKE_ENIGMA_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
+static const char *FAKE_VMPROTECT_1[] SECTION_ATTRIBUTE(".vmp0") = {0};  // (now is open-source)
+static const char *FAKE_VMPROTECT_2[] SECTION_ATTRIBUTE(".vmp1") = {0};
+static const char *FAKE_VMPROTECT_3[] SECTION_ATTRIBUTE(".vmp2") = {0};
+
+#define OBFH_SECTION_ATTRIBUTE SECTION_ATTRIBUTE("UPX0")  // OBFH section
+static const char *FAKE_UPX[] OBFH_SECTION_ATTRIBUTE = {0};
+
+static const char *FAKE_THEMIDA[] SECTION_ATTRIBUTE(".winlice") = {0};
+static const char *FAKE_PETITE[] SECTION_ATTRIBUTE(".petite") = {0};
+static const char *FAKE_RLP[] SECTION_ATTRIBUTE(".rlp") = {0};
+static const char *FAKE_SECUROM[] SECTION_ATTRIBUTE(".dsstext") = {0};
+static const char *FAKE_SQUISHY[] SECTION_ATTRIBUTE("logicoma") = {0};
+static const char *FAKE_THEARK_1[] SECTION_ATTRIBUTE("adr") = {0};
+static const char *FAKE_THEARK_2[] SECTION_ATTRIBUTE("have") = {0};
+static const char *FAKE_THEARK_3[] SECTION_ATTRIBUTE("30cm") = {0};
+static const char *FAKE_THEARK_4[] SECTION_ATTRIBUTE(".tw") = {0};
+static const char *FAKE_THEARK_5[] SECTION_ATTRIBUTE("logicoma") = {0};
+static const char *FAKE_ASPACK_1[] SECTION_ATTRIBUTE(".aspack") = {0};
+static const char *FAKE_ASPACK_2[] SECTION_ATTRIBUTE(".adata") = {0};
+static const char *FAKE_WIBUCODEMETER_1[] SECTION_ATTRIBUTE("__wibu00") = {0};
+static const char *FAKE_WIBUCODEMETER_2[] SECTION_ATTRIBUTE("__wibu01") = {0};
 static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
                                     "MARXDEV1.SYS", "MxLPT_Sem",
                                     "nethasp.ini", "sense4.dll",
@@ -66,6 +73,11 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
                                     "SSIVDDP.DLL", "WIBUKEY",
                                     "\\\\.\\WIZZKEYRL",
                                     "\\\\.\\NVKEY"};
+
+#elif SUPPORTED
+
+#define OBFH_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".obfh")  // OBFH section
+
 #endif
 
 // Thanks to @horsicq && @ac3ss0r
@@ -86,7 +98,21 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
             __asm__ __volatile(".byte 0x00"); \
     }
 
+/*
+#if SUPPORTED
+void breakerFunc() SECTION_ATTRIBUTE(".dosx") {
+#else
+void breakerFunc() {
+#endif
+    __asm__ __volatile(".byte 0x00");
+}
+*/
+
+#if SUPPORTED
+void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
+#else
 void junkFunc(int z, ...) {
+#endif
     BREAK_STACK_1;
     __asm__ __volatile("nop");
     return;
@@ -103,6 +129,26 @@ void junkFuncEmpty() {
     __asm__ __volatile("int $3");     \
     exit(1);
 
+#if SUPPORTED
+volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
+                            _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
+                            _s_i[] OBFH_SECTION_ATTRIBUTE = "i", _s_j[] OBFH_SECTION_ATTRIBUTE = "j", _s_k[] OBFH_SECTION_ATTRIBUTE = "k", _s_l[] OBFH_SECTION_ATTRIBUTE = "l",
+                            _s_m[] OBFH_SECTION_ATTRIBUTE = "m", _s_n[] OBFH_SECTION_ATTRIBUTE = "n", _s_o[] OBFH_SECTION_ATTRIBUTE = "o", _s_p[] OBFH_SECTION_ATTRIBUTE = "p",
+                            _s_q[] OBFH_SECTION_ATTRIBUTE = "q", _s_r[] OBFH_SECTION_ATTRIBUTE = "r", _s_s[] OBFH_SECTION_ATTRIBUTE = "s", _s_t[] OBFH_SECTION_ATTRIBUTE = "t",
+                            _s_u[] OBFH_SECTION_ATTRIBUTE = "u", _s_v[] OBFH_SECTION_ATTRIBUTE = "v", _s_w[] OBFH_SECTION_ATTRIBUTE = "w", _s_x[] OBFH_SECTION_ATTRIBUTE = "x",
+                            _s_y[] OBFH_SECTION_ATTRIBUTE = "y", _s_z[] = "z",
+                            _a OBFH_SECTION_ATTRIBUTE = 'a', _b OBFH_SECTION_ATTRIBUTE = 'b', _c OBFH_SECTION_ATTRIBUTE = 'c', _d OBFH_SECTION_ATTRIBUTE = 'd',
+                            _e OBFH_SECTION_ATTRIBUTE = 'e', _f OBFH_SECTION_ATTRIBUTE = 'f', _g OBFH_SECTION_ATTRIBUTE = 'g', _h OBFH_SECTION_ATTRIBUTE = 'h',
+                            _i OBFH_SECTION_ATTRIBUTE = 'i', _j OBFH_SECTION_ATTRIBUTE = 'j', _k OBFH_SECTION_ATTRIBUTE = 'k', _l OBFH_SECTION_ATTRIBUTE = 'l',
+                            _m OBFH_SECTION_ATTRIBUTE = 'm', _n OBFH_SECTION_ATTRIBUTE = 'n', _o OBFH_SECTION_ATTRIBUTE = 'o', _p OBFH_SECTION_ATTRIBUTE = 'p',
+                            _q OBFH_SECTION_ATTRIBUTE = 'q', _r OBFH_SECTION_ATTRIBUTE = 'r', _s OBFH_SECTION_ATTRIBUTE = 's', _t OBFH_SECTION_ATTRIBUTE = 't',
+                            _u OBFH_SECTION_ATTRIBUTE = 'u', _v OBFH_SECTION_ATTRIBUTE = 'v', _w OBFH_SECTION_ATTRIBUTE = 'w', _x OBFH_SECTION_ATTRIBUTE = 'x',
+                            _y OBFH_SECTION_ATTRIBUTE = 'y', _z OBFH_SECTION_ATTRIBUTE = 'z',
+                            _S OBFH_SECTION_ATTRIBUTE = 'S', _L OBFH_SECTION_ATTRIBUTE = 'L', _A OBFH_SECTION_ATTRIBUTE = 'A', _I OBFH_SECTION_ATTRIBUTE = 'I',
+                            _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
+                            _0 OBFH_SECTION_ATTRIBUTE = 0, _1 OBFH_SECTION_ATTRIBUTE = 1, _2 OBFH_SECTION_ATTRIBUTE = 2, _3 OBFH_SECTION_ATTRIBUTE = 3, _4 OBFH_SECTION_ATTRIBUTE = 4,
+                            _5 OBFH_SECTION_ATTRIBUTE = 5, _6 OBFH_SECTION_ATTRIBUTE = 6, _7 OBFH_SECTION_ATTRIBUTE = 7, _8 OBFH_SECTION_ATTRIBUTE = 8, _9 OBFH_SECTION_ATTRIBUTE = 9;
+#else
 volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
                      _s_e[] = "e", _s_f[] = "f", _s_g[] = "g", _s_h[] = "h",
                      _s_i[] = "i", _s_j[] = "j", _s_k[] = "k", _s_l[] = "l",
@@ -121,6 +167,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
                      _D = 'D', _P = 'P',
                      _0 = 0, _1 = 1, _2 = 2, _3 = 3, _4 = 4,
                      _5 = 5, _6 = 6, _7 = 7, _8 = 8, _9 = 9;
+#endif
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
 #define FALSE ((_3 + _6 + (RND(0, 1000) * _0)) - _9)
@@ -149,7 +196,11 @@ int malloc_Proxy(int *size) {
 
 static char rndValueToProxy = RND(0, 10);
 
+#if SUPPORTED
+int int_Proxy(int value) OBFH_SECTION_ATTRIBUTE {
+#else
 int int_Proxy(int value) {
+#endif
     BREAK_STACK_1;
     if (rndValueToProxy == value)
         return rndValueToProxy;
@@ -161,20 +212,32 @@ int int_Proxy(int value) {
     return ((value * _1) + ((_4 * RND(0, 100000)) - _8) * _0);
 }
 
+#if SUPPORTED
+double double_Proxy(double value) OBFH_SECTION_ATTRIBUTE {
+#else
 double double_Proxy(double value) {
+#endif
     BREAK_STACK_1;
     junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
 
+#if SUPPORTED
+int condition_True() OBFH_SECTION_ATTRIBUTE {
+#else
 int condition_True() {
+#endif
     BREAK_STACK_1;
     FAKE_CPUID;
     return _1 && TRUE;
 }
 
+#if SUPPORTED
+int condition_Proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
+#else
 int condition_Proxy(int junk, int condition) {
+#endif
     BREAK_STACK_1;
 
     int result = int_Proxy(condition * _1);
@@ -229,7 +292,11 @@ int condition_Proxy(int junk, int condition) {
 
 #endif
 
+#if SUPPORTED
+char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
+#else
 char *getCharMask(int count) {
+#endif
     BREAK_STACK_1;
     static char mask[16];
     if (count <= _0 || count >= sizeof(mask)) {
@@ -332,7 +399,11 @@ char *rot13_str(char input) {
 } */
 
 static char loadStr[5];
+#if SUPPORTED
+HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+#else
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
+#endif
     switch (_0) {
         case 1:
             __asm__ __volatile(".byte 0x00");
@@ -403,7 +474,11 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 
 // Anti-Debug (global)
 #if !defined(no_antidebug) && no_antidebug != 1
+#if SUPPORTED
+int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
+#else
 int IsDebuggerPresent_Proxy() {
+#endif
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
@@ -468,7 +543,11 @@ void crash() {
 #define ANTI_DEBUG 0
 #endif
 
+#if SUPPORTED
+char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
+#else
 char *getStdLibName() {
+#endif
     BREAK_STACK_1;
     NOP_FLOOD;
     junkFunc(_0 + _3);
@@ -965,3 +1044,5 @@ int toupper_Proxy(int c) {
 #else
 #warning Obfuscation disabled!
 #endif
+
+// ;)
