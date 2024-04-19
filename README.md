@@ -42,10 +42,12 @@ This will automatically obfuscate your code during compilation, ensuring protect
 
 #include <stdio.h>
 
-// #define no_cflow      1
-// #define no_antidebug  1
-#define antidebug_v2 1
-#define fake_signs   1
+#define cflow_v2     1 // [+] ControlFlow v2
+#define fake_signs   1 // [+] Fake signatures
+#define antidebug_v2 1 // [+] AntiDebug v2
+#define no_cflow     0 // [-] Disable ControlFlow
+#define no_antidebug 0 // [-] Disable AntiDebug
+
 #include "obfus.h"
 
 void main() {
