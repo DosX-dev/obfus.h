@@ -38,7 +38,7 @@
 #endif
 
 // Fake signatures ;)
-#if fake_signs && (__TINYC__ || __GNUC__)
+#if defined(fake_signs) && (fake_signs != 0) && (__TINYC__ || __GNUC__)
 static const char *FAKE_ENIGMA_1[] __attribute__((section(".enigma1"))) = {0};
 static const char *FAKE_ENIGMA_2[] __attribute__((section(".enigma2"))) = {0};
 static const char *FAKE_VMPROTECT_1[] __attribute__((section(".vmp0"))) = {0};  // (now is open-source)
