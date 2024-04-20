@@ -43,29 +43,37 @@
 // Fake signatures ;)
 #if defined(fake_signs) && (fake_signs != 0) && SUPPORTED
 
-static const char *FAKE_ENIGMA_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
-static const char *FAKE_ENIGMA_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
-static const char *FAKE_VMPROTECT_1[] SECTION_ATTRIBUTE(".vmp0") = {0};  // (now is open-source)
-static const char *FAKE_VMPROTECT_2[] SECTION_ATTRIBUTE(".vmp1") = {0};
-static const char *FAKE_VMPROTECT_3[] SECTION_ATTRIBUTE(".vmp2") = {0};
+static const char FAKE_ENIGMAVM_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
+static const char FAKE_ENIGMAVM_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
+static const char FAKE_VMPROTECT_1[] SECTION_ATTRIBUTE(".vmp0") = {0};  // (now is open-source)
+static const char FAKE_VMPROTECT_2[] SECTION_ATTRIBUTE(".vmp1") = {0};
+static const char FAKE_VMPROTECT_3[] SECTION_ATTRIBUTE(".vmp2") = {0};
 
 #define OBFH_SECTION_ATTRIBUTE SECTION_ATTRIBUTE("UPX0")  // OBFH section
-static const char *FAKE_UPX[] OBFH_SECTION_ATTRIBUTE = {0};
+static const char FAKE_UPX[] OBFH_SECTION_ATTRIBUTE = {0};
 
-static const char *FAKE_THEMIDA[] SECTION_ATTRIBUTE(".winlice") = {0};
-static const char *FAKE_PETITE[] SECTION_ATTRIBUTE(".petite") = {0};
-static const char *FAKE_RLP[] SECTION_ATTRIBUTE(".rlp") = {0};
-static const char *FAKE_SECUROM[] SECTION_ATTRIBUTE(".dsstext") = {0};
-static const char *FAKE_SQUISHY[] SECTION_ATTRIBUTE("logicoma") = {0};
-static const char *FAKE_THEARK_1[] SECTION_ATTRIBUTE("adr") = {0};
-static const char *FAKE_THEARK_2[] SECTION_ATTRIBUTE("have") = {0};
-static const char *FAKE_THEARK_3[] SECTION_ATTRIBUTE("30cm") = {0};
-static const char *FAKE_THEARK_4[] SECTION_ATTRIBUTE(".tw") = {0};
-static const char *FAKE_THEARK_5[] SECTION_ATTRIBUTE("logicoma") = {0};
-static const char *FAKE_ASPACK_1[] SECTION_ATTRIBUTE(".aspack") = {0};
-static const char *FAKE_ASPACK_2[] SECTION_ATTRIBUTE(".adata") = {0};
-static const char *FAKE_WIBUCODEMETER_1[] SECTION_ATTRIBUTE("__wibu00") = {0};
-static const char *FAKE_WIBUCODEMETER_2[] SECTION_ATTRIBUTE("__wibu01") = {0};
+static const char FAKE_THEMIDA[] SECTION_ATTRIBUTE(".winlice") = {0};
+static const char FAKE_PETITE[] SECTION_ATTRIBUTE(".petite") = {0};
+static const char FAKE_RLP[] SECTION_ATTRIBUTE(".rlp") = {0};
+static const char FAKE_SECUROM[] SECTION_ATTRIBUTE(".dsstext") = {0};
+static const char FAKE_SQUISHY[] SECTION_ATTRIBUTE("logicoma") = {0};
+static const char FAKE_THEARK_1[] SECTION_ATTRIBUTE("adr") = {0};
+static const char FAKE_THEARK_2[] SECTION_ATTRIBUTE("have") = {0};
+static const char FAKE_THEARK_3[] SECTION_ATTRIBUTE("30cm") = {0};
+static const char FAKE_PETETRIS[] SECTION_ATTRIBUTE("PETETRIS") = {0};
+static const char FAKE_ENIGMA[] SECTION_ATTRIBUTE(".data") = {0x45, 0x6e, 0x69, 0x67, 0x6d, 0x61, 0x20, 0x70, 0x72, 0x6f, 0x74, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x20, 0x76, 0x01};
+static const char FAKE_ALINYZE[] SECTION_ATTRIBUTE(".alien") = {0};
+static const char FAKE_PWDPROTECT[] SECTION_ATTRIBUTE(".pwdprot") = {0};
+static const char FAKE_DENUVO[] SECTION_ATTRIBUTE(".arch") = {0x64, 0x65, 0x6E, 0x75, 0x76, 0x6F, 0x5F, 0x61, 0x74, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const char FAKE_NUITKA[] SECTION_ATTRIBUTE(".rdata") = {0x4e, 0x55, 0x49, 0x54, 0x4b, 0x41, 0x5f, 0x4f, 0x4e, 0x45, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x50, 0x41, 0x52, 0x45, 0x4e, 0x54};
+static const char FAKE_THEARK_4[] SECTION_ATTRIBUTE(".tw") = {0};
+static const char FAKE_THEARK_5[] SECTION_ATTRIBUTE("logicoma") = {0};
+static const char FAKE_OREANSVM[] SECTION_ATTRIBUTE(".vlizer") = {0};
+static const char FAKE_SCREEN2EXE[] SECTION_ATTRIBUTE(".text") = {0x56, 0x69, 0x64, 0x65, 0x6f, 0x20, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x20, 0x62, 0x79, 0x20, 0x53, 0x43, 0x52, 0x45, 0x45, 0x4e, 0x32, 0x45, 0x58, 0x45, 0x2f, 0x53, 0x43, 0x52, 0x45, 0x45, 0x4e, 0x32, 0x53, 0x57, 0x46};
+static const char FAKE_ASPACK_1[] SECTION_ATTRIBUTE(".aspack") = {0};
+static const char FAKE_ASPACK_2[] SECTION_ATTRIBUTE(".adata") = {0};
+static const char FAKE_WIBUCODEMETER_1[] SECTION_ATTRIBUTE("__wibu00") = {0};
+static const char FAKE_WIBUCODEMETER_2[] SECTION_ATTRIBUTE("__wibu01") = {0};
 static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
                                     "MARXDEV1.SYS", "MxLPT_Sem",
                                     "nethasp.ini", "sense4.dll",
