@@ -71,4 +71,4 @@ The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunatel
 ## Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
  * 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advices)*
- * 👨🏼‍💻 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
+ * 🦊 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
