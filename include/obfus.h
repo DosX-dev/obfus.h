@@ -25,7 +25,7 @@
 
 */
 
-#if !defined(no_obf) && no_obf != 1
+#if no_obf == 0
 
 #include <conio.h>
 #include <stdio.h>
@@ -260,15 +260,9 @@ int condition_Proxy(int junk, int condition) {
 }
 
 // Control Flow (global)
-#if !defined(no_cflow) || no_cflow != 1
+#if no_cflow != 1
 
-#if !defined(cflow_v2) || cflow_v2 == 0
-
-// Control flow obfuscation for 'if' & 'for', V1
-#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
-#define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
-
-#elif cflow_v2 != 0
+#if cflow_v2 == 1
 
 // Control flow obfuscation for 'if' & 'for', V2 (strong!)
 #define if(condition)                      \
@@ -276,6 +270,12 @@ int condition_Proxy(int junk, int condition) {
         __asm__ __volatile(".byte 0x00");  \
     } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 100000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
+
+#else
+
+// Control flow obfuscation for 'if' & 'for', V1
+#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+#define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
 
@@ -481,7 +481,7 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
 // Anti-Debug (global)
-#if !defined(no_antidebug) || no_antidebug != 1
+#if no_antidebug != 1
 #if SUPPORTED
 int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
 #else
@@ -490,13 +490,7 @@ int IsDebuggerPresent_Proxy() {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
-#if !defined(antidebug_v2) && antidebug_v2 != 1
-
-    // Standart antidebugger
-    NOP_FLOOD;
-    return IsDebuggerPresent();
-
-#else
+#if antidebug_v2 == 1
 
     // Dynamic antidebugger
     char result[32];
@@ -525,9 +519,24 @@ int IsDebuggerPresent_Proxy() {
     funcName[_6 * _2 * _1] = _e;
 
     return ((BOOL(*)())GetProcAddress(LoadLibraryA(result), funcName))();
+
+#else
+
+    // Standart antidebugger
+    NOP_FLOOD;
+    return IsDebuggerPresent();
+
 #endif
     // return ((int (*)())GetProcAddress(LoadLibraryA("kernel32.dll"), "IsDebuggerPresent"))();
 }
+
+/*
+void antiDebugMessage() {
+    typedef int(WINAPI * MessageBoxAType)(HWND, LPCSTR, LPCSTR, UINT);
+    MessageBoxAType MessageBoxA = (MessageBoxAType)GetProcAddress(LoadLibraryA("user32.dll"), "MessageBoxA");
+    if (MessageBoxA != NULL) MessageBoxA(NULL, "Debugging prevented.", "", 0x10);
+}
+*/
 
 void crash() {
     BREAK_STACK_1;
@@ -537,6 +546,8 @@ void crash() {
 
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
+        double_Proxy(RND(1, 999));                                                                 \
+        /* antiDebugMessage(); */                                                                  \
         __asm__ __volatile(".byte 0xED");                                                          \
         BREAK_STACK_1;                                                                             \
         __asm__ __volatile(".byte 0x66, 0xC1, 0xE8, 0x05");                                        \
