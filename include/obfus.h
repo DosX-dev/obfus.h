@@ -260,7 +260,7 @@ int condition_Proxy(int junk, int condition) {
 }
 
 // Control Flow (global)
-#if !defined(no_cflow) && no_cflow != 1
+#if !defined(no_cflow) || no_cflow != 1
 
 #if !defined(cflow_v2) || cflow_v2 == 0
 
@@ -481,7 +481,7 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
 // Anti-Debug (global)
-#if !defined(no_antidebug) && no_antidebug != 1
+#if !defined(no_antidebug) || no_antidebug != 1
 #if SUPPORTED
 int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
 #else
