@@ -262,13 +262,13 @@ int condition_Proxy(int junk, int condition) {
 // Control Flow (global)
 #if !defined(no_cflow) && no_cflow != 1
 
-#if !defined(cflow_v2) && cflow_v2 != 1
+#if !defined(cflow_v2) || cflow_v2 == 0
 
 // Control flow obfuscation for 'if' & 'for', V1
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
-#else
+#elif cflow_v2 != 0
 
 // Control flow obfuscation for 'if' & 'for', V2 (strong!)
 #define if(condition)                      \
