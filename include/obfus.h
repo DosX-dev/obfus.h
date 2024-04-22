@@ -134,12 +134,21 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 
 #define BREAK_STACK_5                      \
     __asm__ __volatile("xorl %ebx, %ebx"); \
+    __asm__ __volatile("xorl %eax, %eax"); \
     __asm__ __volatile("mov %eax, %ebx");  \
     __asm__ __volatile("mov %edx, %ebx");  \
     __asm__ __volatile("xorl %eax, %edx"); \
     __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile("mov %eax, 4");     \
     __asm__ __volatile(".byte 0x20");      \
+    __asm__ __volatile("1:");
+
+#define BREAK_STACK_6                      \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("mov %eax, %edx");  \
+    __asm__ __volatile("mov %edx, %edx");  \
+    __asm__ __volatile("xorl %eax, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0xE8");      \
     __asm__ __volatile("1:");
 
 /*
@@ -491,23 +500,23 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
 }
 
 char *LoadLibraryA_1(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_6;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_2(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_5;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_3(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_4;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_4(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_3;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_5(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_2;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
