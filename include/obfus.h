@@ -61,11 +61,28 @@ static const char FAKE_THEARK_1[] SECTION_ATTRIBUTE("adr") = {0};
 static const char FAKE_THEARK_2[] SECTION_ATTRIBUTE("have") = {0};
 static const char FAKE_THEARK_3[] SECTION_ATTRIBUTE("30cm") = {0};
 static const char FAKE_PETETRIS[] SECTION_ATTRIBUTE("PETETRIS") = {0};
-static const char FAKE_ENIGMA[] SECTION_ATTRIBUTE(".data") = {0x45, 0x6e, 0x69, 0x67, 0x6d, 0x61, 0x20, 0x70, 0x72, 0x6f, 0x74, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x20, 0x76, 0x01};
+
+static const char FAKE_ENIGMA[] SECTION_ATTRIBUTE(".data") = {0x45, 0x6e, 0x69, 0x67,
+                                                              0x6d, 0x61, 0x20, 0x70,
+                                                              0x72, 0x6f, 0x74, 0x65,
+                                                              0x63, 0x74, 0x6f, 0x72,
+                                                              0x20, 0x76, 0x01};
+
 static const char FAKE_ALINYZE[] SECTION_ATTRIBUTE(".alien") = {0};
 static const char FAKE_PWDPROTECT[] SECTION_ATTRIBUTE(".pwdprot") = {0};
-static const char FAKE_DENUVO[] SECTION_ATTRIBUTE(".arch") = {0x64, 0x65, 0x6E, 0x75, 0x76, 0x6F, 0x5F, 0x61, 0x74, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static const char FAKE_NUITKA[] SECTION_ATTRIBUTE(".rdata") = {0x4e, 0x55, 0x49, 0x54, 0x4b, 0x41, 0x5f, 0x4f, 0x4e, 0x45, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x50, 0x41, 0x52, 0x45, 0x4e, 0x54};
+
+static const char FAKE_DENUVO[] SECTION_ATTRIBUTE(".arch") = {0x64, 0x65, 0x6E, 0x75,
+                                                              0x76, 0x6F, 0x5F, 0x61,
+                                                              0x74, 0x64, 0x00, 0x00,
+                                                              0x00, 0x00, 0x00, 0x00};
+
+static const char FAKE_NUITKA[] SECTION_ATTRIBUTE(".rdata") = {0x4e, 0x55, 0x49, 0x54,
+                                                               0x4b, 0x41, 0x5f, 0x4f,
+                                                               0x4e, 0x45, 0x46, 0x49,
+                                                               0x4c, 0x45, 0x5f, 0x50,
+                                                               0x41, 0x52, 0x45, 0x4e,
+                                                               0x54};
+
 static const char FAKE_THEARK_4[] SECTION_ATTRIBUTE(".tw") = {0};
 static const char FAKE_THEARK_5[] SECTION_ATTRIBUTE("logicoma") = {0};
 static const char FAKE_OREANSVM[] SECTION_ATTRIBUTE(".vlizer") = {0};
@@ -94,7 +111,7 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 #define BREAK_STACK_1                      \
     __asm__ __volatile("xorl %eax, %eax"); \
     __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0x00");      \
+    __asm__ __volatile(".byte 0xE8");      \
     __asm__ __volatile("1:");
 
 #define BREAK_STACK_2 \
@@ -105,6 +122,25 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
         case 1:                               \
             __asm__ __volatile(".byte 0x00"); \
     }
+
+#define BREAK_STACK_4                      \
+    __asm__ __volatile("xorl %ebx, %ebx"); \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("xorl %ebx, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile("mov %eax, 4");     \
+    __asm__ __volatile(".byte 0x00");      \
+    __asm__ __volatile("1:");
+
+#define BREAK_STACK_5                      \
+    __asm__ __volatile("xorl %ebx, %ebx"); \
+    __asm__ __volatile("mov %eax, %ebx");  \
+    __asm__ __volatile("mov %edx, %ebx");  \
+    __asm__ __volatile("xorl %eax, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile("mov %eax, 4");     \
+    __asm__ __volatile(".byte 0x20");      \
+    __asm__ __volatile("1:");
 
 /*
 #if SUPPORTED
@@ -127,7 +163,7 @@ void junkFunc(int z, ...) {
 }
 
 void junkFuncEmpty() {
-    BREAK_STACK_1;
+    BREAK_STACK_5;
     __asm__ __volatile("nop");
     return;
 }
@@ -209,7 +245,7 @@ int int_Proxy(int value) OBFH_SECTION_ATTRIBUTE {
 #else
 int int_Proxy(int value) {
 #endif
-    BREAK_STACK_1;
+    BREAK_STACK_4;
     if (rndValueToProxy == value)
         return rndValueToProxy;
 
@@ -246,7 +282,7 @@ int condition_Proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
 #else
 int condition_Proxy(int junk, int condition) {
 #endif
-    BREAK_STACK_1;
+    BREAK_STACK_4;
 
     int result = int_Proxy(condition * _1);
     if (result == (FALSE * junk)) {
@@ -548,6 +584,8 @@ void crash() {
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
         double_Proxy(RND(1, 999));                                                                 \
         /* antiDebugMessage(); */                                                                  \
+        while (1) {                                                                                \
+        };                                                                                         \
         __asm__ __volatile(".byte 0xED");                                                          \
         BREAK_STACK_1;                                                                             \
         __asm__ __volatile(".byte 0x66, 0xC1, 0xE8, 0x05");                                        \
