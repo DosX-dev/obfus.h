@@ -108,49 +108,6 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 // Thanks to @horsicq && @ac3ss0r
 #define RND(min, max) (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
 
-#define BREAK_STACK_1                      \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:");
-
-#define BREAK_STACK_2 \
-    if (_0) __asm__ __volatile(".byte 0x00");
-
-#define BREAK_STACK_3                         \
-    switch (_0) {                             \
-        case 1:                               \
-            __asm__ __volatile(".byte 0x00"); \
-    }
-
-#define BREAK_STACK_4                      \
-    __asm__ __volatile("xorl %ebx, %ebx"); \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("xorl %ebx, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile("mov %eax, 4");     \
-    __asm__ __volatile(".byte 0x00");      \
-    __asm__ __volatile("1:");
-
-#define BREAK_STACK_5                      \
-    __asm__ __volatile("xorl %ebx, %ebx"); \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("mov %eax, %ebx");  \
-    __asm__ __volatile("mov %edx, %ebx");  \
-    __asm__ __volatile("xorl %eax, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0x20");      \
-    __asm__ __volatile("1:");
-
-#define BREAK_STACK_6                      \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("mov %eax, %edx");  \
-    __asm__ __volatile("mov %edx, %edx");  \
-    __asm__ __volatile("xorl %eax, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:");
-
 /*
 #if SUPPORTED
 void breakerFunc() SECTION_ATTRIBUTE(".dosx") {
@@ -160,27 +117,6 @@ void breakerFunc() {
     __asm__ __volatile(".byte 0x00");
 }
 */
-
-#if SUPPORTED
-void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
-#else
-void junkFunc(int z, ...) {
-#endif
-    BREAK_STACK_1;
-    __asm__ __volatile("nop");
-    return;
-}
-
-void junkFuncEmpty() {
-    BREAK_STACK_5;
-    __asm__ __volatile("nop");
-    return;
-}
-
-#define __CRASH                       \
-    __asm__ __volatile(".byte 0xED"); \
-    __asm__ __volatile("int $3");     \
-    exit(1);
 
 #if SUPPORTED
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
@@ -221,6 +157,85 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
                      _0 = 0, _1 = 1, _2 = 2, _3 = 3, _4 = 4,
                      _5 = 5, _6 = 6, _7 = 7, _8 = 8, _9 = 9;
 #endif
+
+#define BREAK_STACK_1                      \
+    __asm__ __volatile("xorl %eax, %eax"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0xE8");      \
+    __asm__ __volatile("1:");
+
+#define BREAK_STACK_2 \
+    if (_0) __asm__ __volatile(".byte 0x00");
+
+// Junk JMPOUT condition
+#define BREAK_STACK_3                         \
+    switch (_0) {                             \
+        case 1:                               \
+            __asm__ __volatile(".byte 0x00"); \
+    }
+
+#define BREAK_STACK_4                      \
+    __asm__ __volatile("xorl %ebx, %ebx"); \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("xorl %ebx, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile("mov %eax, 4");     \
+    __asm__ __volatile(".byte 0x00");      \
+    __asm__ __volatile("1:");
+
+// Junk
+#define BREAK_STACK_5                      \
+    __asm__ __volatile("xorl %ebx, %ebx"); \
+    __asm__ __volatile("xorl %eax, %eax"); \
+    __asm__ __volatile("mov %eax, %ebx");  \
+    __asm__ __volatile("mov %edx, %ebx");  \
+    __asm__ __volatile("xorl %eax, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0x20");      \
+    __asm__ __volatile("1:");
+
+#if SUPPORTED
+#define BREAK_STACK_6                                           \
+    __asm__ __volatile("xorl %edx, %edx");                      \
+    __asm__ __volatile("mov %eax, %edx");                       \
+    __asm__ __volatile("mov %0, %%edx" : : "r"(int_Proxy(_0))); \
+    __asm__ __volatile("jz 1f");                                \
+    __asm__ __volatile(".byte 0xE8");                           \
+    __asm__ __volatile("1:");
+#else
+#define BREAK_STACK_6 0
+#endif
+
+#if SUPPORTED
+#define BREAK_STACK_7                                            \
+    __asm__ __volatile("movl %0, %%edx" : : "r"(int_Proxy(_0))); \
+    __asm__ __volatile("movl %0, %%eax" : : "r"(_0));            \
+    __asm__ __volatile("jz 1f");                                 \
+    __asm__ __volatile(".byte 0xE8");                            \
+    __asm__ __volatile("1:");
+#else
+#define BREAK_STACK_7 0
+#endif
+
+#if SUPPORTED
+void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
+#else
+void junkFunc(int z, ...) {
+#endif
+    __asm__ __volatile("nop");
+    return;
+}
+
+void junkFuncEmpty() {
+    BREAK_STACK_5;
+    __asm__ __volatile("nop");
+    return;
+}
+
+#define __CRASH                       \
+    __asm__ __volatile(".byte 0xED"); \
+    __asm__ __volatile("int $3");     \
+    exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
 #define FALSE ((_3 + _6 + (RND(0, 1000) * _0)) - _9)
@@ -313,13 +328,13 @@ int condition_Proxy(int junk, int condition) {
 #define if(condition)                      \
     if (int_Proxy(RND(1, 1000000)) < _0) { \
         __asm__ __volatile(".byte 0x00");  \
-    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 100000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
+    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
 
 #else
 
 // Control flow obfuscation for 'if' & 'for', V1
-#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
@@ -480,6 +495,7 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
                     loadStr[_4] = int_Proxy(_0);
                     loadStr[_3] = int_Proxy(_d);
                     loadStr[_2] = int_Proxy(_a);
+                    BREAK_STACK_2;
                     loadStr[_1] = int_Proxy(_o);
                     loadStr[_0] = int_Proxy(_L);
 
@@ -637,31 +653,31 @@ char *getStdLibName() {
 }
 
 char *getStdLibName_1() {
-    BREAK_STACK_1;
+    BREAK_STACK_3;
     return getStdLibName();
 }
 char *getStdLibName_2() {
-    BREAK_STACK_1;
+    BREAK_STACK_7;
     return getStdLibName_1();
 }
 char *getStdLibName_3() {
-    BREAK_STACK_1;
+    BREAK_STACK_6;
     return getStdLibName_2();
 }
 char *getStdLibName_4() {
-    BREAK_STACK_1;
+    BREAK_STACK_5;
     return getStdLibName_3();
 }
 char *getStdLibName_5() {
-    BREAK_STACK_1;
+    BREAK_STACK_4;
     return getStdLibName_4();
 }
 char *getStdLibName_6() {
-    BREAK_STACK_1;
+    BREAK_STACK_3;
     return getStdLibName_5();
 }
 char *getStdLibName_7() {
-    BREAK_STACK_1;
+    BREAK_STACK_2;
     return getStdLibName_6();
 }
 char *getStdLibName_8() {
@@ -669,19 +685,19 @@ char *getStdLibName_8() {
     return getStdLibName_7();
 }
 char *getStdLibName_9() {
-    BREAK_STACK_1;
+    BREAK_STACK_4;
     return getStdLibName_8();
 }
 char *getStdLibName_10() {
-    BREAK_STACK_1;
+    BREAK_STACK_7;
     return getStdLibName_9();
 }
 char *getStdLibName_11() {
-    BREAK_STACK_1;
+    BREAK_STACK_2;
     return getStdLibName_10();
 }
 char *getStdLibName_12() {
-    BREAK_STACK_1;
+    BREAK_STACK_6;
     return getStdLibName_11();
 }
 char *getStdLibName_13() {
@@ -697,11 +713,11 @@ char *getStdLibName_15() {
     return getStdLibName_14();
 }
 char *getStdLibName_16() {
-    BREAK_STACK_1;
+    BREAK_STACK_7;
     return getStdLibName_15();
 }
 char *getStdLibName_Proxy() {
-    BREAK_STACK_1;
+    BREAK_STACK_7;
     return getStdLibName_16();
 }
 
