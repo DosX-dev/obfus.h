@@ -183,7 +183,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile(".byte 0x00");      \
     __asm__ __volatile("1:");
 
-// Junk
+// Junk 'MEMORY[*]'
 #define BREAK_STACK_5                      \
     __asm__ __volatile("xorl %ebx, %ebx"); \
     __asm__ __volatile("xorl %eax, %eax"); \
@@ -194,28 +194,19 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile(".byte 0x20");      \
     __asm__ __volatile("1:");
 
-#if SUPPORTED
-#define BREAK_STACK_6                                           \
-    __asm__ __volatile("xorl %edx, %edx");                      \
-    __asm__ __volatile("mov %eax, %edx");                       \
-    __asm__ __volatile("mov %0, %%edx" : : "r"(int_Proxy(_0))); \
-    __asm__ __volatile("jz 1f");                                \
-    __asm__ __volatile(".byte 0xE8");                           \
+#define BREAK_STACK_6                      \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("xorl %eax, %eax"); \
+    __asm__ __volatile("mov %eax, %edx");  \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0xE8");      \
     __asm__ __volatile("1:");
-#else
-#define BREAK_STACK_6 0
-#endif
 
-#if SUPPORTED
-#define BREAK_STACK_7                                            \
-    __asm__ __volatile("movl %0, %%edx" : : "r"(int_Proxy(_0))); \
-    __asm__ __volatile("movl %0, %%eax" : : "r"(_0));            \
-    __asm__ __volatile("jz 1f");                                 \
-    __asm__ __volatile(".byte 0xE8");                            \
+#define BREAK_STACK_7                      \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0xE8");      \
     __asm__ __volatile("1:");
-#else
-#define BREAK_STACK_7 0
-#endif
 
 #if SUPPORTED
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
