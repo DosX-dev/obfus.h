@@ -183,7 +183,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile(".byte 0x00");      \
     __asm__ __volatile("1:");
 
-// Junk
+// Junk 'MEMORY[*]'
 #define BREAK_STACK_5                      \
     __asm__ __volatile("xorl %ebx, %ebx"); \
     __asm__ __volatile("xorl %eax, %eax"); \
@@ -194,28 +194,19 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile(".byte 0x20");      \
     __asm__ __volatile("1:");
 
-#if SUPPORTED
-#define BREAK_STACK_6                                           \
-    __asm__ __volatile("xorl %edx, %edx");                      \
-    __asm__ __volatile("mov %eax, %edx");                       \
-    __asm__ __volatile("mov %0, %%edx" : : "r"(int_Proxy(_0))); \
-    __asm__ __volatile("jz 1f");                                \
-    __asm__ __volatile(".byte 0xE8");                           \
+#define BREAK_STACK_6                      \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("xorl %eax, %eax"); \
+    __asm__ __volatile("mov %eax, %edx");  \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0xE8");      \
     __asm__ __volatile("1:");
-#else
-#define BREAK_STACK_6 0
-#endif
 
-#if SUPPORTED
-#define BREAK_STACK_7                                            \
-    __asm__ __volatile("movl %0, %%edx" : : "r"(int_Proxy(_0))); \
-    __asm__ __volatile("movl %0, %%eax" : : "r"(_0));            \
-    __asm__ __volatile("jz 1f");                                 \
-    __asm__ __volatile(".byte 0xE8");                            \
+#define BREAK_STACK_7                      \
+    __asm__ __volatile("xorl %edx, %edx"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0xE8");      \
     __asm__ __volatile("1:");
-#else
-#define BREAK_STACK_7 0
-#endif
 
 #if SUPPORTED
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
@@ -487,11 +478,11 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
                 char libName[32];
                 sprintf(libName, strcat(getCharMask(_6), "%d"), _k, _e, _r, _n, _e, _l, (_4 * _8));
 
-                HMODULE hKernel32 = GetModuleHandleA_Proxy(libName);
+                HMODULE hKernel32 = GetModuleHandleA(libName);
                 if (hKernel32 != NULL) {
                     FAKE_CPUID;
                     char _L_char = _L;
-                    junkFunc(_0);
+                    junkFunc(_0 + RND(1, 5));
                     loadStr[_4] = int_Proxy(_0);
                     loadStr[_3] = int_Proxy(_d);
                     loadStr[_2] = int_Proxy(_a);
@@ -505,6 +496,12 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
 
                     sprintf(funcName, strcat("Library", "%c"), _A);  // _A = LoadLibrary{'A'}
                     loadLibraryA = (LoadLibraryAFunc)GetProcAddress(hKernel32, strcat(loadStr, funcName));
+                    free(funcName);
+
+#if memcleaner
+                    int *value = _1 * -1;
+                    SetProcessWorkingSetSize(GetCurrentProcess(), value, value);
+#endif
                 }
             }
             if (loadLibraryA != NULL) {
@@ -605,10 +602,16 @@ void crash() {
     __asm__ __volatile(".byte 0xED, 0x00");
 }
 
+void loop() {
+    while (1) {
+    }
+}
+
 #define ANTI_DEBUG                                                                                 \
     if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
         double_Proxy(RND(1, 999));                                                                 \
         /* antiDebugMessage(); */                                                                  \
+        loop();                                                                                    \
         while (1) {                                                                                \
         };                                                                                         \
         __asm__ __volatile(".byte 0xED");                                                          \
@@ -635,7 +638,8 @@ char *getStdLibName() {
     junkFunc(_0 + _3);
     junkFunc(_3 - _2);
 
-    char *msvcrtName = malloc(_7);
+    // char *msvcrtName = malloc(_7);
+    static char msvcrtName[7] = "\0\0\0\0\0\0\0";
 
     ANTI_DEBUG;
 
@@ -649,6 +653,7 @@ char *getStdLibName() {
     msvcrtName[_8 - _3 - _5] = _m;
 
     NOP_FLOOD;
+
     return msvcrtName;
 }
 
