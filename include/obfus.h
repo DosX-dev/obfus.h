@@ -170,7 +170,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
 // Junk JMPOUT condition
 #define BREAK_STACK_3                         \
     switch (_0) {                             \
-        case 1:                               \
+        case RND(1, 1000):                    \
             __asm__ __volatile(".byte 0x00"); \
     }
 
