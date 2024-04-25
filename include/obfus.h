@@ -1014,7 +1014,7 @@ int toupper_Proxy(int c) {
     CloseHandle(int_Proxy(hObject))
 
 #define GetModuleHandle(lpModuleName) \
-    GetModuleHandle(int_Proxy(lpModuleName))
+    GetModuleHandleA(int_Proxy(lpModuleName))
 
 #define GetCurrentProcess() \
     int_Proxy(GetCurrentProcess())
