@@ -162,7 +162,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile("xorl %eax, %eax"); \
     __asm__ __volatile("jz 1f");           \
     __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:");
+    __asm__ __volatile("1:")
 
 #define BREAK_STACK_2 \
     if (_0) __asm__ __volatile(".byte 0x00");
@@ -181,7 +181,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile("jz 1f");           \
     __asm__ __volatile("mov %eax, 4");     \
     __asm__ __volatile(".byte 0x00");      \
-    __asm__ __volatile("1:");
+    __asm__ __volatile("1:")
 
 // Junk 'MEMORY[*]'
 #define BREAK_STACK_5                      \
@@ -192,7 +192,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile("xorl %eax, %edx"); \
     __asm__ __volatile("jz 1f");           \
     __asm__ __volatile(".byte 0x20");      \
-    __asm__ __volatile("1:");
+    __asm__ __volatile("1:")
 
 #define BREAK_STACK_6                      \
     __asm__ __volatile("xorl %edx, %edx"); \
@@ -200,13 +200,25 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile("mov %eax, %edx");  \
     __asm__ __volatile("jz 1f");           \
     __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:");
+    __asm__ __volatile("1:")
 
 #define BREAK_STACK_7                      \
     __asm__ __volatile("xorl %edx, %edx"); \
     __asm__ __volatile("jz 1f");           \
     __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:");
+    __asm__ __volatile("1:")
+
+#define BREAK_STACK_8                      \
+    __asm__ __volatile("xorl %eax, %eax"); \
+    __asm__ __volatile("jz 1f");           \
+    __asm__ __volatile(".byte 0x50");      \
+    __asm__ __volatile("1:")
+
+#define BREAK_STACK_9                       \
+    __asm__ __volatile("xorl %esi, %esi");  \
+    __asm__ __volatile("jz 1f");            \
+    __asm__ __volatile(".byte 0x00, 0x00"); \
+    __asm__ __volatile("1:")
 
 #if SUPPORTED
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
@@ -370,7 +382,10 @@ char *getCharMask(int count) {
     }
     *ptr = '\0';
 
+    BREAK_STACK_8;
+
     FAKE_CPUID;
+
     return mask;
 }
 
@@ -399,7 +414,7 @@ FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) {
 #define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
 
 HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
-    BREAK_STACK_1;
+    BREAK_STACK_9;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
 }
@@ -644,6 +659,7 @@ char *getStdLibName() {
     ANTI_DEBUG;
 
     msvcrtName[_3 + _2 + _1] = 0;
+    BREAK_STACK_8;
     msvcrtName[_1 + _2 + _2] = int_Proxy(_t);
     msvcrtName[_2 * _1 + _2] = _r;
     NOP_FLOOD;
@@ -718,7 +734,7 @@ char *getStdLibName_15() {
     return getStdLibName_14();
 }
 char *getStdLibName_16() {
-    BREAK_STACK_7;
+    BREAK_STACK_9;
     return getStdLibName_15();
 }
 char *getStdLibName_Proxy() {
