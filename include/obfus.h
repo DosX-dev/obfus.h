@@ -595,7 +595,7 @@ int IsDebuggerPresent_Proxy() {
 
 #else
 
-    // Standart antidebugger
+    // Standard antidebugger
     NOP_FLOOD;
     return IsDebuggerPresent();
 
