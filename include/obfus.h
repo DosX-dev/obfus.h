@@ -241,7 +241,7 @@ void junkFuncEmpty() {
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
-#define FALSE ((_3 + _6 + (RND(0, 1000) * _0)) - _9)
+#define FALSE (((_3 + _6 + (RND(0, 1000) * _0)) - _9) * RND(0, 255))
 
 #define FAKE_CPUID __asm__ __volatile("nop\ncpuid\nnop\n")
 
@@ -325,23 +325,38 @@ int condition_Proxy(int junk, int condition) {
 // Control Flow (global)
 #if no_cflow != 1
 
-#if cflow_v2 == 1
+#if cflow_v2 == 1  // Control flow obfuscation for 'if' & 'for', V2 (strong!)
 
-// Control flow obfuscation for 'if' & 'for', V2 (strong!)
+// if (V2)
 #define if(condition)                      \
     if (int_Proxy(RND(1, 1000000)) < _0) { \
         __asm__ __volatile(".byte 0x00");  \
     } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
+
+// for (V2)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
+
+// break
+#define break \
+    if (int_Proxy(_1)) break
 
 #else
 
 // Control flow obfuscation for 'if' & 'for', V1
+
+// if (V1)
 #define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+
+// for (V1)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
 
+// return
+#define return \
+    return int_Proxy(_0) ? RND(0, 1000):
+
+// else
 #define else                                                                      \
     else if (_0 > RND(1, 1000)) {                                                 \
         junkFunc(RND(0, 1000));                                                   \
@@ -359,12 +374,14 @@ int condition_Proxy(int junk, int condition) {
     }                                                                             \
     else
 
+// while
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
 
 #endif
 
 #if SUPPORTED
-char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
+char *
+getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
 #else
 char *getCharMask(int count) {
 #endif
