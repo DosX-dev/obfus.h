@@ -336,6 +336,10 @@ int condition_Proxy(int junk, int condition) {
 // for (V2)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
 
+// return
+#define return \
+    for (int _i = 0; _i < RND(1, 100); _i++) return
+
 // break
 #define break \
     if (int_Proxy(_1)) break
@@ -351,10 +355,6 @@ int condition_Proxy(int junk, int condition) {
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
-
-// return
-#define return \
-    return int_Proxy(_0) ? RND(0, 1000):
 
 // else
 #define else                                                                      \
