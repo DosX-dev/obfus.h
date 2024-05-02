@@ -64,6 +64,7 @@ void main() {
 ```
 
 ![](before_and_after.png)
+![](before_and_after_2.png)
 
 ## Version
 The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation.
