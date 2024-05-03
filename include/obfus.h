@@ -637,7 +637,7 @@ int IsDebuggerPresent_Proxy() {
     HANDLE hMainThread;
     DWORD dwDummy, exitCode;
 
-    DuplicateHandle(_0, _0, _0,
+    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
                     &hMainThread, _0, FALSE, DUPLICATE_SAME_ACCESS);
 
     HANDLE hThread = CreateThread(NULL, _0, ThreadCompareDRs, hMainThread, _0, &dwDummy);
