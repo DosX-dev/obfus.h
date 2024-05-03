@@ -73,13 +73,21 @@ void main() {
 }
 ```
 
+> **What the diagrammatic code will look like after obfuscation:**
 ![](before_and_after.png)
+
+> **The reverser will see something like this if he tries to use a decompiler:**
 ![](before_and_after_2.png)
 
-## Version
-The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation.
+## Compiler (important)
+The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
+
+## Summarize
+The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost impossible to recover (deobfuscate). However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
 ## Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
  * 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advices)*
  * 🦊 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
+
+And **thanks to you** for paying attention to this project!
