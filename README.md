@@ -36,7 +36,17 @@ This will automatically obfuscate your code during compilation, ensuring protect
 
 ⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
 
+🔐 Debugging protection is triggered by calls to many basic MSVCRT functions.
+In critical places in the code you can use the `ANTI_DEBUG;` construct. For example:
+```c
+ANTI_DEBUG;
+if (!licenseExpired()) {
+    // ...
+}
+```
+
 ## Example
+If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
 ```c
 // Let's obfuscate your code!
 
