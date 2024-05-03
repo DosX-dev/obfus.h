@@ -572,15 +572,82 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 
 // Anti-Debug (global)
 #if no_antidebug != 1
+
+#if antidebug_v2 == 1  // for antidebug_v2
+void ad_ZeroDRs(PCONTEXT pCtx) {
+    BREAK_STACK_1;
+    pCtx->Dr0 = _0;
+    pCtx->Dr1 = _0;
+    pCtx->Dr2 = _0;
+    pCtx->Dr3 = _0;
+    pCtx->Dr6 = _0;
+    pCtx->Dr7 = _0;
+}
+
+int ad_CompareDRs(PCONTEXT pCtx) {
+    BREAK_STACK_1;
+    if (pCtx->Dr7 != _0) {
+        ad_ZeroDRs(pCtx);
+        return _1;
+    } else {
+        // ensure DR0 - DR3 contain zeros even if they are disabled.
+        // Skip DR6.  It seems to change erratically, but it's output-only.
+        if (_0 == (pCtx->Dr0 | pCtx->Dr1 | pCtx->Dr2 | pCtx->Dr3)) {
+            ad_ZeroDRs(pCtx);
+        }
+        // zero any active debug registers to erase breakpoints.
+        // the caller is responsible for ensuring the DR values set are
+        // actually applied.
+        ad_ZeroDRs(pCtx);
+    }
+    return _0;
+}
+
+WINAPI ThreadCompareDRs(void *p) {
+    BREAK_STACK_1;
+    DWORD dwRet = _0;
+    HANDLE hMainThread = (HANDLE)p;
+    if (-1 != SuspendThread(hMainThread)) {
+        BREAK_STACK_2;
+        CONTEXT context;
+        context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+        if (GetThreadContext(hMainThread, &context)) {
+            if (ad_CompareDRs(&context))
+                dwRet = _1;
+        }
+        ResumeThread(hMainThread);
+    }
+    CloseHandle(hMainThread);
+    return dwRet;
+}
+#endif
+
 #if SUPPORTED
 int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
 #else
 int IsDebuggerPresent_Proxy() {
 #endif
+
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
 #if antidebug_v2 == 1
+
+    // Registers validation
+    HANDLE hMainThread;
+    DWORD dwDummy, exitCode;
+
+    DuplicateHandle(_0, _0, _0,
+                    &hMainThread, _0, FALSE, DUPLICATE_SAME_ACCESS);
+
+    HANDLE hThread = CreateThread(NULL, _0, ThreadCompareDRs, hMainThread, _0, &dwDummy);
+    if (hThread) {
+        WaitForSingleObject(hThread, INFINITE);
+        GetExitCodeThread(hThread, &exitCode);
+        CloseHandle(hThread);
+    }
+
+    if (exitCode) return exitCode;
 
     // Dynamic antidebugger
     char result[32];
@@ -609,7 +676,6 @@ int IsDebuggerPresent_Proxy() {
     funcName[_6 * _2 * _1] = _e;
 
     return ((BOOL(*)())GetProcAddress(LoadLibraryA(result), funcName))();
-
 #else
 
     // Standard antidebugger
