@@ -1101,7 +1101,7 @@ int toupper_Proxy(int c) {
     GetStockObject(int_Proxy(i) * TRUE)
 
 #define CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile) \
-    CreateFile(int_Proxy(lpFileName), int_Proxy(dwDesiredAccess), int_Proxy(dwShareMode), int_Proxy(lpSecurityAttributes), int_Proxy(dwCreationDisposition), int_Proxy(dwFlagsAndAttributes), int_Proxy(hTemplateFile))
+    CreateFileA(int_Proxy(lpFileName), int_Proxy(dwDesiredAccess), int_Proxy(dwShareMode), int_Proxy(lpSecurityAttributes), int_Proxy(dwCreationDisposition), int_Proxy(dwFlagsAndAttributes), int_Proxy(hTemplateFile))
 
 #define ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped) \
     ReadFile(int_Proxy(hFile), int_Proxy(lpBuffer), int_Proxy(nNumberOfBytesToRead), int_Proxy(lpNumberOfBytesRead), int_Proxy(lpOverlapped))
@@ -1227,6 +1227,7 @@ int toupper_Proxy(int c) {
 #define fmin(x, y) fmin(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
 #define fma(x, y, z) fma(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE), double_Proxy(FALSE + z * TRUE))
 
+#define main _start
 #else
 #warning Obfuscation disabled!
 #endif
