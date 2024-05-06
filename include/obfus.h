@@ -1227,7 +1227,10 @@ int toupper_Proxy(int c) {
 #define fmin(x, y) fmin(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
 #define fma(x, y, z) fma(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE), double_Proxy(FALSE + z * TRUE))
 
+#if __TINYC__
 #define main _start
+#endif
+
 #else
 #warning Obfuscation disabled!
 #endif
