@@ -82,7 +82,7 @@ if (VM_EQU(VM_ADD(2, 2), 4)) {
 
 You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)
 
-## Let's summarize
+## Example of using
 If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
 ```c
 // Let's obfuscate your code!
@@ -103,12 +103,19 @@ If you need advanced protection against skilled reversers, use `cflow_v2` and `a
 void main() {
     char *out = malloc(256);
 
-    strcpy(out, "Hello, world!");
+    strcpy(out, "Hello, world!\n");
 
     if (out) {
         printf(out);
     } else {
-        printf("Error!");
+        printf("Error!\n");
+    }
+
+
+    int result = VM_ADD(5, 7); // 5 + 7
+
+    if (VM_EQU(result, 12)) { // (5 + 7) == 12
+        printf("5 + 7 == 12");
     }
 }
 ```
