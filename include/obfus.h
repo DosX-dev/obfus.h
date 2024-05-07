@@ -430,6 +430,7 @@ typedef enum {
 
 static int _salt = SALT_VAL;
 int VirtualMachine(int command, double num1, double num2) {
+    BREAK_STACK_1;
     int result = _0;
 
     command /= _salt;
@@ -488,6 +489,7 @@ int VirtualMachine(int command, double num1, double num2) {
         default:
             result = _0;
     }
+    BREAK_STACK_1;
     return result;
 }
 #endif
