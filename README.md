@@ -24,6 +24,9 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > #define antidebug_v2   1  // Use better dynamic anti-debugging protection
 > #define fake_signs     1  // Adds fake signatures of various protectors or packers
 > 
+> // Advanced code protection (see the "Virtualization" part of the documentation!)
+> #define virt           1  // Allows you to use the functions of a math VM
+> 
 > // Disabling default features
 > #define no_cflow       1  // Don't use Control-Flow obfuscation
 > #define no_antidebug   1  // Don't build in debugging protection
@@ -45,6 +48,32 @@ if (!licenseExpired()) {
 }
 ```
 
+## Virtualization
+| Function   | Description                        | Example                   |
+|------------|------------------------------------|---------------------------|
+| VM_ADD     | Adds two numbers                   | VM_ADD(5, 3) = 8          |
+| VM_SUB     | Subtracts two numbers              | VM_SUB(5, 3) = 2          |
+| VM_MUL     | Multiplies two numbers             | VM_MUL(5, 3) = 15         |
+| VM_DIV     | Divides two numbers                | VM_DIV(6, 3) = 2          |
+| VM_MOD     | Calculates the modulus of two numbers | VM_MOD(5, 3) = 2       |
+| VM_EQU     | Checks if two numbers are equal    | VM_EQU(5, 5) = true       |
+| VM_NEQ     | Checks if two numbers are not equal | VM_NEQ(5, 3) = true      |
+| VM_LSS     | Checks if the first number is less than the second number | VM_LSS(3, 5) = true |
+| VM_GTR     | Checks if the first number is greater than the second number | VM_GTR(5, 3) = true |
+| VM_LEQ     | Checks if the first number is less than or equal to the second number | VM_LEQ(3, 5) = true |
+| VM_GEQ     | Checks if the first number is greater than or equal to the second number | VM_GEQ(5, 3) = true |
+
+For example:
+```c
+// ...
+#define virt 1
+// ...
+
+if (VM_EQU(VM_ADD(2, 2), 4)) {
+    printf("2 + 2 == 4!");
+}
+```
+
 ## Example
 If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
 ```c
@@ -52,11 +81,14 @@ If you need advanced protection against skilled reversers, use `cflow_v2` and `a
 
 #include <stdio.h>
 
+#define virt         1 // [+] Use math virtual machine
+
 #define cflow_v2     1 // [+] ControlFlow v2
 #define fake_signs   1 // [+] Fake signatures
 #define antidebug_v2 1 // [+] AntiDebug v2
 #define no_cflow     0 // [-] Disable ControlFlow
 #define no_antidebug 0 // [-] Disable AntiDebug
+
 
 #include "obfus.h"
 
@@ -73,17 +105,17 @@ void main() {
 }
 ```
 
+## Compiler (important)
+The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
+
+## Summarize
+The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
+
 > **What the diagrammatic code will look like after obfuscation:**
 ![](before_and_after.png)
 
 > **The reverser will see something like this if he tries to use a decompiler:**
 ![](before_and_after_2.png)
-
-## Compiler (important)
-The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
-
-## Summarize
-The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost impossible to recover (deobfuscate). However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
 ## Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️

@@ -14,6 +14,9 @@
  ~ antidebug_v2   = use better dynamic anti-debugging protection
  ~ fake_signs     = adds fake signatures of various protectors or packers
 
+ [Advanced code protection]
+ ~ virt           = allows you to use the functions of a math VM
+
  [Disabling default features]
  ~ no_cflow       = disable control flow obfuscation
  ~ no_antidebug   = disable antidebug protection
@@ -409,17 +412,17 @@ typedef enum {
     OP__GEQ = RND(10000, 10900)
 } CMD;
 
-#define VM_ADD(num1, num2) VirtualMachine((OP__ADD + _0) * SALT_VAL, num1, num2)
-#define VM_SUB(num1, num2) VirtualMachine((OP__SUB + _0) * SALT_VAL, num1, num2)
-#define VM_MUL(num1, num2) VirtualMachine((OP__MUL + _0) * SALT_VAL, num1, num2)
-#define VM_DIV(num1, num2) VirtualMachine((OP__DIV + _0) * SALT_VAL, num1, num2)
-#define VM_MOD(num1, num2) VirtualMachine((OP__MOD + _0) * SALT_VAL, num1, num2)
-#define VM_EQU(num1, num2) VirtualMachine((OP__EQU + _0) * SALT_VAL, num1, num2)
-#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ + _0) * SALT_VAL, num1, num2)
-#define VM_LSS(num1, num2) VirtualMachine((OP__LSS + _0) * SALT_VAL, num1, num2)
-#define VM_GTR(num1, num2) VirtualMachine((OP__GTR + _0) * SALT_VAL, num1 * 2, num2 * 2)
-#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ + _0) * SALT_VAL, num1, num2)
-#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ + _0) * SALT_VAL, num1, num2)
+#define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * SALT_VAL, num1, num2)
+#define VM_SUB(num1, num2) VirtualMachine((OP__SUB) * SALT_VAL, num1, num2)
+#define VM_MUL(num1, num2) VirtualMachine((OP__MUL) * SALT_VAL, num1, num2)
+#define VM_DIV(num1, num2) VirtualMachine((OP__DIV) * SALT_VAL, num1, num2)
+#define VM_MOD(num1, num2) VirtualMachine((OP__MOD) * SALT_VAL, num1, num2)
+#define VM_EQU(num1, num2) VirtualMachine((OP__EQU) * SALT_VAL, num1, num2)
+#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ) * SALT_VAL, num1, num2)
+#define VM_LSS(num1, num2) VirtualMachine((OP__LSS) * SALT_VAL, num1, num2)
+#define VM_GTR(num1, num2) VirtualMachine((OP__GTR) * SALT_VAL, num1, num2)
+#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ) * SALT_VAL, num1, num2)
+#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ) * SALT_VAL, num1, num2)
 
 typedef enum {
     SALT_VAL = RND(100, 900)
@@ -429,7 +432,7 @@ static int _salt = SALT_VAL;
 int VirtualMachine(int command, double num1, double num2) {
     int result = _0;
 
-    command *= (1.0 / _salt);
+    command /= _salt;
 
     switch (command) {
         case OP__ADD:  // plus
@@ -452,7 +455,7 @@ int VirtualMachine(int command, double num1, double num2) {
                 result = _0;
             break;
         case OP__MOD:  // modulo
-            if (num2 != _0)
+            if (num2 != 0)
                 result = (int)num1 % (int)num2;
             else
                 result = _0;
@@ -464,6 +467,12 @@ int VirtualMachine(int command, double num1, double num2) {
                 result = _0;
             }
             break;
+        case OP__NEQ:
+            if (num1 != num2) {  // 1 + 0 = 1
+                result = VM_ADD(_0, _1);
+            } else {
+                result = _0;
+            }
         case OP__LSS:
             result = num1 < num2;
             break;
