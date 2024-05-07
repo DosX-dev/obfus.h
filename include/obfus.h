@@ -412,24 +412,24 @@ typedef enum {
     OP__GEQ = RND(10000, 10900)
 } CMD;
 
-#define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * ~SALT_CMD, num1, num2)
-#define VM_SUB(num1, num2) VirtualMachine((OP__SUB) * ~SALT_CMD, num1, num2)
-#define VM_MUL(num1, num2) VirtualMachine((OP__MUL) * ~SALT_CMD, num1, num2)
-#define VM_DIV(num1, num2) VirtualMachine((OP__DIV) * ~SALT_CMD, num1, num2)
-#define VM_MOD(num1, num2) VirtualMachine((OP__MOD) * ~SALT_CMD, num1, num2)
-#define VM_EQU(num1, num2) VirtualMachine((OP__EQU) * ~SALT_CMD, num1, num2)
-#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ) * ~SALT_CMD, num1, num2)
-#define VM_LSS(num1, num2) VirtualMachine((OP__LSS) * ~SALT_CMD, num1, num2)
-#define VM_GTR(num1, num2) VirtualMachine((OP__GTR) * ~SALT_CMD, num1, num2)
-#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ) * ~SALT_CMD, num1, num2)
-#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ) * ~SALT_CMD, num1, num2)
+#define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_SUB(num1, num2) VirtualMachine((OP__SUB) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_MUL(num1, num2) VirtualMachine((OP__MUL) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_DIV(num1, num2) VirtualMachine((OP__DIV) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_MOD(num1, num2) VirtualMachine((OP__MOD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_EQU(num1, num2) VirtualMachine((OP__EQU) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_LSS(num1, num2) VirtualMachine((OP__LSS) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_GTR(num1, num2) VirtualMachine((OP__GTR) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
 
 typedef enum {
     SALT_CMD = RND(100, 900),
 } SALT;
 
 static int _salt = SALT_CMD;
-int VirtualMachine(int command, double num1, double num2) {
+int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) {
     BREAK_STACK_1;
     int result = _0;
 
