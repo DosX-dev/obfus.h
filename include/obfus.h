@@ -51,7 +51,7 @@
 #include <string.h>
 #include <windows.h>
 
-#if defined _MSC_VER || defined __cplusplus
+#if defined _MSC_VER
 #warning obfus.h doesn't support Visual C/C++. You can use [obfusheader.h] by ac3ss0r to obfuscate this app (https://github.com/ac3ss0r/obfusheader.h)
 #endif
 
@@ -416,17 +416,17 @@ typedef enum {
     OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
 } CMD;
 
-#define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_SUB(num1, num2) VirtualMachine((OP__SUB) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_MUL(num1, num2) VirtualMachine((OP__MUL) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_DIV(num1, num2) VirtualMachine((OP__DIV) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_MOD(num1, num2) VirtualMachine((OP__MOD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_EQU(num1, num2) VirtualMachine((OP__EQU) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_LSS(num1, num2) VirtualMachine((OP__LSS) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_GTR(num1, num2) VirtualMachine((OP__GTR) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_ADD(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_SUB(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_MUL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_DIV(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_MOD(num1, num2) VirtualMachine(RND(1, 500), (OP__MOD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_EQU(num1, num2) VirtualMachine(RND(1, 500), (OP__EQU) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_NEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__NEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_LSS(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_GTR(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_LEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_GEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
 
 typedef enum {
     SALT_CMD = RND(100, 900),
@@ -434,9 +434,9 @@ typedef enum {
 
 static int _salt = SALT_CMD;
 #if SUPPORTED
-int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) OBFH_SECTION_ATTRIBUTE {
+int VirtualMachine(int junk, int command, double num1, int junk_2, double num2, int junk_3) OBFH_SECTION_ATTRIBUTE {
 #else
-int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) {
+int VirtualMachine(int junk, int command, double num1, int junk_2, double num2, int junk_3) {
 #endif
     int result = _0;
 
@@ -445,10 +445,10 @@ int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) 
 
     switch (command) {
         case OP__ADD:  // plus
-            result = (num1 + num2) + VM_MUL(junk_2, _0);
+            result = (num1 + num2) + VM_MUL(junk_3, _0);
             break;
         case OP__SUB:  // minus
-            result = (num1 - num2) + VM_MUL(junk_2, _0);
+            result = (num1 - num2) + VM_MUL(junk_3, _0);
             break;
         case OP__MUL:  // multiply
             if (num1 == _0 || num2 == _0)
@@ -478,21 +478,21 @@ int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) 
             break;
         case OP__NEQ:            // not equal
             if (num1 != num2) {  // 1 + 0 = 1
-                result = VM_ADD(_0, _1) + VM_MUL(junk, _0);
+                result = VM_ADD(_0, _1) + VM_MUL(junk_2, _0);
             } else {
-                result = VM_MUL(junk_2, _0);
+                result = VM_MUL(junk_3, _0);
             }
         case OP__LSS:
-            result = num1 != num2 && !(num1 + VM_MUL(junk, _0) > num2);
+            result = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
             break;
         case OP__GTR:
-            result = num1 != num2 && !(num1 + VM_MUL(junk, _0) < num2);
+            result = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
             break;
         case OP__LEQ:
-            result = !(num1 + VM_MUL(junk, _0) > num2);
+            result = !(num1 + VM_MUL(junk_2, _0) > num2);
             break;
         case OP__GEQ:
-            result = (num1 + VM_MUL(junk, _0) > num2) || (num1 == num2);
+            result = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
             // result = num1 >= num2;
             break;
         default:
