@@ -416,20 +416,22 @@ typedef enum {
     OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
 } CMD;
 
-#define VM_ADD(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_SUB(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_MUL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_DIV(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_MOD(num1, num2) VirtualMachine(RND(1, 500), (OP__MOD) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_EQU(num1, num2) VirtualMachine(RND(1, 500), (OP__EQU) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_NEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__NEQ) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_LSS(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_GTR(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_LEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
-#define VM_GEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_ADD(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MOD(num1, num2) VirtualMachine(RND(1, 500), (OP__MOD) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_EQU(num1, num2) VirtualMachine(RND(1, 500), (OP__EQU) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_NEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__NEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 
 typedef enum {
     SALT_CMD = RND(100, 900),
+    SALT_NUM1 = RND(16, 32),
+    SALT_NUM2 = RND(16, 32)
 } SALT;
 
 static int _salt = SALT_CMD;
@@ -441,11 +443,27 @@ int VirtualMachine(long double junk, int command, long double num1, long double 
     int result = _0;
 
     // Restore values
+fakePoint:
     command /= ~_salt;
-    num1 *= -1;
-    num2 *= -1;
+fakePoint_2:
+    num1 -= SALT_NUM1;
+    num1 *= (-1 * _1);
+fakePoint_3:
+    num2 -= SALT_NUM2;
+    num2 *= (-1 * _1);
+fakePoint_4:
 
     switch (command) {
+        case -1:
+            goto fakePoint;
+        case -2:
+            goto fakePoint_2;
+        case -3:
+            return _0 * ~_1;
+        case -4:
+            goto fakePoint_3;
+        case -5:
+            goto fakePoint_4;
         case OP__ADD:  // plus
             result = (num1 + num2) + VM_MUL(junk_3, _0);
             break;
@@ -467,7 +485,7 @@ int VirtualMachine(long double junk, int command, long double num1, long double 
             break;
         case OP__MOD:  // modulo
             if (num2 != 0)
-                result = (long)num1 % (long)num2;
+                result = (int)num1 % (int)num2;
             else
                 result = _0;
             break;
