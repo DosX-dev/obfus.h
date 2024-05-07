@@ -399,17 +399,17 @@ int condition_Proxy(int junk, int condition) {
 
 #if virt == 1
 typedef enum {
-    OP__ADD = RND(0, 900),
-    OP__SUB = RND(1000, 1900),
-    OP__MUL = RND(2000, 2900),
-    OP__DIV = RND(3000, 3900),
-    OP__MOD = RND(4000, 4900),
-    OP__EQU = RND(5000, 5900),
-    OP__NEQ = RND(6000, 6900),
-    OP__GTR = RND(7000, 7900),
-    OP__LSS = RND(8000, 8900),
-    OP__LEQ = RND(9000, 9900),
-    OP__GEQ = RND(10000, 10900)
+    OP__ADD = RND(0, 900) * __COUNTER__,
+    OP__SUB = RND(1000, 1900) * __COUNTER__,
+    OP__MUL = RND(2000, 2900) * __COUNTER__,
+    OP__DIV = RND(3000, 3900) * __COUNTER__,
+    OP__MOD = RND(4000, 4900) * __COUNTER__,
+    OP__EQU = RND(5000, 5900) * __COUNTER__,
+    OP__NEQ = RND(6000, 6900) * __COUNTER__,
+    OP__GTR = RND(7000, 7900) * __COUNTER__,
+    OP__LSS = RND(8000, 8900) * __COUNTER__,
+    OP__LEQ = RND(9000, 9900) * __COUNTER__,
+    OP__GEQ = RND(10000, 10900) * __COUNTER__
 } CMD;
 
 #define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
@@ -429,7 +429,11 @@ typedef enum {
 } SALT;
 
 static int _salt = SALT_CMD;
+#if SUPPORTED
+int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) OBFH_SECTION_ATTRIBUTE {
+#else
 int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) {
+#endif
     int result = _0;
 
     // Restore the value
