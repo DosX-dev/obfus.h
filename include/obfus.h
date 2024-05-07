@@ -496,7 +496,7 @@ int VirtualMachine(int junk, int command, double num1, int junk_2, double num2, 
             // result = num1 >= num2;
             break;
         default:
-            result = _0;
+            result = _0 * (junk * _5);
     }
     return result;
 }
