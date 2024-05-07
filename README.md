@@ -8,7 +8,7 @@
 - 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
 - 🚫 **Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
 - 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
-- 🧠 **Virtualization**: Complicates mathematical operations through virtual machine commands
+- 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
 
 ## Usage
 
@@ -51,6 +51,9 @@ if (!licenseExpired()) {
 
 ## Virtualization
 This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**!
+
+⚠️ Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
+
 | Function   | Description                        | Example                   |
 |------------|------------------------------------|---------------------------|
 | VM_ADD     | Adds two numbers                   | VM_ADD(5, 3) = 8          |
