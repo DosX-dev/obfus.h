@@ -50,7 +50,7 @@ if (!licenseExpired()) {
 ```
 
 ## Virtualization
-This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**!
+This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `virt` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
 
 ⚠️ Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
 
@@ -131,6 +131,7 @@ The code of a program (and its original original logic) protected using **[obfus
 
 > **The reverser will see something like this if he tries to use a decompiler:**
 ![](before_and_after_2.png)
+
 
 ## Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
