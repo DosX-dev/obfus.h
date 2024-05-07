@@ -76,7 +76,7 @@ if (VM_EQU(VM_ADD(2, 2), 4)) {
 
 ```
 
-You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](../tests/virtualmachine.c)
+You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)
 
 ## Let's summarize
 If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
