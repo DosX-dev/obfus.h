@@ -430,7 +430,6 @@ typedef enum {
 
 static int _salt = SALT_CMD;
 int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) {
-    BREAK_STACK_1;
     int result = _0;
 
     // Restore the value
@@ -438,10 +437,10 @@ int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) 
 
     switch (command) {
         case OP__ADD:  // plus
-            result = (num1 + num2) * _1;
+            result = (num1 + num2) + VM_MUL(junk_2, _0);
             break;
         case OP__SUB:  // minus
-            result = (num1 - num2) * _1;
+            result = (num1 - num2) + VM_MUL(junk_2, _0);
             break;
         case OP__MUL:  // multiply
             if (num1 == _0 || num2 == _0)
@@ -454,7 +453,7 @@ int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) 
             if (num2 != _0)
                 result = num1 / num2;
             else
-                result = _0;
+                result = VM_ADD(_0, _0);
             break;
         case OP__MOD:  // modulo
             if (num2 != 0)
@@ -462,39 +461,39 @@ int VirtualMachine(int command, double num1, int junk, double num2, int junk_2) 
             else
                 result = _0;
             break;
-        case OP__EQU:
+        case OP__EQU:            // equal
             if (num1 == num2) {  // 1 + 0 = 1
                 result = VM_ADD(_1, _0);
             } else {
                 result = _0;
             }
             break;
-        case OP__NEQ:
+        case OP__NEQ:            // not equal
             if (num1 != num2) {  // 1 + 0 = 1
-                result = VM_ADD(_0, _1);
+                result = VM_ADD(_0, _1) + VM_MUL(junk, _0);
             } else {
-                result = _0;
+                result = VM_MUL(junk_2, _0);
             }
         case OP__LSS:
-            result = num1 < num2;
+            result = num1 != num2 && !(num1 + VM_MUL(junk, _0) > num2);
             break;
         case OP__GTR:
-            result = num1 > num2;
+            result = num1 != num2 && !(num1 + VM_MUL(junk, _0) < num2);
             break;
         case OP__LEQ:
-            result = num1 <= num2;
+            result = !(num1 + VM_MUL(junk, _0) > num2);
             break;
         case OP__GEQ:
-            result = num1 >= num2;
+            result = (num1 + VM_MUL(junk, _0) > num2) || (num1 == num2);
+            // result = num1 >= num2;
             break;
         default:
             result = _0;
     }
-    BREAK_STACK_1;
     return result;
 }
-#endif
 
+#endif
 #if SUPPORTED
 char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
 #else
