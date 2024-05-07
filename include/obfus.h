@@ -29,7 +29,7 @@
 */
 
 // if virtualization disabled
-#if no_obf || !virt
+#if no_obf == 1 || virt != 1
 #define VM_ADD(num1, num2) num1 + num2
 #define VM_SUB(num1, num2) num1 - num2
 #define VM_MUL(num1, num2) num1 *num2
@@ -43,7 +43,7 @@
 #define VM_GEQ(num1, num2) num1 >= num2
 #endif
 
-#if no_obf == 0
+#if !no_obf
 
 #include <conio.h>
 #include <stdio.h>
