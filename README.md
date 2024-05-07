@@ -49,6 +49,7 @@ if (!licenseExpired()) {
 ```
 
 ## Virtualization
+This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**!
 | Function   | Description                        | Example                   |
 |------------|------------------------------------|---------------------------|
 | VM_ADD     | Adds two numbers                   | VM_ADD(5, 3) = 8          |
@@ -63,7 +64,7 @@ if (!licenseExpired()) {
 | VM_LEQ     | Checks if the first number is less than or equal to the second number | VM_LEQ(3, 5) = true |
 | VM_GEQ     | Checks if the first number is greater than or equal to the second number | VM_GEQ(5, 3) = true |
 
-For example:
+A simple example of using virtualization::
 ```c
 // ...
 #define virt 1
@@ -72,9 +73,12 @@ For example:
 if (VM_EQU(VM_ADD(2, 2), 4)) {
     printf("2 + 2 == 4!");
 }
+
 ```
 
-## Example
+You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](../tests/virtualmachine.c)
+
+## Let's summarize
 If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
 ```c
 // Let's obfuscate your code!
