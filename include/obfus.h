@@ -416,17 +416,17 @@ typedef enum {
     OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
 } CMD;
 
-#define VM_ADD(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_SUB(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_MUL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_DIV(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_MOD(num1, num2) VirtualMachine(RND(1, 500), (OP__MOD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_EQU(num1, num2) VirtualMachine(RND(1, 500), (OP__EQU) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_NEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__NEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_LSS(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_GTR(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_LEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
-#define VM_GEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
+#define VM_ADD(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_SUB(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_MUL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_DIV(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_MOD(num1, num2) VirtualMachine(RND(1, 500), (OP__MOD) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_EQU(num1, num2) VirtualMachine(RND(1, 500), (OP__EQU) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_NEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__NEQ) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_LSS(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_GTR(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_LEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
+#define VM_GEQ(num1, num2) VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1 * -1, RND(1, 500), num2 * -1, RND(1, 500))
 
 typedef enum {
     SALT_CMD = RND(100, 900),
@@ -434,14 +434,16 @@ typedef enum {
 
 static int _salt = SALT_CMD;
 #if SUPPORTED
-int VirtualMachine(int junk, int command, double num1, int junk_2, double num2, int junk_3) OBFH_SECTION_ATTRIBUTE {
+int VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
 #else
-int VirtualMachine(int junk, int command, double num1, int junk_2, double num2, int junk_3) {
+int VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
 #endif
     int result = _0;
 
-    // Restore the value
+    // Restore values
     command /= ~_salt;
+    num1 *= -1;
+    num2 *= -1;
 
     switch (command) {
         case OP__ADD:  // plus
@@ -465,7 +467,7 @@ int VirtualMachine(int junk, int command, double num1, int junk_2, double num2, 
             break;
         case OP__MOD:  // modulo
             if (num2 != 0)
-                result = (int)num1 % (int)num2;
+                result = (long)num1 % (long)num2;
             else
                 result = _0;
             break;
