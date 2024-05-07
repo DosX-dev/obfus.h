@@ -440,15 +440,19 @@ int VirtualMachine(long double junk, int command, long double num1, long double 
 #else
 int VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
 #endif
+    BREAK_STACK_1;
     int result = _0;
 
     // Restore values
 fakePoint:
+    BREAK_STACK_1;
     command /= ~_salt;
 fakePoint_2:
+    BREAK_STACK_2;
     num1 -= SALT_NUM1;
     num1 *= (-1 * _1);
 fakePoint_3:
+    BREAK_STACK_3;
     num2 -= SALT_NUM2;
     num2 *= (-1 * _1);
 fakePoint_4:
@@ -518,6 +522,7 @@ fakePoint_4:
         default:
             result = _0 * (junk * _5);
     }
+    BREAK_STACK_8;
     return result;
 }
 
