@@ -51,6 +51,10 @@
 #include <string.h>
 #include <windows.h>
 
+#if defined _MSC_VER || defined __cplusplus
+#warning obfus.h doesn't support Visual C/C++. You can use [obfusheader.h] by ac3ss0r to obfuscate this app (https://github.com/ac3ss0r/obfusheader.h)
+#endif
+
 #if !defined __COUNTER__
 #error You are using too old a compiler version!
 #endif
