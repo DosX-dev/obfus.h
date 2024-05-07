@@ -399,17 +399,17 @@ int condition_Proxy(int junk, int condition) {
 
 #if virt == 1
 typedef enum {
-    OP__ADD = RND(0, 900) * __COUNTER__,
-    OP__SUB = RND(1000, 1900) * __COUNTER__,
-    OP__MUL = RND(2000, 2900) * __COUNTER__,
-    OP__DIV = RND(3000, 3900) * __COUNTER__,
-    OP__MOD = RND(4000, 4900) * __COUNTER__,
-    OP__EQU = RND(5000, 5900) * __COUNTER__,
-    OP__NEQ = RND(6000, 6900) * __COUNTER__,
-    OP__GTR = RND(7000, 7900) * __COUNTER__,
-    OP__LSS = RND(8000, 8900) * __COUNTER__,
-    OP__LEQ = RND(9000, 9900) * __COUNTER__,
-    OP__GEQ = RND(10000, 10900) * __COUNTER__
+    OP__ADD = RND(0, 900) * __COUNTER__ * 5,
+    OP__SUB = RND(1000, 1900) * __COUNTER__ * 5,
+    OP__MUL = RND(2000, 2900) * __COUNTER__ * 5,
+    OP__DIV = RND(3000, 3900) * __COUNTER__ * 5,
+    OP__MOD = RND(4000, 4900) * __COUNTER__ * 5,
+    OP__EQU = RND(5000, 5900) * __COUNTER__ * 5,
+    OP__NEQ = RND(6000, 6900) * __COUNTER__ * 5,
+    OP__GTR = RND(7000, 7900) * __COUNTER__ * 5,
+    OP__LSS = RND(8000, 8900) * __COUNTER__ * 5,
+    OP__LEQ = RND(9000, 9900) * __COUNTER__ * 5,
+    OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
 } CMD;
 
 #define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * ~SALT_CMD, num1, RND(1, 500), num2, RND(1, 500))
