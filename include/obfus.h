@@ -496,8 +496,7 @@ int VirtualMachine(int command, double num1, double num2) {
 #endif
 
 #if SUPPORTED
-char *
-getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
+char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
 #else
 char *getCharMask(int count) {
 #endif
