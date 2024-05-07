@@ -412,36 +412,29 @@ typedef enum {
     OP__GEQ = RND(10000, 10900)
 } CMD;
 
-#define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_SUB(num1, num2) VirtualMachine((OP__SUB) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_MUL(num1, num2) VirtualMachine((OP__MUL) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_DIV(num1, num2) VirtualMachine((OP__DIV) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_MOD(num1, num2) VirtualMachine((OP__MOD) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_EQU(num1, num2) VirtualMachine((OP__EQU) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_LSS(num1, num2) VirtualMachine((OP__LSS) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_GTR(num1, num2) VirtualMachine((OP__GTR) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
-#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ) * SALT_CMD, (num1) * SALT_NUM1, (num2) * SALT_NUM2)
+#define VM_ADD(num1, num2) VirtualMachine((OP__ADD) * ~SALT_CMD, num1, num2)
+#define VM_SUB(num1, num2) VirtualMachine((OP__SUB) * ~SALT_CMD, num1, num2)
+#define VM_MUL(num1, num2) VirtualMachine((OP__MUL) * ~SALT_CMD, num1, num2)
+#define VM_DIV(num1, num2) VirtualMachine((OP__DIV) * ~SALT_CMD, num1, num2)
+#define VM_MOD(num1, num2) VirtualMachine((OP__MOD) * ~SALT_CMD, num1, num2)
+#define VM_EQU(num1, num2) VirtualMachine((OP__EQU) * ~SALT_CMD, num1, num2)
+#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ) * ~SALT_CMD, num1, num2)
+#define VM_LSS(num1, num2) VirtualMachine((OP__LSS) * ~SALT_CMD, num1, num2)
+#define VM_GTR(num1, num2) VirtualMachine((OP__GTR) * ~SALT_CMD, num1, num2)
+#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ) * ~SALT_CMD, num1, num2)
+#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ) * ~SALT_CMD, num1, num2)
 
 typedef enum {
     SALT_CMD = RND(100, 900),
-    SALT_NUM1 = RND(100, 900),
-    SALT_NUM2 = RND(100, 900)
 } SALT;
 
-static int _salt_cmd = SALT_CMD;
-static int _salt_num1 = SALT_NUM1;
-static int _salt_num2 = SALT_NUM2;
-
+static int _salt = SALT_CMD;
 int VirtualMachine(int command, double num1, double num2) {
     BREAK_STACK_1;
     int result = _0;
 
-    // Restore values
-    command /= _salt_cmd;
-    num1 /= _salt_num1;
-    num2 /= _salt_num2;
+    // Restore the value
+    command /= ~_salt;
 
     switch (command) {
         case OP__ADD:  // plus
