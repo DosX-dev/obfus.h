@@ -25,6 +25,21 @@
 
 */
 
+// if virtualization disabled
+#if no_obf || !virt
+#define VM_ADD(num1, num2) num1 + num2
+#define VM_SUB(num1, num2) num1 - num2
+#define VM_MUL(num1, num2) num1 *num2
+#define VM_DIV(num1, num2) num1 / num2
+#define VM_MOD(num1, num2) num1 % num2
+#define VM_EQU(num1, num2) num1 == num2
+#define VM_NEQ(num1, num2) num1 != num2
+#define VM_LSS(num1, num2) num1 < num2
+#define VM_GTR(num1, num2) num1 > num2
+#define VM_LEQ(num1, num2) num1 <= num2
+#define VM_GEQ(num1, num2) num1 >= num2
+#endif
+
 #if no_obf == 0
 
 #include <conio.h>
@@ -377,6 +392,95 @@ int condition_Proxy(int junk, int condition) {
 // while
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
 
+#endif
+
+#if virt == 1
+typedef enum {
+    OP__ADD = RND(0, 900),
+    OP__SUB = RND(1000, 1900),
+    OP__MUL = RND(2000, 2900),
+    OP__DIV = RND(3000, 3900),
+    OP__MOD = RND(4000, 4900),
+    OP__EQU = RND(5000, 5900),
+    OP__NEQ = RND(6000, 6900),
+    OP__GTR = RND(7000, 7900),
+    OP__LSS = RND(8000, 8900),
+    OP__LEQ = RND(9000, 9900),
+    OP__GEQ = RND(10000, 10900)
+} CMD;
+
+#define VM_ADD(num1, num2) VirtualMachine((OP__ADD + _0) * SALT_VAL, num1, num2)
+#define VM_SUB(num1, num2) VirtualMachine((OP__SUB + _0) * SALT_VAL, num1, num2)
+#define VM_MUL(num1, num2) VirtualMachine((OP__MUL + _0) * SALT_VAL, num1, num2)
+#define VM_DIV(num1, num2) VirtualMachine((OP__DIV + _0) * SALT_VAL, num1, num2)
+#define VM_MOD(num1, num2) VirtualMachine((OP__MOD + _0) * SALT_VAL, num1, num2)
+#define VM_EQU(num1, num2) VirtualMachine((OP__EQU + _0) * SALT_VAL, num1, num2)
+#define VM_NEQ(num1, num2) VirtualMachine((OP__NEQ + _0) * SALT_VAL, num1, num2)
+#define VM_LSS(num1, num2) VirtualMachine((OP__LSS + _0) * SALT_VAL, num1, num2)
+#define VM_GTR(num1, num2) VirtualMachine((OP__GTR + _0) * SALT_VAL, num1 * 2, num2 * 2)
+#define VM_LEQ(num1, num2) VirtualMachine((OP__LEQ + _0) * SALT_VAL, num1, num2)
+#define VM_GEQ(num1, num2) VirtualMachine((OP__GEQ + _0) * SALT_VAL, num1, num2)
+
+typedef enum {
+    SALT_VAL = RND(100, 900)
+} SALT;
+
+static int _salt = SALT_VAL;
+int VirtualMachine(int command, double num1, double num2) {
+    int result = _0;
+
+    command *= (1.0 / _salt);
+
+    switch (command) {
+        case OP__ADD:  // plus
+            result = (num1 + num2) * _1;
+            break;
+        case OP__SUB:  // minus
+            result = (num1 - num2) * _1;
+            break;
+        case OP__MUL:  // multiply
+            if (num1 == _0 || num2 == _0)
+                result = _0;
+            else
+                return num1 * num2;
+
+            break;
+        case OP__DIV:  // divide
+            if (num2 != _0)
+                result = num1 / num2;
+            else
+                result = _0;
+            break;
+        case OP__MOD:  // modulo
+            if (num2 != _0)
+                result = (int)num1 % (int)num2;
+            else
+                result = _0;
+            break;
+        case OP__EQU:
+            if (num1 == num2) {  // 1 + 0 = 1
+                result = VM_ADD(_1, _0);
+            } else {
+                result = _0;
+            }
+            break;
+        case OP__LSS:
+            result = num1 < num2;
+            break;
+        case OP__GTR:
+            result = num1 > num2;
+            break;
+        case OP__LEQ:
+            result = num1 <= num2;
+            break;
+        case OP__GEQ:
+            result = num1 >= num2;
+            break;
+        default:
+            result = _0;
+    }
+    return result;
+}
 #endif
 
 #if SUPPORTED
@@ -999,7 +1103,7 @@ char *gets_Proxy(char *s) {
 }
 #define gets(s) gets_Proxy(s)
 
-int snprintfProxy(char *str, size_t size, const char *format, ...) {
+int snprintf_Proxy(char *str, size_t size, const char *format, ...) {
     BREAK_STACK_1;
     va_list args;
     va_start(args, format);
@@ -1007,7 +1111,7 @@ int snprintfProxy(char *str, size_t size, const char *format, ...) {
     va_end(args);
     return result;
 }
-#define snprintf(str, size, format, ...) snprintfProxy(str, size, format, __VA_ARGS__)
+#define snprintf(str, size, format, ...) snprintf_Proxy(str, size, format, __VA_ARGS__)
 
 /*
 #define printf(...) (([](...) -> int {                                                                        \
@@ -1071,7 +1175,7 @@ int toupper_Proxy(int c) {
     BREAK_STACK_1;
     return toupper(c);
 }
-#define toupper(c) toupper_Proxy(c)
+#define toupper(c) toupper_Proxy(c) * /
 
 // getch, _getch
 #define _getch() int_Proxy(_getch() * TRUE)
