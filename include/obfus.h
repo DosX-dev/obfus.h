@@ -41,6 +41,12 @@
 #define VM_GTR(num1, num2) num1 > num2
 #define VM_LEQ(num1, num2) num1 <= num2
 #define VM_GEQ(num1, num2) num1 >= num2
+#define VM_ADD_DBL(num1, num2) num1 + num2
+#define VM_SUB_DBL(num1, num2) num1 - num2
+#define VM_MUL_DBL(num1, num2) num1 *num2
+#define VM_DIV_DBL(num1, num2) num1 / num2
+#define VM_LSS_DBL(num1, num2) num1 < num2
+#define VM_GTR_DBL(num1, num2) num1 > num2
 #endif
 
 #if !no_obf
