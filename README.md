@@ -72,6 +72,8 @@ This is a protection technique in which certain calculations are performed throu
 | VM_MUL_DBL | long double  | Multiplies two double numbers      | VM_MUL_DBL(5.5, 3.2) = **~17.6**|
 | VM_DIV_DBL | long double  | Divides two double numbers         | VM_DIV_DBL(6.0, 3.0) = **~2.0** |
 
+> The virtual machine does not support `double` comparison operations.
+
 
 A simple example of using virtualization::
 ```c
