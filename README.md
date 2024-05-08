@@ -72,8 +72,8 @@ This is a protection technique in which certain calculations are performed throu
 | **`VM_SUB_DBL`** | long double  | Subtracts two double numbers       | `VM_SUB_DBL(5.5, 3.2)` = **~2.3** |
 | **`VM_MUL_DBL`** | long double  | Multiplies two double numbers      | `VM_MUL_DBL(5.5, 3.2)` = **~17.6**|
 | **`VM_DIV_DBL`** | long double  | Divides two double numbers         | `VM_DIV_DBL(6.0, 3.0)` = **~2.0** |
-| **`VM_LSS_DBL`**  | long  | Checks if the first double number is less than the second double number | `VM_LSS_DBL(3.5, 5.2)` = **true** |
-| **`VM_GTR_DBL`**  | long  | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **true** |
+| **`VM_LSS_DBL`** | long double  | Checks if the first double number is less than the second double number | `VM_LSS_DBL(3.5, 5.2)` = **true** |
+| **`VM_GTR_DBL`** | long double  | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **true** |
 
 > The virtual machine does not support some basic `double` comparison operations.
 
