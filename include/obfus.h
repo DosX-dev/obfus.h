@@ -434,8 +434,6 @@ typedef enum {
 #define VM_DIV_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_LSS_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_GTR_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LEQ_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GEQ_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 
 typedef enum {
     SALT_CMD = RND(100, 900),
