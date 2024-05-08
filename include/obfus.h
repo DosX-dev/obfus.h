@@ -440,34 +440,44 @@ int VirtualMachine(long double junk, int command, long double num1, long double 
 #else
 int VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
 #endif
-    BREAK_STACK_1;
+    goto firstFakePoint;
     int result = _0;
 
     // Restore values
-fakePoint:
+restoreCommand:
     BREAK_STACK_1;
     command /= ~_salt;
-fakePoint_2:
-    BREAK_STACK_2;
+    goto restoreNum2;
+
+restoreNum1:
+    BREAK_STACK_1;
     num1 -= SALT_NUM1;
     num1 *= (-1 * _1);
-fakePoint_3:
-    BREAK_STACK_3;
+    goto letsExecute;
+
+restoreNum2:
+    BREAK_STACK_1;
     num2 -= SALT_NUM2;
     num2 *= (-1 * _1);
-fakePoint_4:
+    goto restoreNum1;
+
+firstFakePoint:
+    BREAK_STACK_2;
+    goto restoreCommand;
+
+letsExecute:
 
     switch (command) {
         case -1:
-            goto fakePoint;
+            goto restoreCommand;
         case -2:
-            goto fakePoint_2;
+            goto firstFakePoint;
         case -3:
             return _0 * ~_1;
         case -4:
-            goto fakePoint_3;
+            goto restoreNum2;
         case -5:
-            goto fakePoint_4;
+            goto restoreNum1;
         case OP__ADD:  // plus
             result = (num1 + num2) + VM_MUL(junk_3, _0);
             break;
