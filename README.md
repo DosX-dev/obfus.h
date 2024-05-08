@@ -142,6 +142,24 @@ The code of a program (and its original original logic) protected using **[obfus
 > **The reverser will see something like this if he tries to use a decompiler:**
 ![](before_and_after_2.png)
 
+<!-- ```c
+// BEFORE OBFUSCATION       
+__int64 sub_4010B8() {
+    printf("Hello, world!");
+    return 0i64;
+}
+```
+
+```c
+// AFTER OBFUSCATION
+ __int64 sub_401000() {
+     *(_DWORD *)(a2 + v2) += v2;
+     if ( !(_DWORD)a2 )
+       JUMPOUT(0x100C3C9);
+     MEMORY[0x100C3C9] &= a2;
+     return (loc_4017B1)(asc_404159);
+ }
+``` -->
 
 ## 🌈 Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
