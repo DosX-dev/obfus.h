@@ -436,12 +436,12 @@ typedef enum {
 
 static int _salt = SALT_CMD;
 #if SUPPORTED
-int VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+long double VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
 #else
-int VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
+long double VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
 #endif
     goto firstFakePoint;
-    int result = _0;
+    long double result = _0;
 
     // Restore values
 restoreCommand:
