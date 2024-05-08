@@ -434,12 +434,12 @@ typedef enum {
 #define VM_LEQ(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_GEQ(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 
-#define VM_ADD_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_ADD_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 
 typedef enum {
     SALT_CMD = RND(100, 900),
