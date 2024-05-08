@@ -3,6 +3,7 @@
 
 **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time obfuscating C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)**. It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
 
+### What features does it have?...
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
 - 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
@@ -10,7 +11,7 @@
 - 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
 - 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
 
-## Usage
+## 👾 Usage
 
 Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** into your project is a simple process. Just include the following line in your code:
 ```c
@@ -49,30 +50,32 @@ if (!licenseExpired()) {
 }
 ```
 
-## Virtualization
+## 👺 Virtualization
 This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `virt` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
 
 ⚠️ Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
 
 | Function   | Type  | Description                        | Example                   |
 |------------|-------|------------------------------------|---------------------------|
-| VM_ADD     | int/long  | Adds two numbers                   | VM_ADD(5, 3) = **8**          |
-| VM_SUB     | int/long  | Subtracts two numbers              | VM_SUB(5, 3) = **2**          |
-| VM_MUL     | int/long  | Multiplies two numbers             | VM_MUL(5, 3) = **15**         |
-| VM_DIV     | int/long  | Divides two numbers                | VM_DIV(6, 3) = **2**          |
-| VM_MOD     | int/long  | Calculates the modulus of two numbers | VM_MOD(5, 3) = **2**       |
-| VM_EQU     | int/long  | Checks if two numbers are equal    | VM_EQU(5, 5) = **true**       |
-| VM_NEQ     | int/long  | Checks if two numbers are not equal | VM_NEQ(5, 3) = **true**      |
-| VM_LSS     | int/long  | Checks if the first number is less than the second number | VM_LSS(3, 5) = **true** |
-| VM_GTR     | int/long  | Checks if the first number is greater than the second number | VM_GTR(5, 3) = **true** |
-| VM_LEQ     | int/long  | Checks if the first number is less than or equal to the second number | VM_LEQ(3, 5) = **true** |
-| VM_GEQ     | int/long  | Checks if the first number is greater than or equal to the second number | VM_GEQ(5, 3) = **true** |
-| VM_ADD_DBL | long double  | Adds two double numbers            | VM_ADD_DBL(5.5, 3.2) = **~8.7** |
-| VM_SUB_DBL | long double  | Subtracts two double numbers       | VM_SUB_DBL(5.5, 3.2) = **~2.3** |
-| VM_MUL_DBL | long double  | Multiplies two double numbers      | VM_MUL_DBL(5.5, 3.2) = **~17.6**|
-| VM_DIV_DBL | long double  | Divides two double numbers         | VM_DIV_DBL(6.0, 3.0) = **~2.0** |
+| **VM_ADD**     | int/long  | Adds two numbers                   | VM_ADD(5, 3) = **8**          |
+| **VM_SUB**     | int/long  | Subtracts two numbers              | VM_SUB(5, 3) = **2**          |
+| **VM_MUL**     | int/long  | Multiplies two numbers             | VM_MUL(5, 3) = **15**         |
+| **VM_DIV**     | int/long  | Divides two numbers                | VM_DIV(6, 3) = **2**          |
+| **VM_MOD**     | int/long  | Calculates the modulus of two numbers | VM_MOD(5, 3) = **2**       |
+| **VM_EQU**     | int/long  | Checks if two numbers are equal    | VM_EQU(5, 5) = **true**       |
+| **VM_NEQ**     | int/long  | Checks if two numbers are not equal | VM_NEQ(5, 3) = **true**      |
+| **VM_LSS**     | int/long  | Checks if the first number is less than the second number | VM_LSS(3, 5) = **true** |
+| **VM_GTR**     | int/long  | Checks if the first number is greater than the second number | VM_GTR(5, 3) = **true** |
+| **VM_LEQ**     | int/long  | Checks if the first number is less than or equal to the second number | VM_LEQ(3, 5) = **true** |
+| **VM_GEQ**     | int/long  | Checks if the first number is greater than or equal to the second number | VM_GEQ(5, 3) = **true** |
+| **VM_ADD_DBL** | long double  | Adds two double numbers            | VM_ADD_DBL(5.5, 3.2) = **~8.7** |
+| **VM_SUB_DBL** | long double  | Subtracts two double numbers       | VM_SUB_DBL(5.5, 3.2) = **~2.3** |
+| **VM_MUL_DBL** | long double  | Multiplies two double numbers      | VM_MUL_DBL(5.5, 3.2) = **~17.6**|
+| **VM_DIV_DBL** | long double  | Divides two double numbers         | VM_DIV_DBL(6.0, 3.0) = **~2.0** |
+| **VM_LSS_DBL**  | long  | Checks if the first double number is less than the second double number | VM_LSS_DBL(3.5, 5.2) = **true** |
+| **VM_GTR_DBL**  | long  | Checks if the first double number is greater than the second double number | VM_GTR_DBL(5.5, 3.2) = **true** |
 
-> The virtual machine does not support `double` comparison operations.
+> The virtual machine does not support some basic `double` comparison operations.
 
 
 A simple example of using virtualization::
@@ -89,7 +92,7 @@ if (VM_EQU(VM_ADD(2, 2), 4)) {
 
 You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)
 
-## Example of using
+## ❓ Example of using
 If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
 ```c
 // Let's obfuscate your code!
@@ -127,10 +130,10 @@ void main() {
 }
 ```
 
-## Compiler (important)
+## 🛠 Compiler (important)
 The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
 
-## Summarize
+## 📖 Summarize
 The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
 > **What the diagrammatic code will look like after obfuscation:**
@@ -140,9 +143,9 @@ The code of a program (and its original original logic) protected using **[obfus
 ![](before_and_after_2.png)
 
 
-## Special thanks
+## 🌈 Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
  * 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advices)*
  * 🦊 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
 
-And **thanks to you** for paying attention to this project!
+And **thanks to you** 🤝 for paying attention to this project!
