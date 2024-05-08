@@ -104,6 +104,7 @@ If you need advanced protection against skilled reversers, use `cflow_v2` and `a
 #define cflow_v2     1 // [+] ControlFlow v2
 #define fake_signs   1 // [+] Fake signatures
 #define antidebug_v2 1 // [+] AntiDebug v2
+
 #define no_cflow     0 // [-] Disable ControlFlow
 #define no_antidebug 0 // [-] Disable AntiDebug
 
