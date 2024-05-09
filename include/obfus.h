@@ -422,32 +422,45 @@ typedef enum {
     OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
 } CMD;
 
-#define VM_ADD(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MOD(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__MOD) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_EQU(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__EQU) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_NEQ(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__NEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LEQ(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__LEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GEQ(num1, num2) (long)VirtualMachine(RND(1, 500), (OP__GEQ) * ~SALT_CMD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-
-#define VM_ADD_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__ADD) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__SUB) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__MUL) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__DIV) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__LSS) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR_DBL(num1, num2) VirtualMachine(RND(1, 500), (OP__GTR) * ~SALT_CMD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-
 typedef enum {
     SALT_CMD = RND(100, 900),
-    SALT_NUM1 = RND(16, 32),
-    SALT_NUM2 = RND(16, 32)
+    SALT_NUM1 = RND(16, 48),
+    SALT_NUM2 = RND(16, 48)
 } SALT;
 
 static int _salt = SALT_CMD;
+#define _VM_ENCRYPT_INT(value) (value * ~SALT_CMD)
+static long _OP__ADD = _VM_ENCRYPT_INT(OP__ADD),
+            _OP__SUB = _VM_ENCRYPT_INT(OP__SUB),
+            _OP__MUL = _VM_ENCRYPT_INT(OP__MUL),
+            _OP__DIV = _VM_ENCRYPT_INT(OP__DIV),
+            _OP__MOD = _VM_ENCRYPT_INT(OP__MOD),
+            _OP__EQU = _VM_ENCRYPT_INT(OP__EQU),
+            _OP__NEQ = _VM_ENCRYPT_INT(OP__NEQ),
+            _OP__GTR = _VM_ENCRYPT_INT(OP__GTR),
+            _OP__LSS = _VM_ENCRYPT_INT(OP__LSS),
+            _OP__LEQ = _VM_ENCRYPT_INT(OP__LEQ),
+            _OP__GEQ = _VM_ENCRYPT_INT(OP__GEQ);
+
+#define VM_ADD(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__MUL, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__DIV, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MOD(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__MOD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_EQU(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__EQU, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_NEQ(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__NEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__LSS, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LEQ(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GEQ(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+
+#define VM_ADD_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__MUL, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+
 #if SUPPORTED
 long double VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
 #else
