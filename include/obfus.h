@@ -429,50 +429,71 @@ typedef enum {
 } SALT;
 
 static int _salt = SALT_CMD;
-#define _VM_ENCRYPT_INT(value) (value * ~SALT_CMD)
-static long _OP__ADD = _VM_ENCRYPT_INT(OP__ADD),
-            _OP__SUB = _VM_ENCRYPT_INT(OP__SUB),
-            _OP__MUL = _VM_ENCRYPT_INT(OP__MUL),
-            _OP__DIV = _VM_ENCRYPT_INT(OP__DIV),
-            _OP__MOD = _VM_ENCRYPT_INT(OP__MOD),
-            _OP__EQU = _VM_ENCRYPT_INT(OP__EQU),
-            _OP__NEQ = _VM_ENCRYPT_INT(OP__NEQ),
-            _OP__GTR = _VM_ENCRYPT_INT(OP__GTR),
-            _OP__LSS = _VM_ENCRYPT_INT(OP__LSS),
-            _OP__LEQ = _VM_ENCRYPT_INT(OP__LEQ),
-            _OP__GEQ = _VM_ENCRYPT_INT(OP__GEQ);
 
-#define VM_ADD(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__MUL, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__DIV, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MOD(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__MOD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_EQU(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__EQU, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_NEQ(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__NEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__LSS, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LEQ(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GEQ(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define _VM_DECRYPT_KEY (__COUNTER__) / 5
+#define _VM_ENCRYPT_KEY (__COUNTER__ - 1) / 5
 
-#define VM_ADD_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__MUL, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV_DBL(num1, num2) VirtualMachine(RND(1, 500), _OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS_DBL(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR_DBL(num1, num2) (long)VirtualMachine(RND(1, 500), _OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define _VM_ENCRYPT_INT(value) ((value - _VM_ENCRYPT_KEY) * ~SALT_CMD)
+#define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
+#define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
+#define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
+#define _ENC_OP__DIV _VM_ENCRYPT_INT(OP__DIV)
+#define _ENC_OP__MOD _VM_ENCRYPT_INT(OP__MOD)
+#define _ENC_OP__EQU _VM_ENCRYPT_INT(OP__EQU)
+#define _ENC_OP__NEQ _VM_ENCRYPT_INT(OP__NEQ)
+#define _ENC_OP__GTR _VM_ENCRYPT_INT(OP__GTR)
+#define _ENC_OP__LSS _VM_ENCRYPT_INT(OP__LSS)
+#define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
+#define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
 
+#define _VM_DEMUTATOR_KEY (__COUNTER__) / 5
+#define _VM_MUTATOR_KEY (__COUNTER__ - 1) / 5
+
+#define _VM_ENCRYPT_INT(value) ((value - _VM_MUTATOR_KEY) * ~SALT_CMD)
+#define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
+#define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
+#define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
+#define _ENC_OP__DIV _VM_ENCRYPT_INT(OP__DIV)
+#define _ENC_OP__MOD _VM_ENCRYPT_INT(OP__MOD)
+#define _ENC_OP__EQU _VM_ENCRYPT_INT(OP__EQU)
+#define _ENC_OP__NEQ _VM_ENCRYPT_INT(OP__NEQ)
+#define _ENC_OP__GTR _VM_ENCRYPT_INT(OP__GTR)
+#define _ENC_OP__LSS _VM_ENCRYPT_INT(OP__LSS)
+#define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
+#define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
+
+#define VM_ADD(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MOD(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_EQU(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_NEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+
+#define VM_ADD_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+
+long double obfhVmResult = 0;
 #if SUPPORTED
-long double VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
 #else
-long double VirtualMachine(long double junk, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
+long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
 #endif
     goto firstFakePoint;
-    long double result = _0;
 
     // Restore values
 restoreCommand:
     BREAK_STACK_1;
     command /= ~_salt;
+    command += uni_key;
     goto restoreNum2;
 
 restoreNum1:
@@ -505,60 +526,75 @@ letsExecute:
         case -5:
             goto restoreNum1;
         case OP__ADD:  // plus
-            result = (num1 + num2) + VM_MUL(junk_3, _0);
-            break;
+            obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
+            goto afterCalc;
         case OP__SUB:  // minus
-            result = (num1 - num2) + VM_MUL(junk_3, _0);
-            break;
+            obfhVmResult = (num1 - num2) + VM_MUL(junk_3, _0);
+            goto afterCalc;
         case OP__MUL:  // multiply
             if (num1 == _0 || num2 == _0)
-                result = _0;
+                obfhVmResult = _0;
             else
                 return num1 * num2;
 
-            break;
+            goto afterCalc;
         case OP__DIV:  // divide
             if (num2 != _0)
-                result = num1 / num2;
+                obfhVmResult = num1 / num2;
             else
-                result = VM_ADD(_0, _0);
-            break;
+                obfhVmResult = VM_ADD(_0, _0);
+            goto afterCalc;
         case OP__MOD:  // modulo
             if (num2 != 0)
-                result = (int)num1 % (int)num2;
+                obfhVmResult = (int)num1 % (int)num2;
             else
-                result = _0;
-            break;
+                obfhVmResult = _0;
+            goto afterCalc;
         case OP__EQU:            // equal
             if (num1 == num2) {  // 1 + 0 = 1
-                result = VM_ADD(_1, _0);
+                obfhVmResult = VM_ADD(_1, _0);
             } else {
-                result = _0;
+                obfhVmResult = _0;
             }
-            break;
+            goto afterCalc;
         case OP__NEQ:            // not equal
             if (num1 != num2) {  // 1 + 0 = 1
-                result = VM_ADD(_0, _1) + VM_MUL(junk_2, _0);
+                obfhVmResult = VM_ADD(_0, _1) + VM_MUL(junk_2, _0);
             } else {
-                result = VM_MUL(junk_3, _0);
+                obfhVmResult = VM_MUL(junk_3, _0);
             }
+            goto afterCalc;
         case OP__LSS:
-            result = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
-            break;
+            obfhVmResult = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
+            goto afterCalc;
         case OP__GTR:
-            result = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
-            break;
+            obfhVmResult = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
+            goto afterCalc;
         case OP__LEQ:
-            result = !(num1 + VM_MUL(junk_2, _0) > num2);
-            break;
+            obfhVmResult = !(num1 + VM_MUL(junk_2, _0) > num2);
+            goto afterCalc;
         case OP__GEQ:
-            result = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
+            obfhVmResult = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
             // result = num1 >= num2;
-            break;
+            goto afterCalc;
         default:
-            result = _0 * (junk * _5);
+            printf("ADD: %d, CMD: %d\n", OP__ADD, command);
+            obfhVmResult = _0 * (uni_key * _5);
     }
     BREAK_STACK_8;
+
+    long double result = uni_key;
+afterCalc:
+
+    goto saveValueToLocal;
+resetResult:
+    obfhVmResult = 0;
+    goto returnValue;
+saveValueToLocal:
+    result = obfhVmResult;
+    goto resetResult;
+
+returnValue:
     return result;
 }
 #endif
