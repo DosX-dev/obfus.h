@@ -578,7 +578,7 @@ letsExecute:
             // result = num1 >= num2;
             goto afterCalc;
         default:
-            printf("ADD: %d, CMD: %d\n", OP__ADD, command);
+            // printf("ADD: %d, CMD: %d\n", OP__ADD, command);
             obfhVmResult = _0 * (uni_key * _5);
     }
     BREAK_STACK_8;
