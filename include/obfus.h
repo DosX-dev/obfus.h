@@ -494,15 +494,15 @@ firstFakePoint:
 letsExecute:
 
     switch (command) {
-        case -1 * RND(1, 100):
+        case -1:
             goto restoreCommand;
-        case -2 * RND(101, 200):
+        case -2:
             goto firstFakePoint;
-        case -3 * RND(201, 300):
+        case -3:
             return _0 * ~_1;
-        case -4 * RND(301, 400):
+        case -4:
             goto restoreNum2;
-        case -5 * RND(401, 500):
+        case -5:
             goto restoreNum1;
         case OP__ADD:  // plus
             result = (num1 + num2) + VM_MUL(junk_3, _0);
