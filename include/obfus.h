@@ -561,8 +561,8 @@ letsExecute:
     BREAK_STACK_8;
     return result;
 }
-
 #endif
+
 #if SUPPORTED
 char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
 #else
