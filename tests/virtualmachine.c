@@ -25,5 +25,14 @@ void main() {
     printf("VM_GEQ(20, 10) == %d == 1\n", VM_GEQ(20, 10));
     printf("VM_GEQ(10, 20) == %d == 0\n", VM_GEQ(10, 20));
 
+    printf("VM_ADD_DBL(3.5, 4.5) == %.1f == 8.0\n", VM_ADD_DBL(3.5, 4.5));
+    printf("VM_SUB_DBL(10.0, 5.5) == %.1f == 4.5\n", VM_SUB_DBL(10.0, 5.5));
+    printf("VM_MUL_DBL(2.5, 4.0) == %.1f == 10.0\n", VM_MUL_DBL(2.5, 4.0));
+    printf("VM_DIV_DBL(20.0, 4.0) == %.1f == 5.0\n", VM_DIV_DBL(20.0, 4.0));
+    printf("VM_LSS_DBL(3.5, 4.5) == %d == 1\n", VM_LSS_DBL(3.5, 4.5));
+    printf("VM_LSS_DBL(4.5, 3.5) == %d == 0\n", VM_LSS_DBL(4.5, 3.5));
+    printf("VM_GTR_DBL(4.5, 3.5) == %d == 1\n", VM_GTR_DBL(4.5, 3.5));
+    printf("VM_GTR_DBL(3.5, 4.5) == %d == 0\n", VM_GTR_DBL(3.5, 4.5));
+
     getch();
 }
