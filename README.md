@@ -62,18 +62,18 @@ This is a protection technique in which certain calculations are performed throu
 | **`VM_MUL`**     | *long*         |`*` | Multiplies two numbers                                                     | `VM_MUL(5, 3)` = **`15`**            |
 | **`VM_DIV`**     | *long*         |`/` | Divides two numbers                                                        | `VM_DIV(6, 3)` = **`2`**             |
 | **`VM_MOD`**     | *long*         |`%` | Calculates the modulus of two numbers                                      | `VM_MOD(5, 3)` = **`2`**             |
-| **`VM_EQU`**     | *int* (1 or 0)   |`==`| Checks if two numbers are equal                                            | `VM_EQU(5, 5)` = **`true`**          |
-| **`VM_NEQ`**     | *int* (1 or 0)   |`!=`| Checks if two numbers are not equal                                        | `VM_NEQ(5, 3)` = **`true`**          |
-| **`VM_LSS`**     | *int* (1 or 0)   |`<` | Checks if the first number is less than the second number                  | `VM_LSS(3, 5)` = **`true`**          |
-| **`VM_GTR`**     | *int* (1 or 0)   |`>` | Checks if the first number is greater than the second number               | `VM_GTR(5, 3)` = **`true`**          |
-| **`VM_LEQ`**     | *int* (1 or 0)   |`<=`| Checks if the first number is less than or equal to the second number      | `VM_LEQ(3, 5)` = **`true`**          |
-| **`VM_GEQ`**     | *int* (1 or 0)   |`>=`| Checks if the first number is greater than or equal to the second number   | `VM_GEQ(5, 3)` = **`true`**          |
+| **`VM_EQU`**     | *int* (`1`/`0`)   |`==`| Checks if two numbers are equal                                            | `VM_EQU(5, 5)` = **`true`**          |
+| **`VM_NEQ`**     | *int* (`1`/`0`)   |`!=`| Checks if two numbers are not equal                                        | `VM_NEQ(5, 3)` = **`true`**          |
+| **`VM_LSS`**     | *int* (`1`/`0`)   |`<` | Checks if the first number is less than the second number                  | `VM_LSS(3, 5)` = **`true`**          |
+| **`VM_GTR`**     | *int* (`1`/`0`)   |`>` | Checks if the first number is greater than the second number               | `VM_GTR(5, 3)` = **`true`**          |
+| **`VM_LEQ`**     | *int* (`1`/`0`)   |`<=`| Checks if the first number is less than or equal to the second number      | `VM_LEQ(3, 5)` = **`true`**          |
+| **`VM_GEQ`**     | *int* (`1`/`0`)   |`>=`| Checks if the first number is greater than or equal to the second number   | `VM_GEQ(5, 3)` = **`true`**          |
 | **`VM_ADD_DBL`** | *long double*  |`+` | Adds two double numbers                                                    | `VM_ADD_DBL(5.5, 3.2)` = **`≈8.7`**  |
 | **`VM_SUB_DBL`** | *long double*  |`-` | Subtracts two double numbers                                               | `VM_SUB_DBL(5.5, 3.2)` = **`≈2.3`**  |
 | **`VM_MUL_DBL`** | *long double*  |`*` | Multiplies two double numbers                                              | `VM_MUL_DBL(5.5, 3.2)` = **`≈17.6`** |
 | **`VM_DIV_DBL`** | *long double*  |`/` | Divides two double numbers                                                 | `VM_DIV_DBL(6.0, 3.0)` = **`≈2.0`**  |
-| **`VM_LSS_DBL`** | *int* (1 or 0)   |`<` | Checks if the first double number is less than the second double number    | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
-| **`VM_GTR_DBL`** | *int* (1 or 0)   |`>` | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
+| **`VM_LSS_DBL`** | *int* (`1`/`0`)   |`<` | Checks if the first double number is less than the second double number    | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
+| **`VM_GTR_DBL`** | *int* (`1`/`0`)   |`>` | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
 
 > The virtual machine does not support some basic `double` comparison operations.
 
