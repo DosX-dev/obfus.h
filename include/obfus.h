@@ -346,20 +346,42 @@ int condition_Proxy(int junk, int condition) {
         return (condition_True() || FALSE || TRUE) && (FALSE + int_Proxy(_1));
     }
 
-    FAKE_CPUID;
+    BREAK_STACK_1;
     return int_Proxy(condition);
 }
 
+// =============================================================
+// Anti-Tamper for Control-Flow obfuscation (beta!)
+#if antitamper == 1 && no_cflow != 1
+int obfhIsBlockValidated = 0;
+int validateBlock() {  // returns false
+    obfhIsBlockValidated = 1;
+    return obfhIsBlockValidated;
+}
+int isBlockValidated() {  // returns true if validateBlock() executed
+    if (obfhIsBlockValidated) {
+        obfhIsBlockValidated = 0;
+        return 1;
+    }
+    return 0;
+}
+#else
+#define validateBlock() 1
+#define isBlockValidated() 1
+#endif
+// =============================================================
+
+// =============================================================
 // Control Flow (global)
 #if no_cflow != 1
 
 #if cflow_v2 == 1  // Control flow obfuscation for 'if' & 'for', V2 (strong!)
 
 // if (V2)
-#define if(condition)                      \
-    if (int_Proxy(RND(1, 1000000)) < _0) { \
-        __asm__ __volatile(".byte 0x00");  \
-    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
+#define if(condition)                                         \
+    if (validateBlock() && int_Proxy(RND(1, 1000000)) < _0) { \
+        __asm__ __volatile(".byte 0x00");                     \
+    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
 
 // for (V2)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
@@ -377,7 +399,7 @@ int condition_Proxy(int junk, int condition) {
 // Control flow obfuscation for 'if' & 'for', V1
 
 // if (V1)
-#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+#define if(condition) if (validateBlock() && (RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
 
 // for (V1)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
@@ -406,7 +428,10 @@ int condition_Proxy(int junk, int condition) {
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
 
 #endif
+// =============================================================
 
+// =============================================================
+// Virtualization (global)
 #if virt == 1
 typedef enum {
     OP__ADD = RND(0, 900) * __COUNTER__ * 5,
@@ -598,6 +623,7 @@ returnValue:
     return result;
 }
 #endif
+// =============================================================
 
 #if SUPPORTED
 char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
@@ -687,27 +713,6 @@ size_t strlen_custom(const char *str) {
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
-/*unsigned char rot13(unsigned char c) {
-    if (isalpha(c)) {
-        unsigned char offset = 'A' - 'a';
-        c = (c - offset + 13) % 26 + offset;
-    }
-    return c;
-}
-
-// Encrypts a string using ROT13
-char *rot13_str(char input) {
-    int i = 0;
-
-    char *str = input;
-
-    while (str[i]) {
-        str[i] = rot13(str[i]);
-        i++;
-    }
-    return str;
-} */
-
 static char loadStr[5];
 #if SUPPORTED
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
@@ -789,6 +794,7 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 }
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
+// =============================================================
 // Anti-Debug (global)
 #if no_antidebug != 1
 
@@ -902,8 +908,8 @@ int IsDebuggerPresent_Proxy() {
     return IsDebuggerPresent();
 
 #endif
-    // return ((int (*)())GetProcAddress(LoadLibraryA("kernel32.dll"), "IsDebuggerPresent"))();
 }
+// =============================================================
 
 /*
 void antiDebugMessage() {
