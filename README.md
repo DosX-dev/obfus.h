@@ -132,7 +132,7 @@ void main() {
 ```
 
 ## 🤖 How it works?
-![](how-it-works.png )
+> ![](how-it-works.png)
 
 ## 🛠 Compiler (important)
 The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
