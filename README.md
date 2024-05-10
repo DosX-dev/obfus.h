@@ -1,4 +1,4 @@
-![](obfus.h.png)
+![](pics/obfus.h.png)
 # obfus.h
 
 **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time obfuscating C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)**. It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
@@ -132,7 +132,7 @@ void main() {
 ```
 
 ## 🤖 How it works?
-> ![](how-it-works.png)
+> ![](pics/how-it-works.png)
 
 ## 🛠 Compiler (important)
 The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
@@ -141,10 +141,10 @@ The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunatel
 The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
 > **What the diagrammatic code will look like after obfuscation:**
-![](before_and_after.png)
+![](pics/before_and_after.png)
 
 > **The reverser will see something like this if he tries to use a decompiler:**
-![](before_and_after_2.png)
+![](pics/before_and_after_2.png)
 
 <!-- ```c
 // BEFORE OBFUSCATION       
