@@ -166,7 +166,7 @@ The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunatel
   │            │           │        │
   │ ┌──────────▼─────────┐ │        │
   │ │ 5. Various code    | ◄────────┘
-│ │ |    mutations       | |
+  │ |    mutations       | |
   │ └────────────────────┘ │
   └────┬───────────────────┘
        │
