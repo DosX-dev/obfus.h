@@ -212,6 +212,6 @@ __int64 sub_4010B8() {
 ## 🌈 Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
  * 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advices)*
- * 🦊 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
+ * 🐺 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
 
 And **thanks to you** 🤝 for paying attention to this project!
