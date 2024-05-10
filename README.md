@@ -135,7 +135,7 @@ void main() {
 The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
 
 ## 🤖 How it works?
-> ```markdown
+> ```
 > ┌────────────────────────────────────┐
 > │ ------------- Sources ------------ │
 > ├────────────────────────────────────┤
