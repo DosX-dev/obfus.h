@@ -455,22 +455,6 @@ typedef enum {
 
 static int _salt = SALT_CMD;
 
-#define _VM_DECRYPT_KEY (__COUNTER__) / 5
-#define _VM_ENCRYPT_KEY (__COUNTER__ - 1) / 5
-
-#define _VM_ENCRYPT_INT(value) ((value - _VM_ENCRYPT_KEY) * ~SALT_CMD)
-#define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
-#define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
-#define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
-#define _ENC_OP__DIV _VM_ENCRYPT_INT(OP__DIV)
-#define _ENC_OP__MOD _VM_ENCRYPT_INT(OP__MOD)
-#define _ENC_OP__EQU _VM_ENCRYPT_INT(OP__EQU)
-#define _ENC_OP__NEQ _VM_ENCRYPT_INT(OP__NEQ)
-#define _ENC_OP__GTR _VM_ENCRYPT_INT(OP__GTR)
-#define _ENC_OP__LSS _VM_ENCRYPT_INT(OP__LSS)
-#define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
-#define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
-
 #define _VM_DEMUTATOR_KEY (__COUNTER__) / 5
 #define _VM_MUTATOR_KEY (__COUNTER__ - 1) / 5
 
