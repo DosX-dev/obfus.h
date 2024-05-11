@@ -273,8 +273,9 @@ void junkFuncEmpty() {
 
 #define FAKE_CPUID __asm__ __volatile("nop\ncpuid\nnop\n")
 
-#define sizeof(x) \
-    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
+// Doesn't work
+// #define sizeof(x) \
+//    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
 
 #define NOP_FLOOD                             \
     (RND(0, 1000)) + int_Proxy(RND(0, 1000)); \
