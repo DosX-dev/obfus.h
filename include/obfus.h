@@ -929,7 +929,7 @@ void loop() {
         __asm__ __volatile("ret");                                                                 \
         crash();                                                                                   \
     } else {                                                                                       \
-        0.0 / IsDebuggerPresent();                                                                 \
+        0.0 / !IsDebuggerPresent();                                                                 \
     };
 
 #else
