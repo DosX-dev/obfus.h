@@ -10,26 +10,35 @@
                   Coded by (C) DosX, 2024
 
  [Additional options]
- ~ cflow_v2       = more powerful Control Flow obfuscation (slowly!)
- ~ antidebug_v2   = use better dynamic anti-debugging protection
- ~ fake_signs     = adds fake signatures of various protectors or packers
+ ~ CFLOW_V2       = more powerful Control Flow obfuscation (slowly!)
+ ~ ANTIDEBUG_V2   = use better dynamic anti-debugging protection
+ ~ FAKE_SIGNS     = adds fake signatures of various protectors or packers
 
  [Advanced code protection]
- ~ virt           = allows you to use the functions of a math VM
+ ~ VIRT           = allows you to use the functions of a math VM
 
  [Disabling default features]
- ~ no_cflow       = disable control flow obfuscation
- ~ no_antidebug   = disable antidebug protection
+ ~ NO_CFLOW       = disable control flow obfuscation
+ ~ NO_ANTIDEBUG   = disable antidebug protection
 
- ~ no_obf         = disable obfuscation
+ ~ NO_OBF         = disable obfuscation
 
  GitHub:
  -> https://github.com/DosX-dev/obfus.h
 
 */
 
+// legacy args support
+#define ANTIDEBUG_V2 antidebug_v2
+#define NO_ANTIDEBUG no_antidebug
+#define FAKE_SIGNS fake_signs
+#define CFLOW_V2 cflow_v2
+#define NO_CFLOW no_cflow
+#define NO_OBF no_obf
+#define VIRT virt
+
 // if virtualization disabled
-#if no_obf == 1 || virt != 1
+#if NO_OBF == 1 || VIRT != 1
 #define VM_ADD(num1, num2) num1 + num2
 #define VM_SUB(num1, num2) num1 - num2
 #define VM_MUL(num1, num2) num1 *num2
@@ -49,7 +58,7 @@
 #define VM_GTR_DBL(num1, num2) num1 > num2
 #endif
 
-#if !no_obf
+#if !NO_OBF
 
 #include <conio.h>
 #include <stdio.h>
@@ -69,7 +78,7 @@
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
 
 // Fake signatures ;)
-#if defined(fake_signs) && (fake_signs != 0) && SUPPORTED
+#if defined(FAKE_SIGNS) && (FAKE_SIGNS != 0) && SUPPORTED
 
 static const char FAKE_ENIGMAVM_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
 static const char FAKE_ENIGMAVM_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
@@ -353,7 +362,7 @@ int condition_Proxy(int junk, int condition) {
 
 // =============================================================
 // Anti-Tamper for Control-Flow obfuscation (beta!)
-#if antitamper == 1 && no_cflow != 1
+#if antitamper == 1 && NO_CFLOW != 1
 int obfhIsBlockValidated = 0;
 int validateBlock() {  // returns false
     obfhIsBlockValidated = 1;
@@ -374,9 +383,9 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 
 // =============================================================
 // Control Flow (global)
-#if no_cflow != 1
+#if NO_CFLOW != 1
 
-#if cflow_v2 == 1  // Control flow obfuscation for 'if' & 'for', V2 (strong!)
+#if CFLOW_V2 == 1  // Control flow obfuscation for 'if' & 'for', V2 (strong!)
 
 // if (V2)
 #define if(condition)                                         \
@@ -433,7 +442,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 
 // =============================================================
 // Virtualization (global)
-#if virt == 1
+#if VIRT == 1
 typedef enum {
     OP__ADD = RND(0, 900) * __COUNTER__ * 5,
     OP__SUB = RND(1000, 1900) * __COUNTER__ * 5,
@@ -781,9 +790,9 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 
 // =============================================================
 // Anti-Debug (global)
-#if no_antidebug != 1
+#if NO_ANTIDEBUG != 1
 
-#if antidebug_v2 == 1  // for antidebug_v2
+#if ANTIDEBUG_V2 == 1  // for ANTIDEBUG_V2
 void ad_ZeroDRs(PCONTEXT pCtx) {
     BREAK_STACK_1;
     pCtx->Dr0 = _0;
@@ -841,7 +850,7 @@ int IsDebuggerPresent_Proxy() {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
-#if antidebug_v2 == 1
+#if ANTIDEBUG_V2 == 1
 
     // Registers validation
     HANDLE hMainThread;
@@ -929,7 +938,7 @@ void loop() {
         __asm__ __volatile("ret");                                                                 \
         crash();                                                                                   \
     } else {                                                                                       \
-        0.0 / !IsDebuggerPresent();                                                                 \
+        0.0 / !IsDebuggerPresent();                                                                \
     };
 
 #else

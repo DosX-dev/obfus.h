@@ -21,22 +21,22 @@ This will automatically obfuscate your code during compilation, ensuring protect
 
 > Available options for protection configuring:
 > ```c
-> // Additional options
-> #define cflow_v2       1  // More powerful Control Flow obfuscation (slowly!)
-> #define antidebug_v2   1  // Use better dynamic anti-debugging protection
-> #define fake_signs     1  // Adds fake signatures of various protectors or packers
-> 
 > // Advanced code protection (see the "Virtualization" part of the documentation!)
-> #define virt           1  // Allows you to use the functions of a math VM
+> #define VIRT           1  // Allows you to use the functions of a math VM
+> 
+> // Additional options
+> #define CFLOW_V2       1  // More powerful Control Flow obfuscation (slowly!)
+> #define ANTIDEBUG_V2   1  // Use better dynamic anti-debugging protection
+> #define FAKE_SIGNS     1  // Adds fake signatures of various protectors or packers
 > 
 > // Disabling default features
-> #define no_cflow       1  // Don't use Control-Flow obfuscation
-> #define no_antidebug   1  // Don't build in debugging protection
+> #define NO_CFLOW       1  // Don't use Control-Flow obfuscation
+> #define NO_ANTIDEBUG   1  // Don't build in debugging protection
 > ```
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D no_cflow  -D antidebug_v2  -D fake_signs
+> tcc "app.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS
 > ```
 
 ⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
@@ -51,7 +51,7 @@ if (!licenseExpired()) {
 ```
 
 ## 👺 Virtualization
-This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `virt` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
+This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `VIRT` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
 
 ⚠️ Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
 
@@ -81,7 +81,7 @@ This is a protection technique in which certain calculations are performed throu
 A simple example of using virtualization::
 ```c
 // ...
-#define virt 1
+#define VIRT 1
 // ...
 
 if (VM_EQU(VM_ADD(2, 2), 4)) {
@@ -93,20 +93,20 @@ if (VM_EQU(VM_ADD(2, 2), 4)) {
 You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)
 
 ## ❓ Example of using
-If you need advanced protection against skilled reversers, use `cflow_v2` and `antidebug_v2` options.
+If you need advanced protection against skilled reversers, use `CFLOW_V2` and `ANTIDEBUG_V2` options.
 ```c
 // Let's obfuscate your code!
 
 #include <stdio.h>
 
-#define virt         1 // [+] Use math virtual machine
+#define VIRT         1 // [+] Use math virtual machine
 
-#define cflow_v2     1 // [+] ControlFlow v2
-#define fake_signs   1 // [+] Fake signatures
-#define antidebug_v2 1 // [+] AntiDebug v2
+#define CFLOW_V2     1 // [+] ControlFlow v2
+#define FAKE_SIGNS   1 // [+] Fake signatures
+#define ANTIDEBUG_V2 1 // [+] AntiDebug v2
 
-#define no_cflow     0 // [-] Disable ControlFlow
-#define no_antidebug 0 // [-] Disable AntiDebug
+#define NO_CFLOW     0 // [-] Disable ControlFlow
+#define NO_ANTIDEBUG 0 // [-] Disable AntiDebug
 
 
 #include "obfus.h"
@@ -122,6 +122,7 @@ void main() {
         printf("Error!\n");
     }
 
+    free(out);
 
     int result = VM_ADD(5, 7); // 5 + 7
 

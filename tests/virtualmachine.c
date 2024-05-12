@@ -2,7 +2,7 @@
 #include <string.h>
 #include <windows.h>
 
-#define virt 1
+#define VIRT 1
 #include "../include/obfus.h"
 
 void main() {
