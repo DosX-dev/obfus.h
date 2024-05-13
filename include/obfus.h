@@ -398,7 +398,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 
 // return
 #define return \
-    for (int _i = 0; _i < RND(1, 100); _i++) return
+    for (int _i = _0; _i < RND(1, 100); _i++) return
 
 // break
 #define break \
