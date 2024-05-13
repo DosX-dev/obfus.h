@@ -28,6 +28,10 @@
 
 */
 
+#if !__TINYC__ && !__GNUC__ && !__MINGW32__
+#define __attribute__(...)
+#endif
+
 // legacy args support
 #define ANTIDEBUG_V2 antidebug_v2
 #define NO_ANTIDEBUG no_antidebug
@@ -74,11 +78,10 @@
 #error You are using too old a compiler version!
 #endif
 
-#define SUPPORTED (__TINYC__ || __GNUC__)
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
 
 // Fake signatures ;)
-#if defined(FAKE_SIGNS) && (FAKE_SIGNS != 0) && SUPPORTED
+#if defined(FAKE_SIGNS) && (FAKE_SIGNS != 0)
 
 static const char FAKE_ENIGMAVM_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
 static const char FAKE_ENIGMAVM_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
@@ -136,7 +139,7 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
                                     "\\\\.\\WIZZKEYRL",
                                     "\\\\.\\NVKEY"};
 
-#elif SUPPORTED
+#else
 
 #define OBFH_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".obfh")  // OBFH section
 
@@ -145,17 +148,6 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 // Thanks to @horsicq && @ac3ss0r
 #define RND(min, max) (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
 
-/*
-#if SUPPORTED
-void breakerFunc() SECTION_ATTRIBUTE(".dosx") {
-#else
-void breakerFunc() {
-#endif
-    __asm__ __volatile(".byte 0x00");
-}
-*/
-
-#if SUPPORTED
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
                             _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
                             _s_i[] OBFH_SECTION_ATTRIBUTE = "i", _s_j[] OBFH_SECTION_ATTRIBUTE = "j", _s_k[] OBFH_SECTION_ATTRIBUTE = "k", _s_l[] OBFH_SECTION_ATTRIBUTE = "l",
@@ -174,26 +166,6 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
                             _0 OBFH_SECTION_ATTRIBUTE = 0, _1 OBFH_SECTION_ATTRIBUTE = 1, _2 OBFH_SECTION_ATTRIBUTE = 2, _3 OBFH_SECTION_ATTRIBUTE = 3, _4 OBFH_SECTION_ATTRIBUTE = 4,
                             _5 OBFH_SECTION_ATTRIBUTE = 5, _6 OBFH_SECTION_ATTRIBUTE = 6, _7 OBFH_SECTION_ATTRIBUTE = 7, _8 OBFH_SECTION_ATTRIBUTE = 8, _9 OBFH_SECTION_ATTRIBUTE = 9;
-#else
-volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
-                     _s_e[] = "e", _s_f[] = "f", _s_g[] = "g", _s_h[] = "h",
-                     _s_i[] = "i", _s_j[] = "j", _s_k[] = "k", _s_l[] = "l",
-                     _s_m[] = "m", _s_n[] = "n", _s_o[] = "o", _s_p[] = "p",
-                     _s_q[] = "q", _s_r[] = "r", _s_s[] = "s", _s_t[] = "t",
-                     _s_u[] = "u", _s_v[] = "v", _s_w[] = "w", _s_x[] = "x",
-                     _s_y[] = "y", _s_z[] = "z",
-                     _a = 'a', _b = 'b', _c = 'c', _d = 'd',
-                     _e = 'e', _f = 'f', _g = 'g', _h = 'h',
-                     _i = 'i', _j = 'j', _k = 'k', _l = 'l',
-                     _m = 'm', _n = 'n', _o = 'o', _p = 'p',
-                     _q = 'q', _r = 'r', _s = 's', _t = 't',
-                     _u = 'u', _v = 'v', _w = 'w', _x = 'x',
-                     _y = 'y', _z = 'z',
-                     _S = 'S', _L = 'L', _A = 'A', _I = 'I',
-                     _D = 'D', _P = 'P',
-                     _0 = 0, _1 = 1, _2 = 2, _3 = 3, _4 = 4,
-                     _5 = 5, _6 = 6, _7 = 7, _8 = 8, _9 = 9;
-#endif
 
 #define BREAK_STACK_1                      \
     __asm__ __volatile("xorl %eax, %eax"); \
@@ -257,11 +229,7 @@ volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
     __asm__ __volatile(".byte 0x00, 0x00"); \
     __asm__ __volatile("1:")
 
-#if SUPPORTED
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
-#else
-void junkFunc(int z, ...) {
-#endif
     __asm__ __volatile("nop");
     return;
 }
@@ -305,11 +273,7 @@ int malloc_Proxy(int *size) {
 
 static char rndValueToProxy = RND(0, 10);
 
-#if SUPPORTED
 int int_Proxy(int value) OBFH_SECTION_ATTRIBUTE {
-#else
-int int_Proxy(int value) {
-#endif
     BREAK_STACK_4;
     if (rndValueToProxy == value)
         return rndValueToProxy;
@@ -321,32 +285,20 @@ int int_Proxy(int value) {
     return ((value * _1) + ((_4 * RND(0, 100000)) - _8) * _0);
 }
 
-#if SUPPORTED
 double double_Proxy(double value) OBFH_SECTION_ATTRIBUTE {
-#else
-double double_Proxy(double value) {
-#endif
     BREAK_STACK_1;
     junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
 
-#if SUPPORTED
 int condition_True() OBFH_SECTION_ATTRIBUTE {
-#else
-int condition_True() {
-#endif
     BREAK_STACK_1;
     FAKE_CPUID;
     return _1 && TRUE;
 }
 
-#if SUPPORTED
 int condition_Proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
-#else
-int condition_Proxy(int junk, int condition) {
-#endif
     BREAK_STACK_4;
 
     int result = int_Proxy(condition * _1);
@@ -501,11 +453,7 @@ static int _salt = SALT_CMD;
 #define VM_GTR_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 
 long double obfhVmResult = 0;
-#if SUPPORTED
 long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
-#else
-long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) {
-#endif
     goto firstFakePoint;
 
     // Restore values
@@ -619,11 +567,7 @@ returnValue:
 #endif
 // =============================================================
 
-#if SUPPORTED
 char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
-#else
-char *getCharMask(int count) {
-#endif
     BREAK_STACK_1;
     static char mask[16];
     if (count <= _0 || count >= sizeof(mask)) {
@@ -708,11 +652,7 @@ size_t strlen_custom(const char *str) {
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
 static char loadStr[5];
-#if SUPPORTED
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
-#else
-HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
-#endif
     switch (_0) {
         case 1:
             __asm__ __volatile(".byte 0x00");
@@ -841,12 +781,7 @@ WINAPI ThreadCompareDRs(void *p) {
 }
 #endif
 
-#if SUPPORTED
 int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
-#else
-int IsDebuggerPresent_Proxy() {
-#endif
-
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
@@ -945,11 +880,7 @@ void loop() {
 #define ANTI_DEBUG 0
 #endif
 
-#if SUPPORTED
 char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
-#else
-char *getStdLibName() {
-#endif
     BREAK_STACK_1;
     NOP_FLOOD;
     junkFunc(_0 + _3);
