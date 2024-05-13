@@ -590,7 +590,7 @@ char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
 }
 
 // WriteConsoleA
-BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) {
+BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
@@ -598,7 +598,7 @@ BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNum
 #define WriteConsoleA(...) WriteConsoleA_Proxy(__VA_ARGS__)
 
 // GetStdHandle
-HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
+HANDLE GetStdHandle_Proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return GetStdHandle(int_Proxy(nStdHandle));
@@ -606,14 +606,14 @@ HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
 #define GetStdHandle(...) GetStdHandle_Proxy(__VA_ARGS__)
 
 // GetProcAddress
-FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) {
+FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return GetProcAddress(hModule, lpProcName);
 }
 #define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
 
-HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
+HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_9;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
@@ -621,7 +621,7 @@ HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
 #define GetModuleHandleA(...) GetModuleHandleA_Proxy(__VA_ARGS__)
 
 // strcmp
-int strcmp_custom(const char *str1, const char *str2) {
+int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
@@ -639,7 +639,7 @@ int strcmp_custom(const char *str1, const char *str2) {
 #define strcmp(...) strcmp_custom(__VA_ARGS__)
 
 // strlen
-size_t strlen_custom(const char *str) {
+size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     size_t length = _0;
     while (*str != '\0') {
@@ -1124,32 +1124,32 @@ char *getRandName_Proxy() {
 #define rand(...) ((int (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getRandName_Proxy()))(__VA_ARGS__)
 
 // realloc
-char *getReallocName_Proxy() {
+char *getReallocName_Proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "realloc";
 }
 #define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getReallocName_Proxy()))(__VA_ARGS__)
 
-void *calloc_Proxy(size_t nmemb, size_t size) {
+void *calloc_Proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return calloc(nmemb, size);
 }
 #define calloc(nmemb, size) calloc_Proxy(nmemb, size)
 
-void *realloc_Proxy(void *ptr, size_t size) {
+void *realloc_Proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return realloc(ptr, size);
 }
 #define realloc(ptr, size) realloc_Proxy(ptr, size)
 
-char *gets_Proxy(char *s) {
+char *gets_Proxy(char *s) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return gets(s);
 }
 #define gets(s) gets_Proxy(s)
 
-int snprintf_Proxy(char *str, size_t size, const char *format, ...) {
+int snprintf_Proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     va_list args;
     va_start(args, format);
@@ -1169,55 +1169,55 @@ int snprintf_Proxy(char *str, size_t size, const char *format, ...) {
 })(__VA_ARGS__))
 */
 
-int vsprintf_Proxy(char *str, const char *format, va_list args) {
+int vsprintf_Proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsprintf(str, format, args);
 }
 #define vsprintf(str, format, args) vsprintf_Proxy(str, format, args)
 
-int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) {
+int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsnprintf(str, size, format, args);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_Proxy(str, size, format, args)
 
-char *getenv_Proxy(const char *name) {
+char *getenv_Proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getenv(name);
 }
 #define getenv(name) getenv_Proxy(name)
 
-int system_Proxy(const char *command) {
+int system_Proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return system(command);
 }
 #define system(command) system_Proxy(command)
 
-void abort_Proxy(void) {
+void abort_Proxy(void) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     abort();
 }
 #define abort() abort_Proxy()
 
-int atexit_Proxy(void (*func)(void)) {
+int atexit_Proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return atexit(func);
 }
 #define atexit(func) atexit_Proxy(func)
 
-char *getcwd_Proxy(char *buf, size_t size) {
+char *getcwd_Proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getcwd(buf, size);
 }
 #define getcwd(buf, size) ((char *)getcwd_Proxy(buf, size))
 
-int tolower_Proxy(int c) {
+int tolower_Proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return tolower(c);
 }
 #define tolower(c) tolower_Proxy(c)
 
-int toupper_Proxy(int c) {
+int toupper_Proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return toupper(c);
 }
@@ -1383,8 +1383,12 @@ int toupper_Proxy(int c) {
 #define erf(x) erf(_MUTATE_MATH(x))
 #define nan(x) nan(_MUTATE_MATH(x))
 
+__declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
+    return "Moo";
+}
+
 #if __TINYC__
-#define main _start
+#define main(...) _start(__VA_ARGS__)
 #endif
 
 #else
