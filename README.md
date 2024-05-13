@@ -36,7 +36,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS
+> tcc "app.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
 > ```
 
 ⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
