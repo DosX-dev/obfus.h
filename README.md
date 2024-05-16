@@ -138,6 +138,16 @@ void main() {
 ## 🛠 Compiler (important)
 The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
 
+## 🌐 obfus.h updater
+You can use [special script](include-updater/obfh-update.cmd) for Windows to get the latest versions of `obfus.h` by downloading the package from the official repository. This is useful if you need to automate security updates without using `git`.
+
+> For example, you can use it before building your project:
+> ```diff
+> + C:\...> call obfh-update
+>   C:\...> tcc app.c -w
+> ```
+> The script will update the contents of the obfus.h file in the current directory (according to the specified configuration)
+
 ## 📖 Summarize
 The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
