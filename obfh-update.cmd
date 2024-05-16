@@ -12,7 +12,7 @@ set "special=--ssl-no-revoke -s"
 :: If error:
 ::  0 - pause
 ::  1 - continue (not recommended)
-set "onerror="
+set "onerror=0"
 
 call:log "Getting the latest version of obfus.h protection from %host%..."
 curl -L %special% "%protocol%://%host%/%obfus_h_path%" -o "%output_dir%\obfus.h"
