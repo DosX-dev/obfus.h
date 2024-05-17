@@ -32,15 +32,6 @@
 #define __attribute__(...)
 #endif
 
-// legacy args support
-#define ANTIDEBUG_V2 antidebug_v2
-#define NO_ANTIDEBUG no_antidebug
-#define FAKE_SIGNS fake_signs
-#define CFLOW_V2 cflow_v2
-#define NO_CFLOW no_cflow
-#define NO_OBF no_obf
-#define VIRT virt
-
 // if virtualization disabled
 #if NO_OBF == 1 || VIRT != 1
 #define VM_ADD(num1, num2) num1 + num2
@@ -375,11 +366,13 @@ int isBlockValidated() {  // returns true if validateBlock() executed
         __asm__ __volatile(".byte 0x3C");                                         \
     }                                                                             \
     else if (RND(0, 10) == (RND(11, 100))) {                                      \
+    cflowPoint_1:                                                                 \
         BREAK_STACK_3;                                                            \
         int_Proxy(_3 - RND(0, 10000));                                            \
     }                                                                             \
     else if (FALSE * RND(0, 1000)) {                                              \
         BREAK_STACK_1;                                                            \
+        goto cflowPoint_1;                                                        \
     }                                                                             \
     else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
         __asm__ __volatile(".byte 0xEB");                                         \
