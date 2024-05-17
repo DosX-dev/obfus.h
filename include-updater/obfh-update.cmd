@@ -41,7 +41,7 @@ call:log "Getting the latest version of obfus.h protection from %host%..."
 
 if not exist "%curl_path%" (
     call:log "Missing cURL executable at %curl_path%!"
-    exit /b 1    
+    exit /b 1
 )
 
 call "%curl_path%" -L %special% "%protocol%://%host%/%obfus_h_path%" -o "%output_dir%\obfus.h"
