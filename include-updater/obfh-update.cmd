@@ -1,4 +1,10 @@
 @echo off
+call:print "         _       __                 _     "
+call:print "   ___  | |__   / _| _   _  ___    | |__  "
+call:print "  / _ \ | '_ \ | |_ | | | |/ __|   | '_ \ "
+call:print " | (_) || |_) ||  _|| |_| |\__ \ _ | | | |"
+call:print "  \___/ |_.__/ |_|   \__,_||___/(_)|_| |_|"
+
 echo.
 
 :: Host and protocol
@@ -51,4 +57,10 @@ goto :eof
 
 :log
 echo [%time%][pkg:obfus.h] %~1
+goto :eof
+
+:print
+for /f %%a in ('"prompt $H && for %%b in (1) do rem"') do set "bs=%%a"
+<nul set/p=".%bs%%~1"
+echo.
 goto :eof
