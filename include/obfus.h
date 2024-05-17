@@ -28,6 +28,9 @@
 
 */
 
+#ifndef OBFH
+#define OBFH
+
 #if !__TINYC__ && !__GNUC__ && !__MINGW32__
 #define __attribute__(...)
 #endif
@@ -158,67 +161,74 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _0 OBFH_SECTION_ATTRIBUTE = 0, _1 OBFH_SECTION_ATTRIBUTE = 1, _2 OBFH_SECTION_ATTRIBUTE = 2, _3 OBFH_SECTION_ATTRIBUTE = 3, _4 OBFH_SECTION_ATTRIBUTE = 4,
                             _5 OBFH_SECTION_ATTRIBUTE = 5, _6 OBFH_SECTION_ATTRIBUTE = 6, _7 OBFH_SECTION_ATTRIBUTE = 7, _8 OBFH_SECTION_ATTRIBUTE = 8, _9 OBFH_SECTION_ATTRIBUTE = 9;
 
-#define BREAK_STACK_1                      \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_1       \
+    __asm__ __volatile(     \
+        "xorl %eax, %eax\n" \
+        "jz 1f\n"           \
+        ".byte 0xE8\n"      \
+        "1:\n")
 
 #define BREAK_STACK_2 \
-    if (_0) __asm__ __volatile(".byte 0x00");
+    if (_0) __asm__ __volatile(".byte 0x00\n");
 
-// Junk JMPOUT condition
-#define BREAK_STACK_3                         \
-    switch (_0) {                             \
-        case RND(1, 1000):                    \
-            __asm__ __volatile(".byte 0x00"); \
+#define BREAK_STACK_3                           \
+    switch (_0) {                               \
+        case RND(1, 1000):                      \
+            __asm__ __volatile(".byte 0x00\n"); \
     }
 
-#define BREAK_STACK_4                      \
-    __asm__ __volatile("xorl %ebx, %ebx"); \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("xorl %ebx, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile("mov %eax, 4");     \
-    __asm__ __volatile(".byte 0x00");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_4       \
+    __asm__ __volatile(     \
+        "xorl %ebx, %ebx\n" \
+        "xorl %edx, %edx\n" \
+        "xorl %ebx, %edx\n" \
+        "jz 1f\n"           \
+        "mov %eax, 4\n"     \
+        ".byte 0x00\n"      \
+        "1:\n")
 
-// Junk 'MEMORY[*]'
-#define BREAK_STACK_5                      \
-    __asm__ __volatile("xorl %ebx, %ebx"); \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("mov %eax, %ebx");  \
-    __asm__ __volatile("mov %edx, %ebx");  \
-    __asm__ __volatile("xorl %eax, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0x20");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_5       \
+    __asm__ __volatile(     \
+        "xorl %ebx, %ebx\n" \
+        "xorl %eax, %eax\n" \
+        "mov %eax, %ebx\n"  \
+        "mov %edx, %ebx\n"  \
+        "xorl %eax, %edx\n" \
+        "jz 1f\n"           \
+        ".byte 0x20\n"      \
+        "1:\n")
 
-#define BREAK_STACK_6                      \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("mov %eax, %edx");  \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_6       \
+    __asm__ __volatile(     \
+        "xorl %edx, %edx\n" \
+        "xorl %eax, %eax\n" \
+        "mov %eax, %edx\n"  \
+        "jz 1f\n"           \
+        ".byte 0xE8\n"      \
+        "1:\n")
 
-#define BREAK_STACK_7                      \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_7       \
+    __asm__ __volatile(     \
+        "xorl %edx, %edx\n" \
+        "jz 1f\n"           \
+        ".byte 0xE8\n"      \
+        "1:\n")
 
-#define BREAK_STACK_8                      \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0x50");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_8       \
+    __asm__ __volatile(     \
+        "xorl %eax, %eax\n" \
+        "jz 1f\n"           \
+        ".byte 0x50\n"      \
+        "1:\n")
 
-#define BREAK_STACK_9                       \
-    __asm__ __volatile("xorl %esi, %esi");  \
-    __asm__ __volatile("jz 1f");            \
-    __asm__ __volatile(".byte 0x00, 0x00"); \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_9        \
+    __asm__ __volatile(      \
+        "xorl %esi, %esi\n"  \
+        "push %esi\n"        \
+        "jz 1f\n"            \
+        ".byte 0x00, 0x00\n" \
+        "1:\n"               \
+        "pop %esi")
 
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
     __asm__ __volatile("nop");
@@ -366,13 +376,11 @@ int isBlockValidated() {  // returns true if validateBlock() executed
         __asm__ __volatile(".byte 0x3C");                                         \
     }                                                                             \
     else if (RND(0, 10) == (RND(11, 100))) {                                      \
-    cflowPoint_1:                                                                 \
         BREAK_STACK_3;                                                            \
         int_Proxy(_3 - RND(0, 10000));                                            \
     }                                                                             \
     else if (FALSE * RND(0, 1000)) {                                              \
         BREAK_STACK_1;                                                            \
-        goto cflowPoint_1;                                                        \
     }                                                                             \
     else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
         __asm__ __volatile(".byte 0xEB");                                         \
@@ -1386,6 +1394,7 @@ __declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
 
 #else
 #warning Obfuscation disabled!
+#endif
 #endif
 
 // ;)
