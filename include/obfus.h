@@ -10,22 +10,53 @@
                   Coded by (C) DosX, 2024
 
  [Additional options]
- ~ cflow_v2       = more powerful Control Flow obfuscation (slowly!)
- ~ antidebug_v2   = use better dynamic anti-debugging protection
- ~ fake_signs     = adds fake signatures of various protectors or packers
+ ~ CFLOW_V2       = more powerful Control Flow obfuscation (slowly!)
+ ~ ANTIDEBUG_V2   = use better dynamic anti-debugging protection
+ ~ FAKE_SIGNS     = adds fake signatures of various protectors or packers
+
+ [Advanced code protection]
+ ~ VIRT           = allows you to use the functions of a math VM
 
  [Disabling default features]
- ~ no_cflow       = disable control flow obfuscation
- ~ no_antidebug   = disable antidebug protection
+ ~ NO_CFLOW       = disable control flow obfuscation
+ ~ NO_ANTIDEBUG   = disable antidebug protection
 
- ~ no_obf         = disable obfuscation
+ ~ NO_OBF         = disable obfuscation
 
  GitHub:
  -> https://github.com/DosX-dev/obfus.h
 
 */
 
-#if no_obf == 0
+#ifndef OBFH
+#define OBFH
+
+#if !__TINYC__ && !__GNUC__ && !__MINGW32__
+#define __attribute__(...)
+#endif
+
+// if virtualization disabled
+#if NO_OBF == 1 || VIRT != 1
+#define VM_ADD(num1, num2) num1 + num2
+#define VM_SUB(num1, num2) num1 - num2
+#define VM_MUL(num1, num2) num1 *num2
+#define VM_DIV(num1, num2) num1 / num2
+#define VM_MOD(num1, num2) num1 % num2
+#define VM_EQU(num1, num2) num1 == num2
+#define VM_NEQ(num1, num2) num1 != num2
+#define VM_LSS(num1, num2) num1 < num2
+#define VM_GTR(num1, num2) num1 > num2
+#define VM_LEQ(num1, num2) num1 <= num2
+#define VM_GEQ(num1, num2) num1 >= num2
+#define VM_ADD_DBL(num1, num2) num1 + num2
+#define VM_SUB_DBL(num1, num2) num1 - num2
+#define VM_MUL_DBL(num1, num2) num1 *num2
+#define VM_DIV_DBL(num1, num2) num1 / num2
+#define VM_LSS_DBL(num1, num2) num1 < num2
+#define VM_GTR_DBL(num1, num2) num1 > num2
+#endif
+
+#if !NO_OBF
 
 #include <conio.h>
 #include <stdio.h>
@@ -33,15 +64,18 @@
 #include <string.h>
 #include <windows.h>
 
+#if defined _MSC_VER
+#warning obfus.h doesn't support Visual C/C++. You can use [obfusheader.h] by ac3ss0r to obfuscate this app (https://github.com/ac3ss0r/obfusheader.h)
+#endif
+
 #if !defined __COUNTER__
 #error You are using too old a compiler version!
 #endif
 
-#define SUPPORTED (__TINYC__ || __GNUC__)
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
 
 // Fake signatures ;)
-#if defined(fake_signs) && (fake_signs != 0) && SUPPORTED
+#if defined(FAKE_SIGNS) && (FAKE_SIGNS != 0)
 
 static const char FAKE_ENIGMAVM_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
 static const char FAKE_ENIGMAVM_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
@@ -99,7 +133,7 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
                                     "\\\\.\\WIZZKEYRL",
                                     "\\\\.\\NVKEY"};
 
-#elif SUPPORTED
+#else
 
 #define OBFH_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".obfh")  // OBFH section
 
@@ -108,17 +142,6 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 // Thanks to @horsicq && @ac3ss0r
 #define RND(min, max) (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
 
-/*
-#if SUPPORTED
-void breakerFunc() SECTION_ATTRIBUTE(".dosx") {
-#else
-void breakerFunc() {
-#endif
-    __asm__ __volatile(".byte 0x00");
-}
-*/
-
-#if SUPPORTED
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
                             _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
                             _s_i[] OBFH_SECTION_ATTRIBUTE = "i", _s_j[] OBFH_SECTION_ATTRIBUTE = "j", _s_k[] OBFH_SECTION_ATTRIBUTE = "k", _s_l[] OBFH_SECTION_ATTRIBUTE = "l",
@@ -137,94 +160,75 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
                             _0 OBFH_SECTION_ATTRIBUTE = 0, _1 OBFH_SECTION_ATTRIBUTE = 1, _2 OBFH_SECTION_ATTRIBUTE = 2, _3 OBFH_SECTION_ATTRIBUTE = 3, _4 OBFH_SECTION_ATTRIBUTE = 4,
                             _5 OBFH_SECTION_ATTRIBUTE = 5, _6 OBFH_SECTION_ATTRIBUTE = 6, _7 OBFH_SECTION_ATTRIBUTE = 7, _8 OBFH_SECTION_ATTRIBUTE = 8, _9 OBFH_SECTION_ATTRIBUTE = 9;
-#else
-volatile static char _s_a[] = "a", _s_b[] = "b", _s_c[] = "c", _s_d[] = "d",
-                     _s_e[] = "e", _s_f[] = "f", _s_g[] = "g", _s_h[] = "h",
-                     _s_i[] = "i", _s_j[] = "j", _s_k[] = "k", _s_l[] = "l",
-                     _s_m[] = "m", _s_n[] = "n", _s_o[] = "o", _s_p[] = "p",
-                     _s_q[] = "q", _s_r[] = "r", _s_s[] = "s", _s_t[] = "t",
-                     _s_u[] = "u", _s_v[] = "v", _s_w[] = "w", _s_x[] = "x",
-                     _s_y[] = "y", _s_z[] = "z",
-                     _a = 'a', _b = 'b', _c = 'c', _d = 'd',
-                     _e = 'e', _f = 'f', _g = 'g', _h = 'h',
-                     _i = 'i', _j = 'j', _k = 'k', _l = 'l',
-                     _m = 'm', _n = 'n', _o = 'o', _p = 'p',
-                     _q = 'q', _r = 'r', _s = 's', _t = 't',
-                     _u = 'u', _v = 'v', _w = 'w', _x = 'x',
-                     _y = 'y', _z = 'z',
-                     _S = 'S', _L = 'L', _A = 'A', _I = 'I',
-                     _D = 'D', _P = 'P',
-                     _0 = 0, _1 = 1, _2 = 2, _3 = 3, _4 = 4,
-                     _5 = 5, _6 = 6, _7 = 7, _8 = 8, _9 = 9;
-#endif
 
-#define BREAK_STACK_1                      \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:");
+#define BREAK_STACK_1       \
+    __asm__ __volatile(     \
+        "xorl %eax, %eax\n" \
+        "jz 1f\n"           \
+        ".byte 0xE8\n"      \
+        "1:\n")
 
 #define BREAK_STACK_2 \
-    if (_0) __asm__ __volatile(".byte 0x00");
+    if (_0) __asm__ __volatile(".byte 0x00\n");
 
-// Junk JMPOUT condition
-#define BREAK_STACK_3                         \
-    switch (_0) {                             \
-        case RND(1, 1000):                    \
-            __asm__ __volatile(".byte 0x00"); \
+#define BREAK_STACK_3                           \
+    switch (_0) {                               \
+        case RND(1, 1000):                      \
+            __asm__ __volatile(".byte 0x00\n"); \
     }
 
-#define BREAK_STACK_4                      \
-    __asm__ __volatile("xorl %ebx, %ebx"); \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("xorl %ebx, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile("mov %eax, 4");     \
-    __asm__ __volatile(".byte 0x00");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_4       \
+    __asm__ __volatile(     \
+        "xorl %ebx, %ebx\n" \
+        "xorl %edx, %edx\n" \
+        "xorl %ebx, %edx\n" \
+        "jz 1f\n"           \
+        "mov %eax, 4\n"     \
+        ".byte 0x00\n"      \
+        "1:\n")
 
-// Junk 'MEMORY[*]'
-#define BREAK_STACK_5                      \
-    __asm__ __volatile("xorl %ebx, %ebx"); \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("mov %eax, %ebx");  \
-    __asm__ __volatile("mov %edx, %ebx");  \
-    __asm__ __volatile("xorl %eax, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0x20");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_5       \
+    __asm__ __volatile(     \
+        "xorl %ebx, %ebx\n" \
+        "xorl %eax, %eax\n" \
+        "mov %eax, %ebx\n"  \
+        "mov %edx, %ebx\n"  \
+        "xorl %eax, %edx\n" \
+        "jz 1f\n"           \
+        ".byte 0x20\n"      \
+        "1:\n")
 
-#define BREAK_STACK_6                      \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("mov %eax, %edx");  \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_6       \
+    __asm__ __volatile(     \
+        "xorl %edx, %edx\n" \
+        "xorl %eax, %eax\n" \
+        "mov %eax, %edx\n"  \
+        "jz 1f\n"           \
+        ".byte 0xE8\n"      \
+        "1:\n")
 
-#define BREAK_STACK_7                      \
-    __asm__ __volatile("xorl %edx, %edx"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0xE8");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_7       \
+    __asm__ __volatile(     \
+        "xorl %edx, %edx\n" \
+        "jz 1f\n"           \
+        ".byte 0xE8\n"      \
+        "1:\n")
 
-#define BREAK_STACK_8                      \
-    __asm__ __volatile("xorl %eax, %eax"); \
-    __asm__ __volatile("jz 1f");           \
-    __asm__ __volatile(".byte 0x50");      \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_8       \
+    __asm__ __volatile(     \
+        "xorl %eax, %eax\n" \
+        "jz 1f\n"           \
+        ".byte 0x50\n"      \
+        "1:\n")
 
-#define BREAK_STACK_9                       \
-    __asm__ __volatile("xorl %esi, %esi");  \
-    __asm__ __volatile("jz 1f");            \
-    __asm__ __volatile(".byte 0x00, 0x00"); \
-    __asm__ __volatile("1:")
+#define BREAK_STACK_9        \
+    __asm__ __volatile(      \
+        "xorl %edx, %edx\n"  \
+        "jz 1f\n"            \
+        ".byte 0x00, 0x00\n" \
+        "1:\n"               \
 
-#if SUPPORTED
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
-#else
-void junkFunc(int z, ...) {
-#endif
     __asm__ __volatile("nop");
     return;
 }
@@ -241,12 +245,13 @@ void junkFuncEmpty() {
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
-#define FALSE ((_3 + _6 + (RND(0, 1000) * _0)) - _9)
+#define FALSE (((_3 + _6 + (RND(0, 1000) * _0)) - _9) * RND(0, 255))
 
 #define FAKE_CPUID __asm__ __volatile("nop\ncpuid\nnop\n")
 
-#define sizeof(x) \
-    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
+// Doesn't work
+// #define sizeof(x) \
+//    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
 
 #define NOP_FLOOD                             \
     (RND(0, 1000)) + int_Proxy(RND(0, 1000)); \
@@ -267,11 +272,7 @@ int malloc_Proxy(int *size) {
 
 static char rndValueToProxy = RND(0, 10);
 
-#if SUPPORTED
 int int_Proxy(int value) OBFH_SECTION_ATTRIBUTE {
-#else
-int int_Proxy(int value) {
-#endif
     BREAK_STACK_4;
     if (rndValueToProxy == value)
         return rndValueToProxy;
@@ -283,32 +284,20 @@ int int_Proxy(int value) {
     return ((value * _1) + ((_4 * RND(0, 100000)) - _8) * _0);
 }
 
-#if SUPPORTED
 double double_Proxy(double value) OBFH_SECTION_ATTRIBUTE {
-#else
-double double_Proxy(double value) {
-#endif
     BREAK_STACK_1;
     junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
 
-#if SUPPORTED
 int condition_True() OBFH_SECTION_ATTRIBUTE {
-#else
-int condition_True() {
-#endif
     BREAK_STACK_1;
     FAKE_CPUID;
     return _1 && TRUE;
 }
 
-#if SUPPORTED
 int condition_Proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
-#else
-int condition_Proxy(int junk, int condition) {
-#endif
     BREAK_STACK_4;
 
     int result = int_Proxy(condition * _1);
@@ -318,30 +307,67 @@ int condition_Proxy(int junk, int condition) {
         return (condition_True() || FALSE || TRUE) && (FALSE + int_Proxy(_1));
     }
 
-    FAKE_CPUID;
+    BREAK_STACK_1;
     return int_Proxy(condition);
 }
 
+// =============================================================
+// Anti-Tamper for Control-Flow obfuscation (beta!)
+#if antitamper == 1 && NO_CFLOW != 1
+int obfhIsBlockValidated = 0;
+int validateBlock() {  // returns false
+    obfhIsBlockValidated = 1;
+    return obfhIsBlockValidated;
+}
+int isBlockValidated() {  // returns true if validateBlock() executed
+    if (obfhIsBlockValidated) {
+        obfhIsBlockValidated = 0;
+        return 1;
+    }
+    return 0;
+}
+#else
+#define validateBlock() 1
+#define isBlockValidated() 1
+#endif
+// =============================================================
+
+// =============================================================
 // Control Flow (global)
-#if no_cflow != 1
+#if NO_CFLOW != 1
 
-#if cflow_v2 == 1
+#if CFLOW_V2 == 1  // Control flow obfuscation for 'if' & 'for', V2 (strong!)
 
-// Control flow obfuscation for 'if' & 'for', V2 (strong!)
-#define if(condition)                      \
-    if (int_Proxy(RND(1, 1000000)) < _0) { \
-        __asm__ __volatile(".byte 0x00");  \
-    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE)
+// if (V2)
+#define if(condition)                                         \
+    if (validateBlock() && int_Proxy(RND(1, 1000000)) < _0) { \
+        __asm__ __volatile(".byte 0x00");                     \
+    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
+
+// for (V2)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
+
+// return
+#define return \
+    for (int _i = _0; _i < RND(1, 100); _i++) return
+
+// break
+#define break \
+    if (int_Proxy(_1)) break
 
 #else
 
 // Control flow obfuscation for 'if' & 'for', V1
-#define if(condition) if ((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))))
+
+// if (V1)
+#define if(condition) if (validateBlock() && (RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
+
+// for (V1)
 #define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
 
+// else
 #define else                                                                      \
     else if (_0 > RND(1, 1000)) {                                                 \
         junkFunc(RND(0, 1000));                                                   \
@@ -359,15 +385,188 @@ int condition_Proxy(int junk, int condition) {
     }                                                                             \
     else
 
+// while
 #define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
 
 #endif
+// =============================================================
 
-#if SUPPORTED
-char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
-#else
-char *getCharMask(int count) {
+// =============================================================
+// Virtualization (global)
+#if VIRT == 1
+typedef enum {
+    OP__ADD = RND(0, 900) * __COUNTER__ * 5,
+    OP__SUB = RND(1000, 1900) * __COUNTER__ * 5,
+    OP__MUL = RND(2000, 2900) * __COUNTER__ * 5,
+    OP__DIV = RND(3000, 3900) * __COUNTER__ * 5,
+    OP__MOD = RND(4000, 4900) * __COUNTER__ * 5,
+    OP__EQU = RND(5000, 5900) * __COUNTER__ * 5,
+    OP__NEQ = RND(6000, 6900) * __COUNTER__ * 5,
+    OP__GTR = RND(7000, 7900) * __COUNTER__ * 5,
+    OP__LSS = RND(8000, 8900) * __COUNTER__ * 5,
+    OP__LEQ = RND(9000, 9900) * __COUNTER__ * 5,
+    OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
+} CMD;
+
+typedef enum {
+    SALT_CMD = RND(100, 900),
+    SALT_NUM1 = RND(16, 48),
+    SALT_NUM2 = RND(16, 48)
+} SALT;
+
+static int _salt = SALT_CMD;
+
+#define _VM_DEMUTATOR_KEY (__COUNTER__) / 5
+#define _VM_MUTATOR_KEY (__COUNTER__ - 1) / 5
+
+#define _VM_ENCRYPT_INT(value) ((value - _VM_MUTATOR_KEY) * ~SALT_CMD)
+#define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
+#define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
+#define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
+#define _ENC_OP__DIV _VM_ENCRYPT_INT(OP__DIV)
+#define _ENC_OP__MOD _VM_ENCRYPT_INT(OP__MOD)
+#define _ENC_OP__EQU _VM_ENCRYPT_INT(OP__EQU)
+#define _ENC_OP__NEQ _VM_ENCRYPT_INT(OP__NEQ)
+#define _ENC_OP__GTR _VM_ENCRYPT_INT(OP__GTR)
+#define _ENC_OP__LSS _VM_ENCRYPT_INT(OP__LSS)
+#define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
+#define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
+
+#define VM_ADD(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MOD(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_EQU(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_NEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+
+#define VM_ADD_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+
+long double obfhVmResult = 0;
+long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+    goto firstFakePoint;
+
+    // Restore values
+restoreCommand:
+    BREAK_STACK_1;
+    command /= ~_salt;
+    command += uni_key;
+    goto restoreNum2;
+
+restoreNum1:
+    BREAK_STACK_1;
+    num1 -= SALT_NUM1;
+    num1 *= (-1 * _1);
+    goto letsExecute;
+
+restoreNum2:
+    BREAK_STACK_1;
+    num2 -= SALT_NUM2;
+    num2 *= (-1 * _1);
+    goto restoreNum1;
+
+firstFakePoint:
+    BREAK_STACK_2;
+    goto restoreCommand;
+
+letsExecute:
+
+    switch (command) {
+        case -1:
+            goto restoreCommand;
+        case -2:
+            goto firstFakePoint;
+        case -3:
+            return _0 * ~_1;
+        case -4:
+            goto restoreNum2;
+        case -5:
+            goto restoreNum1;
+        case OP__ADD:  // plus
+            obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
+            goto afterCalc;
+        case OP__SUB:  // minus
+            obfhVmResult = (num1 - num2) + VM_MUL(junk_3, _0);
+            goto afterCalc;
+        case OP__MUL:  // multiply
+            if (num1 == _0 || num2 == _0)
+                obfhVmResult = _0;
+            else
+                return num1 * num2;
+
+            goto afterCalc;
+        case OP__DIV:  // divide
+            if (num2 != _0)
+                obfhVmResult = num1 / num2;
+            else
+                obfhVmResult = VM_ADD(_0, _0);
+            goto afterCalc;
+        case OP__MOD:  // modulo
+            if (num2 != 0)
+                obfhVmResult = (int)num1 % (int)num2;
+            else
+                obfhVmResult = _0;
+            goto afterCalc;
+        case OP__EQU:            // equal
+            if (num1 == num2) {  // 1 + 0 = 1
+                obfhVmResult = VM_ADD(_1, _0);
+            } else {
+                obfhVmResult = _0;
+            }
+            goto afterCalc;
+        case OP__NEQ:            // not equal
+            if (num1 != num2) {  // 1 + 0 = 1
+                obfhVmResult = VM_ADD(_0, _1) + VM_MUL(junk_2, _0);
+            } else {
+                obfhVmResult = VM_MUL(junk_3, _0);
+            }
+            goto afterCalc;
+        case OP__LSS:
+            obfhVmResult = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
+            goto afterCalc;
+        case OP__GTR:
+            obfhVmResult = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
+            goto afterCalc;
+        case OP__LEQ:
+            obfhVmResult = !(num1 + VM_MUL(junk_2, _0) > num2);
+            goto afterCalc;
+        case OP__GEQ:
+            obfhVmResult = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
+            // result = num1 >= num2;
+            goto afterCalc;
+        default:
+            // printf("ADD: %d, CMD: %d\n", OP__ADD, command);
+            obfhVmResult = _0 * (uni_key * _5);
+    }
+    BREAK_STACK_8;
+
+    long double result = uni_key;
+afterCalc:
+
+    goto saveValueToLocal;
+resetResult:
+    obfhVmResult = 0;
+    goto returnValue;
+saveValueToLocal:
+    result = obfhVmResult;
+    goto resetResult;
+
+returnValue:
+    return result;
+}
 #endif
+// =============================================================
+
+char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     static char mask[16];
     if (count <= _0 || count >= sizeof(mask)) {
@@ -390,7 +589,7 @@ char *getCharMask(int count) {
 }
 
 // WriteConsoleA
-BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) {
+BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
@@ -398,7 +597,7 @@ BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNum
 #define WriteConsoleA(...) WriteConsoleA_Proxy(__VA_ARGS__)
 
 // GetStdHandle
-HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
+HANDLE GetStdHandle_Proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return GetStdHandle(int_Proxy(nStdHandle));
@@ -406,14 +605,14 @@ HANDLE GetStdHandle_Proxy(DWORD nStdHandle) {
 #define GetStdHandle(...) GetStdHandle_Proxy(__VA_ARGS__)
 
 // GetProcAddress
-FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) {
+FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return GetProcAddress(hModule, lpProcName);
 }
 #define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
 
-HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
+HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_9;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
@@ -421,7 +620,7 @@ HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) {
 #define GetModuleHandleA(...) GetModuleHandleA_Proxy(__VA_ARGS__)
 
 // strcmp
-int strcmp_custom(const char *str1, const char *str2) {
+int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
@@ -439,7 +638,7 @@ int strcmp_custom(const char *str1, const char *str2) {
 #define strcmp(...) strcmp_custom(__VA_ARGS__)
 
 // strlen
-size_t strlen_custom(const char *str) {
+size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     size_t length = _0;
     while (*str != '\0') {
@@ -451,33 +650,8 @@ size_t strlen_custom(const char *str) {
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
-/*unsigned char rot13(unsigned char c) {
-    if (isalpha(c)) {
-        unsigned char offset = 'A' - 'a';
-        c = (c - offset + 13) % 26 + offset;
-    }
-    return c;
-}
-
-// Encrypts a string using ROT13
-char *rot13_str(char input) {
-    int i = 0;
-
-    char *str = input;
-
-    while (str[i]) {
-        str[i] = rot13(str[i]);
-        i++;
-    }
-    return str;
-} */
-
 static char loadStr[5];
-#if SUPPORTED
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
-#else
-HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) {
-#endif
     switch (_0) {
         case 1:
             __asm__ __volatile(".byte 0x00");
@@ -553,17 +727,80 @@ char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
 }
 #define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
 
+// =============================================================
 // Anti-Debug (global)
-#if no_antidebug != 1
-#if SUPPORTED
-int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
-#else
-int IsDebuggerPresent_Proxy() {
+#if NO_ANTIDEBUG != 1
+
+#if ANTIDEBUG_V2 == 1  // for ANTIDEBUG_V2
+void ad_ZeroDRs(PCONTEXT pCtx) {
+    BREAK_STACK_1;
+    pCtx->Dr0 = _0;
+    pCtx->Dr1 = _0;
+    pCtx->Dr2 = _0;
+    pCtx->Dr3 = _0;
+    pCtx->Dr6 = _0;
+    pCtx->Dr7 = _0;
+}
+
+int ad_CompareDRs(PCONTEXT pCtx) {
+    BREAK_STACK_1;
+    if (pCtx->Dr7 != _0) {
+        ad_ZeroDRs(pCtx);
+        return _1;
+    } else {
+        // ensure DR0 - DR3 contain zeros even if they are disabled.
+        // Skip DR6.  It seems to change erratically, but it's output-only.
+        if (_0 == (pCtx->Dr0 | pCtx->Dr1 | pCtx->Dr2 | pCtx->Dr3)) {
+            ad_ZeroDRs(pCtx);
+        }
+        // zero any active debug registers to erase breakpoints.
+        // the caller is responsible for ensuring the DR values set are
+        // actually applied.
+        ad_ZeroDRs(pCtx);
+    }
+    return _0;
+}
+
+WINAPI ThreadCompareDRs(void *p) {
+    BREAK_STACK_1;
+    DWORD dwRet = _0;
+    HANDLE hMainThread = (HANDLE)p;
+    if (-1 != SuspendThread(hMainThread)) {
+        BREAK_STACK_2;
+        CONTEXT context;
+        context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+        if (GetThreadContext(hMainThread, &context)) {
+            if (ad_CompareDRs(&context))
+                dwRet = _1;
+        }
+        ResumeThread(hMainThread);
+    }
+    CloseHandle(hMainThread);
+    return dwRet;
+}
 #endif
+
+int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
-#if antidebug_v2 == 1
+#if ANTIDEBUG_V2 == 1
+
+    // Registers validation
+    HANDLE hMainThread;
+    DWORD dwDummy, exitCode;
+
+    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
+                    &hMainThread, _0, FALSE, DUPLICATE_SAME_ACCESS);
+
+    HANDLE hThread = CreateThread(NULL, _0, ThreadCompareDRs, hMainThread, _0, &dwDummy);
+    if (hThread) {
+        WaitForSingleObject(hThread, INFINITE);
+        GetExitCodeThread(hThread, &exitCode);
+        CloseHandle(hThread);
+    }
+
+    if (exitCode) return exitCode;
 
     // Dynamic antidebugger
     char result[32];
@@ -592,16 +829,15 @@ int IsDebuggerPresent_Proxy() {
     funcName[_6 * _2 * _1] = _e;
 
     return ((BOOL(*)())GetProcAddress(LoadLibraryA(result), funcName))();
-
 #else
 
-    // Standart antidebugger
+    // Standard antidebugger
     NOP_FLOOD;
     return IsDebuggerPresent();
 
 #endif
-    // return ((int (*)())GetProcAddress(LoadLibraryA("kernel32.dll"), "IsDebuggerPresent"))();
 }
+// =============================================================
 
 /*
 void antiDebugMessage() {
@@ -636,18 +872,14 @@ void loop() {
         __asm__ __volatile("ret");                                                                 \
         crash();                                                                                   \
     } else {                                                                                       \
-        0.0 / IsDebuggerPresent();                                                                 \
+        0.0 / !IsDebuggerPresent();                                                                \
     };
 
 #else
 #define ANTI_DEBUG 0
 #endif
 
-#if SUPPORTED
 char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
-#else
-char *getStdLibName() {
-#endif
     BREAK_STACK_1;
     NOP_FLOOD;
     junkFunc(_0 + _3);
@@ -891,32 +1123,32 @@ char *getRandName_Proxy() {
 #define rand(...) ((int (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getRandName_Proxy()))(__VA_ARGS__)
 
 // realloc
-char *getReallocName_Proxy() {
+char *getReallocName_Proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "realloc";
 }
 #define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getReallocName_Proxy()))(__VA_ARGS__)
 
-void *calloc_Proxy(size_t nmemb, size_t size) {
+void *calloc_Proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return calloc(nmemb, size);
 }
 #define calloc(nmemb, size) calloc_Proxy(nmemb, size)
 
-void *realloc_Proxy(void *ptr, size_t size) {
+void *realloc_Proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return realloc(ptr, size);
 }
 #define realloc(ptr, size) realloc_Proxy(ptr, size)
 
-char *gets_Proxy(char *s) {
+char *gets_Proxy(char *s) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return gets(s);
 }
 #define gets(s) gets_Proxy(s)
 
-int snprintfProxy(char *str, size_t size, const char *format, ...) {
+int snprintf_Proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     va_list args;
     va_start(args, format);
@@ -924,7 +1156,7 @@ int snprintfProxy(char *str, size_t size, const char *format, ...) {
     va_end(args);
     return result;
 }
-#define snprintf(str, size, format, ...) snprintfProxy(str, size, format, __VA_ARGS__)
+#define snprintf(str, size, format, ...) snprintf_Proxy(str, size, format, __VA_ARGS__)
 
 /*
 #define printf(...) (([](...) -> int {                                                                        \
@@ -936,59 +1168,59 @@ int snprintfProxy(char *str, size_t size, const char *format, ...) {
 })(__VA_ARGS__))
 */
 
-int vsprintf_Proxy(char *str, const char *format, va_list args) {
+int vsprintf_Proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsprintf(str, format, args);
 }
 #define vsprintf(str, format, args) vsprintf_Proxy(str, format, args)
 
-int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) {
+int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsnprintf(str, size, format, args);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_Proxy(str, size, format, args)
 
-char *getenv_Proxy(const char *name) {
+char *getenv_Proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getenv(name);
 }
 #define getenv(name) getenv_Proxy(name)
 
-int system_Proxy(const char *command) {
+int system_Proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return system(command);
 }
 #define system(command) system_Proxy(command)
 
-void abort_Proxy(void) {
+void abort_Proxy(void) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     abort();
 }
 #define abort() abort_Proxy()
 
-int atexit_Proxy(void (*func)(void)) {
+int atexit_Proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return atexit(func);
 }
 #define atexit(func) atexit_Proxy(func)
 
-char *getcwd_Proxy(char *buf, size_t size) {
+char *getcwd_Proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getcwd(buf, size);
 }
 #define getcwd(buf, size) ((char *)getcwd_Proxy(buf, size))
 
-int tolower_Proxy(int c) {
+int tolower_Proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return tolower(c);
 }
 #define tolower(c) tolower_Proxy(c)
 
-int toupper_Proxy(int c) {
+int toupper_Proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return toupper(c);
 }
-#define toupper(c) toupper_Proxy(c)
+#define toupper(c) toupper_Proxy(c) * /
 
 // getch, _getch
 #define _getch() int_Proxy(_getch() * TRUE)
@@ -1018,7 +1250,7 @@ int toupper_Proxy(int c) {
     GetStockObject(int_Proxy(i) * TRUE)
 
 #define CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile) \
-    CreateFile(int_Proxy(lpFileName), int_Proxy(dwDesiredAccess), int_Proxy(dwShareMode), int_Proxy(lpSecurityAttributes), int_Proxy(dwCreationDisposition), int_Proxy(dwFlagsAndAttributes), int_Proxy(hTemplateFile))
+    CreateFileA(int_Proxy(lpFileName), int_Proxy(dwDesiredAccess), int_Proxy(dwShareMode), int_Proxy(lpSecurityAttributes), int_Proxy(dwCreationDisposition), int_Proxy(dwFlagsAndAttributes), int_Proxy(hTemplateFile))
 
 #define ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped) \
     ReadFile(int_Proxy(hFile), int_Proxy(lpBuffer), int_Proxy(nNumberOfBytesToRead), int_Proxy(lpNumberOfBytesRead), int_Proxy(lpOverlapped))
@@ -1087,65 +1319,80 @@ int toupper_Proxy(int c) {
 #define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, int_Proxy(_Size *(TRUE + FALSE)))
 
 #define abs(x) ((x) < FALSE ? -(x) : (x))
-#define fabs(x) fabs(double_Proxy(FALSE + x * TRUE))
-#define sqrt(x) sqrt(double_Proxy(FALSE + x * TRUE))
-#define exp(x) exp(double_Proxy(FALSE + x * TRUE))
-#define log(x) log(double_Proxy(FALSE + x * TRUE))
-#define ceil(x) ceil(double_Proxy(FALSE + x * TRUE))
-#define floor(x) floor(double_Proxy(FALSE + x * TRUE))
-#define sin(x) sin(double_Proxy(FALSE + x * TRUE))
-#define cos(x) cos(double_Proxy(FALSE + x * TRUE))
-#define tan(x) tan(double_Proxy(FALSE + x * TRUE))
-#define asin(x) asin(double_Proxy(FALSE + x * TRUE))
-#define acos(x) acos(double_Proxy(FALSE + x * TRUE))
-#define atan(x) atan(double_Proxy(FALSE + x * TRUE))
-#define sinh(x) sinh(double_Proxy(FALSE + x * TRUE))
-#define cosh(x) cosh(double_Proxy(FALSE + x * TRUE))
-#define tanh(x) tanh(double_Proxy(FALSE + x * TRUE))
-#define log10(x) log10(double_Proxy(FALSE + x * TRUE))
-#define pow(x, y) pow(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define atan2(y, x) atan2(double_Proxy(FALSE + y * TRUE), double_Proxy(FALSE + x * TRUE))
-#define fmod(x, y) fmod(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define floor(x) floor(double_Proxy(FALSE + x * TRUE))
-#define ceil(x) ceil(double_Proxy(FALSE + x * TRUE))
-#define fabs(x) fabs(double_Proxy(FALSE + x * TRUE))
-#define ldexp(x, y) ldexp(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define frexp(x, y) frexp(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define modf(x, y) modf(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define erf(x) erf(double_Proxy(FALSE + x * TRUE))
-#define erfc(x) erfc(double_Proxy(FALSE + x * TRUE))
-#define lgamma(x) lgamma(double_Proxy(FALSE + x * TRUE))
-#define tgamma(x) tgamma(double_Proxy(FALSE + x * TRUE))
-#define log2(x) log2(double_Proxy(FALSE + x * TRUE))
-#define cbrt(x) cbrt(double_Proxy(FALSE + x * TRUE))
-#define exp2(x) exp2(double_Proxy(FALSE + x * TRUE))
-#define hypot(x, y) hypot(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define expm1(x) expm1(double_Proxy(FALSE + x * TRUE))
-#define log1p(x) log1p(double_Proxy(FALSE + x * TRUE))
-#define acosh(x) acosh(double_Proxy(FALSE + x * TRUE))
-#define asinh(x) asinh(double_Proxy(FALSE + x * TRUE))
-#define atanh(x) atanh(double_Proxy(FALSE + x * TRUE))
-#define nextafter(x, y) nextafter(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define nexttoward(x, y) nexttoward(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define remainder(x, y) remainder(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define remquo(x, y) remquo(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define copysign(x, y) copysign(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define nan(x) nan(double_Proxy(FALSE + x * TRUE))
-#define logb(x) logb(double_Proxy(FALSE + x * TRUE))
-#define ilogb(x) ilogb(double_Proxy(FALSE + x * TRUE))
-#define scalbn(x, y) scalbn(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define scalbln(x, y) scalbln(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define nearbyint(x) nearbyint(double_Proxy(FALSE + x * TRUE))
-#define rint(x) rint(double_Proxy(FALSE + x * TRUE))
-#define round(x) round(double_Proxy(FALSE + x * TRUE))
-#define trunc(x) trunc(double_Proxy(FALSE + x * TRUE))
-#define fdim(x, y) fdim(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define fmax(x, y) fmax(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define fmin(x, y) fmin(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE))
-#define fma(x, y, z) fma(double_Proxy(FALSE + x * TRUE), double_Proxy(FALSE + y * TRUE), double_Proxy(FALSE + z * TRUE))
+
+#if virt_std == 1
+#define _MUTATE_MATH(value) VM_MUL_DBL(VM_ADD_DBL(0, value), 1)
+#else
+#define _MUTATE_MATH(value) FALSE + value *TRUE
+#endif
+
+#define fma(x, y, z) fma(_MUTATE_MATH(x), _MUTATE_MATH(y), _MUTATE_MATH(z))
+#define nexttoward(x, y) nexttoward(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define nextafter(x, y) nextafter(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define remainder(x, y) remainder(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define copysign(x, y) copysign(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define scalbln(x, y) scalbln(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define remquo(x, y) remquo(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define scalbn(x, y) scalbn(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define atan2(y, x) atan2(_MUTATE_MATH(y), _MUTATE_MATH(x))
+#define ldexp(x, y) ldexp(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define frexp(x, y) frexp(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define hypot(x, y) hypot(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define fmod(x, y) fmod(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define modf(x, y) modf(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define fdim(x, y) fdim(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define fmax(x, y) fmax(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define fmin(x, y) fmin(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define pow(x, y) pow(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define nearbyint(x) nearbyint(_MUTATE_MATH(x))
+#define lgamma(x) lgamma(_MUTATE_MATH(x))
+#define tgamma(x) tgamma(_MUTATE_MATH(x))
+#define log10(x) log10(_MUTATE_MATH(x))
+#define floor(x) floor(_MUTATE_MATH(x))
+#define expm1(x) expm1(_MUTATE_MATH(x))
+#define log1p(x) log1p(_MUTATE_MATH(x))
+#define acosh(x) acosh(_MUTATE_MATH(x))
+#define asinh(x) asinh(_MUTATE_MATH(x))
+#define atanh(x) atanh(_MUTATE_MATH(x))
+#define ilogb(x) ilogb(_MUTATE_MATH(x))
+#define round(x) round(_MUTATE_MATH(x))
+#define trunc(x) trunc(_MUTATE_MATH(x))
+#define ceil(x) ceil(_MUTATE_MATH(x))
+#define fabs(x) fabs(_MUTATE_MATH(x))
+#define sqrt(x) sqrt(_MUTATE_MATH(x))
+#define asin(x) asin(_MUTATE_MATH(x))
+#define acos(x) acos(_MUTATE_MATH(x))
+#define atan(x) atan(_MUTATE_MATH(x))
+#define sinh(x) sinh(_MUTATE_MATH(x))
+#define cosh(x) cosh(_MUTATE_MATH(x))
+#define tanh(x) tanh(_MUTATE_MATH(x))
+#define ceil(x) ceil(_MUTATE_MATH(x))
+#define fabs(x) fabs(_MUTATE_MATH(x))
+#define erfc(x) erfc(_MUTATE_MATH(x))
+#define log2(x) log2(_MUTATE_MATH(x))
+#define cbrt(x) cbrt(_MUTATE_MATH(x))
+#define exp2(x) exp2(_MUTATE_MATH(x))
+#define logb(x) logb(_MUTATE_MATH(x))
+#define rint(x) rint(_MUTATE_MATH(x))
+#define exp(x) exp(_MUTATE_MATH(x))
+#define log(x) log(_MUTATE_MATH(x))
+#define sin(x) sin(_MUTATE_MATH(x))
+#define cos(x) cos(_MUTATE_MATH(x))
+#define tan(x) tan(_MUTATE_MATH(x))
+#define erf(x) erf(_MUTATE_MATH(x))
+#define nan(x) nan(_MUTATE_MATH(x))
+
+__declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
+    return "Moo";
+}
+
+#if __TINYC__
+#define main(...) _start(__VA_ARGS__)
+#endif
 
 #else
 #warning Obfuscation disabled!
+#endif
 #endif
 
 // ;)
