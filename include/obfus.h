@@ -226,7 +226,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "xorl %edx, %edx\n"  \
         "jz 1f\n"            \
         ".byte 0x00, 0x00\n" \
-        "1:\n"               \
+        "1:\n")
 
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
     __asm__ __volatile("nop");
