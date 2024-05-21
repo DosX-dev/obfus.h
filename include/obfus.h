@@ -161,24 +161,26 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _0 OBFH_SECTION_ATTRIBUTE = 0, _1 OBFH_SECTION_ATTRIBUTE = 1, _2 OBFH_SECTION_ATTRIBUTE = 2, _3 OBFH_SECTION_ATTRIBUTE = 3, _4 OBFH_SECTION_ATTRIBUTE = 4,
                             _5 OBFH_SECTION_ATTRIBUTE = 5, _6 OBFH_SECTION_ATTRIBUTE = 6, _7 OBFH_SECTION_ATTRIBUTE = 7, _8 OBFH_SECTION_ATTRIBUTE = 8, _9 OBFH_SECTION_ATTRIBUTE = 9;
 
+#define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
+
 #define BREAK_STACK_1       \
-    __asm__ __volatile(     \
+    __obfh_asm__(           \
         "xorl %eax, %eax\n" \
         "jz 1f\n"           \
         ".byte 0xE8\n"      \
         "1:\n")
 
 #define BREAK_STACK_2 \
-    if (_0) __asm__ __volatile(".byte 0x00\n");
+    if (_0) __obfh_asm__(".byte 0x00\n");
 
-#define BREAK_STACK_3                           \
-    switch (_0) {                               \
-        case RND(1, 1000):                      \
-            __asm__ __volatile(".byte 0x00\n"); \
+#define BREAK_STACK_3                     \
+    switch (_0) {                         \
+        case RND(1, 1000):                \
+            __obfh_asm__(".byte 0x00\n"); \
     }
 
 #define BREAK_STACK_4       \
-    __asm__ __volatile(     \
+    __obfh_asm__(           \
         "xorl %ebx, %ebx\n" \
         "xorl %edx, %edx\n" \
         "xorl %ebx, %edx\n" \
@@ -188,7 +190,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "1:\n")
 
 #define BREAK_STACK_5       \
-    __asm__ __volatile(     \
+    __obfh_asm__(           \
         "xorl %ebx, %ebx\n" \
         "xorl %eax, %eax\n" \
         "mov %eax, %ebx\n"  \
@@ -199,7 +201,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "1:\n")
 
 #define BREAK_STACK_6       \
-    __asm__ __volatile(     \
+    __obfh_asm__(           \
         "xorl %edx, %edx\n" \
         "xorl %eax, %eax\n" \
         "mov %eax, %edx\n"  \
@@ -208,46 +210,46 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "1:\n")
 
 #define BREAK_STACK_7       \
-    __asm__ __volatile(     \
+    __obfh_asm__(           \
         "xorl %edx, %edx\n" \
         "jz 1f\n"           \
         ".byte 0xE8\n"      \
         "1:\n")
 
 #define BREAK_STACK_8       \
-    __asm__ __volatile(     \
+    __obfh_asm__(           \
         "xorl %eax, %eax\n" \
         "jz 1f\n"           \
         ".byte 0x50\n"      \
         "1:\n")
 
 #define BREAK_STACK_9        \
-    __asm__ __volatile(      \
+    __obfh_asm__(            \
         "xorl %edx, %edx\n"  \
         "jz 1f\n"            \
         ".byte 0x00, 0x00\n" \
         "1:\n")
 
 void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
-    __asm__ __volatile("nop");
+    __obfh_asm__("nop");
     return;
 }
 
 void junkFuncEmpty() {
     BREAK_STACK_5;
-    __asm__ __volatile("nop");
+    __obfh_asm__("nop");
     return;
 }
 
-#define __CRASH                       \
-    __asm__ __volatile(".byte 0xED"); \
-    __asm__ __volatile("int $3");     \
+#define __CRASH                 \
+    __obfh_asm__(".byte 0xED"); \
+    __obfh_asm__("int $3");     \
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
 #define FALSE (((_3 + _6 + (RND(0, 1000) * _0)) - _9) * RND(0, 255))
 
-#define FAKE_CPUID __asm__ __volatile("nop\ncpuid\nnop\n")
+#define FAKE_CPUID __obfh_asm__("nop\ncpuid\nnop\n")
 
 // Doesn't work
 // #define sizeof(x) \
@@ -256,10 +258,10 @@ void junkFuncEmpty() {
 #define NOP_FLOOD                             \
     (RND(0, 1000)) + int_Proxy(RND(0, 1000)); \
     if (junkFunc) {                           \
-        __asm__ __volatile("nop");            \
+        __obfh_asm__("nop");                  \
     }                                         \
     do {                                      \
-        __asm__ __volatile(                   \
+        __obfh_asm__(                         \
             "nop\n"                           \
             "nop");                           \
     } while (RND(0, 200) * _0)
@@ -341,7 +343,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 // if (V2)
 #define if(condition)                                         \
     if (validateBlock() && int_Proxy(RND(1, 1000000)) < _0) { \
-        __asm__ __volatile(".byte 0x00");                     \
+        __obfh_asm__(".byte 0x00");                           \
     } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
 
 // for (V2)
@@ -371,7 +373,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 #define else                                                                      \
     else if (_0 > RND(1, 1000)) {                                                 \
         junkFunc(RND(0, 1000));                                                   \
-        __asm__ __volatile(".byte 0x3C");                                         \
+        __obfh_asm__(".byte 0x3C");                                               \
     }                                                                             \
     else if (RND(0, 10) == (RND(11, 100))) {                                      \
         BREAK_STACK_3;                                                            \
@@ -381,7 +383,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
         BREAK_STACK_1;                                                            \
     }                                                                             \
     else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
-        __asm__ __volatile(".byte 0xEB");                                         \
+        __obfh_asm__(".byte 0xEB");                                               \
     }                                                                             \
     else
 
@@ -654,7 +656,7 @@ static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     switch (_0) {
         case 1:
-            __asm__ __volatile(".byte 0x00");
+            __obfh_asm__(".byte 0x00");
 
             break;
         case 0:
@@ -849,8 +851,8 @@ void antiDebugMessage() {
 
 void crash() {
     BREAK_STACK_1;
-    __asm__ __volatile("int $3");
-    __asm__ __volatile(".byte 0xED, 0x00");
+    __obfh_asm__("int $3");
+    __obfh_asm__(".byte 0xED, 0x00");
 }
 
 void loop() {
@@ -865,11 +867,11 @@ void loop() {
         loop();                                                                                    \
         while (1) {                                                                                \
         };                                                                                         \
-        __asm__ __volatile(".byte 0xED");                                                          \
+        __obfh_asm__(".byte 0xED");                                                                \
         BREAK_STACK_1;                                                                             \
-        __asm__ __volatile(".byte 0x66, 0xC1, 0xE8, 0x05");                                        \
-        __asm__ __volatile(".byte 0x00");                                                          \
-        __asm__ __volatile("ret");                                                                 \
+        __obfh_asm__(".byte 0x66, 0xC1, 0xE8, 0x05");                                              \
+        __obfh_asm__(".byte 0x00");                                                                \
+        __obfh_asm__("ret");                                                                       \
         crash();                                                                                   \
     } else {                                                                                       \
         0.0 / !IsDebuggerPresent();                                                                \
@@ -1391,6 +1393,7 @@ __declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
 #endif
 
 #else
+#define ANTI_DEBUG 0
 #warning Obfuscation disabled!
 #endif
 #endif
