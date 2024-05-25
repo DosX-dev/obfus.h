@@ -548,6 +548,7 @@ letsExecute:
         default:
             // printf("ADD: %d, CMD: %d\n", OP__ADD, command);
             obfhVmResult = _0 * (uni_key * _5);
+            __obfh_asm__(".byte 0x00");  // junk
     }
     BREAK_STACK_8;
 
