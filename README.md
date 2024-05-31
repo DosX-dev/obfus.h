@@ -39,7 +39,8 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > tcc "app.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
 > ```
 
-⚠️ When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
+> [!WARNING]
+> When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
 
 🔐 Debugging protection is triggered by calls to many basic MSVCRT functions.
 In critical places in the code you can use the `ANTI_DEBUG;` construct. For example:
@@ -53,7 +54,8 @@ if (!licenseExpired()) {
 ## 👺 Virtualization
 This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `VIRT` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
 
-⚠️ Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
+> [!WARNING]
+> Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
 
 | Function         | Type         | Op | Description                                                                | Example                              |
 |------------------|--------------|----|----------------------------------------------------------------------------|--------------------------------------|
