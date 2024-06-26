@@ -1389,9 +1389,11 @@ __declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
     return "Moo";
 }
 
+/*
 #if __TINYC__
 #define main(...) _start(__VA_ARGS__)
 #endif
+*/
 
 #else
 #define ANTI_DEBUG 0
