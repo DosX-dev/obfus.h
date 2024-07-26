@@ -505,7 +505,7 @@ letsExecute:
         case -2:
             goto firstFakePoint;
         case -3:
-            return _0 * ~_1;
+            return _0 * ~_1 + junk_2;
         case -4:
             goto restoreNum2;
         case -5:
@@ -588,7 +588,10 @@ saveValueToLocal:
 returnValue:
     return result;
 
+    __obfh_asm__(".byte 0xFF, 0xE0");  // fake JMP EAX
+
 secondFakePoint:
+    BREAK_STACK_7;
     goto restoreCommand;
 }
 #endif
