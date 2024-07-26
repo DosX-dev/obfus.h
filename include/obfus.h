@@ -414,7 +414,8 @@ typedef enum {
     OP__GTR = RND(7000, 7900) * __COUNTER__ * 5,
     OP__LSS = RND(8000, 8900) * __COUNTER__ * 5,
     OP__LEQ = RND(9000, 9900) * __COUNTER__ * 5,
-    OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5
+    OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5,
+    OP__NOP = RND(11000, 11900) * __COUNTER__ * 5
 } CMD;
 
 typedef enum {
@@ -440,6 +441,7 @@ static int _salt = SALT_CMD;
 #define _ENC_OP__LSS _VM_ENCRYPT_INT(OP__LSS)
 #define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
 #define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
+#define _ENC_OP__NOP _VM_ENCRYPT_INT(OP__NOP)
 
 #define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
@@ -452,6 +454,7 @@ static int _salt = SALT_CMD;
 #define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_OBF_INT(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, num1 * -1 + SALT_NUM1, RND(1, 500), RND(1, 99999999) * -1 + SALT_NUM2, RND(1, 500)))
 
 #define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
@@ -459,10 +462,13 @@ static int _salt = SALT_CMD;
 #define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, num1 * -1 + SALT_NUM1, RND(1, 500), RND(1, 99999999) * -1 + SALT_NUM2, RND(1, 500)))
 
 #define VM_IF(condition) if (!VM_EQU((int)(condition), VM_MUL(RND(111111, 999999), 0)))
 #define VM_ELSE_IF(condition) else if (!VM_EQU((int)(condition), VM_MUL(0, RND(111111, 999999))))
 #define VM_ELSE else if (VM_EQU(1, _1))
+
+#define VM_OBFUSCATE_INT(value) VM_
 
 long double obfhVmResult = 0;
 long double Obfh_VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
@@ -489,7 +495,7 @@ restoreNum2:
 
 firstFakePoint:
     BREAK_STACK_2;
-    goto restoreCommand;
+    goto secondFakePoint;
 
 letsExecute:
 
@@ -558,6 +564,9 @@ letsExecute:
             obfhVmResult = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
             // result = num1 >= num2;
             goto afterCalc;
+        case OP__NOP:
+            obfhVmResult = num1;
+            goto afterCalc;
         default:
             // printf("ADD: %d, CMD: %d\n", OP__ADD, command);
             obfhVmResult = _0 * (uni_key * _5);
@@ -578,6 +587,9 @@ saveValueToLocal:
 
 returnValue:
     return result;
+
+secondFakePoint:
+    goto restoreCommand;
 }
 #endif
 // =============================================================
@@ -670,7 +682,7 @@ static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     switch (_0) {
         case 1:
-            __obfh_asm__(".byte 0x00");
+            __obfh_asm__(".byte 0x74");  // fake JE
 
             break;
         case 0:
@@ -681,6 +693,8 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
             static LoadLibraryAFunc loadLibraryA = NULL;
             if (loadLibraryA == NULL) {
                 char libName[32];
+
+                // kernel32
                 sprintf(libName, strcat(getCharMask(_6), "%d"), _k, _e, _r, _n, _e, _l, (_4 * _8));
 
                 HMODULE hKernel32 = GetModuleHandleA(libName);
@@ -688,12 +702,15 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                     FAKE_CPUID;
                     char _L_char = _L;
                     junkFunc(_0 + RND(1, 5));
-                    loadStr[_4] = int_Proxy(_0);
-                    loadStr[_3] = int_Proxy(_d);
-                    loadStr[_2] = int_Proxy(_a);
-                    BREAK_STACK_2;
-                    loadStr[_1] = int_Proxy(_o);
-                    loadStr[_0] = int_Proxy(_L);
+
+                    if (loadStr[_3] != int_Proxy(_d)) {  // restore "Load"
+                        loadStr[_4] = int_Proxy(_0);
+                        loadStr[_3] = int_Proxy(_d);
+                        loadStr[_2] = int_Proxy(_a);
+                        BREAK_STACK_2;
+                        loadStr[_1] = int_Proxy(_o);
+                        loadStr[_0] = int_Proxy(_L);
+                    }
 
                     char *funcName = malloc(32);
 
@@ -703,7 +720,7 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                     loadLibraryA = (LoadLibraryAFunc)GetProcAddress(hKernel32, strcat(loadStr, funcName));
                     free(funcName);
 
-#if memcleaner
+#if MEM_CLEANER__JUST_FOR_FUN
                     int *value = _1 * -1;
                     SetProcessWorkingSetSize(GetCurrentProcess(), value, value);
 #endif
