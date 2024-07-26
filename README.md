@@ -76,21 +76,35 @@ This is a protection technique in which certain calculations are performed throu
 | **`VM_DIV_DBL`** | *long double*  |`/` | Divides two double numbers                                                 | `VM_DIV_DBL(6.0, 3.0)` = **`≈2.0`**  |
 | **`VM_LSS_DBL`** | *BOOL*         |`<` | Checks if the first double number is less than the second double number    | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
 | **`VM_GTR_DBL`** | *BOOL*         |`>` | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
-| **`VM_IF`**      | *BOOL*         |`if`| Takes ONE ARGUMENT and is used in place of the `if` statement              | `VM_IF(getTwo() == 2) { /* CODE */ }`|
-
 > The virtual machine does not support some basic `double` comparison operations.
 
+| Operator        | Description               |
+|-----------------|---------------------------|
+| **`VM_IF`**     | Use instead of `if`       |
+| **`VM_ELSE_IF`**| Use instead of `else if`  |
+| **`VM_ELSE`**   | Use instead of `else`     |
 
-A simple example of using virtualization::
+A simple example of using virtualization:
 ```c
 // ...
 #define VIRT 1
 // ...
 
+// if ((2 + 2) == 4) { ... }
 VM_IF (VM_EQU(VM_ADD(2, 2), 4)) {
     printf("2 + 2 == 4!");
 }
 
+// if (condition1) { ... }
+// else if (condition2) { ... }
+// else { ... }
+VM_IF (condition1) {
+    // if
+} VM_ELSE_IF (condition2) {
+    // else if
+} VM_ELSE {
+    // else
+}
 ```
 
 You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)

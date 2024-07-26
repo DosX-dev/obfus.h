@@ -55,6 +55,8 @@
 #define VM_LSS_DBL(num1, num2) num1 < num2
 #define VM_GTR_DBL(num1, num2) num1 > num2
 #define VM_IF(condition) if (condition)
+#define VM_ELSE_IF(condition) else if (condition)
+#define VM_ELSE else
 #endif
 
 #if !NO_OBF
@@ -439,29 +441,31 @@ static int _salt = SALT_CMD;
 #define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
 #define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
 
-#define VM_ADD(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MOD(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_EQU(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_NEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GEQ(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MOD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_EQU(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_NEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, num1 * -1 + SALT_NUM1, RND(1, 500), num2 * -1 + SALT_NUM2, RND(1, 500))
 
-#define VM_ADD_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_MUL_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+#define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 
 #define VM_IF(...) if (!VM_EQU(__VA_ARGS__, VM_MUL(RND(111111, 999999), _0)))
+#define VM_ELSE_IF(...) else if (!VM_EQU(__VA_ARGS__, VM_MUL(0, RND(111111, 999999))))
+#define VM_ELSE else if (VM_EQU(1, _1))
 
 long double obfhVmResult = 0;
-long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+long double Obfh_VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
     goto firstFakePoint;
 
     // Restore values
@@ -500,6 +504,9 @@ letsExecute:
             goto restoreNum2;
         case -5:
             goto restoreNum1;
+        case -6:
+            __obfh_asm__(".byte 0xFF, 0x25");  // fake JMP
+            break;
         case OP__ADD:  // plus
             obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
             goto afterCalc;
