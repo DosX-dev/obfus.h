@@ -54,6 +54,7 @@
 #define VM_DIV_DBL(num1, num2) num1 / num2
 #define VM_LSS_DBL(num1, num2) num1 < num2
 #define VM_GTR_DBL(num1, num2) num1 > num2
+#define VM_IF(condition) if (condition)
 #endif
 
 #if !NO_OBF
@@ -70,6 +71,10 @@
 
 #if !defined __COUNTER__
 #error You are using too old a compiler version!
+#endif
+
+#ifndef __asm__
+#define __asm__(...)
 #endif
 
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
@@ -452,6 +457,8 @@ static int _salt = SALT_CMD;
 #define VM_DIV_DBL(num1, num2) VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_LSS_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_GTR_DBL(num1, num2) (long)VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
+
+#define VM_IF(...) if (!VM_EQU(__VA_ARGS__, VM_MUL(RND(111111, 999999), _0)))
 
 long double obfhVmResult = 0;
 long double VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
