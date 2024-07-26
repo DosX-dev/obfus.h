@@ -460,8 +460,8 @@ static int _salt = SALT_CMD;
 #define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 #define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)num1 * -1 + SALT_NUM1, RND(1, 500), (double)num2 * -1 + SALT_NUM2, RND(1, 500))
 
-#define VM_IF(...) if (!VM_EQU(__VA_ARGS__, VM_MUL(RND(111111, 999999), _0)))
-#define VM_ELSE_IF(...) else if (!VM_EQU(__VA_ARGS__, VM_MUL(0, RND(111111, 999999))))
+#define VM_IF(condition) if (!VM_EQU((int)(condition), VM_MUL(RND(111111, 999999), 0)))
+#define VM_ELSE_IF(condition) else if (!VM_EQU((int)(condition), VM_MUL(0, RND(111111, 999999))))
 #define VM_ELSE else if (VM_EQU(1, _1))
 
 long double obfhVmResult = 0;
@@ -504,9 +504,6 @@ letsExecute:
             goto restoreNum2;
         case -5:
             goto restoreNum1;
-        case -6:
-            __obfh_asm__(".byte 0xFF, 0x25");  // fake JMP
-            break;
         case OP__ADD:  // plus
             obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
             goto afterCalc;
