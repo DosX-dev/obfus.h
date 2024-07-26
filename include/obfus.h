@@ -504,7 +504,9 @@ letsExecute:
             goto restoreNum2;
         case -5:
             goto restoreNum1;
-        case OP__ADD:  // plus
+        case -6:
+            __obfh_asm__(".byte 0xFF, 0x25");  // fake JMP
+        case OP__ADD:                          // plus
             obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
             goto afterCalc;
         case OP__SUB:  // minus
