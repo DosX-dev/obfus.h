@@ -78,6 +78,7 @@ This is a protection technique in which certain calculations are performed throu
 | **`VM_GTR_DBL`** | *BOOL*         |`>` | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
 > The virtual machine does not support some basic `double` comparison operations.
 
+You can use logical operators that use virtual machine calls to further complicate the understanding of your code.
 | Operator        | Description               |
 |-----------------|---------------------------|
 | **`VM_IF`**     | Use instead of `if`       |
