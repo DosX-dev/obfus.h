@@ -468,8 +468,6 @@ static int _salt = SALT_CMD;
 #define VM_ELSE_IF(condition) else if (!VM_EQU((int)(condition), VM_MUL(0, RND(111111, 999999))))
 #define VM_ELSE else if (VM_EQU(1, _1))
 
-#define VM_OBFUSCATE_INT(value) VM_
-
 long double obfhVmResult = 0;
 long double Obfh_VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
     goto firstFakePoint;
