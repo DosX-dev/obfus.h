@@ -127,7 +127,18 @@ static const char FAKE_NUITKA[] SECTION_ATTRIBUTE(".rdata") = {0x4e, 0x55, 0x49,
 static const char FAKE_THEARK_4[] SECTION_ATTRIBUTE(".tw") = {0};
 static const char FAKE_THEARK_5[] SECTION_ATTRIBUTE("logicoma") = {0};
 static const char FAKE_OREANSVM[] SECTION_ATTRIBUTE(".vlizer") = {0};
-static const char FAKE_SCREEN2EXE[] SECTION_ATTRIBUTE(".text") = {0x56, 0x69, 0x64, 0x65, 0x6f, 0x20, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x20, 0x62, 0x79, 0x20, 0x53, 0x43, 0x52, 0x45, 0x45, 0x4e, 0x32, 0x45, 0x58, 0x45, 0x2f, 0x53, 0x43, 0x52, 0x45, 0x45, 0x4e, 0x32, 0x53, 0x57, 0x46};
+
+static const char FAKE_SCREEN2EXE[] SECTION_ATTRIBUTE(".text") = {0x56, 0x69, 0x64, 0x65,
+                                                                  0x6f, 0x20, 0x63, 0x72,
+                                                                  0x65, 0x61, 0x74, 0x65,
+                                                                  0x64, 0x20, 0x62, 0x79,
+                                                                  0x20, 0x53, 0x43, 0x52,
+                                                                  0x45, 0x45, 0x4e, 0x32,
+                                                                  0x45, 0x58, 0x45, 0x2f,
+                                                                  0x53, 0x43, 0x52, 0x45,
+                                                                  0x45, 0x4e, 0x32, 0x53,
+                                                                  0x57, 0x46};
+
 static const char FAKE_ASPACK_1[] SECTION_ATTRIBUTE(".aspack") = {0};
 static const char FAKE_ASPACK_2[] SECTION_ATTRIBUTE(".adata") = {0};
 static const char FAKE_WIBUCODEMETER_1[] SECTION_ATTRIBUTE("__wibu00") = {0};
@@ -735,26 +746,31 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     }
 }
 
-char *LoadLibraryA_1(LPCSTR lpLibFileName) {
+char *LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_6;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
+
 char *LoadLibraryA_2(LPCSTR lpLibFileName) {
     BREAK_STACK_5;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
-char *LoadLibraryA_3(LPCSTR lpLibFileName) {
+
+char *LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_4;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
+
 char *LoadLibraryA_4(LPCSTR lpLibFileName) {
     BREAK_STACK_3;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
-char *LoadLibraryA_5(LPCSTR lpLibFileName) {
+
+char *LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_2;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
+
 char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
     BREAK_STACK_1;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
@@ -1075,7 +1091,7 @@ char *getFreadName_Proxy() {
     return "fread";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
 }
-#define fread(...) ((size_t(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFreadName_Proxy()))(__VA_ARGS__)
+#define fread(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFreadName_Proxy()))(__VA_ARGS__)
 
 // fwrite
 char *getFwriteName_Proxy() {
@@ -1084,7 +1100,7 @@ char *getFwriteName_Proxy() {
     return "fwrite";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
 }
-#define fwrite(...) ((size_t(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFwriteName_Proxy()))(__VA_ARGS__)
+#define fwrite(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFwriteName_Proxy()))(__VA_ARGS__)
 
 // exit
 char *getExitName_Proxy() {
@@ -1093,7 +1109,7 @@ char *getExitName_Proxy() {
     return "exit";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
 }
-#define exit(...) ((size_t(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getExitName_Proxy()))(__VA_ARGS__)
+#define exit(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getExitName_Proxy()))(__VA_ARGS__)
 
 // strcpy
 char *getStrcpyName_Proxy() {
