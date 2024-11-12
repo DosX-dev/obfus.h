@@ -870,7 +870,7 @@ int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
 
     if (exitCode) return exitCode;
 
-    Dynamic antidebugger
+    // Dynamic antidebugger
     char result[32];
     sprintf(result, strcat(getCharMask(_6), "%d"), _k, _e, _r, _n, _e, _l, (_6 * _6 - _4));
 
