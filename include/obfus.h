@@ -690,6 +690,32 @@ size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
+// GetProcAddress
+FARPROC GetProcAddress_Custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_2;
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hModule;
+    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((BYTE*)hModule + dosHeader->e_lfanew);
+    BREAK_STACK_1;
+    PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)((BYTE*)hModule + 
+    ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+    junkFunc(RND(0, 885));
+    BREAK_STACK_1;
+    DWORD* addressOfFunctions = (DWORD*)((BYTE*)hModule + exportDirectory->AddressOfFunctions);
+    WORD* addressOfNameOrdinals = (WORD*)((BYTE*)hModule + exportDirectory->AddressOfNameOrdinals);
+    BREAK_STACK_1;
+    DWORD* addressOfNames = (DWORD*)((BYTE*)hModule + exportDirectory->AddressOfNames);
+
+    for (DWORD i = 0; i < exportDirectory->NumberOfNames; ++i) {
+      if (strcmp(lpProcName, (const char*)hModule + addressOfNames[i]) == 0) {
+        BREAK_STACK_2;
+        return (FARPROC)((BYTE*)hModule + addressOfFunctions[addressOfNameOrdinals[i]]);
+      }
+    }
+    BREAK_STACK_1;
+    return NULL;
+}
+#define GetProcAddress(...) GetProcAddress_Custom(__VA_ARGS__)
+
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     switch (_0) {
