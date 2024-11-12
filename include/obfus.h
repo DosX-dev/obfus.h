@@ -274,7 +274,7 @@ void junkFuncEmpty() {
 //    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
 
 #define NOP_FLOOD                             \
-    (RND(0, 1000)) + int_Proxy(RND(0, 1000)); \
+    (RND(0, 1000)) + int_proxy(RND(0, 1000)); \
     if (junkFunc) {                           \
         __obfh_asm__("nop");                  \
     }                                         \
@@ -284,15 +284,15 @@ void junkFuncEmpty() {
             "nop");                           \
     } while (RND(0, 200) * _0)
 
-int malloc_Proxy(int *size) {
+int malloc_proxy(int *size) {
     BREAK_STACK_1;
     return malloc(size);
 }
-#define malloc(...) malloc_Proxy(__VA_ARGS__)
+#define malloc(...) malloc_proxy(__VA_ARGS__)
 
 static char rndValueToProxy = RND(0, 10);
 
-int int_Proxy(int value) OBFH_SECTION_ATTRIBUTE {
+int int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_4;
     if (rndValueToProxy == value)
         return rndValueToProxy;
@@ -304,31 +304,31 @@ int int_Proxy(int value) OBFH_SECTION_ATTRIBUTE {
     return ((value * _1) + ((_4 * RND(0, 100000)) - _8) * _0);
 }
 
-double double_Proxy(double value) OBFH_SECTION_ATTRIBUTE {
+double double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     junkFunc(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
 
-int condition_True() OBFH_SECTION_ATTRIBUTE {
+int condition_true() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return _1 && TRUE;
 }
 
-int condition_Proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
+int condition_proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_4;
 
-    int result = int_Proxy(condition * _1);
+    int result = int_proxy(condition * _1);
     if (result == (FALSE * junk)) {
-        return _8 - (_4 * _2) && !condition_True();
+        return _8 - (_4 * _2) && !condition_true();
     } else if (result == TRUE) {
-        return (condition_True() || FALSE || TRUE) && (FALSE + int_Proxy(_1));
+        return (condition_true() || FALSE || TRUE) && (FALSE + int_proxy(_1));
     }
 
     BREAK_STACK_1;
-    return int_Proxy(condition);
+    return int_proxy(condition);
 }
 
 // =============================================================
@@ -360,12 +360,12 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 
 // if (V2)
 #define if(condition)                                         \
-    if (validateBlock() && int_Proxy(RND(1, 1000000)) < _0) { \
+    if (validateBlock() && int_proxy(RND(1, 1000000)) < _0) { \
         __obfh_asm__(".byte 0x00");                           \
-    } else if (int_Proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
+    } else if (int_proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > condition_true() && condition_proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (int_proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
 
 // for (V2)
-#define for(data) for (data && int_Proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
+#define for(data) for (data && int_proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
 
 // return
 #define return \
@@ -373,17 +373,17 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 
 // break
 #define break \
-    if (int_Proxy(_1)) break
+    if (int_proxy(_1)) break
 
 #else
 
 // Control flow obfuscation for 'if' & 'for', V1
 
 // if (V1)
-#define if(condition) if (validateBlock() && (RND(0, 1000)) > _0 && (RND(2, 1000) > condition_True() && condition_Proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_Proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
+#define if(condition) if (validateBlock() && (RND(0, 1000)) > _0 && (RND(2, 1000) > condition_true() && condition_proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (int_proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
 
 // for (V1)
-#define for(data) for (data && int_Proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
+#define for(data) for (data && int_proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
 
 #endif
 
@@ -395,18 +395,18 @@ int isBlockValidated() {  // returns true if validateBlock() executed
     }                                                                             \
     else if (RND(0, 10) == (RND(11, 100))) {                                      \
         BREAK_STACK_3;                                                            \
-        int_Proxy(_3 - RND(0, 10000));                                            \
+        int_proxy(_3 - RND(0, 10000));                                            \
     }                                                                             \
     else if (FALSE * RND(0, 1000)) {                                              \
         BREAK_STACK_1;                                                            \
     }                                                                             \
-    else if (FALSE * (int_Proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
+    else if (FALSE * (int_proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
         __obfh_asm__(".byte 0xEB");                                               \
     }                                                                             \
     else
 
 // while
-#define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_True() && RND(1, 9999999999) > _0 && condition_Proxy(RND(0, 1000), condition) && _5)
+#define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && condition_true() && RND(1, 9999999999) > _0 && condition_proxy(RND(0, 1000), condition) && _5)
 
 #endif
 // =============================================================
@@ -629,48 +629,40 @@ char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
 }
 
 // WriteConsoleA
-BOOL WriteConsoleA_Proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
+BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
-#define WriteConsoleA(...) WriteConsoleA_Proxy(__VA_ARGS__)
+#define WriteConsoleA(...) WriteConsoleA_proxy(__VA_ARGS__)
 
 // GetStdHandle
-HANDLE GetStdHandle_Proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
+HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return GetStdHandle(int_Proxy(nStdHandle));
+    return GetStdHandle(int_proxy(nStdHandle));
 }
-#define GetStdHandle(...) GetStdHandle_Proxy(__VA_ARGS__)
+#define GetStdHandle(...) GetStdHandle_proxy(__VA_ARGS__)
 
-// GetProcAddress
-FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
-    FAKE_CPUID;
-    return GetProcAddress(hModule, lpProcName);
-}
-#define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
-
-HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
+HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_9;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
 }
-#define GetModuleHandleA(...) GetModuleHandleA_Proxy(__VA_ARGS__)
+#define GetModuleHandleA(...) GetModuleHandleA_proxy(__VA_ARGS__)
 
 // strcmp
 int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
-        if ((int_Proxy(*str1) < int_Proxy(*str2)) && int_Proxy(_1)) {
-            return (int_Proxy(_2) / _2) * -1;  // -1
-        } else if (int_Proxy(*str1) > int_Proxy(*str2)) {
-            return int_Proxy(_0 + _1);  // 1
+        if ((int_proxy(*str1) < int_proxy(*str2)) && int_proxy(_1)) {
+            return (int_proxy(_2) / _2) * -1;  // -1
+        } else if (int_proxy(*str1) > int_proxy(*str2)) {
+            return int_proxy(_0 + _1);  // 1
         }
-        str1 += int_Proxy(_1);
-        str2 += int_Proxy(_2 - _1);
+        str1 += int_proxy(_1);
+        str2 += int_proxy(_2 - _1);
     }
     FAKE_CPUID;
     return _0;
@@ -682,39 +674,39 @@ size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     size_t length = _0;
     while (*str != '\0') {
-        length += int_Proxy(_1);
-        str += int_Proxy(_2 - _1);
+        length += int_proxy(_1);
+        str += int_proxy(_2 - _1);
     }
     FAKE_CPUID;
-    return int_Proxy(length + (RND(0, 1000) * _0));
+    return int_proxy(length + (RND(0, 1000) * _0));
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
 // GetProcAddress
-FARPROC GetProcAddress_Custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
+FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_2;
     PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hModule;
-    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((BYTE*)hModule + dosHeader->e_lfanew);
+    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((BYTE *)hModule + dosHeader->e_lfanew);
     BREAK_STACK_1;
-    PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)((BYTE*)hModule + 
-    ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+    PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)((BYTE *)hModule +
+                                                                        ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
     junkFunc(RND(0, 885));
     BREAK_STACK_1;
-    DWORD* addressOfFunctions = (DWORD*)((BYTE*)hModule + exportDirectory->AddressOfFunctions);
-    WORD* addressOfNameOrdinals = (WORD*)((BYTE*)hModule + exportDirectory->AddressOfNameOrdinals);
+    DWORD *addressOfFunctions = (DWORD *)((BYTE *)hModule + exportDirectory->AddressOfFunctions);
+    WORD *addressOfNameOrdinals = (WORD *)((BYTE *)hModule + exportDirectory->AddressOfNameOrdinals);
     BREAK_STACK_1;
-    DWORD* addressOfNames = (DWORD*)((BYTE*)hModule + exportDirectory->AddressOfNames);
+    DWORD *addressOfNames = (DWORD *)((BYTE *)hModule + exportDirectory->AddressOfNames);
 
     for (DWORD i = 0; i < exportDirectory->NumberOfNames; ++i) {
-      if (strcmp(lpProcName, (const char*)hModule + addressOfNames[i]) == 0) {
-        BREAK_STACK_2;
-        return (FARPROC)((BYTE*)hModule + addressOfFunctions[addressOfNameOrdinals[i]]);
-      }
+        if (strcmp(lpProcName, (const char *)hModule + addressOfNames[i]) == 0) {
+            BREAK_STACK_2;
+            return (FARPROC)((BYTE *)hModule + addressOfFunctions[addressOfNameOrdinals[i]]);
+        }
     }
     BREAK_STACK_1;
     return NULL;
 }
-#define GetProcAddress(...) GetProcAddress_Custom(__VA_ARGS__)
+#define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
@@ -741,13 +733,13 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                     char _L_char = _L;
                     junkFunc(_0 + RND(1, 5));
 
-                    if (loadStr[_3] != int_Proxy(_d)) {  // restore "Load"
-                        loadStr[_4] = int_Proxy(_0);
-                        loadStr[_3] = int_Proxy(_d);
-                        loadStr[_2] = int_Proxy(_a);
+                    if (loadStr[_3] != int_proxy(_d)) {  // restore "Load"
+                        loadStr[_4] = int_proxy(_0);
+                        loadStr[_3] = int_proxy(_d);
+                        loadStr[_2] = int_proxy(_a);
                         BREAK_STACK_2;
-                        loadStr[_1] = int_Proxy(_o);
-                        loadStr[_0] = int_Proxy(_L);
+                        loadStr[_1] = int_proxy(_o);
+                        loadStr[_0] = int_proxy(_L);
                     }
 
                     char *funcName = malloc(32);
@@ -797,11 +789,11 @@ char *LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 
-char *LoadLibraryA_Proxy(LPCSTR lpLibFileName) {
+char *LoadLibraryA_proxy(LPCSTR lpLibFileName) {
     BREAK_STACK_1;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
 }
-#define LoadLibraryA(...) LoadLibraryA_Proxy(__VA_ARGS__)
+#define LoadLibraryA(...) LoadLibraryA_proxy(__VA_ARGS__)
 
 // =============================================================
 // Anti-Debug (global)
@@ -856,7 +848,7 @@ WINAPI ThreadCompareDRs(void *p) {
 }
 #endif
 
-int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
+int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
@@ -935,8 +927,8 @@ void loop() {
 }
 
 #define ANTI_DEBUG                                                                                 \
-    if (IsDebuggerPresent() || int_Proxy(_0 / !IsDebuggerPresent_Proxy() * (_1 + _0 + _1) / _2)) { \
-        double_Proxy(RND(1, 999));                                                                 \
+    if (IsDebuggerPresent() || int_proxy(_0 / !IsDebuggerPresent_proxy() * (_1 + _0 + _1) / _2)) { \
+        double_proxy(RND(1, 999));                                                                 \
         /* antiDebugMessage(); */                                                                  \
         loop();                                                                                    \
         while (1) {                                                                                \
@@ -968,7 +960,7 @@ char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
 
     msvcrtName[_3 + _2 + _1] = 0;
     BREAK_STACK_8;
-    msvcrtName[_1 + _2 + _2] = int_Proxy(_t);
+    msvcrtName[_1 + _2 + _2] = int_proxy(_t);
     msvcrtName[_2 * _1 + _2] = _r;
     NOP_FLOOD;
     msvcrtName[(_4 * _2) - _5] = _c;
@@ -1045,7 +1037,7 @@ char *getStdLibName_16() {
     BREAK_STACK_9;
     return getStdLibName_15();
 }
-char *getStdLibName_Proxy() {
+char *getStdLibName_proxy() {
     BREAK_STACK_7;
     return getStdLibName_16();
 }
@@ -1060,7 +1052,7 @@ void printf_custom(int junk, const char *format, ...) {
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
 
-    HANDLE hConsole = int_Proxy(GetStdHandle(int_Proxy(STD_OUTPUT_HANDLE)));
+    HANDLE hConsole = int_proxy(GetStdHandle(int_proxy(STD_OUTPUT_HANDLE)));
     junkFunc(RND(0, 1000) * (int)hConsole + junk);
     WriteConsoleA(hConsole, buffer, strlen(buffer), NULL, NULL);
 }
@@ -1075,156 +1067,156 @@ void printf_custom(int junk, const char *format, ...) {
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
 
 // scanf
-char *getScanfName_Proxy() {
+char *getScanfName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "scanf";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _s, _c, _a, _n, _f); result; });
 }
-#define scanf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getScanfName_Proxy()))(__VA_ARGS__)
+#define scanf(...) ((void *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getScanfName_proxy()))(__VA_ARGS__)
 
 // sprintf
-char *getSprintfName_Proxy() {
+char *getSprintfName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "sprintf";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _p, _r, _i, _n, _t, _f); result; });
 }
-#define sprintf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getSprintfName_Proxy()))(__VA_ARGS__)
+#define sprintf(...) ((void *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getSprintfName_proxy()))(__VA_ARGS__)
 
 // fclose
-char *getFcloseName_Proxy() {
+char *getFcloseName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "fclose";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _c, _l, _o, _s, _e); result; });
 }
-#define fclose(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFcloseName_Proxy()))(__VA_ARGS__)
+#define fclose(...) ((void *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFcloseName_proxy()))(__VA_ARGS__)
 
 // fopen
-char *getFopenName_Proxy() {
+char *getFopenName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "fopen";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _o, _p, _e, _n); result; });
 }
-#define fopen(...) ((FILE * (*)()) GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFopenName_Proxy()))(__VA_ARGS__)
+#define fopen(...) ((FILE * (*)()) GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFopenName_proxy()))(__VA_ARGS__)
 
 // fread
-char *getFreadName_Proxy() {
+char *getFreadName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "fread";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
 }
-#define fread(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFreadName_Proxy()))(__VA_ARGS__)
+#define fread(...) ((size_t (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFreadName_proxy()))(__VA_ARGS__)
 
 // fwrite
-char *getFwriteName_Proxy() {
+char *getFwriteName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "fwrite";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
 }
-#define fwrite(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFwriteName_Proxy()))(__VA_ARGS__)
+#define fwrite(...) ((size_t (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFwriteName_proxy()))(__VA_ARGS__)
 
 // exit
-char *getExitName_Proxy() {
+char *getExitName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "exit";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
 }
-#define exit(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getExitName_Proxy()))(__VA_ARGS__)
+#define exit(...) ((size_t (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getExitName_proxy()))(__VA_ARGS__)
 
 // strcpy
-char *getStrcpyName_Proxy() {
+char *getStrcpyName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "strcpy";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _p, _y); result; });
 }
-#define strcpy(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrcpyName_Proxy()))(__VA_ARGS__)
+#define strcpy(...) ((char *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getStrcpyName_proxy()))(__VA_ARGS__)
 
 // strtok
-char *getStrtokName_Proxy() {
+char *getStrtokName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "strtok";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _t, _o, _k); result; });
 }
-#define strtok(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrtokName_Proxy()))(__VA_ARGS__)
+#define strtok(...) ((char *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getStrtokName_proxy()))(__VA_ARGS__)
 
 // memset
-void *memset_Proxy(void *ptr, int value, size_t num) {
+void *memset_proxy(void *ptr, int value, size_t num) {
     BREAK_STACK_1;
     return memset(ptr, value * _1, num);
 }
-#define memset(...) memset_Proxy(__VA_ARGS__)
+#define memset(...) memset_proxy(__VA_ARGS__)
 
 // memcpy
-char *getMemcpyName_Proxy() {
+char *getMemcpyName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "memcpy";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _m, _e, _m, _c, _p, _y); result; });
 }
-#define memcpy(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getMemcpyName_Proxy()))(__VA_ARGS__)
+#define memcpy(...) ((void *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getMemcpyName_proxy()))(__VA_ARGS__)
 
 // strchr
-char *getStrchrName_Proxy() {
+char *getStrchrName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "strchr";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _h, _r); result; });
 }
-#define strchr(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrchrName_Proxy()))(__VA_ARGS__)
+#define strchr(...) ((char *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getStrchrName_proxy()))(__VA_ARGS__)
 
 // strrchr
-char *getStrrchrName_Proxy() {
+char *getStrrchrName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "strrchr";
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _t, _r, _r, _c, _h, _r); result; });
 }
-#define strrchr(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrrchrName_Proxy()))(__VA_ARGS__)
+#define strrchr(...) ((char *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getStrrchrName_proxy()))(__VA_ARGS__)
 
 // rand
-char *getRandName_Proxy() {
+char *getRandName_proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "rand";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _r, _a, _n, _d); result; });
 }
-#define rand(...) ((int (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getRandName_Proxy()))(__VA_ARGS__)
+#define rand(...) ((int (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getRandName_proxy()))(__VA_ARGS__)
 
 // realloc
-char *getReallocName_Proxy() OBFH_SECTION_ATTRIBUTE {
+char *getReallocName_proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return "realloc";
 }
-#define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getReallocName_Proxy()))(__VA_ARGS__)
+#define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getReallocName_proxy()))(__VA_ARGS__)
 
-void *calloc_Proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
+void *calloc_proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return calloc(nmemb, size);
 }
-#define calloc(nmemb, size) calloc_Proxy(nmemb, size)
+#define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
-void *realloc_Proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
+void *realloc_proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return realloc(ptr, size);
 }
-#define realloc(ptr, size) realloc_Proxy(ptr, size)
+#define realloc(ptr, size) realloc_proxy(ptr, size)
 
-char *gets_Proxy(char *s) OBFH_SECTION_ATTRIBUTE {
+char *gets_proxy(char *s) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return gets(s);
 }
-#define gets(s) gets_Proxy(s)
+#define gets(s) gets_proxy(s)
 
-int snprintf_Proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
+int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     va_list args;
     va_start(args, format);
@@ -1232,7 +1224,7 @@ int snprintf_Proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION
     va_end(args);
     return result;
 }
-#define snprintf(str, size, format, ...) snprintf_Proxy(str, size, format, __VA_ARGS__)
+#define snprintf(str, size, format, ...) snprintf_proxy(str, size, format, __VA_ARGS__)
 
 /*
 #define printf(...) (([](...) -> int {                                                                        \
@@ -1244,155 +1236,155 @@ int snprintf_Proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION
 })(__VA_ARGS__))
 */
 
-int vsprintf_Proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
+int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsprintf(str, format, args);
 }
-#define vsprintf(str, format, args) vsprintf_Proxy(str, format, args)
+#define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
-int vsnprintf_Proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
+int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsnprintf(str, size, format, args);
 }
-#define vsnprintf(str, size, format, args) vsnprintf_Proxy(str, size, format, args)
+#define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
-char *getenv_Proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
+char *getenv_proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getenv(name);
 }
-#define getenv(name) getenv_Proxy(name)
+#define getenv(name) getenv_proxy(name)
 
-int system_Proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
+int system_proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return system(command);
 }
-#define system(command) system_Proxy(command)
+#define system(command) system_proxy(command)
 
-void abort_Proxy(void) OBFH_SECTION_ATTRIBUTE {
+void abort_proxy(void) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     abort();
 }
-#define abort() abort_Proxy()
+#define abort() abort_proxy()
 
-int atexit_Proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
+int atexit_proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return atexit(func);
 }
-#define atexit(func) atexit_Proxy(func)
+#define atexit(func) atexit_proxy(func)
 
-char *getcwd_Proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
+char *getcwd_proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getcwd(buf, size);
 }
-#define getcwd(buf, size) ((char *)getcwd_Proxy(buf, size))
+#define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
-int tolower_Proxy(int c) OBFH_SECTION_ATTRIBUTE {
+int tolower_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return tolower(c);
 }
-#define tolower(c) tolower_Proxy(c)
+#define tolower(c) tolower_proxy(c)
 
-int toupper_Proxy(int c) OBFH_SECTION_ATTRIBUTE {
+int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return toupper(c);
 }
-#define toupper(c) toupper_Proxy(c) * /
+#define toupper(c) toupper_proxy(c) * /
 
 // getch, _getch
-#define _getch() int_Proxy(_getch() * TRUE)
-#define getch() int_Proxy(getch() + FALSE)
+#define _getch() int_proxy(_getch() * TRUE)
+#define getch() int_proxy(getch() + FALSE)
 
-#define Sleep(x) Sleep(int_Proxy((_8 - (_4 * int_Proxy(_2))) + x * TRUE))
+#define Sleep(x) Sleep(int_proxy((_8 - (_4 * int_proxy(_2))) + x * TRUE))
 
 #define GetParent(hWnd) \
-    GetParent(int_Proxy(((int)hWnd) + (int)hWnd) / _2)
+    GetParent(int_proxy(((int)hWnd) + (int)hWnd) / _2)
 
 #define GetWindowRect(hWnd, lpRect) \
-    GetWindowRect(int_Proxy((int)hWnd *TRUE), int_Proxy((int)lpRect *TRUE))
+    GetWindowRect(int_proxy((int)hWnd *TRUE), int_proxy((int)lpRect *TRUE))
 
 #define GetClientRect(hWnd, lpRect) \
-    GetClientRect(int_Proxy((int)hWnd *TRUE), int_Proxy((int)lpRect *TRUE))
+    GetClientRect(int_proxy((int)hWnd *TRUE), int_proxy((int)lpRect *TRUE))
 
 #define SetWindowPos(hWnd, hWndInsertAfter, X, Y, cx, cy, uFlags) \
-    SetWindowPos(int_Proxy(hWnd), int_Proxy(hWndInsertAfter), int_Proxy(X), int_Proxy(Y), int_Proxy(cx), int_Proxy(cy), int_Proxy(uFlags))
+    SetWindowPos(int_proxy(hWnd), int_proxy(hWndInsertAfter), int_proxy(X), int_proxy(Y), int_proxy(cx), int_proxy(cy), int_proxy(uFlags))
 
 #define SetConsoleTextAttribute(hConsoleOutput, wAttributes) \
-    SetConsoleTextAttribute(int_Proxy(hConsoleOutput), int_Proxy(wAttributes))
+    SetConsoleTextAttribute(int_proxy(hConsoleOutput), int_proxy(wAttributes))
 
 #define GetDesktopWindow() \
-    int_Proxy((int)GetDesktopWindow() * TRUE)
+    int_proxy((int)GetDesktopWindow() * TRUE)
 
 #define GetStockObject(i) \
-    GetStockObject(int_Proxy(i) * TRUE)
+    GetStockObject(int_proxy(i) * TRUE)
 
 #define CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile) \
-    CreateFileA(int_Proxy(lpFileName), int_Proxy(dwDesiredAccess), int_Proxy(dwShareMode), int_Proxy(lpSecurityAttributes), int_Proxy(dwCreationDisposition), int_Proxy(dwFlagsAndAttributes), int_Proxy(hTemplateFile))
+    CreateFileA(int_proxy(lpFileName), int_proxy(dwDesiredAccess), int_proxy(dwShareMode), int_proxy(lpSecurityAttributes), int_proxy(dwCreationDisposition), int_proxy(dwFlagsAndAttributes), int_proxy(hTemplateFile))
 
 #define ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped) \
-    ReadFile(int_Proxy(hFile), int_Proxy(lpBuffer), int_Proxy(nNumberOfBytesToRead), int_Proxy(lpNumberOfBytesRead), int_Proxy(lpOverlapped))
+    ReadFile(int_proxy(hFile), int_proxy(lpBuffer), int_proxy(nNumberOfBytesToRead), int_proxy(lpNumberOfBytesRead), int_proxy(lpOverlapped))
 
 #define WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped) \
-    WriteFile(int_Proxy(hFile), int_Proxy(lpBuffer), int_Proxy(nNumberOfBytesToWrite), int_Proxy(lpNumberOfBytesWritten), int_Proxy(lpOverlapped))
+    WriteFile(int_proxy(hFile), int_proxy(lpBuffer), int_proxy(nNumberOfBytesToWrite), int_proxy(lpNumberOfBytesWritten), int_proxy(lpOverlapped))
 
 #define CloseHandle(hObject) \
-    CloseHandle(int_Proxy(hObject))
+    CloseHandle(int_proxy(hObject))
 
 #define GetModuleHandle(lpModuleName) \
-    GetModuleHandleA(int_Proxy(lpModuleName))
+    GetModuleHandleA(int_proxy(lpModuleName))
 
 #define GetCurrentProcess() \
-    int_Proxy(GetCurrentProcess())
+    int_proxy(GetCurrentProcess())
 
 #define VirtualAlloc(lpAddress, dwSize, flAllocationType, flProtect) \
-    VirtualAlloc(int_Proxy(lpAddress), int_Proxy(dwSize), int_Proxy(flAllocationType), int_Proxy(flProtect))
+    VirtualAlloc(int_proxy(lpAddress), int_proxy(dwSize), int_proxy(flAllocationType), int_proxy(flProtect))
 
 #define VirtualFree(lpAddress, dwSize, dwFreeType) \
-    VirtualFree(int_Proxy(lpAddress), int_Proxy(dwSize), int_Proxy(dwFreeType))
+    VirtualFree(int_proxy(lpAddress), int_proxy(dwSize), int_proxy(dwFreeType))
 
-#define CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) CreateThread(int_Proxy(lpThreadAttributes), int_Proxy(dwStackSize), int_Proxy(lpStartAddress), int_Proxy(lpParameter), int_Proxy(dwCreationFlags), int_Proxy(lpThreadId))
+#define CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) CreateThread(int_proxy(lpThreadAttributes), int_proxy(dwStackSize), int_proxy(lpStartAddress), int_proxy(lpParameter), int_proxy(dwCreationFlags), int_proxy(lpThreadId))
 
 #define WaitForSingleObject(hHandle, dwMilliseconds) \
-    WaitForSingleObject(int_Proxy(hHandle), int_Proxy(dwMilliseconds))
+    WaitForSingleObject(int_proxy(hHandle), int_proxy(dwMilliseconds))
 
 #define ExitProcess(uExitCode) \
-    ExitProcess(int_Proxy(uExitCode))
+    ExitProcess(int_proxy(uExitCode))
 
 #define GetStartupInfo(lpStartupInfo) \
-    GetStartupInfo(int_Proxy(lpStartupInfo))
+    GetStartupInfo(int_proxy(lpStartupInfo))
 
 #define GetModuleFileName(hModule, lpFilename, nSize) \
-    GetModuleFileName(int_Proxy(hModule), int_Proxy(lpFilename), int_Proxy(nSize))
+    GetModuleFileName(int_proxy(hModule), int_proxy(lpFilename), int_proxy(nSize))
 
 #define HeapCreate(flOptions, dwInitialSize, dwMaximumSize) \
-    HeapCreate(int_Proxy(flOptions), int_Proxy(dwInitialSize), int_Proxy(dwMaximumSize))
+    HeapCreate(int_proxy(flOptions), int_proxy(dwInitialSize), int_proxy(dwMaximumSize))
 
 #define HeapAlloc(hHeap, dwFlags, dwBytes) \
-    HeapAlloc(int_Proxy(hHeap), int_Proxy(dwFlags), int_Proxy(dwBytes))
+    HeapAlloc(int_proxy(hHeap), int_proxy(dwFlags), int_proxy(dwBytes))
 
 #define HeapFree(hHeap, dwFlags, lpMem) \
-    HeapFree(int_Proxy(hHeap), int_Proxy(dwFlags), int_Proxy(lpMem))
+    HeapFree(int_proxy(hHeap), int_proxy(dwFlags), int_proxy(lpMem))
 
 #define GlobalAlloc(uFlags, dwBytes) \
-    GlobalAlloc(int_Proxy(uFlags), int_Proxy(dwBytes))
+    GlobalAlloc(int_proxy(uFlags), int_proxy(dwBytes))
 
 #define GlobalFree(hMem) \
-    GlobalFree(int_Proxy(hMem))
+    GlobalFree(int_proxy(hMem))
 
 #define GetTempPath(nBufferLength, lpBuffer) \
-    GetTempPath(int_Proxy(nBufferLength), int_Proxy(lpBuffer))
+    GetTempPath(int_proxy(nBufferLength), int_proxy(lpBuffer))
 
 #define GetCurrentThreadId() \
     GetCurrentThreadId()
 
 #define SetEvent(hEvent) \
-    SetEvent(int_Proxy(hEvent))
+    SetEvent(int_proxy(hEvent))
 
 #define ResetEvent(hEvent) \
-    ResetEvent(int_Proxy(hEvent))
+    ResetEvent(int_proxy(hEvent))
 
-#define WaitForMultipleObjects(nCount, lpHandles, bWaitAll, dwMilliseconds) WaitForMultipleObjects(int_Proxy(nCount), int_Proxy(lpHandles), int_Proxy(bWaitAll), int_Proxy(dwMilliseconds))
+#define WaitForMultipleObjects(nCount, lpHandles, bWaitAll, dwMilliseconds) WaitForMultipleObjects(int_proxy(nCount), int_proxy(lpHandles), int_proxy(bWaitAll), int_proxy(dwMilliseconds))
 
-#define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, int_Proxy(_Size *(TRUE + FALSE)))
+#define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, int_proxy(_Size *(TRUE + FALSE)))
 
 #define abs(x) ((x) < FALSE ? -(x) : (x))
 
