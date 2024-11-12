@@ -644,14 +644,6 @@ HANDLE GetStdHandle_Proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
 }
 #define GetStdHandle(...) GetStdHandle_Proxy(__VA_ARGS__)
 
-// GetProcAddress
-FARPROC GetProcAddress_Proxy(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
-    FAKE_CPUID;
-    return GetProcAddress(hModule, lpProcName);
-}
-#define GetProcAddress(...) GetProcAddress_Proxy(__VA_ARGS__)
-
 HMODULE GetModuleHandleA_Proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_9;
     FAKE_CPUID;
@@ -689,6 +681,32 @@ size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
     return int_Proxy(length + (RND(0, 1000) * _0));
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
+
+// GetProcAddress
+FARPROC GetProcAddress_Custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_2;
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hModule;
+    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((BYTE*)hModule + dosHeader->e_lfanew);
+    BREAK_STACK_1;
+    PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)((BYTE*)hModule + 
+    ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+    junkFunc(RND(0, 885));
+    BREAK_STACK_1;
+    DWORD* addressOfFunctions = (DWORD*)((BYTE*)hModule + exportDirectory->AddressOfFunctions);
+    WORD* addressOfNameOrdinals = (WORD*)((BYTE*)hModule + exportDirectory->AddressOfNameOrdinals);
+    BREAK_STACK_1;
+    DWORD* addressOfNames = (DWORD*)((BYTE*)hModule + exportDirectory->AddressOfNames);
+
+    for (DWORD i = 0; i < exportDirectory->NumberOfNames; ++i) {
+      if (strcmp(lpProcName, (const char*)hModule + addressOfNames[i]) == 0) {
+        BREAK_STACK_2;
+        return (FARPROC)((BYTE*)hModule + addressOfFunctions[addressOfNameOrdinals[i]]);
+      }
+    }
+    BREAK_STACK_1;
+    return NULL;
+}
+#define GetProcAddress(...) GetProcAddress_Custom(__VA_ARGS__)
 
 static char loadStr[5];
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
@@ -852,7 +870,7 @@ int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
 
     if (exitCode) return exitCode;
 
-    // Dynamic antidebugger
+    Dynamic antidebugger
     char result[32];
     sprintf(result, strcat(getCharMask(_6), "%d"), _k, _e, _r, _n, _e, _l, (_6 * _6 - _4));
 
@@ -879,10 +897,13 @@ int IsDebuggerPresent_Proxy() OBFH_SECTION_ATTRIBUTE {
     funcName[_6 * _2 * _1] = _e;
 
     return ((BOOL(*)())GetProcAddress(LoadLibraryA(result), funcName))();
+
 #else
 
     // Standard antidebugger
     NOP_FLOOD;
+    BOOL isDebugging = FALSE;
+
     return IsDebuggerPresent();
 
 #endif
@@ -1048,11 +1069,12 @@ void printf_custom(int junk, const char *format, ...) {
         printf_custom(RND(0, 1000), __VA_ARGS__); \
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
 
+char result[32];
 // scanf
 char *getScanfName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "scanf";
+    return ({ sprintf(result, getCharMask(_5), _s, _c, _a, _n, _f); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _s, _c, _a, _n, _f); result; });
 }
 #define scanf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getScanfName_Proxy()))(__VA_ARGS__)
@@ -1061,7 +1083,7 @@ char *getScanfName_Proxy() {
 char *getSprintfName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "sprintf";
+    return ({ sprintf(result, getCharMask(_7), _s, _p, _r, _i, _n, _t, _f); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _p, _r, _i, _n, _t, _f); result; });
 }
 #define sprintf(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getSprintfName_Proxy()))(__VA_ARGS__)
@@ -1070,7 +1092,7 @@ char *getSprintfName_Proxy() {
 char *getFcloseName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fclose";
+    return ({ sprintf(result, getCharMask(_6), _f, _c, _l, _o, _s, _e); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _c, _l, _o, _s, _e); result; });
 }
 #define fclose(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFcloseName_Proxy()))(__VA_ARGS__)
@@ -1079,7 +1101,7 @@ char *getFcloseName_Proxy() {
 char *getFopenName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fopen";
+    return ({ sprintf(result, getCharMask(_5), _f, _o, _p, _e, _n); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _o, _p, _e, _n); result; });
 }
 #define fopen(...) ((FILE * (*)()) GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFopenName_Proxy()))(__VA_ARGS__)
@@ -1088,7 +1110,7 @@ char *getFopenName_Proxy() {
 char *getFreadName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fread";
+    return ({ sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
 }
 #define fread(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFreadName_Proxy()))(__VA_ARGS__)
@@ -1097,7 +1119,7 @@ char *getFreadName_Proxy() {
 char *getFwriteName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fwrite";
+    return ({ sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
 }
 #define fwrite(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getFwriteName_Proxy()))(__VA_ARGS__)
@@ -1106,7 +1128,7 @@ char *getFwriteName_Proxy() {
 char *getExitName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "exit";
+    return ({ sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
 }
 #define exit(...) ((size_t (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getExitName_Proxy()))(__VA_ARGS__)
@@ -1115,7 +1137,7 @@ char *getExitName_Proxy() {
 char *getStrcpyName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strcpy";
+    return ({ sprintf(result, getCharMask(_6), _s, _t, _r, _c, _p, _y); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _p, _y); result; });
 }
 #define strcpy(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrcpyName_Proxy()))(__VA_ARGS__)
@@ -1124,7 +1146,7 @@ char *getStrcpyName_Proxy() {
 char *getStrtokName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strtok";
+    return ({ sprintf(result, getCharMask(_6), _s, _t, _r, _t, _o, _k); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _t, _o, _k); result; });
 }
 #define strtok(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrtokName_Proxy()))(__VA_ARGS__)
@@ -1140,7 +1162,7 @@ void *memset_Proxy(void *ptr, int value, size_t num) {
 char *getMemcpyName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "memcpy";
+    return ({ sprintf(result, getCharMask(_6), _m, _e, _m, _c, _p, _y); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _m, _e, _m, _c, _p, _y); result; });
 }
 #define memcpy(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getMemcpyName_Proxy()))(__VA_ARGS__)
@@ -1149,7 +1171,7 @@ char *getMemcpyName_Proxy() {
 char *getStrchrName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strchr";
+    return ({ sprintf(result, getCharMask(_6), _s, _t, _r, _c, _h, _r); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _s, _t, _r, _c, _h, _r); result; });
 }
 #define strchr(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrchrName_Proxy()))(__VA_ARGS__)
@@ -1158,7 +1180,7 @@ char *getStrchrName_Proxy() {
 char *getStrrchrName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strrchr";
+    return ({ sprintf(result, getCharMask(_7), _s, _t, _r, _r, _c, _h, _r); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_7), _s, _t, _r, _r, _c, _h, _r); result; });
 }
 #define strrchr(...) ((char *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getStrrchrName_Proxy()))(__VA_ARGS__)
@@ -1167,7 +1189,7 @@ char *getStrrchrName_Proxy() {
 char *getRandName_Proxy() {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "rand";
+    return ({ sprintf(result, getCharMask(_4), _r, _a, _n, _d); result; });
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _r, _a, _n, _d); result; });
 }
 #define rand(...) ((int (*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getRandName_Proxy()))(__VA_ARGS__)
@@ -1176,7 +1198,8 @@ char *getRandName_Proxy() {
 char *getReallocName_Proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "realloc";
+    return ({ sprintf(result, getCharMask(_7), _r, _e, _a, _l, _l, _o, _c); result; });
+    // return "realloc";
 }
 #define realloc(...) ((void *(*)())GetProcAddress(LoadLibraryA_Proxy(getStdLibName_Proxy()), getReallocName_Proxy()))(__VA_ARGS__)
 
