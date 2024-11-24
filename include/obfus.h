@@ -25,7 +25,6 @@
 
  GitHub:
  -> https://github.com/DosX-dev/obfus.h
-
 */
 
 #ifndef OBFH
@@ -252,12 +251,12 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         ".byte 0x00, 0x00" __NEXT__ \
         "1:")
 
-void junkFuncArgs(int z, ...) OBFH_SECTION_ATTRIBUTE {
+void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
     __obfh_asm__("nop");
     return;
 }
 
-void junkFuncEmpty() {
+void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     BREAK_STACK_5;
     __obfh_asm__("nop");
     return;
@@ -283,7 +282,7 @@ void junkFuncEmpty() {
 
 #define NOP_FLOOD                             \
     (RND(0, 1000)) + int_proxy(RND(0, 1000)); \
-    if (junkFuncArgs) {                       \
+    if (obfh_junk_func_args) {                \
         __obfh_asm__("nop");                  \
     }                                         \
     do {                                      \
@@ -305,7 +304,7 @@ int int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
     if (rndValueToProxy == value)
         return rndValueToProxy;
 
-    junkFuncArgs(RND(0, 100000), RND(0, 100000));
+    obfh_junk_func_args(RND(0, 100000), RND(0, 100000));
 
     FAKE_CPUID;
 
@@ -314,7 +313,7 @@ int int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
 
 double double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    junkFuncArgs(RND(0, 1000), RND(0, 1000));
+    obfh_junk_func_args(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
@@ -398,7 +397,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 // else
 #define else                                                                      \
     else if (_0 > RND(1, 1000)) {                                                 \
-        junkFuncArgs(RND(0, 1000));                                               \
+        obfh_junk_func_args(RND(0, 1000));                                        \
         __obfh_asm__(".byte 0x3C");                                               \
     }                                                                             \
     else if (RND(0, 10) == (RND(11, 100))) {                                      \
@@ -726,7 +725,7 @@ FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_A
     BREAK_STACK_1;
     PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)((BYTE *)hModule +
                                                                         ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
-    junkFuncArgs(RND(0, 885));
+    obfh_junk_func_args(RND(0, 885));
     BREAK_STACK_1;
     DWORD *addressOfFunctions = (DWORD *)((BYTE *)hModule + exportDirectory->AddressOfFunctions);
     WORD *addressOfNameOrdinals = (WORD *)((BYTE *)hModule + exportDirectory->AddressOfNameOrdinals);
@@ -767,7 +766,7 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                 if (hKernel32 != NULL) {
                     FAKE_CPUID;
                     char _L_char = _L;
-                    junkFuncArgs(_0 + RND(1, 5));
+                    obfh_junk_func_args(_0 + RND(1, 5));
 
                     if (loadStr[_3] != int_proxy(_d)) {  // restore "Load"
                         loadStr[_4] = int_proxy(_0);
@@ -986,8 +985,8 @@ void loop() {
 char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     NOP_FLOOD;
-    junkFuncArgs(_0 + _3);
-    junkFuncArgs(_3 - _2);
+    obfh_junk_func_args(_0 + _3);
+    obfh_junk_func_args(_3 - _2);
 
     // char *msvcrtName = malloc(_7);
     static char msvcrtName[7] = "\0\0\0\0\0\0\0";
@@ -1089,17 +1088,17 @@ void printf_custom(int junk, const char *format, ...) {
     va_end(args);
 
     HANDLE hConsole = int_proxy(GetStdHandle(int_proxy(STD_OUTPUT_HANDLE)));
-    junkFuncArgs(RND(0, 1000) * (int)hConsole + junk);
+    obfh_junk_func_args(RND(0, 1000) * (int)hConsole + junk);
     WriteConsoleA(hConsole, buffer, strlen(buffer), NULL, NULL);
 }
 
 // printf as void
-#define printf(...)                               \
-    do {                                          \
-        BREAK_STACK_1;                            \
-        getStdLibName();                          \
-        junkFuncArgs((RND(0, 1000) * 3) < _0);    \
-        printf_custom(RND(0, 1000), __VA_ARGS__); \
+#define printf(...)                                   \
+    do {                                              \
+        BREAK_STACK_1;                                \
+        getStdLibName();                              \
+        obfh_junk_func_args((RND(0, 1000) * 3) < _0); \
+        printf_custom(RND(0, 1000), __VA_ARGS__);     \
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
 
 // scanf
