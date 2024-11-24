@@ -79,7 +79,11 @@
 #define __asm__(...)
 #endif
 
+#define __NEXT__ "\n"
+
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
+
+#define DATA_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".data")  // Data section
 
 // Fake signatures ;)
 #if defined(FAKE_SIGNS) && (FAKE_SIGNS != 0)
@@ -176,79 +180,79 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _y OBFH_SECTION_ATTRIBUTE = 'y', _z OBFH_SECTION_ATTRIBUTE = 'z',
                             _S OBFH_SECTION_ATTRIBUTE = 'S', _L OBFH_SECTION_ATTRIBUTE = 'L', _A OBFH_SECTION_ATTRIBUTE = 'A', _I OBFH_SECTION_ATTRIBUTE = 'I',
                             _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
-                            _0 OBFH_SECTION_ATTRIBUTE = 0, _1 OBFH_SECTION_ATTRIBUTE = 1, _2 OBFH_SECTION_ATTRIBUTE = 2, _3 OBFH_SECTION_ATTRIBUTE = 3, _4 OBFH_SECTION_ATTRIBUTE = 4,
-                            _5 OBFH_SECTION_ATTRIBUTE = 5, _6 OBFH_SECTION_ATTRIBUTE = 6, _7 OBFH_SECTION_ATTRIBUTE = 7, _8 OBFH_SECTION_ATTRIBUTE = 8, _9 OBFH_SECTION_ATTRIBUTE = 9;
+                            _0 DATA_SECTION_ATTRIBUTE = 0, _1 DATA_SECTION_ATTRIBUTE = 1, _2 DATA_SECTION_ATTRIBUTE = 2, _3 DATA_SECTION_ATTRIBUTE = 3, _4 DATA_SECTION_ATTRIBUTE = 4,
+                            _5 DATA_SECTION_ATTRIBUTE = 5, _6 DATA_SECTION_ATTRIBUTE = 6, _7 DATA_SECTION_ATTRIBUTE = 7, _8 DATA_SECTION_ATTRIBUTE = 8, _9 DATA_SECTION_ATTRIBUTE = 9;
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
-#define BREAK_STACK_1       \
-    __obfh_asm__(           \
-        "xorl %eax, %eax\n" \
-        "jz 1f\n"           \
-        ".byte 0xE8\n"      \
-        "1:\n")
+#define BREAK_STACK_1              \
+    __obfh_asm__(                  \
+        "xorl %eax, %eax" __NEXT__ \
+        "jz 1f" __NEXT__           \
+        ".byte 0xE8" __NEXT__      \
+        "1:")
 
 #define BREAK_STACK_2 \
-    if (_0) __obfh_asm__(".byte 0x00\n");
+    if (_0) __obfh_asm__(".byte 0x00");
 
-#define BREAK_STACK_3                     \
-    switch (_0) {                         \
-        case RND(1, 1000):                \
-            __obfh_asm__(".byte 0x00\n"); \
+#define BREAK_STACK_3                         \
+    switch (_0) {                             \
+        case RND(1, 1000):                    \
+            __obfh_asm__(".byte 0x00, 0x00"); \
     }
 
-#define BREAK_STACK_4       \
-    __obfh_asm__(           \
-        "xorl %ebx, %ebx\n" \
-        "xorl %edx, %edx\n" \
-        "xorl %ebx, %edx\n" \
-        "jz 1f\n"           \
-        "mov %eax, 4\n"     \
-        ".byte 0x00\n"      \
-        "1:\n")
+#define BREAK_STACK_4              \
+    __obfh_asm__(                  \
+        "xorl %ebx, %ebx" __NEXT__ \
+        "xorl %edx, %edx" __NEXT__ \
+        "xorl %ebx, %edx" __NEXT__ \
+        "jz 1f" __NEXT__           \
+        "mov $4, %eax" __NEXT__    \
+        ".byte 0x00" __NEXT__      \
+        "1:")
 
-#define BREAK_STACK_5       \
-    __obfh_asm__(           \
-        "xorl %ebx, %ebx\n" \
-        "xorl %eax, %eax\n" \
-        "mov %eax, %ebx\n"  \
-        "mov %edx, %ebx\n"  \
-        "xorl %eax, %edx\n" \
-        "jz 1f\n"           \
-        ".byte 0x20\n"      \
-        "1:\n")
+#define BREAK_STACK_5              \
+    __obfh_asm__(                  \
+        "xorl %ebx, %ebx" __NEXT__ \
+        "xorl %eax, %eax" __NEXT__ \
+        "mov %eax, %ebx" __NEXT__  \
+        "mov %edx, %ebx" __NEXT__  \
+        "xorl %eax, %edx" __NEXT__ \
+        "jz 1f" __NEXT__           \
+        ".byte 0x20" __NEXT__      \
+        "1:")
 
-#define BREAK_STACK_6       \
-    __obfh_asm__(           \
-        "xorl %edx, %edx\n" \
-        "xorl %eax, %eax\n" \
-        "mov %eax, %edx\n"  \
-        "jz 1f\n"           \
-        ".byte 0xE8\n"      \
-        "1:\n")
+#define BREAK_STACK_6              \
+    __obfh_asm__(                  \
+        "xorl %edx, %edx" __NEXT__ \
+        "xorl %eax, %eax" __NEXT__ \
+        "mov %eax, %edx" __NEXT__  \
+        "jz 1f" __NEXT__           \
+        ".byte 0xE8" __NEXT__      \
+        "1:")
 
-#define BREAK_STACK_7       \
-    __obfh_asm__(           \
-        "xorl %edx, %edx\n" \
-        "jz 1f\n"           \
-        ".byte 0xE8\n"      \
-        "1:\n")
+#define BREAK_STACK_7              \
+    __obfh_asm__(                  \
+        "xorl %edx, %edx" __NEXT__ \
+        "jz 1f" __NEXT__           \
+        ".byte 0xE8" __NEXT__      \
+        "1:")
 
-#define BREAK_STACK_8       \
-    __obfh_asm__(           \
-        "xorl %eax, %eax\n" \
-        "jz 1f\n"           \
-        ".byte 0x50\n"      \
-        "1:\n")
+#define BREAK_STACK_8              \
+    __obfh_asm__(                  \
+        "xorl %eax, %eax" __NEXT__ \
+        "jz 1f" __NEXT__           \
+        ".byte 0x50" __NEXT__      \
+        "1:")
 
-#define BREAK_STACK_9        \
-    __obfh_asm__(            \
-        "xorl %edx, %edx\n"  \
-        "jz 1f\n"            \
-        ".byte 0x00, 0x00\n" \
-        "1:\n")
+#define BREAK_STACK_9               \
+    __obfh_asm__(                   \
+        "xorl %edx, %edx" __NEXT__  \
+        "jz 1f" __NEXT__            \
+        ".byte 0x00, 0x00" __NEXT__ \
+        "1:")
 
-void junkFunc(int z, ...) OBFH_SECTION_ATTRIBUTE {
+void junkFuncArgs(int z, ...) OBFH_SECTION_ATTRIBUTE {
     __obfh_asm__("nop");
     return;
 }
@@ -259,15 +263,19 @@ void junkFuncEmpty() {
     return;
 }
 
-#define __CRASH                 \
-    __obfh_asm__(".byte 0xED"); \
-    __obfh_asm__("int $3");     \
+#define __CRASH               \
+    __obfh_asm__(             \
+        ".byte 0xED" __NEXT__ \
+        "int $3");            \
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
 #define FALSE (((_3 + _6 + (RND(0, 1000) * _0)) - _9) * RND(0, 255))
 
-#define FAKE_CPUID __obfh_asm__("nop\ncpuid\nnop\n")
+#define FAKE_CPUID __obfh_asm__( \
+    "nop" __NEXT__               \
+    "cpuid" __NEXT__             \
+    "nop")
 
 // Doesn't work
 // #define sizeof(x) \
@@ -275,12 +283,12 @@ void junkFuncEmpty() {
 
 #define NOP_FLOOD                             \
     (RND(0, 1000)) + int_proxy(RND(0, 1000)); \
-    if (junkFunc) {                           \
+    if (junkFuncArgs) {                       \
         __obfh_asm__("nop");                  \
     }                                         \
     do {                                      \
         __obfh_asm__(                         \
-            "nop\n"                           \
+            "nop" __NEXT__                    \
             "nop");                           \
     } while (RND(0, 200) * _0)
 
@@ -297,7 +305,7 @@ int int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
     if (rndValueToProxy == value)
         return rndValueToProxy;
 
-    junkFunc(RND(0, 100000), RND(0, 100000));
+    junkFuncArgs(RND(0, 100000), RND(0, 100000));
 
     FAKE_CPUID;
 
@@ -306,7 +314,7 @@ int int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
 
 double double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    junkFunc(RND(0, 1000), RND(0, 1000));
+    junkFuncArgs(RND(0, 1000), RND(0, 1000));
     FAKE_CPUID;
     return (value * _1);
 }
@@ -333,7 +341,7 @@ int condition_proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
 
 // =============================================================
 // Anti-Tamper for Control-Flow obfuscation (beta!)
-#if antitamper == 1 && NO_CFLOW != 1
+#if ANTITAMPER == 1 && NO_CFLOW != 1
 int obfhIsBlockValidated = 0;
 int validateBlock() {  // returns false
     obfhIsBlockValidated = 1;
@@ -390,7 +398,7 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 // else
 #define else                                                                      \
     else if (_0 > RND(1, 1000)) {                                                 \
-        junkFunc(RND(0, 1000));                                                   \
+        junkFuncArgs(RND(0, 1000));                                               \
         __obfh_asm__(".byte 0x3C");                                               \
     }                                                                             \
     else if (RND(0, 10) == (RND(11, 100))) {                                      \
@@ -509,19 +517,47 @@ firstFakePoint:
 letsExecute:
 
     switch (command) {
-        case -1:
+        case -1 * __LINE__:
             goto restoreCommand;
-        case -2:
+        case -2 * __LINE__:
             goto firstFakePoint;
-        case -3:
+        case -3 * __LINE__:
             return _0 * ~_1 + junk_2;
-        case -4:
+        case -4 * __LINE__:
             goto restoreNum2;
-        case -5:
+        case -5 * __LINE__:
             goto restoreNum1;
-        case -6:
+        case -6 * __LINE__:
             __obfh_asm__(".byte 0xFF, 0x25");  // fake JMP
-        case OP__ADD:                          // plus
+        case -7 * __LINE__:
+
+#if defined(__x86_64__) || defined(_M_X64)  // fake code, just for decompiler break
+            __obfh_asm__(
+                "mov %%rax, %%rbx" __NEXT__
+                "xor %%rcx, %%rax" __NEXT__
+                "shr $8, %%rdx" __NEXT__
+                "shl $4, %%rax" __NEXT__
+                "push %%rbx" __NEXT__
+                "pop %%rbx" __NEXT__
+                "inc %%rax" __NEXT__
+                "dec %%rdx" : : : "rax",
+                "rbx", "rcx", "rdx");
+#elif defined(__i386__) || defined(_M_IX86)
+            __obfh_asm__(
+                "mov %%ebx, %%eax" __NEXT__
+                "add %%ecx, %%eax" __NEXT__
+                "sub %%edx, %%ebx" __NEXT__
+                "shl %%cl, %%ecx" __NEXT__
+                "push %%ebx" __NEXT__
+                "pop %%ebx" __NEXT__
+                "sar %%cl, %%ecx" __NEXT__
+                "or %%edx, %%eax" __NEXT__
+                "dec %%edx" : : : "eax",
+                "ebx", "ecx", "edx");
+#else
+#endif
+
+        case OP__ADD:  // plus
             obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
             goto afterCalc;
         case OP__SUB:  // minus
@@ -690,7 +726,7 @@ FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_A
     BREAK_STACK_1;
     PIMAGE_EXPORT_DIRECTORY exportDirectory = (PIMAGE_EXPORT_DIRECTORY)((BYTE *)hModule +
                                                                         ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
-    junkFunc(RND(0, 885));
+    junkFuncArgs(RND(0, 885));
     BREAK_STACK_1;
     DWORD *addressOfFunctions = (DWORD *)((BYTE *)hModule + exportDirectory->AddressOfFunctions);
     WORD *addressOfNameOrdinals = (WORD *)((BYTE *)hModule + exportDirectory->AddressOfNameOrdinals);
@@ -731,7 +767,7 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                 if (hKernel32 != NULL) {
                     FAKE_CPUID;
                     char _L_char = _L;
-                    junkFunc(_0 + RND(1, 5));
+                    junkFuncArgs(_0 + RND(1, 5));
 
                     if (loadStr[_3] != int_proxy(_d)) {  // restore "Load"
                         loadStr[_4] = int_proxy(_0);
@@ -950,8 +986,8 @@ void loop() {
 char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     NOP_FLOOD;
-    junkFunc(_0 + _3);
-    junkFunc(_3 - _2);
+    junkFuncArgs(_0 + _3);
+    junkFuncArgs(_3 - _2);
 
     // char *msvcrtName = malloc(_7);
     static char msvcrtName[7] = "\0\0\0\0\0\0\0";
@@ -1053,7 +1089,7 @@ void printf_custom(int junk, const char *format, ...) {
     va_end(args);
 
     HANDLE hConsole = int_proxy(GetStdHandle(int_proxy(STD_OUTPUT_HANDLE)));
-    junkFunc(RND(0, 1000) * (int)hConsole + junk);
+    junkFuncArgs(RND(0, 1000) * (int)hConsole + junk);
     WriteConsoleA(hConsole, buffer, strlen(buffer), NULL, NULL);
 }
 
@@ -1062,7 +1098,7 @@ void printf_custom(int junk, const char *format, ...) {
     do {                                          \
         BREAK_STACK_1;                            \
         getStdLibName();                          \
-        junkFunc((RND(0, 1000) * 3) < _0);        \
+        junkFuncArgs((RND(0, 1000) * 3) < _0);    \
         printf_custom(RND(0, 1000), __VA_ARGS__); \
     } while (_0 > (RND(0, 100000000000) * _2) + 82)
 
