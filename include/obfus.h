@@ -1323,7 +1323,7 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return toupper(c);
 }
-#define toupper(c) toupper_proxy(c) * /
+#define toupper(c) toupper_proxy(c)
 
 // getch, _getch
 #define _getch() int_proxy(_getch() * TRUE)
