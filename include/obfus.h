@@ -85,7 +85,7 @@
 #define DATA_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".data")  // Data section
 
 // Fake signatures ;)
-#if defined(FAKE_SIGNS) && (FAKE_SIGNS != 0)
+#if FAKE_SIGNS == 1
 
 static const char FAKE_ENIGMAVM_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
 static const char FAKE_ENIGMAVM_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
