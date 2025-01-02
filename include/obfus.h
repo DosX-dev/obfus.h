@@ -56,6 +56,8 @@
 #define VM_IF(condition) if (condition)
 #define VM_ELSE_IF(condition) else if (condition)
 #define VM_ELSE else
+#define VM_OBF_INT(num) num
+#define VM_OBF_DBL(num) num
 #endif
 
 #if !NO_OBF
@@ -250,6 +252,12 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f" __NEXT__            \
         ".byte 0x00, 0x00" __NEXT__ \
         "1:")
+
+#if defined(__x86_64__)
+#define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4")
+#else
+#define BAD_JMP __obfh_asm__(".byte 0xEB, 0xE1")
+#endif
 
 void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
     __obfh_asm__("nop");
@@ -555,6 +563,8 @@ letsExecute:
                 "ebx", "ecx", "edx");
 #else
 #endif
+        case -8 * __LINE__:
+            BAD_JMP;
 
         case OP__ADD:  // plus
             obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
@@ -613,8 +623,8 @@ letsExecute:
             goto afterCalc;
         default:
             // printf("ADD: %d, CMD: %d\n", OP__ADD, command);
-            obfhVmResult = _0 * (uni_key * _5);
-            __obfh_asm__(".byte 0x00");  // junk
+            obfhVmResult = _0 * (uni_key * _3);
+            BAD_JMP;
     }
     BREAK_STACK_8;
 
@@ -645,7 +655,7 @@ char *getCharMask(int count) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     static char mask[16];
     if (count <= _0 || count >= sizeof(mask)) {
-        return NULL;
+        BAD_JMP;
     }
     int i = (((_1 * _5) - _4) + _1) - _2;
     BREAK_STACK_1;
@@ -744,6 +754,8 @@ FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_A
 #define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
 static char loadStr[5];
+static HMODULE hKernel32 = NULL;
+
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     switch (_0) {
         case 1:
@@ -762,7 +774,8 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                 // kernel32
                 sprintf(libName, strcat(getCharMask(_6), "%d"), _k, _e, _r, _n, _e, _l, (_4 * _8));
 
-                HMODULE hKernel32 = GetModuleHandleA(libName);
+                hKernel32 = GetModuleHandleA(libName);
+
                 if (hKernel32 != NULL) {
                     FAKE_CPUID;
                     char _L_char = _L;
