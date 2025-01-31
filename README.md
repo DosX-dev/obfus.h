@@ -30,6 +30,7 @@ This will automatically obfuscate your code during compilation, ensuring protect
 > #define FAKE_SIGNS     1  // Adds fake signatures of various protectors or packers
 > 
 > // Disabling default features
+> #define NO_OBF         1  // Don't obfuscate (for debugging)
 > #define NO_CFLOW       1  // Don't use Control-Flow obfuscation
 > #define NO_ANTIDEBUG   1  // Don't build in debugging protection
 > ```
@@ -123,6 +124,7 @@ If you need advanced protection against skilled reversers, use `CFLOW_V2` and `A
 #define FAKE_SIGNS   1 // [+] Fake signatures
 #define ANTIDEBUG_V2 1 // [+] AntiDebug v2
 
+#define NO_OBF       0 // [-] Don't obfuscate (disable all)
 #define NO_CFLOW     0 // [-] Disable ControlFlow
 #define NO_ANTIDEBUG 0 // [-] Disable AntiDebug
 
