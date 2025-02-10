@@ -7,7 +7,7 @@
 		 ╚═════╝ ╚═════╝ ╚═╝      ╚═════╝ ╚══════╝ ╚═╝ ╚═╝  ╚═╝
 
 				  Very reliable armor for your C programs!
-								  Coded by (C) DosX, 2024
+						Coded by (C) DosX, 2025
 
  [Additional options]
  ~ CFLOW_V2       = more powerful Control Flow obfuscation (slowly!)
@@ -25,6 +25,8 @@
 
  GitHub:
  -> https://github.com/DosX-dev/obfus.h
+
+ (Full documentation and examples are available on the GitHub page)
 */
 
 #ifndef OBFH
@@ -37,7 +39,7 @@
 // if virtualization disabled
 #if NO_OBF == 1 || VIRT != 1
 #define HIDE_STRING(str) str
-#define ANTI_DEBUG 0
+
 #define VM_ADD(num1, num2) num1 + num2
 #define VM_SUB(num1, num2) num1 - num2
 #define VM_MUL(num1, num2) num1 *num2
@@ -968,9 +970,9 @@ int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
 
 /*
 void antiDebugMessage() {
-																																																																																																																																																																																																																																																																typedef int(WINAPI * MessageBoxAType)(HWND, LPCSTR, LPCSTR, UINT);
-																																																																																																																																																																																																																																																																MessageBoxAType MessageBoxA = (MessageBoxAType)GetProcAddress(LoadLibraryA("user32.dll"), "MessageBoxA");
-																																																																																																																																																																																																																																																																if (MessageBoxA != NULL) MessageBoxA(NULL, "Debugging prevented.", "", 0x10);
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																typedef int(WINAPI * MessageBoxAType)(HWND, LPCSTR, LPCSTR, UINT);
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																MessageBoxAType MessageBoxA = (MessageBoxAType)GetProcAddress(LoadLibraryA("user32.dll"), "MessageBoxA");
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																if (MessageBoxA != NULL) MessageBoxA(NULL, "Debugging prevented.", "", 0x10);
 }
 */
 
@@ -1306,11 +1308,11 @@ int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION
 
 /*
 #define printf(...) (([](...) -> int {                                                                        \
-																																																																																																																																																																																																																																																																static void (*printf_proxy)(const char *, ...) = NULL;                                                    \
-																																																																																																																																																																																																																																																																if (printf_proxy == NULL) {                                                                               \
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																printf_proxy = (void (*)(const char *, ...))GetProcAddress(GetModuleHandleA("msvcrt.dll"), "printf"); \
-																																																																																																																																																																																																																																																																}                                                                                                         \
-																																																																																																																																																																																																																																																																return printf_proxy(__VA_ARGS__);                                                                         \
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																static void (*printf_proxy)(const char *, ...) = NULL;                                                    \
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																if (printf_proxy == NULL) {                                                                               \
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																printf_proxy = (void (*)(const char *, ...))GetProcAddress(GetModuleHandleA("msvcrt.dll"), "printf"); \
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																}                                                                                                         \
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																return printf_proxy(__VA_ARGS__);                                                                         \
 })(__VA_ARGS__))
 */
 
