@@ -7,6 +7,7 @@
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
 - 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
+- 🧶 **Strings Hiding**: Hides all strings in a file and dynamically collects them when executed.
 - 🚫 **Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
 - 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
 - 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
@@ -47,8 +48,21 @@ In critical places in the code you can use the `ANTI_DEBUG;` construct. For exam
 ```c
 ANTI_DEBUG;
 if (!licenseExpired()) {
-    // ...
+	// ...
 }
+```
+
+## 🧶 Strings hiding
+The `HIDE_STRING(s)` obfuscates and visually hides strings by mutating them, significantly complicating their discovery and patching in the source code. When declared in this manner, the strings are assembled on the stack through `mov` instructions rather than being loaded all at once. This method ensures that the strings are not statically declared and are instead constructed at runtime, making them less susceptible to static analysis. However, it is important to note that this feature cannot be used for hiding static fields during their declaration, as it involves a function call.
+
+> [!IMPORTANT]
+> Some decompilers may still reveal them due to static optimizations. In disassembler output, the code will appear complex and cumbersome, which can deter straightforward analysis but may not fully prevent determined reverse engineering efforts.
+
+An example of calling the `printf` function from the standard library with static hiding of the message and its decryption on the stack:
+```c
+char *hidden_message = HIDE_STRING("Hello, world!");
+// ...
+printf(hidden_message);
 ```
 
 ## 👺 Virtualization
@@ -78,12 +92,13 @@ This is a protection technique in which certain calculations are performed throu
 | **`VM_GTR_DBL`** | *BOOL*         |`>` | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
 > The virtual machine does not support some basic `double` comparison operations.
 
-You can use logical operators that use virtual machine calls to further complicate the understanding of your code.
+You can use logical operators that use virtual machine calls to further complicate the understanding of your code:
 | Operator        | Description               |
 |-----------------|---------------------------|
 | **`VM_IF`**     | Use instead of `if`       |
 | **`VM_ELSE_IF`**| Use instead of `else if`  |
 | **`VM_ELSE`**   | Use instead of `else`     |
+> This is not a complete replacement for if/else, but is just a complication of standard operators.
 
 A simple example of using virtualization:
 ```c
@@ -93,18 +108,18 @@ A simple example of using virtualization:
 
 // if ((2 + 2) == 4) { ... }
 VM_IF (VM_EQU(VM_ADD(2, 2), 4)) {
-    printf("2 + 2 == 4!");
+	printf("2 + 2 == 4!");
 }
 
 // if (condition1) { ... }
 // else if (condition2) { ... }
 // else { ... }
 VM_IF (condition1) {
-    // if
+	// if
 } VM_ELSE_IF (condition2) {
-    // else if
+	// else if
 } VM_ELSE {
-    // else
+	// else
 }
 ```
 
@@ -130,23 +145,23 @@ If you need advanced protection against skilled reversers, use `CFLOW_V2` and `A
 #include "obfus.h"
 
 void main() {
-    char *out = malloc(256);
+	char *out = malloc(256);
 
-    strcpy(out, "Hello, world!\n");
+	strcpy(out, HIDE_STRING("Hello, world!\n"));
 
-    if (out) {
-        printf(out);
-    } else {
-        printf("Error!\n");
-    }
+	if (out) {
+		printf(out);
+	} else {
+		printf("Error!\n");
+	}
 
-    free(out);
+	free(out);
 
-    int result = VM_ADD(5, 7); // 5 + 7
+	int result = VM_ADD(5, 7); // 5 + 7
 
-    VM_IF (VM_EQU(result, 12)) { // (5 + 7) == 12
-        printf("5 + 7 == 12");
-    }
+	VM_IF (VM_EQU(result, 12)) { // (5 + 7) == 12
+		printf("5 + 7 == 12");
+	}
 }
 ```
 
@@ -178,19 +193,19 @@ The code of a program (and its original original logic) protected using **[obfus
 <!-- ```c
 // BEFORE OBFUSCATION       
 __int64 sub_4010B8() {
-    printf("Hello, world!");
-    return 0i64;
+	printf("Hello, world!");
+	return 0i64;
 }
 ```
 
 ```c
 // AFTER OBFUSCATION
  __int64 sub_401000() {
-     *(_DWORD *)(a2 + v2) += v2;
-     if ( !(_DWORD)a2 )
-       JUMPOUT(0x100C3C9);
-     MEMORY[0x100C3C9] &= a2;
-     return (loc_4017B1)(asc_404159);
+	 *(_DWORD *)(a2 + v2) += v2;
+	 if ( !(_DWORD)a2 )
+	   JUMPOUT(0x100C3C9);
+	 MEMORY[0x100C3C9] &= a2;
+	 return (loc_4017B1)(asc_404159);
  }
 ``` -->
 
