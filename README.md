@@ -54,7 +54,7 @@ if (!licenseExpired()) {
 ```
 
 ## 🧶 Strings hiding
-The `HIDE_STRING(s)` obfuscates and visually hides strings by mutating them, significantly complicating their discovery and patching in the source code. When declared in this manner, the strings are assembled on the stack through `mov` instructions rather than being loaded all at once. This method ensures that the strings are not statically declared and are instead constructed at runtime, making them less susceptible to static analysis. However, it is important to note that this feature cannot be used for hiding static fields during their declaration, as it involves a function call.
+The `HIDE_STRING(str)` obfuscates and visually hides strings by mutating them, significantly complicating their discovery and patching in the source code. When declared in this manner, the strings are assembled on the stack through `mov` instructions rather than being loaded all at once. This method ensures that the strings are not statically declared and are instead constructed at runtime, making them less susceptible to static analysis. However, it is important to note that this feature cannot be used for hiding static fields during their declaration, as it involves a function call.
 
 > [!IMPORTANT]
 > Some decompilers may still reveal them due to static optimizations. In disassembler output, the code will appear complex and cumbersome, which can deter straightforward analysis but may not fully prevent determined reverse engineering efforts.
