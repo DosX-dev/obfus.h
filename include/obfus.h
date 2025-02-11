@@ -1011,119 +1011,99 @@ void loop() {
 #define ANTI_DEBUG 0
 #endif
 
-void getStdLibName(char *buffer) OBFH_SECTION_ATTRIBUTE {
+char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     NOP_FLOOD;
     obfh_junk_func_args(_0 + _3);
     obfh_junk_func_args(_3 - _2);
 
+    // char *msvcrtName = malloc(_7);
+    static char msvcrtName[7] = "\0\0\0\0\0\0\0";
+
     ANTI_DEBUG;
 
-    buffer[_3 + _2 + _1] = 0;
+    msvcrtName[_3 + _2 + _1] = 0;
     BREAK_STACK_8;
-    buffer[_1 + _2 + _2] = obfh_int_proxy(_t);
-    buffer[_2 * _1 + _2] = _r;
+    msvcrtName[_1 + _2 + _2] = int_proxy(_t);
+    msvcrtName[_2 * _1 + _2] = _r;
     NOP_FLOOD;
-    buffer[(_4 * _2) - _5] = _c;
-    buffer[_1 * _2] = _v;
-    buffer[_0 + _1] = _s;
-    buffer[_8 - _3 - _5] = _m;
+    msvcrtName[(_4 * _2) - _5] = _c;
+    msvcrtName[_1 * _2] = _v;
+    msvcrtName[_0 + _1] = _s;
+    msvcrtName[_8 - _3 - _5] = _m;
 
     NOP_FLOOD;
+
+    return msvcrtName;
 }
 
-void getStdLibName_1(char *buffer) {
+char *getStdLibName_1() {
     BREAK_STACK_3;
-    getStdLibName(buffer);
+    return getStdLibName();
 }
-
-void getStdLibName_2(char *buffer) {
+char *getStdLibName_2() {
     BREAK_STACK_7;
-    getStdLibName_1(buffer);
+    return getStdLibName_1();
 }
-
-void getStdLibName_3(char *buffer) {
+char *getStdLibName_3() {
     BREAK_STACK_6;
-    getStdLibName_2(buffer);
+    return getStdLibName_2();
 }
-
-void getStdLibName_4(char *buffer) {
+char *getStdLibName_4() {
     BREAK_STACK_5;
-    getStdLibName_3(buffer);
+    return getStdLibName_3();
 }
-
-void getStdLibName_5(char *buffer) {
+char *getStdLibName_5() {
     BREAK_STACK_4;
-    getStdLibName_4(buffer);
+    return getStdLibName_4();
 }
-
-void getStdLibName_6(char *buffer) {
+char *getStdLibName_6() {
     BREAK_STACK_3;
-    getStdLibName_5(buffer);
+    return getStdLibName_5();
 }
-
-void getStdLibName_7(char *buffer) {
+char *getStdLibName_7() {
     BREAK_STACK_2;
-    getStdLibName_6(buffer);
+    return getStdLibName_6();
 }
-
-void getStdLibName_8(char *buffer) {
+char *getStdLibName_8() {
     BREAK_STACK_1;
-    getStdLibName_7(buffer);
+    return getStdLibName_7();
 }
-
-void getStdLibName_9(char *buffer) {
+char *getStdLibName_9() {
     BREAK_STACK_4;
-    getStdLibName_8(buffer);
+    return getStdLibName_8();
 }
-
-void getStdLibName_10(char *buffer) {
+char *getStdLibName_10() {
     BREAK_STACK_7;
-    getStdLibName_9(buffer);
+    return getStdLibName_9();
 }
-
-void getStdLibName_11(char *buffer) {
+char *getStdLibName_11() {
     BREAK_STACK_2;
-    getStdLibName_10(buffer);
+    return getStdLibName_10();
 }
-
-void getStdLibName_12(char *buffer) {
+char *getStdLibName_12() {
     BREAK_STACK_6;
-    getStdLibName_11(buffer);
+    return getStdLibName_11();
 }
-
-void getStdLibName_13(char *buffer) {
+char *getStdLibName_13() {
     BREAK_STACK_1;
-    getStdLibName_12(buffer);
+    return getStdLibName_12();
 }
-
-void getStdLibName_14(char *buffer) {
+char *getStdLibName_14() {
     BREAK_STACK_1;
-    getStdLibName_13(buffer);
+    return getStdLibName_13();
 }
-
-void getStdLibName_15(char *buffer) {
+char *getStdLibName_15() {
     BREAK_STACK_1;
-    getStdLibName_14(buffer);
+    return getStdLibName_14();
 }
-
-void getStdLibName_16(char *buffer) {
+char *getStdLibName_16() {
     BREAK_STACK_9;
-    getStdLibName_15(buffer);
+    return getStdLibName_15();
 }
-
-static char stdLibName[32];
-static char isStdLibNameCached = 0;
-
 char *getStdLibName_proxy() {
     BREAK_STACK_7;
-    if (!isStdLibNameCached) {
-        getStdLibName_16(stdLibName);
-        isStdLibNameCached = 1;
-    }
-    printf(stdLibName);
-    _getch();
-    return "msvcrt";
+    return getStdLibName_16();
 }
 
 // printf
