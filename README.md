@@ -194,20 +194,21 @@ The code of a program (and its original original logic) protected using **[obfus
 
 > **This is what all hidden strings via `HIDE_STRING` feature look like in the disassembler (x86-64 arch):**
 > ```asm
-> ; PROTECTED STRING:                  ; ORIGINAL STRING:
-> ; . . .                              ; . . .
-> mov eax, 48h                         lea rax, aHelloWorld
-> mov [rbp-0Fh], al                    mov r11, rax
-> mov eax, 65h                         ; . . .
-> mov [rbp-0Eh], al
-> mov eax, 6Ch
-> mov [rbp-0Dh], al
-> mov eax, 6Ch
-> mov [rbp-0Ch], al
-> mov eax, 6Fh
-> mov [rbp-0Bh], al
-> mov eax, 2Ch
-> ; etc . . .
+>   ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
+>   ; PROTECTED STRING:                  ; ORIGINAL STRING:         ;
+>   mov eax, 48h                         lea rax, aHelloWorld       ;
+>   mov [rbp-0Fh], al                    mov r11, rax               ;
+>   mov eax, 65h                         ; . . .                    ;
+>   mov [rbp-0Eh], al                                               ;
+>   mov eax, 6Ch                                                    ;
+>   mov [rbp-0Dh], al                                               ;
+>   mov eax, 6Ch                                                    ;
+>   mov [rbp-0Ch], al                                               ;
+>   mov eax, 6Fh                                                    ;
+>   mov [rbp-0Bh], al                                               ;
+>   mov eax, 2Ch                                                    ;
+>   ; etc . . .                                                     ;
+>   ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 > ```
 
 <!-- ```c
