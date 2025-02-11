@@ -1024,7 +1024,7 @@ char *getStdLibName() OBFH_SECTION_ATTRIBUTE {
 
     msvcrtName[_3 + _2 + _1] = 0;
     BREAK_STACK_8;
-    msvcrtName[_1 + _2 + _2] = int_proxy(_t);
+    msvcrtName[_1 + _2 + _2] = obfh_int_proxy(_t);
     msvcrtName[_2 * _1 + _2] = _r;
     NOP_FLOOD;
     msvcrtName[(_4 * _2) - _5] = _c;
