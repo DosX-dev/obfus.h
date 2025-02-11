@@ -187,10 +187,28 @@ You can use [special script](include-updater/obfh-update.cmd) for Windows to get
 The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
 > **What the diagrammatic code will look like after obfuscation:**
-![](pics/before_and_after.png)
+> ![](pics/before_and_after.png)
 
 > **The reverser will see something like this if he tries to use a decompiler:**
-![](pics/before_and_after_2.png)
+> ![](pics/before_and_after_2.png)
+
+> **This is what all hidden strings via `HIDE_STRING` feature look like in the disassembler (x86-64 arch):**
+> ```asm
+> ; PROTECTED STRING:                  ; ORIGINAL STRING:
+> ; . . .                              ; . . .
+> mov eax, 48h                         lea rax, aHelloWorld
+> mov [rbp-0Fh], al                    mov r11, rax
+> mov eax, 65h                         ; . . .
+> mov [rbp-0Eh], al
+> mov eax, 6Ch
+> mov [rbp-0Dh], al
+> mov eax, 6Ch
+> mov [rbp-0Ch], al
+> mov eax, 6Fh
+> mov [rbp-0Bh], al
+> mov eax, 2Ch
+> ; etc . . .
+> ```
 
 <!-- ```c
 // BEFORE OBFUSCATION       
