@@ -201,7 +201,8 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "xorl %eax, %eax" __NEXT__ \
         "jz 1f" __NEXT__           \
         ".byte 0xE8" __NEXT__      \
-        "1:")
+        "1:" __NEXT__              \
+        "cpuid")
 
 #define BREAK_STACK_2 \
     if (_0) __obfh_asm__(".byte 0x00");
@@ -332,20 +333,25 @@ int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
 double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     obfh_junk_func_args(RND(0, 1000), RND(0, 1000));
-    FAKE_CPUID;
     return (value * _1);
 }
 
+int obfh_condition_true();
+
 char *obfh_string_proxy(char *string) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    static char string_to_return[4096];
+
+    if (!obfh_condition_true() || _0) {
+        BAD_JMP;
+    }
+
+    char string_to_return[4096];
     strcpy(string_to_return, string);
     return string_to_return;
 }
 
 int obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    FAKE_CPUID;
     return _1 && TRUE;
 }
 
