@@ -5,7 +5,6 @@
         ██║   ██║██╔══██╗██╔══╝  ██║   ██║╚════██║     ██╔══██║
         ╚██████╔╝██████╔╝██║     ╚██████╔╝███████║ ██╗ ██║  ██║
          ╚═════╝ ╚═════╝ ╚═╝      ╚═════╝ ╚══════╝ ╚═╝ ╚═╝  ╚═╝
-
                   Very reliable armor for your C programs!
                         Coded by (C) DosX, 2025
 
@@ -337,9 +336,11 @@ double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     return (value * _1);
 }
 
-char *obfh_string_proxy(int string) OBFH_SECTION_ATTRIBUTE {
+char *obfh_string_proxy(char *string) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    return string;
+    static char string_to_return[4096];
+    strcpy(string_to_return, string);
+    return string_to_return;
 }
 
 int obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
@@ -512,6 +513,7 @@ static int _salt = SALT_CMD;
 
 long double obfhVmResult = 0;
 long double Obfh_VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_1;
     goto firstFakePoint;
 
     // Restore values
