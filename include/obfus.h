@@ -172,8 +172,10 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 #define RND(min, max) \
     (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
 
+#define STACK_STRING(str) ((char[]){str})
+
 #define HIDE_STRING(str) \
-    _0 < RND(1, 255) ? obfh_string_proxy((char[]){str "\0"}) : RND(0, 255)
+    _0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), &obfh_condition_true) : RND(0, 255)
 
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
                             _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
@@ -221,7 +223,8 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f" __NEXT__           \
         "mov $4, %eax" __NEXT__    \
         ".byte 0x00" __NEXT__      \
-        "1:")
+        "1:" __NEXT__              \
+        "cpuid")
 
 #define BREAK_STACK_5              \
     __obfh_asm__(                  \
@@ -232,7 +235,8 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "xorl %eax, %edx" __NEXT__ \
         "jz 1f" __NEXT__           \
         ".byte 0x20" __NEXT__      \
-        "1:")
+        "1:" __NEXT__              \
+        "cpuid")
 
 #define BREAK_STACK_6              \
     __obfh_asm__(                  \
@@ -241,28 +245,32 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "mov %eax, %edx" __NEXT__  \
         "jz 1f" __NEXT__           \
         ".byte 0xE8" __NEXT__      \
-        "1:")
+        "1:" __NEXT__              \
+        "cpuid")
 
 #define BREAK_STACK_7              \
     __obfh_asm__(                  \
         "xorl %edx, %edx" __NEXT__ \
         "jz 1f" __NEXT__           \
         ".byte 0xE8" __NEXT__      \
-        "1:")
+        "1:" __NEXT__              \
+        "cpuid")
 
 #define BREAK_STACK_8              \
     __obfh_asm__(                  \
         "xorl %eax, %eax" __NEXT__ \
         "jz 1f" __NEXT__           \
         ".byte 0x50" __NEXT__      \
-        "1:")
+        "1:" __NEXT__              \
+        "cpuid")
 
 #define BREAK_STACK_9               \
     __obfh_asm__(                   \
         "xorl %edx, %edx" __NEXT__  \
         "jz 1f" __NEXT__            \
         ".byte 0x00, 0x00" __NEXT__ \
-        "1:")
+        "1:" __NEXT__               \
+        "cpuid")
 
 #if defined(__x86_64__)
 #define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4")
@@ -271,6 +279,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 #endif
 
 void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_1;
     __obfh_asm__("nop");
     return;
 }
@@ -338,15 +347,17 @@ double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
 
 int obfh_condition_true();
 
-char *obfh_string_proxy(char *string) OBFH_SECTION_ATTRIBUTE {
+// ... only for junk data
+char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
 
     if (!obfh_condition_true() || _0) {
         BAD_JMP;
     }
 
+    // ['\0', 's', 't', 'r', 'i', 'n', 'g'] => "string"
     char string_to_return[4096];
-    strcpy(string_to_return, string);
+    strcpy(string_to_return, string + 1);
     return string_to_return;
 }
 
