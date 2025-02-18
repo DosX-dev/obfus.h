@@ -86,8 +86,6 @@
 #define __asm__(...)
 #endif
 
-#define __NEXT__ "\n"
-
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
 
 #define DATA_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".data")  // Data section
@@ -198,12 +196,12 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
-#define BREAK_STACK_1              \
-    __obfh_asm__(                  \
-        "xorl %eax, %eax" __NEXT__ \
-        "jz 1f" __NEXT__           \
-        ".byte 0xE8" __NEXT__      \
-        "1:" __NEXT__              \
+#define BREAK_STACK_1      \
+    __obfh_asm__(          \
+        "xorl %eax, %eax;" \
+        "jz 1f;"           \
+        ".byte 0xE8;"      \
+        "1:"               \
         "cpuid")
 
 #define BREAK_STACK_2 \
@@ -215,61 +213,61 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
             __obfh_asm__(".byte 0x00, 0x00"); \
     }
 
-#define BREAK_STACK_4              \
-    __obfh_asm__(                  \
-        "xorl %ebx, %ebx" __NEXT__ \
-        "xorl %edx, %edx" __NEXT__ \
-        "xorl %ebx, %edx" __NEXT__ \
-        "jz 1f" __NEXT__           \
-        "mov $4, %eax" __NEXT__    \
-        ".byte 0x00" __NEXT__      \
-        "1:" __NEXT__              \
+#define BREAK_STACK_4      \
+    __obfh_asm__(          \
+        "xorl %ebx, %ebx;" \
+        "xorl %edx, %edx;" \
+        "xorl %ebx, %edx;" \
+        "jz 1f;"           \
+        "mov $4, %eax;"    \
+        ".byte 0x00;"      \
+        "1:"               \
         "cpuid")
 
-#define BREAK_STACK_5              \
-    __obfh_asm__(                  \
-        "xorl %ebx, %ebx" __NEXT__ \
-        "xorl %eax, %eax" __NEXT__ \
-        "mov %eax, %ebx" __NEXT__  \
-        "mov %edx, %ebx" __NEXT__  \
-        "xorl %eax, %edx" __NEXT__ \
-        "jz 1f" __NEXT__           \
-        ".byte 0x20" __NEXT__      \
-        "1:" __NEXT__              \
+#define BREAK_STACK_5      \
+    __obfh_asm__(          \
+        "xorl %ebx, %ebx;" \
+        "xorl %eax, %eax;" \
+        "mov %eax, %ebx;"  \
+        "mov %edx, %ebx;"  \
+        "xorl %eax, %edx;" \
+        "jz 1f;"           \
+        ".byte 0x20;"      \
+        "1:"               \
         "cpuid")
 
-#define BREAK_STACK_6              \
-    __obfh_asm__(                  \
-        "xorl %edx, %edx" __NEXT__ \
-        "xorl %eax, %eax" __NEXT__ \
-        "mov %eax, %edx" __NEXT__  \
-        "jz 1f" __NEXT__           \
-        ".byte 0xE8" __NEXT__      \
-        "1:" __NEXT__              \
+#define BREAK_STACK_6      \
+    __obfh_asm__(          \
+        "xorl %edx, %edx;" \
+        "xorl %eax, %eax;" \
+        "mov %eax, %edx;"  \
+        "jz 1f;"           \
+        ".byte 0xE8;"      \
+        "1:"               \
         "cpuid")
 
-#define BREAK_STACK_7              \
-    __obfh_asm__(                  \
-        "xorl %edx, %edx" __NEXT__ \
-        "jz 1f" __NEXT__           \
-        ".byte 0xE8" __NEXT__      \
-        "1:" __NEXT__              \
+#define BREAK_STACK_7      \
+    __obfh_asm__(          \
+        "xorl %edx, %edx;" \
+        "jz 1f;"           \
+        ".byte 0xE8;"      \
+        "1:"               \
         "cpuid")
 
-#define BREAK_STACK_8              \
-    __obfh_asm__(                  \
-        "xorl %eax, %eax" __NEXT__ \
-        "jz 1f" __NEXT__           \
-        ".byte 0x50" __NEXT__      \
-        "1:" __NEXT__              \
+#define BREAK_STACK_8      \
+    __obfh_asm__(          \
+        "xorl %eax, %eax;" \
+        "jz 1f;"           \
+        ".byte 0x50;"      \
+        "1:"               \
         "cpuid")
 
-#define BREAK_STACK_9               \
-    __obfh_asm__(                   \
-        "xorl %edx, %edx" __NEXT__  \
-        "jz 1f" __NEXT__            \
-        ".byte 0x00, 0x00" __NEXT__ \
-        "1:" __NEXT__               \
+#define BREAK_STACK_9       \
+    __obfh_asm__(           \
+        "xorl %edx, %edx;"  \
+        "jz 1f;"            \
+        ".byte 0x00, 0x00;" \
+        "1:"                \
         "cpuid")
 
 #if defined(__x86_64__)
@@ -290,18 +288,18 @@ void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     return;
 }
 
-#define __CRASH               \
-    __obfh_asm__(             \
-        ".byte 0xED" __NEXT__ \
-        "int $3");            \
+#define __CRASH       \
+    __obfh_asm__(     \
+        ".byte 0xED;" \
+        "int $3");    \
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
 #define FALSE (((_3 + _6 + (RND(0, 1000) * _0)) - _9) * RND(0, 255))
 
 #define FAKE_CPUID __obfh_asm__( \
-    "nop" __NEXT__               \
-    "cpuid" __NEXT__             \
+    "nop;"                       \
+    "cpuid;"                     \
     "nop")
 
 // Doesn't work
@@ -315,7 +313,7 @@ void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     }                                              \
     do {                                           \
         __obfh_asm__(                              \
-            "nop" __NEXT__                         \
+            "nop;"                                 \
             "nop");                                \
     } while (RND(0, 200) * _0)
 
@@ -575,27 +573,33 @@ letsExecute:
 
 #if defined(__x86_64__) || defined(_M_X64)  // fake code, just for decompiler break
             __obfh_asm__(
-                "mov %%rax, %%rbx" __NEXT__
-                "xor %%rcx, %%rax" __NEXT__
-                "shr $8, %%rdx" __NEXT__
-                "shl $4, %%rax" __NEXT__
-                "push %%rbx" __NEXT__
-                "pop %%rbx" __NEXT__
-                "inc %%rax" __NEXT__
-                "dec %%rdx" : : : "rax",
-                "rbx", "rcx", "rdx");
+                "mov %%rax, %%rbx;"
+                "xor %%rcx, %%rax;"
+                "shr $8, %%rdx;"
+                "shl $4, %%rax;"
+                "push %%rbx;"
+                "pop %%rbx;"
+                "inc %%rax;"
+                "dec %%rdx"
+                :
+                :
+                : "rax",
+                  "rbx", "rcx", "rdx");
 #elif defined(__i386__) || defined(_M_IX86)
             __obfh_asm__(
-                "mov %%ebx, %%eax" __NEXT__
-                "add %%ecx, %%eax" __NEXT__
-                "sub %%edx, %%ebx" __NEXT__
-                "shl %%cl, %%ecx" __NEXT__
-                "push %%ebx" __NEXT__
-                "pop %%ebx" __NEXT__
-                "sar %%cl, %%ecx" __NEXT__
-                "or %%edx, %%eax" __NEXT__
-                "dec %%edx" : : : "eax",
-                "ebx", "ecx", "edx");
+                "mov %%ebx, %%eax;"
+                "add %%ecx, %%eax;"
+                "sub %%edx, %%ebx;"
+                "shl %%cl, %%ecx;"
+                "push %%ebx;"
+                "pop %%ebx;"
+                "sar %%cl, %%ecx;"
+                "or %%edx, %%eax;"
+                "dec %%edx"
+                :
+                :
+                : "eax",
+                  "ebx", "ecx", "edx");
 #else
 #endif
         case -8 * __LINE__:
@@ -1101,7 +1105,7 @@ char *getFreadName_proxy() {
     return "fread";
     // return ({ char result[32]; sprintf(result, getCharMask(_5), _f, _r, _e, _a, _d); result; });
 }
-#define fread(...) ((size_t (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFreadName_proxy()))(__VA_ARGS__)
+#define fread(...) ((size_t(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFreadName_proxy()))(__VA_ARGS__)
 
 // fwrite
 char *getFwriteName_proxy() {
@@ -1110,7 +1114,7 @@ char *getFwriteName_proxy() {
     return "fwrite";
     // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _w, _r, _i, _t, _e); result; });
 }
-#define fwrite(...) ((size_t (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFwriteName_proxy()))(__VA_ARGS__)
+#define fwrite(...) ((size_t(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFwriteName_proxy()))(__VA_ARGS__)
 
 // exit
 char *getExitName_proxy() {
@@ -1119,7 +1123,7 @@ char *getExitName_proxy() {
     return "exit";
     // return ({ char result[32]; sprintf(result, getCharMask(_4), _e, _x, _i, _t); result; });
 }
-#define exit(...) ((size_t (*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getExitName_proxy()))(__VA_ARGS__)
+#define exit(...) ((size_t(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getExitName_proxy()))(__VA_ARGS__)
 
 // strcpy
 char *getStrcpyName_proxy() {
@@ -1443,7 +1447,7 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
 #define nan(x) nan(_MUTATE_MATH(x))
 
 __declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
-    return "Moo";
+    return HIDE_STRING("Moo");
 }
 
 /*
