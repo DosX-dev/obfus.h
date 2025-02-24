@@ -409,10 +409,10 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 #define if(condition)                                              \
     if (validateBlock() && obfh_int_proxy(RND(1, 1000000)) < _0) { \
         __obfh_asm__(".byte 0x00");                                \
-    } else if (obfh_int_proxy((RND(0, 1000)) > _0 && (RND(2, 1000) > obfh_condition_true() && obfh_condition_proxy(RND(0, 1000000), condition) && RND(1, 99999999) > _0 && (obfh_int_proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
+    } else if (obfh_int_proxy((RND(1, 1000)) > _0 && (RND(2, 1000) > obfh_condition_true() && obfh_condition_proxy(RND(1, 1000000), condition) && RND(1, 99999999) > _0 && (obfh_int_proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
 
 // for (V2)
-#define for(data) for (data && obfh_int_proxy(TRUE * (RND(0, 1000000))) + FALSE || TRUE)
+#define for(data) for (data && obfh_int_proxy(TRUE * (RND(1, 1000000))) + FALSE || TRUE)
 
 // return
 #define return \
@@ -427,10 +427,10 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 // Control flow obfuscation for 'if' & 'for', V1
 
 // if (V1)
-#define if(condition) if (validateBlock() && (RND(0, 1000)) > _0 && (RND(2, 1000) > obfh_condition_true() && obfh_condition_proxy(RND(0, 1000000), condition) && RND(1, 9999999) > _0 && (obfh_int_proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
+#define if(condition) if (validateBlock() && (RND(1, 1000)) > _0 && (RND(2, 1000) > obfh_condition_true() && obfh_condition_proxy(RND(1, 1000000), condition) && RND(1, 9999999) > _0 && (obfh_int_proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
 
 // for (V1)
-#define for(data) for (data && obfh_int_proxy(TRUE * (RND(0, 10000))) + FALSE || _1)
+#define for(data) for (data && obfh_int_proxy(TRUE * (RND(1, 10000))) + FALSE || _1)
 
 #endif
 
