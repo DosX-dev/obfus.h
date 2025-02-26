@@ -403,57 +403,56 @@ int isBlockValidated() {  // returns true if validateBlock() executed
 // Control Flow (global)
 #if NO_CFLOW != 1
 
-#if CFLOW_V2 == 1  // Control flow obfuscation for 'if' & 'for', V2 (strong!)
+unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
+    {
+        unsigned int lo, hi;
+        __obfh_asm__(".byte 0x0f, 0x31;"  // rdtsc
+                     : "=a"(lo), "=d"(hi));
 
-// if (V2)
-#define if(condition)                                              \
-    if (validateBlock() && obfh_int_proxy(RND(1, 1000000)) < _0) { \
-        __obfh_asm__(".byte 0x00");                                \
-    } else if (obfh_int_proxy((RND(1, 1000)) > _0 && (RND(2, 1000) > obfh_condition_true() && obfh_condition_proxy(RND(1, 1000000), condition) && RND(1, 99999999) > _0 && (obfh_int_proxy(RND(0, 1000)) < RND(1001, 100000000)))) * TRUE && isBlockValidated())
+        unsigned long long rdtscp_result = ((unsigned long long)hi << 32) | lo;
 
-// for (V2)
-#define for(data) for (data && obfh_int_proxy(TRUE * (RND(1, 1000000))) + FALSE || TRUE)
+        if (rdtscp_result == obfh_int_proxy(0)) __obfh_asm__(".byte 0xE8;");
+    }
 
-// return
-#define return \
-    for (int _i = _0; _i < RND(1, 100); _i++) return
+    unsigned long long time;
+    unsigned int low, high;
+    __obfh_asm__(".byte 0x0f, 0xc7, 0xf8;"  // rdtscp
+                 : "=a"(low), "=d"(high));
+    time = ((unsigned long long)high << 32) | low;
+    return time;
+}
 
-// break
-#define break \
-    if (obfh_int_proxy(_1)) break
+#define if(cond)                                                                     \
+    if ((float)__s_rdtsc(RND(0, 255)) == (float)((RND(1, 255) * -1)) * (float)1.0) { \
+        __obfh_asm__(".byte 0xB8;");                                                 \
+    } else if (cond)
 
+#if CFLOW_V2
+#define OBFUS_TRUE_CONDITION_BLOCK                                                                                      \
+    ((&__s_rdtsc - &__s_rdtsc) + 1) != 0 && (float)__s_rdtsc(RND(0, 255)) != (double)0.1 &&                             \
+            (float)__s_rdtsc((float)RND(0, 255), (float)RND(0, 255), (float)RND(0, 255)) && __s_rdtsc((int)RND(0, 255)) \
+        ? ((double)__s_rdtsc(RND(0, 255)) ? (int)RND(0, 255) : (float)RND(0, 255))                                      \
+        : (float)RND(0, 255) + (double)__s_rdtsc(RND(0, 255))
 #else
-
-// Control flow obfuscation for 'if' & 'for', V1
-
-// if (V1)
-#define if(condition) if (validateBlock() && (RND(1, 1000)) > _0 && (RND(2, 1000) > obfh_condition_true() && obfh_condition_proxy(RND(1, 1000000), condition) && RND(1, 9999999) > _0 && (obfh_int_proxy(RND(0, 1000)) < RND(1001, 100000000))) && isBlockValidated())
-
-// for (V1)
-#define for(data) for (data && obfh_int_proxy(TRUE * (RND(1, 10000))) + FALSE || _1)
-
+#define OBFUS_TRUE_CONDITION_BLOCK                                                                                      \
+    (float)__s_rdtsc(RND(0, 255)) != (double)0.1 &&                                                                     \
+            (float)__s_rdtsc((float)RND(0, 255), (float)RND(0, 255), (float)RND(0, 255)) && __s_rdtsc((int)RND(0, 255)) \
+        ? (double)RND(0, 255)                                                                                           \
+        : (float)RND(0, 255)
 #endif
 
-// else
-#define else                                                                           \
-    else if (_0 > RND(1, 1000)) {                                                      \
-        obfh_junk_func_args(RND(0, 1000));                                             \
-        __obfh_asm__(".byte 0x3C");                                                    \
-    }                                                                                  \
-    else if (RND(0, 10) == (RND(11, 100))) {                                           \
-        BREAK_STACK_3;                                                                 \
-        obfh_int_proxy(_3 - RND(0, 10000));                                            \
-    }                                                                                  \
-    else if (FALSE * RND(0, 1000)) {                                                   \
-        BREAK_STACK_1;                                                                 \
-    }                                                                                  \
-    else if (FALSE * (obfh_int_proxy(RND(0, 1000)) ? RND(1, 99999) : RND(1, 99999))) { \
-        __obfh_asm__(".byte 0xEB");                                                    \
-    }                                                                                  \
-    else
+#define break \
+    if (OBFUS_TRUE_CONDITION_BLOCK) break
 
-// while
-#define while(condition) while ((RND(0, 1000)) > _0 && _8 > _3 && obfh_condition_true() && RND(1, 9999999999) > _0 && obfh_condition_proxy(RND(0, 1000), condition) && _5)
+#define switch(...)                 \
+    if (OBFUS_TRUE_CONDITION_BLOCK) \
+        switch (__VA_ARGS__)
+
+#define while(...) while ((&__s_rdtsc != 0) == (__VA_ARGS__))
+
+#define for(...)                    \
+    if (OBFUS_TRUE_CONDITION_BLOCK) \
+        for (__VA_ARGS__)
 
 #endif
 // =============================================================
@@ -580,7 +579,7 @@ letsExecute:
                 "push %%rbx;"
                 "pop %%rbx;"
                 "inc %%rax;"
-                "dec %%rdx"
+                "dec %%rdx;"
                 :
                 :
                 : "rax",
@@ -595,7 +594,7 @@ letsExecute:
                 "pop %%ebx;"
                 "sar %%cl, %%ecx;"
                 "or %%edx, %%eax;"
-                "dec %%edx"
+                "dec %%edx;"
                 :
                 :
                 : "eax",
