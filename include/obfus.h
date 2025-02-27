@@ -425,7 +425,7 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
 #define if(cond)                                                                     \
     if ((float)__s_rdtsc(RND(0, 255)) == (float)((RND(1, 255) * -1)) * (float)1.0) { \
         __obfh_asm__(".byte 0xB8;");                                                 \
-    } else if (cond)
+    } else if (&__s_rdtsc && (cond ? (_1) : (_0)))
 
 #if CFLOW_V2
 #define OBFUS_TRUE_CONDITION_BLOCK                                                                                      \
@@ -448,7 +448,7 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     if (OBFUS_TRUE_CONDITION_BLOCK) \
         switch (__VA_ARGS__)
 
-#define while(...) while ((&__s_rdtsc != 0) == (__VA_ARGS__))
+#define while(...) while ((float)__s_rdtsc(RND(0, 255)) != 0.1 && (&__s_rdtsc != !&__s_rdtsc) && (__VA_ARGS__))
 
 #define for(...)                    \
     if (OBFUS_TRUE_CONDITION_BLOCK) \
