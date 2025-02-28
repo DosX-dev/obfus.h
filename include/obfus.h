@@ -173,7 +173,7 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 #define STACK_STRING(str) ((char[]){str})
 
 #define HIDE_STRING(str) \
-    _0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), &obfh_condition_true) : RND(0, 255)
+    _0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), (float)__s_rdtsc(RND(0, 255)) != 0.1) : (float)__s_rdtsc(RND(0, 255)) == RND(0, 255)
 
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
                             _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
@@ -378,31 +378,6 @@ int obfh_condition_proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
     return obfh_int_proxy(condition);
 }
 
-// =============================================================
-// Anti-Tamper for Control-Flow obfuscation (beta!)
-#if ANTITAMPER == 1 && NO_CFLOW != 1
-int obfhIsBlockValidated = 0;
-int validateBlock() {  // returns false
-    obfhIsBlockValidated = 1;
-    return obfhIsBlockValidated;
-}
-int isBlockValidated() {  // returns true if validateBlock() executed
-    if (obfhIsBlockValidated) {
-        obfhIsBlockValidated = 0;
-        return 1;
-    }
-    return 0;
-}
-#else
-#define validateBlock() 1
-#define isBlockValidated() 1
-#endif
-// =============================================================
-
-// =============================================================
-// Control Flow (global)
-#if NO_CFLOW != 1
-
 unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     {
         unsigned int lo, hi;
@@ -422,16 +397,29 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     return time;
 }
 
-#define if(cond)                                                                     \
-    if ((float)__s_rdtsc(RND(0, 255)) == (float)((RND(1, 255) * -1)) * (float)1.0) { \
-        __obfh_asm__(".byte 0xB8;");                                                 \
-    } else if (&__s_rdtsc && (cond ? (_1) : (_0)))
+// =============================================================
+// Control Flow (global)
+#if NO_CFLOW != 1
+
+// if
+#define if(cond)                                                                         \
+    if ((float)__s_rdtsc(RND(0, 255)) == (float)((RND(1, 255) * -1)) * (float)1.0) {     \
+        __obfh_asm__(".byte 0xB8;");                                                     \
+    } else if (&__s_rdtsc && (cond ? ((float)__s_rdtsc(RND(0, 255), RND(0, 255)) != 0.1) \
+                                   : (float)__s_rdtsc(RND(0, 255)) == 0.1))
+
+// else
+#define else                        \
+    else if (0) {                   \
+        __obfh_asm__(".byte 0xE8"); \
+    }                               \
+    else
 
 #if CFLOW_V2
-#define OBFUS_TRUE_CONDITION_BLOCK                                                                                      \
-    ((&__s_rdtsc - &__s_rdtsc) + 1) != 0 && (float)__s_rdtsc(RND(0, 255)) != (double)0.1 &&                             \
-            (float)__s_rdtsc((float)RND(0, 255), (float)RND(0, 255), (float)RND(0, 255)) && __s_rdtsc((int)RND(0, 255)) \
-        ? ((double)__s_rdtsc(RND(0, 255)) ? (int)RND(0, 255) : (float)RND(0, 255))                                      \
+#define OBFUS_TRUE_CONDITION_BLOCK                                                                                        \
+    ((&__s_rdtsc - &__s_rdtsc) + 1) != 0 && (float)__s_rdtsc(RND(0, 255)) != (double)0.1 &&                               \
+            (float)__s_rdtsc((float)RND(0, 255), (float)RND(0, 255), (float)RND(0, 255)) && __s_rdtsc((float)RND(0, 255)) \
+        ? ((double)__s_rdtsc(RND(0, 255)) ? (int)RND(0, 255) : (float)RND(0, 255))                                        \
         : (float)RND(0, 255) + (double)__s_rdtsc(RND(0, 255))
 #else
 #define OBFUS_TRUE_CONDITION_BLOCK                                                                                      \
@@ -441,15 +429,19 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
         : (float)RND(0, 255)
 #endif
 
+// break
 #define break \
     if (OBFUS_TRUE_CONDITION_BLOCK) break
 
+// switch
 #define switch(...)                 \
     if (OBFUS_TRUE_CONDITION_BLOCK) \
         switch (__VA_ARGS__)
 
+// while
 #define while(...) while ((float)__s_rdtsc(RND(0, 255)) != 0.1 && (&__s_rdtsc != !&__s_rdtsc) && (__VA_ARGS__))
 
+// for
 #define for(...)                    \
     if (OBFUS_TRUE_CONDITION_BLOCK) \
         for (__VA_ARGS__)
