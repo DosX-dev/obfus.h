@@ -430,8 +430,12 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
 #endif
 
 // break
-#define break \
-    if (OBFUS_TRUE_CONDITION_BLOCK) break
+#define break                                  \
+    {                                          \
+        BREAK_STACK_1;                         \
+        if (OBFUS_TRUE_CONDITION_BLOCK) break; \
+    }                                          \
+    obfh_int_proxy(RND(0, 255))
 
 // switch
 #define switch(...)                 \
