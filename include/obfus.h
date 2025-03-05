@@ -343,7 +343,7 @@ double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     return (value * _1);
 }
 
-int obfh_condition_true();
+float obfh_condition_true();
 
 // ... only for junk data
 char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
@@ -359,23 +359,21 @@ char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
     return string_to_return;
 }
 
-int obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
+float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return _1 && TRUE;
 }
 
-int obfh_condition_proxy(int junk, int condition) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_4;
+int obfh_condition_proxy(float junk, float condition, ...) {
+    condition = (double)condition + junk;
 
-    int result = obfh_int_proxy(condition * _1);
-    if (result == (FALSE * junk)) {
-        return _8 - (_4 * _2) && !obfh_condition_true();
-    } else if (result == TRUE) {
-        return (obfh_condition_true() || FALSE || TRUE) && (FALSE + obfh_int_proxy(_1));
+    float salt = condition + 0.01;
+
+    if (condition != NULL) {
+        condition = (int)condition;
     }
 
-    BREAK_STACK_1;
-    return obfh_int_proxy(condition);
+    return (salt - 0.01) ? (int)condition - junk : 0;
 }
 
 unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
@@ -416,34 +414,29 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     else
 
 #if CFLOW_V2
-#define OBFUS_TRUE_CONDITION_BLOCK                                                                                        \
-    ((&__s_rdtsc - &__s_rdtsc) + 1) != 0 && (float)__s_rdtsc(RND(0, 255)) != (double)0.1 &&                               \
-            (float)__s_rdtsc((float)RND(0, 255), (float)RND(0, 255), (float)RND(0, 255)) && __s_rdtsc((float)RND(0, 255)) \
-        ? ((double)__s_rdtsc(RND(0, 255)) ? (int)RND(0, 255) : (float)RND(0, 255))                                        \
-        : (float)RND(0, 255) + (double)__s_rdtsc(RND(0, 255))
+#define OBFUS_CONDITION_BLOCK(...) (obfh_condition_proxy(RND(0, 255), (__VA_ARGS__) ? !!obfh_int_proxy(!!obfh_condition_true()) : !!!obfh_condition_true(), RND(0, 255)) ? !!obfh_condition_true() : obfh_int_proxy(!obfh_condition_true()))
 #else
-#define OBFUS_TRUE_CONDITION_BLOCK                                                                                      \
-    (float)__s_rdtsc(RND(0, 255)) != (double)0.1 &&                                                                     \
-            (float)__s_rdtsc((float)RND(0, 255), (float)RND(0, 255), (float)RND(0, 255)) && __s_rdtsc((int)RND(0, 255)) \
-        ? (double)RND(0, 255)                                                                                           \
-        : (float)RND(0, 255)
+#define OBFUS_CONDITION_BLOCK(...) (obfh_condition_proxy(RND(0, 255), (__VA_ARGS__), RND(0, 255)) ? !!obfh_condition_true() : !obfh_condition_true())
 #endif
 
 // break
-#define break \
-    if (OBFUS_TRUE_CONDITION_BLOCK) break;
+#define break                                                  \
+    {                                                          \
+        if (OBFUS_CONDITION_BLOCK(RND(1, 255))) BREAK_STACK_1; \
+        break;                                                 \
+    }
 
 // switch
-#define switch(...)                 \
-    if (OBFUS_TRUE_CONDITION_BLOCK) \
+#define switch(...)                         \
+    if (OBFUS_CONDITION_BLOCK(RND(1, 255))) \
         switch (__VA_ARGS__)
 
 // while
 #define while(...) while ((float)__s_rdtsc(RND(0, 255)) != 0.1 && (&__s_rdtsc != !&__s_rdtsc) && (__VA_ARGS__))
 
 // for
-#define for(...)                    \
-    if (OBFUS_TRUE_CONDITION_BLOCK) \
+#define for(...)                            \
+    if (OBFUS_CONDITION_BLOCK(RND(1, 255))) \
         for (__VA_ARGS__)
 
 #endif
