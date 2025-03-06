@@ -191,8 +191,8 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _y OBFH_SECTION_ATTRIBUTE = 'y', _z OBFH_SECTION_ATTRIBUTE = 'z',
                             _S OBFH_SECTION_ATTRIBUTE = 'S', _L OBFH_SECTION_ATTRIBUTE = 'L', _A OBFH_SECTION_ATTRIBUTE = 'A', _I OBFH_SECTION_ATTRIBUTE = 'I',
                             _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
-                            _0 DATA_SECTION_ATTRIBUTE = 0, _1 DATA_SECTION_ATTRIBUTE = 1, _2 DATA_SECTION_ATTRIBUTE = 2, _3 DATA_SECTION_ATTRIBUTE = 3, _4 DATA_SECTION_ATTRIBUTE = 4,
-                            _5 DATA_SECTION_ATTRIBUTE = 5, _6 DATA_SECTION_ATTRIBUTE = 6, _7 DATA_SECTION_ATTRIBUTE = 7, _8 DATA_SECTION_ATTRIBUTE = 8, _9 DATA_SECTION_ATTRIBUTE = 9;
+                            _0 DATA_SECTION_ATTRIBUTE = 0, _1 DATA_SECTION_ATTRIBUTE = 0, _2 DATA_SECTION_ATTRIBUTE = 0, _3 DATA_SECTION_ATTRIBUTE = 0, _4 DATA_SECTION_ATTRIBUTE = 0,
+                            _5 DATA_SECTION_ATTRIBUTE = 0, _6 DATA_SECTION_ATTRIBUTE = 0, _7 DATA_SECTION_ATTRIBUTE = 0, _8 DATA_SECTION_ATTRIBUTE = 0, _9 DATA_SECTION_ATTRIBUTE = 0;
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
@@ -202,15 +202,15 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f;"           \
         ".byte 0xE8;"      \
         "1:"               \
-        "cpuid")
+        "cpuid;")
 
 #define BREAK_STACK_2 \
-    if (_0) __obfh_asm__(".byte 0x00");
+    if (_0) __obfh_asm__(".byte 0x00;")
 
-#define BREAK_STACK_3                         \
-    switch (_0) {                             \
-        case RND(1, 1000):                    \
-            __obfh_asm__(".byte 0x00, 0x00"); \
+#define BREAK_STACK_3                          \
+    switch (_0) {                              \
+        case RND(1, 1000):                     \
+            __obfh_asm__(".byte 0x00, 0x00;"); \
     }
 
 #define BREAK_STACK_4      \
@@ -222,7 +222,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "mov $4, %eax;"    \
         ".byte 0x00;"      \
         "1:"               \
-        "cpuid")
+        "cpuid;")
 
 #define BREAK_STACK_5      \
     __obfh_asm__(          \
@@ -234,7 +234,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f;"           \
         ".byte 0x20;"      \
         "1:"               \
-        "cpuid")
+        "cpuid;")
 
 #define BREAK_STACK_6      \
     __obfh_asm__(          \
@@ -244,7 +244,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f;"           \
         ".byte 0xE8;"      \
         "1:"               \
-        "cpuid")
+        "cpuid;")
 
 #define BREAK_STACK_7      \
     __obfh_asm__(          \
@@ -252,7 +252,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f;"           \
         ".byte 0xE8;"      \
         "1:"               \
-        "cpuid")
+        "cpuid;")
 
 #define BREAK_STACK_8      \
     __obfh_asm__(          \
@@ -260,7 +260,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f;"           \
         ".byte 0x50;"      \
         "1:"               \
-        "cpuid")
+        "cpuid;")
 
 #define BREAK_STACK_9       \
     __obfh_asm__(           \
@@ -268,30 +268,32 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
         "jz 1f;"            \
         ".byte 0x00, 0x00;" \
         "1:"                \
-        "cpuid")
+        "cpuid;")
 
 #if defined(__x86_64__)
-#define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4")
+#define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4;")
 #else
-#define BAD_JMP __obfh_asm__(".byte 0xEB, 0xE1")
+#define BAD_JMP __obfh_asm__(".byte 0xEB, 0xE1;")
 #endif
+
+#define BAD_CALL __obfh_asm__(".byte 0xB8;")
 
 void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    __obfh_asm__("nop");
+    __obfh_asm__("nop;");
     return;
 }
 
 void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     BREAK_STACK_5;
-    __obfh_asm__("nop");
+    __obfh_asm__("nop;");
     return;
 }
 
 #define __CRASH       \
     __obfh_asm__(     \
         ".byte 0xED;" \
-        "int $3");    \
+        "int $3;");   \
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
@@ -300,21 +302,17 @@ void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
 #define FAKE_CPUID __obfh_asm__( \
     "nop;"                       \
     "cpuid;"                     \
-    "nop")
-
-// Doesn't work
-// #define sizeof(x) \
-//    ((sizeof(x) * _1 * _2 * _4 / _8) + (sizeof(x) * _2 * _4 / _8) + (RND(0, 1000) * _0)) / 2
+    "nop;")
 
 #define NOP_FLOOD                                  \
     (RND(0, 1000)) + obfh_int_proxy(RND(0, 1000)); \
     if (obfh_junk_func_args) {                     \
-        __obfh_asm__("nop");                       \
+        __obfh_asm__("nop;");                      \
     }                                              \
     do {                                           \
         __obfh_asm__(                              \
             "nop;"                                 \
-            "nop");                                \
+            "nop;");                               \
     } while (RND(0, 200) * _0)
 
 int malloc_proxy(int *size) {
@@ -323,18 +321,13 @@ int malloc_proxy(int *size) {
 }
 #define malloc(...) malloc_proxy(__VA_ARGS__)
 
-static char rndValueToProxy = RND(0, 10);
+static float rndValueToProxy = RND(0, 10);
 
 int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_4;
-    if (rndValueToProxy == value)
+    if (((double)rndValueToProxy + 0.1 == (double)value + 0.1) ? _1 : _0)
         return rndValueToProxy;
 
-    obfh_junk_func_args(RND(0, 100000), RND(0, 100000));
-
-    FAKE_CPUID;
-
-    return ((value * _1) + ((_4 * RND(0, 100000)) - _8) * _0);
+    return value;
 }
 
 double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
@@ -370,6 +363,7 @@ int obfh_condition_proxy(float junk, float condition, ...) {
     float salt = condition + 0.01;
 
     if (condition != NULL) {
+        BREAK_STACK_1;
         condition = (int)condition;
     }
 
@@ -382,9 +376,9 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
         __obfh_asm__(".byte 0x0f, 0x31;"  // rdtsc
                      : "=a"(lo), "=d"(hi));
 
-        unsigned long long rdtscp_result = ((unsigned long long)hi << 32) | lo;
+        unsigned long long rdtsc_result = ((unsigned long long)hi << 32) | lo;
 
-        if (rdtscp_result == obfh_int_proxy(0)) __obfh_asm__(".byte 0xE8;");
+        if (rdtsc_result == obfh_int_proxy(0)) __obfh_asm__(".byte 0xE8;");
     }
 
     unsigned long long time;
@@ -402,15 +396,15 @@ unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
 // if
 #define if(cond)                                                                         \
     if ((float)__s_rdtsc(RND(0, 255)) == (float)((RND(1, 255) * -1)) * (float)1.0) {     \
-        __obfh_asm__(".byte 0xB8;");                                                     \
+        BAD_CALL;                                                                        \
     } else if (&__s_rdtsc && (cond ? ((float)__s_rdtsc(RND(0, 255), RND(0, 255)) != 0.1) \
                                    : (float)__s_rdtsc(RND(0, 255)) == 0.1))
 
 // else
-#define else                        \
-    else if (0) {                   \
-        __obfh_asm__(".byte 0xE8"); \
-    }                               \
+#define else      \
+    else if (0) { \
+        BAD_CALL; \
+    }             \
     else
 
 #if CFLOW_V2
