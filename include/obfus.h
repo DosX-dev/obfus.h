@@ -175,6 +175,17 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 #define HIDE_STRING(str) \
     _0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), (float)__s_rdtsc(RND(0, 255)) != 0.1) : (float)__s_rdtsc(RND(0, 255)) == RND(0, 255)
 
+typedef enum {
+    SALT_SHIFT = RND(0xBAD, 0xBEEF)
+} VAR_ADDR_SHIFT;
+
+#define RET_BY_VAR(value)                                   \
+    {                                                       \
+        int _obfh_ret_val_shift = SALT_SHIFT,               \
+            *_obfh_ret_val_addr = (&value + SALT_SHIFT);    \
+        return *(_obfh_ret_val_addr - _obfh_ret_val_shift); \
+    }
+
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
                             _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
                             _s_i[] OBFH_SECTION_ATTRIBUTE = "i", _s_j[] OBFH_SECTION_ATTRIBUTE = "j", _s_k[] OBFH_SECTION_ATTRIBUTE = "k", _s_l[] OBFH_SECTION_ATTRIBUTE = "l",
@@ -191,8 +202,8 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
                             _y OBFH_SECTION_ATTRIBUTE = 'y', _z OBFH_SECTION_ATTRIBUTE = 'z',
                             _S OBFH_SECTION_ATTRIBUTE = 'S', _L OBFH_SECTION_ATTRIBUTE = 'L', _A OBFH_SECTION_ATTRIBUTE = 'A', _I OBFH_SECTION_ATTRIBUTE = 'I',
                             _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
-                            _0 DATA_SECTION_ATTRIBUTE = 0, _1 DATA_SECTION_ATTRIBUTE = 0, _2 DATA_SECTION_ATTRIBUTE = 0, _3 DATA_SECTION_ATTRIBUTE = 0, _4 DATA_SECTION_ATTRIBUTE = 0,
-                            _5 DATA_SECTION_ATTRIBUTE = 0, _6 DATA_SECTION_ATTRIBUTE = 0, _7 DATA_SECTION_ATTRIBUTE = 0, _8 DATA_SECTION_ATTRIBUTE = 0, _9 DATA_SECTION_ATTRIBUTE = 0;
+                            _0 DATA_SECTION_ATTRIBUTE = 0, _1 DATA_SECTION_ATTRIBUTE = 1, _2 DATA_SECTION_ATTRIBUTE = 2, _3 DATA_SECTION_ATTRIBUTE = 3, _4 DATA_SECTION_ATTRIBUTE = 4,
+                            _5 DATA_SECTION_ATTRIBUTE = 5, _6 DATA_SECTION_ATTRIBUTE = 6, _7 DATA_SECTION_ATTRIBUTE = 7, _8 DATA_SECTION_ATTRIBUTE = 8, _9 DATA_SECTION_ATTRIBUTE = 9;
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
@@ -324,16 +335,11 @@ int malloc_proxy(int *size) {
 static float rndValueToProxy = RND(0, 10);
 
 int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
-    if (((double)rndValueToProxy + 0.1 == (double)value + 0.1) ? _1 : _0)
-        return rndValueToProxy;
-
-    return value;
+    RET_BY_VAR(value);
 }
 
 double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
-    obfh_junk_func_args(RND(0, 1000), RND(0, 1000));
-    return (value * _1);
+    RET_BY_VAR(value);
 }
 
 float obfh_condition_true();
@@ -357,17 +363,8 @@ float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
     return _1 && TRUE;
 }
 
-int obfh_condition_proxy(float junk, float condition, ...) {
-    condition = (double)condition + junk;
-
-    float salt = condition + 0.01;
-
-    if (condition != NULL) {
-        BREAK_STACK_1;
-        condition = (int)condition;
-    }
-
-    return (salt - 0.01) ? (int)condition - junk : 0;
+int obfh_condition_proxy(float junk, float condition, ...) OBFH_SECTION_ATTRIBUTE {
+    RET_BY_VAR(condition);
 }
 
 unsigned long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
@@ -458,7 +455,7 @@ typedef enum {
     SALT_CMD = RND(100, 900),
     SALT_NUM1 = RND(16, 48),
     SALT_NUM2 = RND(16, 48)
-} SALT;
+} VM_SALT;
 
 static int _salt = SALT_CMD;
 
@@ -546,7 +543,7 @@ letsExecute:
         case -5 * __LINE__:
             goto restoreNum1;
         case -6 * __LINE__:
-            __obfh_asm__(".byte 0xFF, 0x25");  // fake JMP
+            __obfh_asm__(".byte 0xFF, 0x25;");  // fake JMP
         case -7 * __LINE__:
 
 #if defined(__x86_64__) || defined(_M_X64)  // fake code, just for decompiler break
@@ -659,7 +656,7 @@ saveValueToLocal:
 returnValue:
     return result;
 
-    __obfh_asm__(".byte 0xFF, 0xE0");  // fake JMP EAX
+    __obfh_asm__(".byte 0xFF, 0xE0;");  // fake JMP EAX
 
 secondFakePoint:
     BREAK_STACK_7;
@@ -776,7 +773,7 @@ static HMODULE hKernel32 = NULL;
 HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     switch (_0) {
         case 1:
-            __obfh_asm__(".byte 0x74");  // fake JE
+            __obfh_asm__(".byte 0x74;");  // fake JE
 
             break;
         case 0:
@@ -982,8 +979,9 @@ if (MessageBoxA != NULL) MessageBoxA(NULL, "Debugging prevented.", "", 0x10);
 
 void crash() {
     BREAK_STACK_1;
-    __obfh_asm__("int $3");
-    __obfh_asm__(".byte 0xED, 0x00");
+    __obfh_asm__(
+        "int $3;"
+        ".byte 0xED, 0x00;");
 }
 
 void loop() {
@@ -998,11 +996,11 @@ void loop() {
         loop();                                                                                         \
         while (1) {                                                                                     \
         };                                                                                              \
-        __obfh_asm__(".byte 0xED");                                                                     \
+        __obfh_asm__(".byte 0xED;");                                                                    \
         BREAK_STACK_1;                                                                                  \
-        __obfh_asm__(".byte 0x66, 0xC1, 0xE8, 0x05");                                                   \
-        __obfh_asm__(".byte 0x00");                                                                     \
-        __obfh_asm__("ret");                                                                            \
+        __obfh_asm__(".byte 0x66, 0xC1, 0xE8, 0x05;");                                                  \
+        __obfh_asm__(".byte 0x00;");                                                                    \
+        __obfh_asm__("ret;");                                                                           \
         crash();                                                                                        \
     } else {                                                                                            \
         0.0 / !IsDebuggerPresent();                                                                     \
