@@ -1,3 +1,7 @@
+@echo off
+rem set TCC directory
+set path=%path%;C:\tcc
+
 tcc "dll.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
 tcc "fib.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
 tcc "hello_dll.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
