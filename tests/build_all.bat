@@ -1,11 +1,17 @@
 @echo off
-rem set TCC directory
-set path=%path%;C:\tcc
+rem Set TCC directory
+set "path=%path%;C:\tcc"
 
-tcc "dll.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
-tcc "fib.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
-tcc "hello_dll.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
-tcc "hello_win.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
-tcc "sorter.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
-tcc "virtualmachine.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
-tcc "virtualmachine_unit.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
+set "FLAGS=-w -D NO_CFLOW -D ANTIDEBUG_V2 -D FAKE_SIGNS -D VIRT"
+
+for %%F in (
+    dll.c
+    fib.c
+    hello_dll.c
+    hello_win.c
+    sorter.c
+    virtualmachine.c
+    virtualmachine_unit.c
+) do (
+    tcc "%%F" %FLAGS%
+)
