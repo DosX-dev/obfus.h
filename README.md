@@ -183,6 +183,9 @@ You can use [special script](include-updater/obfh-update.cmd) for Windows to get
 > ```
 > The script will update the contents of the obfus.h file in the current directory (according to the specified configuration)
 
+## 🦎 Security Audits and the Community
+ * **[Defeating a Heavily Obfuscated Binary](https://vxcall.github.io/posts/defeating-a-heavily-obfuscated-binary/)** - Black-box analysis of internal obfus.h security mechanisms and it deobfuscation. All vulnerabilities have now been patched.
+
 ## 📖 Summarize
 The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
 
