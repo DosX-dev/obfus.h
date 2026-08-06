@@ -6,7 +6,7 @@
         ╚██████╔╝██████╔╝██║     ╚██████╔╝███████║ ██╗ ██║  ██║
          ╚═════╝ ╚═════╝ ╚═╝      ╚═════╝ ╚══════╝ ╚═╝ ╚═╝  ╚═╝
                   Very reliable armor for your C programs!
-                        Coded by (C) DosX, 2025
+                        Coded by (C) DosX, 2026
 
  [Additional options]
  ~ CFLOW_V2       = more powerful Control Flow obfuscation (slowly!)
