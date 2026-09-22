@@ -1092,6 +1092,15 @@ char *getFwriteName_proxy() {
 }
 #define fwrite(...) ((size_t(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFwriteName_proxy()))(__VA_ARGS__)
 
+// fflush
+char *getFflushName_proxy() {
+    BREAK_STACK_1;
+    FAKE_CPUID;
+    return "fflush";
+    // return ({ char result[32]; sprintf(result, getCharMask(_6), _f, _f, _l, _u, _s, _h); result; });
+}
+#define fflush(...) ((size_t(*)())GetProcAddress(LoadLibraryA_proxy(getStdLibName_proxy()), getFflushName_proxy()))(__VA_ARGS__)
+
 // exit
 char *getExitName_proxy() {
     BREAK_STACK_1;
@@ -1295,6 +1304,9 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
 #define ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped) \
     ReadFile(obfh_int_proxy(hFile), obfh_int_proxy(lpBuffer), obfh_int_proxy(nNumberOfBytesToRead), obfh_int_proxy(lpNumberOfBytesRead), obfh_int_proxy(lpOverlapped))
 
+#define CopyFile(lpExistingFileName, lpNewFileName) \
+    CopyFile(obfh_int_proxy(lpExistingFileName), obfh_int_proxy(lpNewFileName))
+
 #define WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped) \
     WriteFile(obfh_int_proxy(hFile), obfh_int_proxy(lpBuffer), obfh_int_proxy(nNumberOfBytesToWrite), obfh_int_proxy(lpNumberOfBytesWritten), obfh_int_proxy(lpOverlapped))
 
@@ -1353,6 +1365,27 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
 
 #define ResetEvent(hEvent) \
     ResetEvent(obfh_int_proxy(hEvent))
+
+#define InitializeCriticalSection(lpCriticalSection) \
+    InitializeCriticalSection(obfh_int_proxy(lpCriticalSection))
+
+#define EnterCriticalSection(lpCriticalSection) \
+    EnterCriticalSection(obfh_int_proxy(lpCriticalSection))
+
+#define LeaveCriticalSection(lpCriticalSection) \
+    LeaveCriticalSection(obfh_int_proxy(lpCriticalSection))
+
+#define DeleteCriticalSection(lpCriticalSection) \
+    DeleteCriticalSection(obfh_int_proxy(lpCriticalSection))
+
+#define RegCloseKey(hKey) \
+    RegCloseKey(obfh_int_proxy(hKey))
+
+#define RegOpenKeyA(hKey, lpSubKey, phkResult) \
+    RegOpenKeyA(obfh_int_proxy(hKey), obfh_int_proxy(lpSubKey), obfh_int_proxy(phkResult))
+
+#define RegCreateKeyA(hKey, lpSubKey, phkResult) \
+    RegCreateKeyA(obfh_int_proxy(hKey), obfh_int_proxy(lpSubKey), obfh_int_proxy(phkResult))
 
 #define WaitForMultipleObjects(nCount, lpHandles, bWaitAll, dwMilliseconds) WaitForMultipleObjects(obfh_int_proxy(nCount), obfh_int_proxy(lpHandles), obfh_int_proxy(bWaitAll), obfh_int_proxy(dwMilliseconds))
 
