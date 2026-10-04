@@ -1,0 +1,36 @@
+
+#include <windows.h>
+#include <stdio.h>
+#define _0 0
+#define FALSE 0
+static int mode, duplicate_calls, create_calls, wait_calls, exit_calls, closed_worker, closed_main;
+static BOOL fake_duplicate(HANDLE a, HANDLE b, HANDLE c, HANDLE *out, DWORD d, BOOL e, DWORD f) {
+    duplicate_calls++; if (mode == 1) return FALSE; *out = (HANDLE)11; return TRUE;
+}
+static HANDLE fake_create(void *a, SIZE_T b, void *c, void *d, DWORD e, DWORD *f) {
+    create_calls++; return mode == 2 ? NULL : (HANDLE)22;
+}
+static DWORD fake_wait(HANDLE h, DWORD timeout) { wait_calls++; return mode == 3 ? WAIT_FAILED : WAIT_OBJECT_0; }
+static BOOL fake_exit(HANDLE h, DWORD *out) { exit_calls++; if (mode == 4) return FALSE; *out = mode == 5 ? 7 : 0; return TRUE; }
+static BOOL fake_close(HANDLE h) { if (h == (HANDLE)11) closed_main++; else if (h == (HANDLE)22) closed_worker++; else return FALSE; return TRUE; }
+#define DuplicateHandle fake_duplicate
+#define CreateThread fake_create
+#define WaitForSingleObject fake_wait
+#define GetExitCodeThread fake_exit
+#define CloseHandle fake_close
+#define ThreadCompareDRs NULL
+int check_setup(void) {
+/* SETUP_BLOCK */
+    return 0;
+}
+int main(void) {
+    for (mode = 0; mode <= 5; mode++) {
+        duplicate_calls = create_calls = wait_calls = exit_calls = closed_worker = closed_main = 0;
+        int result = check_setup();
+        if (result != (mode == 5 ? 7 : 0) || duplicate_calls != 1 ||
+            create_calls != (mode != 1) || wait_calls != (mode != 1 && mode != 2) ||
+            exit_calls != (mode != 1 && mode != 2 && mode != 3) ||
+            closed_main != (mode == 2) || closed_worker != (mode != 1 && mode != 2)) return 1;
+    }
+    puts("ANTIDEBUG_V2 failure branches passed"); return 0;
+}

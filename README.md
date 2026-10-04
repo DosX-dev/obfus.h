@@ -137,7 +137,7 @@ VM_IF (condition1) {
 }
 ```
 
-You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)
+You can find examples of using all the functions of a virtual machine in the file [tests/vm.c](tests/vm.c)
 
 ## ❓ Example of using
 If you need advanced protection against skilled reversers, use `CFLOW_V2` and `ANTIDEBUG_V2` options.
