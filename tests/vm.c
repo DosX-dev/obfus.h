@@ -14,7 +14,7 @@
     } while (0)
 #if VIRT && !NO_OBF
 static volatile LONG calls;
-static long double counted_vm(long double key, int cmd, long double a, long double ja, long double b, long double jb) {
+static long double counted_vm(long double key, long long cmd, OBFH_VM_VALUE a, long double ja, OBFH_VM_VALUE b, long double jb) {
     InterlockedIncrement(&calls);
     return (Obfh_VirtualMachine)(key, cmd, a, ja, b, jb);
 }

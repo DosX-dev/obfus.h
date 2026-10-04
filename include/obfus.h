@@ -214,7 +214,7 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
-// CPUID/junk instructions explicitly declare their register and flag effects.
+// Skipped bytes vary per site; the legacy CPUID paths retain their clobbers.
 #define BREAK_STACK_1        \
     __obfh_asm__(            \
         "xorl %%eax, %%eax;" \
@@ -324,13 +324,13 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 
 #define BAD_CALL __obfh_asm__(".byte 0xB8;")
 
-void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
+static void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     __obfh_asm__("nop;");
     return;
 }
 
-void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
+static void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     BREAK_STACK_5;
     __obfh_asm__("nop;");
     return;
@@ -364,7 +364,7 @@ void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
             "nop;");                               \
     } while (RND(0, 200) * _0)
 
-void *malloc_proxy(size_t size) {
+static void *malloc_proxy(size_t size) {
     BREAK_STACK_1;
     return malloc(size);
 }
@@ -372,25 +372,25 @@ void *malloc_proxy(size_t size) {
 
 static float rndValueToProxy = RND(0, 10);
 
-int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
+static int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
     RET_BY_VAR(value);
 }
 
 // Preserve pointer and SIZE_T width on both Windows targets.
-ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_SECTION_ATTRIBUTE {
+static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_SECTION_ATTRIBUTE {
     RET_BY_VAR(value);
 }
 
 #define OBFH_PTR(type, value) ((type)obfh_uintptr_proxy((ULONG_PTR)(value)))
 
-double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
+static double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     RET_BY_VAR(value);
 }
 
-float obfh_condition_true();
+static float obfh_condition_true();
 
 // Hidden string access
-char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
+static char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
 
     if (!obfh_condition_true() || _0) {
@@ -402,16 +402,16 @@ char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
     return string + 1;
 }
 
-float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
+static float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return _1 && TRUE;
 }
 
-int obfh_condition_proxy(float junk, float condition, ...) OBFH_SECTION_ATTRIBUTE {
+static int obfh_condition_proxy(float junk, float condition, ...) OBFH_SECTION_ATTRIBUTE {
     RET_BY_VAR(condition);
 }
 
-long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
+static long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     {
         unsigned int lo, hi;
         __obfh_asm__(".byte 0x0f, 0x31;"  // rdtsc
@@ -460,6 +460,73 @@ long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     return time;
 }
 
+// Cache entries are immutable after atomic publication. Module references are
+// retained by the resolver so cached pointers cannot outlive their DLL.
+typedef struct {
+    volatile LONG state;
+    unsigned char name[32];
+    ULONG_PTR address;
+} OBFH_CRT_ENTRY;
+static OBFH_CRT_ENTRY obfh_crt_entries[32];
+
+static FARPROC obfh_crt_cached(const char *name) {
+    for (unsigned int slot = 0; slot < 32; ++slot) {
+        OBFH_CRT_ENTRY *entry = &obfh_crt_entries[slot];
+        if (InterlockedCompareExchange(&entry->state, 2, 2) != 2) continue;
+        unsigned int i = 0;
+        for (; i < sizeof(entry->name); ++i) {
+            unsigned char byte = entry->name[i] ^ (unsigned char)(SALT_SHIFT + i * 13u);
+            if (byte != (unsigned char)name[i]) break;
+            if (!byte) return (FARPROC)obfh_uintptr_proxy(entry->address ^ SALT_SHIFT);
+        }
+    }
+    return NULL;
+}
+
+static void obfh_crt_publish(const char *name, FARPROC function) {
+    if (!function || obfh_crt_cached(name)) return;
+    unsigned int length = 0;
+    while (name[length] && length < 31) ++length;
+    if (name[length]) return;
+    for (unsigned int slot = 0; slot < 32; ++slot) {
+        OBFH_CRT_ENTRY *entry = &obfh_crt_entries[slot];
+        if (InterlockedCompareExchange(&entry->state, 1, 0) != 0) continue;
+        for (unsigned int i = 0; i <= length; ++i)
+            entry->name[i] = (unsigned char)name[i] ^ (unsigned char)(SALT_SHIFT + i * 13u);
+        entry->address = (ULONG_PTR)function ^ SALT_SHIFT;
+        InterlockedExchange(&entry->state, 2);
+        return;
+    }
+}
+
+#if VIRT == 1
+// Transport object bytes instead of adding a salt to the numeric value.
+// This preserves subnormals, signed zero, infinities and NaN payloads.
+typedef struct {
+    unsigned char bytes[sizeof(long double)];
+    unsigned char floating;
+} OBFH_VM_VALUE;
+
+static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char floating) OBFH_SECTION_ATTRIBUTE {
+    OBFH_VM_VALUE encoded;
+    volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
+    const unsigned char *bytes = (const unsigned char *)&value;
+    for (size_t i = 0; i < sizeof(value); ++i)
+        encoded.bytes[i] = bytes[i] ^ (unsigned char)(key + i * 17u);
+    encoded.floating = floating;
+    return encoded;
+}
+
+static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_ATTRIBUTE {
+    long double value;
+    volatile int key = obfh_condition_proxy((float)salt, (float)obfh_int_proxy(salt));
+    unsigned char *bytes = (unsigned char *)&value;
+    for (size_t i = 0; i < sizeof(value); ++i)
+        bytes[i] = encoded.bytes[i] ^ (unsigned char)(key + i * 17u);
+    RET_BY_VAR(value);
+}
+#endif
+
 // =============================================================
 // Control Flow (global)
 #if NO_CFLOW != 1
@@ -468,25 +535,60 @@ long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
 // representable in float on both TCC targets. No shared state or VM required.
 #define OBFH_FLOW_BASE(site) (((site)&1023u) + 17u)
 #define OBFH_FLOW_STEP(site) ((((site) >> 5) & 31u) * 2u + 1u)
-#define OBFH_FLOW_FIRST(value, site) (((site)&1u) ? (((value)*3u + ((site)&255u)) ^ ((site)&4095u)) : (((value)*5u + ((site)&127u)) ^ (((site) >> 1) & 4095u)))
+#define OBFH_FLOW_FIRST(value, site) ((((site) >> 1) & 3u) == 0 ? (((value)*3u + ((site)&255u)) ^ ((site)&4095u)) : (((site) >> 1) & 3u) == 1 ? (((value)*5u + ((site)&127u)) ^ (((site) >> 1) & 4095u)) \
+                                                                                                                : (((site) >> 1) & 3u) == 2   ? (((value) ^ ((site)&1023u)) * 7u + 19u)                  \
+                                                                                                                                              : ((((value) + ((site)&255u)) * 9u + 23u) ^ (((site) >> 2) & 8191u)))
 #if CFLOW_V2
 #define OBFH_FLOW_FINAL(value, site) (((((value)*5u + 7u) ^ (((site) >> 3) & 2047u)) * 3u + 11u) ^ ((site)&8191u))
 #else
 #define OBFH_FLOW_FINAL(value, site) (value)
 #endif
 
-double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {
-    // Retain the misleading byte without serializing every branch with CPUID.
-    __obfh_asm__("xorl %%eax, %%eax; jz 1f; .byte 0xE8; 1:"
-                 :
-                 :
-                 : "eax", "cc", "memory");
+// Different data dependencies and conversion positions across call sites.
+static unsigned int obfh_flow_route_0(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    volatile int scaled = obfh_int_proxy((int)input) * 3 + (site & 255u);
+    volatile float converted = (float)scaled;
+    return (unsigned int)obfh_double_proxy((double)converted) ^ (site & 4095u);
+}
+static unsigned int obfh_flow_route_1(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    volatile float converted = (float)obfh_int_proxy((int)input);
+    volatile unsigned int scaled = (unsigned int)obfh_double_proxy((double)converted) * 5u + (site & 127u);
+    return (unsigned int)obfh_condition_proxy((float)(site & 255u), (float)(scaled ^ ((site >> 1) & 4095u)));
+}
+static unsigned int obfh_flow_route_2(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    volatile unsigned int mixed = input ^ (site & 1023u);
+    volatile float converted = (float)obfh_int_proxy((int)mixed);
+    return (unsigned int)obfh_double_proxy((double)converted) * 7u + 19u;
+}
+static unsigned int obfh_flow_route_3(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    volatile unsigned int scaled = (input + (site & 255u)) * 9u + 23u;
+    volatile double converted = obfh_double_proxy((double)(float)obfh_int_proxy((int)scaled));
+    return (unsigned int)converted ^ ((site >> 2) & 8191u);
+}
+
+static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+#if CFLOW_V2
+#endif
     volatile unsigned int input = (unsigned int)obfh_double_proxy((double)encoded);
     // Keep a misleading failure path without putting a timestamp on every if.
     if (obfh_int_proxy((int)input) > 4095) {
         BAD_CALL;
     }
-    volatile unsigned int stage = OBFH_FLOW_FIRST(input, site);
+    volatile unsigned int stage;
+    switch ((site >> 1) & 3u) {
+        case 0:
+            stage = obfh_flow_route_0(input, site);
+            break;
+        case 1:
+            stage = obfh_flow_route_1(input, site);
+            break;
+        case 2:
+            stage = obfh_flow_route_2(input, site);
+            break;
+        default:
+            stage = obfh_flow_route_3(input, site);
+            break;
+    }
     volatile float converted = (float)obfh_int_proxy((int)stage);
 #if CFLOW_V2
     volatile unsigned int second = ((unsigned int)obfh_double_proxy((double)converted) * 5u + 7u) ^ ((site >> 3) & 2047u);
@@ -499,8 +601,9 @@ double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE 
 }
 
 #define OBFH_FLOW_CONDITION(condition, site_value) ({                                                                                                                        \
+    int __obfh_flow_truth = !!(condition);                                                                                                                                   \
     unsigned int __obfh_flow_site = (site_value);                                                                                                                            \
-    unsigned int __obfh_flow_input = OBFH_FLOW_BASE(__obfh_flow_site) + !!(condition)*OBFH_FLOW_STEP(__obfh_flow_site);                                                      \
+    unsigned int __obfh_flow_input = OBFH_FLOW_BASE(__obfh_flow_site) + __obfh_flow_truth * OBFH_FLOW_STEP(__obfh_flow_site);                                                \
     double __obfh_flow_result = obfh_flow_token((float)__obfh_flow_input, __obfh_flow_site);                                                                                 \
     __obfh_flow_result == (double)OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(OBFH_FLOW_BASE(__obfh_flow_site) + OBFH_FLOW_STEP(__obfh_flow_site), __obfh_flow_site), __obfh_flow_site); \
 })
@@ -525,16 +628,20 @@ double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE 
     }
 
 // switch
-#define switch(...)                         \
-    if (OBFUS_CONDITION_BLOCK(RND(1, 255))) \
-        switch (__VA_ARGS__)
+#define switch(...)                                                                                                  \
+    switch (({                                                                                                       \
+        __typeof__((__VA_ARGS__)) __obfh_switch_value = (__VA_ARGS__);                                               \
+        volatile ULONG_PTR __obfh_switch_shift = (ULONG_PTR)OBFUS_CONDITION_BLOCK(RND(1, 255)) * SALT_SHIFT;         \
+        ULONG_PTR __obfh_switch_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_switch_value ^ __obfh_switch_shift); \
+        *(__typeof__(&__obfh_switch_value))(__obfh_switch_address ^ __obfh_switch_shift);                            \
+    }))
 
 // while
-#define while(...) while ((float)__s_rdtsc(RND(0, 255)) != 0.1 && (&__s_rdtsc != !&__s_rdtsc) && (__VA_ARGS__))
+#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))
 
 // for
-#define for(...)                            \
-    if (OBFUS_CONDITION_BLOCK(RND(1, 255))) \
+#define for(...)                                                                                         \
+    for (int __obfh_for_once = OBFUS_CONDITION_BLOCK(RND(1, 255)); __obfh_for_once; __obfh_for_once = 0) \
         for (__VA_ARGS__)
 
 #endif
@@ -570,7 +677,7 @@ static int _salt = SALT_CMD;
 #define _VM_DEMUTATOR_KEY (__COUNTER__) / 5
 #define _VM_MUTATOR_KEY (__COUNTER__ - 1) / 5
 
-#define _VM_ENCRYPT_INT(value) ((value - _VM_MUTATOR_KEY) * ~SALT_CMD)
+#define _VM_ENCRYPT_INT(value) (((long long)(value)-_VM_MUTATOR_KEY) * ~(int)SALT_CMD)
 #define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
 #define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
 #define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
@@ -585,35 +692,36 @@ static int _salt = SALT_CMD;
 #define _ENC_OP__NOP _VM_ENCRYPT_INT(OP__NOP)
 #define _ENC_OP__BRANCH _VM_ENCRYPT_INT(OP__BRANCH)
 
-#define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MOD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_EQU(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_NEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), (long double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_OBF_INT(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), RND(1, 99999999) * -1 + SALT_NUM2, RND(1, 500)))
+#define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_MUL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_DIV(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_MOD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_EQU(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_NEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_LSS(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
+#define VM_OBF_INT(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)RND(1, 99999999), SALT_NUM2, 0), RND(1, 500)))
 
-#define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, (double)(num1) * -1 + SALT_NUM1, RND(1, 500), (double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, (double)(num1) * -1 + SALT_NUM1, RND(1, 500), (double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_MUL_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, (double)(num1) * -1 + SALT_NUM1, RND(1, 500), (double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, (double)(num1) * -1 + SALT_NUM1, RND(1, 500), (double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, (double)(num1) * -1 + SALT_NUM1, RND(1, 500), (double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, (double)(num1) * -1 + SALT_NUM1, RND(1, 500), (double)(num2) * -1 + SALT_NUM2, RND(1, 500))
-#define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, (long double)(num1) * -1 + SALT_NUM1, RND(1, 500), RND(1, 99999999) * -1 + SALT_NUM2, RND(1, 500)))
+#define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
+#define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
+#define VM_MUL_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
+#define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
+#define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
+#define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
+#define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, obfh_vm_encode((long double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((long double)RND(1, 99999999), SALT_NUM2, 0), RND(1, 500)))
 
 // Each condition is evaluated once before entering the floating VM path.
-int obfh_vm_branch(long double key, int command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE;
-long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE;
+static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE;
+static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE;
 #define VM_IF(condition) if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!(condition), RND(1, 65535), _0))
 #define VM_ELSE_IF(condition) else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!(condition), RND(1, 65535), _1))
 #define VM_ELSE else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!obfh_condition_true(), RND(1, 65535), _2))
 
-long double Obfh_VirtualMachine(long double uni_key, int command, long double num1, long double junk_2, long double num2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+static long double Obfh_VirtualMachine(long double uni_key, long long command, OBFH_VM_VALUE encodedNum1, long double junk_2, OBFH_VM_VALUE encodedNum2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+    long double num1, num2;
     volatile long double obfhVmResult = 0;
     BREAK_STACK_1;
     goto firstFakePoint;
@@ -627,14 +735,12 @@ restoreCommand:
 
 restoreNum1:
     BREAK_STACK_1;
-    num1 -= SALT_NUM1;
-    num1 *= (-1 * _1);
+    num1 = obfh_vm_decode(encodedNum1, SALT_NUM1);
     goto letsExecute;
 
 restoreNum2:
     BREAK_STACK_1;
-    num2 -= SALT_NUM2;
-    num2 *= (-1 * _1);
+    num2 = obfh_vm_decode(encodedNum2, SALT_NUM2);
     goto restoreNum1;
 
 firstFakePoint:
@@ -693,20 +799,20 @@ letsExecute:
             BAD_JMP;
 
         case OP__ADD:  // plus
-            obfhVmResult = (num1 + num2) + VM_MUL(junk_3, _0);
+            obfhVmResult = obfh_vm_decode(obfh_vm_encode(num1 + num2, SALT_NUM1 + VM_MUL(junk_3, _0), 1), SALT_NUM1);
             goto afterCalc;
         case OP__SUB:  // minus
-            obfhVmResult = (num1 - num2) + VM_MUL(junk_3, _0);
+            obfhVmResult = obfh_vm_decode(obfh_vm_encode(num1 - num2, SALT_NUM1 + VM_MUL(junk_3, _0), 1), SALT_NUM1);
             goto afterCalc;
         case OP__MUL:  // multiply
             if (num1 == _0 || num2 == _0)
-                obfhVmResult = _0;
+                obfhVmResult = num1 * num2;
             else
                 return num1 * num2;
 
             goto afterCalc;
         case OP__DIV:  // divide
-            if (num2 != _0)
+            if (encodedNum1.floating || num2 != _0)
                 obfhVmResult = num1 / num2;
             else
                 obfhVmResult = VM_ADD(_0, _0);
@@ -732,13 +838,13 @@ letsExecute:
             }
             goto afterCalc;
         case OP__LSS:
-            obfhVmResult = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
+            obfhVmResult = num1 == num1 && num2 == num2 && num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
             goto afterCalc;
         case OP__GTR:
-            obfhVmResult = num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
+            obfhVmResult = num1 == num1 && num2 == num2 && num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
             goto afterCalc;
         case OP__LEQ:
-            obfhVmResult = !(num1 + VM_MUL(junk_2, _0) > num2);
+            obfhVmResult = num1 == num1 && num2 == num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
             goto afterCalc;
         case OP__GEQ:
             obfhVmResult = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
@@ -777,7 +883,7 @@ secondFakePoint:
 }
 
 // A local encoded instruction pointer selects one of three decision programs.
-long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
+static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
     unsigned int variant = (nonce ^ site ^ kind) % 3u;
@@ -814,7 +920,7 @@ long double obfh_vm_branch_program(long double condition, unsigned int nonce, un
     }
 }
 
-int obfh_vm_branch(long double key, int command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
+static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_7;
     unsigned int low, high;
     __obfh_asm__(".byte 0x0f, 0x31;"
@@ -824,8 +930,8 @@ int obfh_vm_branch(long double key, int command, float condition, unsigned int s
     unsigned int nonce = ((low ^ high ^ site) & 0xfffffu) + 1u;
     unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
     float converted = (float)obfh_double_proxy((double)condition);
-    long double response = Obfh_VirtualMachine(key, command, -(long double)converted + SALT_NUM1,
-                                               site, -(long double)nonce + SALT_NUM2, kind);
+    long double response = Obfh_VirtualMachine(key, command, obfh_vm_encode((long double)converted, SALT_NUM1, 1),
+                                               site, obfh_vm_encode((long double)nonce, SALT_NUM2, 0), kind);
     float expected = (float)((nonce * 8u + 5u) ^ mask);
     long verified = VM_EQU((long)response, (long)obfh_double_proxy((double)expected));
     return obfh_condition_proxy((float)site, (float)verified, nonce);
@@ -835,7 +941,7 @@ int obfh_vm_branch(long double key, int command, float condition, unsigned int s
 // =============================================================
 
 // Caller-owned storage keeps the mask valid and avoids shared-buffer races.
-char *getCharMask(int count, char *mask, size_t capacity) OBFH_SECTION_ATTRIBUTE {
+static char *getCharMask(int count, char *mask, size_t capacity) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     if (!mask || !capacity || count < 0 || (size_t)count > (capacity - 1) / 2) return NULL;
     int i = (((_1 * _5) - _4) + _1) - _2;
@@ -852,7 +958,7 @@ char *getCharMask(int count, char *mask, size_t capacity) OBFH_SECTION_ATTRIBUTE
 }
 
 // WriteConsoleA
-BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
+static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
@@ -860,14 +966,14 @@ BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNum
 #define WriteConsoleA(...) WriteConsoleA_proxy(__VA_ARGS__)
 
 // GetStdHandle
-HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
+static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
     return GetStdHandle(obfh_int_proxy(nStdHandle));
 }
 #define GetStdHandle(...) GetStdHandle_proxy(__VA_ARGS__)
 
-HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_9;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
@@ -875,7 +981,7 @@ HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
 #define GetModuleHandleA(...) GetModuleHandleA_proxy(__VA_ARGS__)
 
 // strcmp
-int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
+static int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
@@ -893,7 +999,7 @@ int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
 #define strcmp(...) strcmp_custom(__VA_ARGS__)
 
 // strlen
-size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
+static size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     size_t length = _0;
     while (*str != '\0') {
@@ -906,10 +1012,10 @@ size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
 // Forward declaration for forwarded-export module loading.
-HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
+static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
 
 // Bounded string scan used by the export parser.
-const char *obfh_find_zero(const void *buffer, size_t count) {
+static const char *obfh_find_zero(const void *buffer, size_t count) {
     BREAK_STACK_1;
     const char *bytes = buffer;
     for (size_t i = _0; i < count; ++i)
@@ -918,11 +1024,11 @@ const char *obfh_find_zero(const void *buffer, size_t count) {
     return NULL;
 }
 // Check an RVA range against the loaded image size.
-int obfh_image_range(DWORD size, DWORD rva, size_t length) {
+static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
     return rva <= size && length <= (size_t)(size - rva);
 }
 // GetProcAddress: custom PE export lookup, including ordinals and forwarders.
-FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_SECTION_ATTRIBUTE {
+static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_2;
     BREAK_STACK_1;
     obfh_junk_func_args(RND(0, 885));
@@ -999,7 +1105,7 @@ FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth)
     FAKE_CPUID;
     return (FARPROC)(base + rva);
 }
-FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
+static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
     FARPROC result = obfh_find_export(hModule, lpProcName, 0);
     BREAK_STACK_1;
     return result;
@@ -1007,7 +1113,7 @@ FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_A
 #define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
 // LoadLibraryA: dynamic loader resolution and proxy chain.
-HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     switch (_0) {
         case 1:
             __obfh_asm__(".byte 0x74;");
@@ -1052,32 +1158,32 @@ HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     return NULL;
 }
 
-HMODULE LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_6;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
 
-HMODULE LoadLibraryA_2(LPCSTR lpLibFileName) {
+static HMODULE LoadLibraryA_2(LPCSTR lpLibFileName) {
     BREAK_STACK_5;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 
-HMODULE LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_4;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
 
-HMODULE LoadLibraryA_4(LPCSTR lpLibFileName) {
+static HMODULE LoadLibraryA_4(LPCSTR lpLibFileName) {
     BREAK_STACK_3;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 
-HMODULE LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_2;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 
-HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
+static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
     BREAK_STACK_1;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
 }
@@ -1088,7 +1194,7 @@ HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
 #if NO_ANTIDEBUG != 1
 
 #if ANTIDEBUG_V2 == 1  // for ANTIDEBUG_V2
-void ad_ZeroDRs(PCONTEXT pCtx) {
+static void ad_ZeroDRs(PCONTEXT pCtx) {
     BREAK_STACK_1;
     pCtx->Dr0 = _0;
     pCtx->Dr1 = _0;
@@ -1098,7 +1204,7 @@ void ad_ZeroDRs(PCONTEXT pCtx) {
     pCtx->Dr7 = _0;
 }
 
-int ad_CompareDRs(PCONTEXT pCtx) {
+static int ad_CompareDRs(PCONTEXT pCtx) {
     BREAK_STACK_1;
     if (pCtx->Dr7 != _0) {
         ad_ZeroDRs(pCtx);
@@ -1117,7 +1223,7 @@ int ad_CompareDRs(PCONTEXT pCtx) {
     return _0;
 }
 
-DWORD WINAPI ThreadCompareDRs(void *p) {
+static DWORD WINAPI ThreadCompareDRs(void *p) {
     BREAK_STACK_1;
     DWORD dwRet = _0;
     HANDLE hMainThread = (HANDLE)p;
@@ -1136,7 +1242,7 @@ DWORD WINAPI ThreadCompareDRs(void *p) {
 }
 #endif
 
-int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
+static int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     NOP_FLOOD;
     BREAK_STACK_2;
@@ -1207,14 +1313,14 @@ int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
 }
 // =============================================================
 
-void crash() {
+static void crash() {
     BREAK_STACK_1;
     __obfh_asm__(
         "int $3;"
         ".byte 0xED, 0x00;");
 }
 
-void loop() {
+static void loop() {
     while (1) {
     }
 }
@@ -1240,7 +1346,7 @@ void loop() {
 #endif
 
 // CRT module name, copied within the hidden string's lifetime.
-char *getStdLibName_proxy(char *name, size_t capacity) {
+static char *getStdLibName_proxy(char *name, size_t capacity) {
     BREAK_STACK_7;
     if (!name || capacity < 11) return NULL;
     const char *hidden = HIDE_STRING("msvcrt.dll");
@@ -1249,18 +1355,31 @@ char *getStdLibName_proxy(char *name, size_t capacity) {
     return name;
 }
 
-// Keep dynamic resolution without leaking a DLL reference on every CRT call.
-FARPROC obfh_crt_resolve(const char *name) {
+// Resolve through the custom loader/export chain once, then keep its DLL alive.
+static FARPROC obfh_crt_resolve(const char *name) {
     BREAK_STACK_1;
+    FARPROC cached = obfh_crt_cached(name);
+    if (cached) return cached;
+    static PVOID volatile cachedModule;
+    HMODULE module = (HMODULE)InterlockedCompareExchangePointer(&cachedModule, NULL, NULL);
     char moduleName[11];
-    HMODULE module = LoadLibraryA_proxy(getStdLibName_proxy(moduleName, sizeof moduleName));
+    if (!module) {
+        HMODULE loaded = LoadLibraryA_proxy(getStdLibName_proxy(moduleName, sizeof moduleName));
+        if (!loaded) return NULL;
+        HMODULE previous = (HMODULE)InterlockedCompareExchangePointer(&cachedModule, loaded, NULL);
+        if (previous) {
+            FreeLibrary(loaded);
+            module = previous;
+        } else
+            module = loaded;
+    }
     FARPROC function = GetProcAddress(module, name);
-    if (module) FreeLibrary(module);
+    obfh_crt_publish(name, function);
     return function;
 }
 
 // A count conversion writes to user memory and must not run in a sizing pass.
-int obfh_format_has_count(const char *format) OBFH_SECTION_ATTRIBUTE {
+static int obfh_format_has_count(const char *format) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     for (const char *cursor = format; *cursor; ++cursor) {
         if (*cursor != '%') continue;
@@ -1284,7 +1403,7 @@ int obfh_format_has_count(const char *format) OBFH_SECTION_ATTRIBUTE {
 }
 
 // printf
-int printf_custom(int junk, const char *format, ...) {
+static int printf_custom(int junk, const char *format, ...) {
     BREAK_STACK_1;
     va_list args;
     NOP_FLOOD;
@@ -1306,7 +1425,7 @@ int printf_custom(int junk, const char *format, ...) {
             result = vsnprintf(buffer, (size_t)length + 1, format, args);
             DWORD written = 0;
             obfh_junk_func_args(RND(0, 1000) + junk);
-            if (result >= 0 && !WriteConsoleA(console, buffer, obfh_uintptr_proxy(strlen(buffer)), &written, NULL)) result = -1;
+            if (result >= 0 && (!WriteConsoleA(console, buffer, (DWORD)obfh_uintptr_proxy((ULONG_PTR)result), &written, NULL) || written != (DWORD)result)) result = -1;
             free(buffer);
         } else
             result = -1;
@@ -1328,144 +1447,267 @@ int printf_custom(int junk, const char *format, ...) {
     })
 
 // scanf
-char *getScanfName_proxy() {
+static char *getScanfName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "scanf";
+    name[0] = _s;
+    name[1] = _c;
+    name[2] = _a;
+    name[3] = _n;
+    name[4] = _f;
+    name[5] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define scanf(...) ((int (*)(const char *, ...))obfh_crt_resolve(getScanfName_proxy()))(__VA_ARGS__)
+#define scanf(...) ({ char __obfh_crt_name[32]; ((int (*)(const char *, ...))obfh_crt_resolve(getScanfName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // sprintf
-char *getSprintfName_proxy() {
+static char *getSprintfName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "sprintf";
+    name[0] = _s;
+    name[1] = _p;
+    name[2] = _r;
+    name[3] = _i;
+    name[4] = _n;
+    name[5] = _t;
+    name[6] = _f;
+    name[7] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define sprintf(...) ((int (*)(char *, const char *, ...))obfh_crt_resolve(getSprintfName_proxy()))(__VA_ARGS__)
+#define sprintf(...) ({ char __obfh_crt_name[32]; ((int (*)(char *, const char *, ...))obfh_crt_resolve(getSprintfName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // fclose
-char *getFcloseName_proxy() {
+static char *getFcloseName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fclose";
+    name[0] = _f;
+    name[1] = _c;
+    name[2] = _l;
+    name[3] = _o;
+    name[4] = _s;
+    name[5] = _e;
+    name[6] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define fclose(...) ((int (*)(FILE *))obfh_crt_resolve(getFcloseName_proxy()))(__VA_ARGS__)
+#define fclose(...) ({ char __obfh_crt_name[32]; ((int (*)(FILE *))obfh_crt_resolve(getFcloseName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // fopen
-char *getFopenName_proxy() {
+static char *getFopenName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fopen";
+    name[0] = _f;
+    name[1] = _o;
+    name[2] = _p;
+    name[3] = _e;
+    name[4] = _n;
+    name[5] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define fopen(...) ((FILE * (*)(const char *, const char *)) obfh_crt_resolve(getFopenName_proxy()))(__VA_ARGS__)
+#define fopen(...) ({ char __obfh_crt_name[32]; ((FILE * (*)(const char *, const char *)) obfh_crt_resolve(getFopenName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // fread
-char *getFreadName_proxy() {
+static char *getFreadName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fread";
+    name[0] = _f;
+    name[1] = _r;
+    name[2] = _e;
+    name[3] = _a;
+    name[4] = _d;
+    name[5] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define fread(...) ((size_t(*)(void *, size_t, size_t, FILE *))obfh_crt_resolve(getFreadName_proxy()))(__VA_ARGS__)
+#define fread(...) ({ char __obfh_crt_name[32]; ((size_t(*)(void *, size_t, size_t, FILE *))obfh_crt_resolve(getFreadName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // fwrite
-char *getFwriteName_proxy() {
+static char *getFwriteName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "fwrite";
+    name[0] = _f;
+    name[1] = _w;
+    name[2] = _r;
+    name[3] = _i;
+    name[4] = _t;
+    name[5] = _e;
+    name[6] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define fwrite(...) ((size_t(*)(const void *, size_t, size_t, FILE *))obfh_crt_resolve(getFwriteName_proxy()))(__VA_ARGS__)
+#define fwrite(...) ({ char __obfh_crt_name[32]; ((size_t(*)(const void *, size_t, size_t, FILE *))obfh_crt_resolve(getFwriteName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // exit
-char *getExitName_proxy() {
+static char *getExitName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "exit";
+    name[0] = _e;
+    name[1] = _x;
+    name[2] = _i;
+    name[3] = _t;
+    name[4] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define exit(...) ((void (*)(int))obfh_crt_resolve(getExitName_proxy()))(__VA_ARGS__)
+#define exit(...) ({ char __obfh_crt_name[32]; ((void (*)(int))obfh_crt_resolve(getExitName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // strcpy
-char *getStrcpyName_proxy() {
+static char *getStrcpyName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strcpy";
+    name[0] = _s;
+    name[1] = _t;
+    name[2] = _r;
+    name[3] = _c;
+    name[4] = _p;
+    name[5] = _y;
+    name[6] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define strcpy(...) ((char *(*)(char *, const char *))obfh_crt_resolve(getStrcpyName_proxy()))(__VA_ARGS__)
+#define strcpy(...) ({ char __obfh_crt_name[32]; ((char *(*)(char *, const char *))obfh_crt_resolve(getStrcpyName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // strtok
-char *getStrtokName_proxy() {
+static char *getStrtokName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strtok";
+    name[0] = _s;
+    name[1] = _t;
+    name[2] = _r;
+    name[3] = _t;
+    name[4] = _o;
+    name[5] = _k;
+    name[6] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define strtok(...) ((char *(*)(char *, const char *))obfh_crt_resolve(getStrtokName_proxy()))(__VA_ARGS__)
+#define strtok(...) ({ char __obfh_crt_name[32]; ((char *(*)(char *, const char *))obfh_crt_resolve(getStrtokName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // memset
-void *memset_proxy(void *ptr, int value, size_t num) {
+static void *memset_proxy(void *ptr, int value, size_t num) {
     BREAK_STACK_1;
     return memset(ptr, value * _1, num);
 }
 #define memset(...) memset_proxy(__VA_ARGS__)
 
 // memcpy
-char *getMemcpyName_proxy() {
+static char *getMemcpyName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "memcpy";
+    name[0] = _m;
+    name[1] = _e;
+    name[2] = _m;
+    name[3] = _c;
+    name[4] = _p;
+    name[5] = _y;
+    name[6] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define memcpy(...) ((void *(*)(void *, const void *, size_t))obfh_crt_resolve(getMemcpyName_proxy()))(__VA_ARGS__)
+#define memcpy(...) ({ char __obfh_crt_name[32]; ((void *(*)(void *, const void *, size_t))obfh_crt_resolve(getMemcpyName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // strchr
-char *getStrchrName_proxy() {
+static char *getStrchrName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strchr";
+    name[0] = _s;
+    name[1] = _t;
+    name[2] = _r;
+    name[3] = _c;
+    name[4] = _h;
+    name[5] = _r;
+    name[6] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define strchr(...) ((char *(*)(const char *, int))obfh_crt_resolve(getStrchrName_proxy()))(__VA_ARGS__)
+#define strchr(...) ({ char __obfh_crt_name[32]; ((char *(*)(const char *, int))obfh_crt_resolve(getStrchrName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // strrchr
-char *getStrrchrName_proxy() {
+static char *getStrrchrName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "strrchr";
+    name[0] = _s;
+    name[1] = _t;
+    name[2] = _r;
+    name[3] = _r;
+    name[4] = _c;
+    name[5] = _h;
+    name[6] = _r;
+    name[7] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define strrchr(...) ((char *(*)(const char *, int))obfh_crt_resolve(getStrrchrName_proxy()))(__VA_ARGS__)
+#define strrchr(...) ({ char __obfh_crt_name[32]; ((char *(*)(const char *, int))obfh_crt_resolve(getStrrchrName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // rand
-char *getRandName_proxy() {
+static char *getRandName_proxy(char *name) {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "rand";
+    name[0] = _r;
+    name[1] = _a;
+    name[2] = _n;
+    name[3] = _d;
+    name[4] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define rand(...) ((int (*)(void))obfh_crt_resolve(getRandName_proxy()))(__VA_ARGS__)
+#define rand(...) ({ char __obfh_crt_name[32]; ((int (*)(void))obfh_crt_resolve(getRandName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
 // realloc
-char *getReallocName_proxy() OBFH_SECTION_ATTRIBUTE {
+static char *getReallocName_proxy(char *name) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     FAKE_CPUID;
-    return "realloc";
+    name[0] = _r;
+    name[1] = _e;
+    name[2] = _a;
+    name[3] = _l;
+    name[4] = _l;
+    name[5] = _o;
+    name[6] = _c;
+    name[7] = _0;
+#if CFLOW_V2
+#endif
+    return name;
 }
-#define realloc(...) ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy()))(__VA_ARGS__)
+#define realloc(...) ({ char __obfh_crt_name[32]; ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
 
-void *calloc_proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
+static void *calloc_proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return calloc(nmemb, size);
 }
 #define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
 #undef realloc
-void *realloc_proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
+static void *realloc_proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
-    return ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy()))(ptr, size);
+    char name[32];
+    return ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
 }
 #define realloc(ptr, size) realloc_proxy(ptr, size)
 
-char *gets_proxy(char *s) OBFH_SECTION_ATTRIBUTE {
+static char *gets_proxy(char *s) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return gets(s);
 }
 #define gets(s) gets_proxy(s)
 
-int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
+static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     va_list args;
     va_start(args, format);
@@ -1475,55 +1717,55 @@ int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION
 }
 #define snprintf(...) snprintf_proxy(__VA_ARGS__)
 
-int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
+static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsprintf(str, format, args);
 }
 #define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
-int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
+static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return vsnprintf(str, size, format, args);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
-char *getenv_proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
+static char *getenv_proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getenv(name);
 }
 #define getenv(name) getenv_proxy(name)
 
-int system_proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
+static int system_proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return system(command);
 }
 #define system(command) system_proxy(command)
 
-void abort_proxy(void) OBFH_SECTION_ATTRIBUTE {
+static void abort_proxy(void) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     abort();
 }
 #define abort() abort_proxy()
 
-int atexit_proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
+static int atexit_proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return atexit(func);
 }
 #define atexit(func) atexit_proxy(func)
 
-char *getcwd_proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
+static char *getcwd_proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return getcwd(buf, size);
 }
 #define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
-int tolower_proxy(int c) OBFH_SECTION_ATTRIBUTE {
+static int tolower_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return tolower(c);
 }
 #define tolower(c) tolower_proxy(c)
 
-int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
+static int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     BREAK_STACK_1;
     return toupper(c);
 }
@@ -1557,7 +1799,8 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     GetStockObject(obfh_int_proxy(i) * TRUE)
 
 #define CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile) \
-    CreateFileA(OBFH_PTR(LPCSTR, lpFileName), obfh_int_proxy(dwDesiredAccess), obfh_int_proxy(dwShareMode), OBFH_PTR(LPSECURITY_ATTRIBUTES, lpSecurityAttributes), obfh_int_proxy(dwCreationDisposition), obfh_int_proxy(dwFlagsAndAttributes), OBFH_PTR(HANDLE, hTemplateFile))
+    OBFH_WINAPI(CreateFile)                                                                                                                    \
+    (OBFH_PTR(LPCTSTR, lpFileName), obfh_int_proxy(dwDesiredAccess), obfh_int_proxy(dwShareMode), OBFH_PTR(LPSECURITY_ATTRIBUTES, lpSecurityAttributes), obfh_int_proxy(dwCreationDisposition), obfh_int_proxy(dwFlagsAndAttributes), OBFH_PTR(HANDLE, hTemplateFile))
 
 #define ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped) \
     ReadFile(OBFH_PTR(HANDLE, hFile), OBFH_PTR(LPVOID, lpBuffer), obfh_int_proxy(nNumberOfBytesToRead), OBFH_PTR(LPDWORD, lpNumberOfBytesRead), OBFH_PTR(LPOVERLAPPED, lpOverlapped))
@@ -1569,7 +1812,8 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
     CloseHandle(OBFH_PTR(HANDLE, hObject))
 
 #define GetModuleHandle(lpModuleName) \
-    GetModuleHandleA(OBFH_PTR(LPCSTR, lpModuleName))
+    OBFH_WINAPI(GetModuleHandle)      \
+    (OBFH_PTR(LPCTSTR, lpModuleName))
 
 #define GetCurrentProcess() \
     OBFH_PTR(HANDLE, GetCurrentProcess())
@@ -1634,17 +1878,25 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
 
 #define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, obfh_uintptr_proxy((ULONG_PTR)(_Size)))
 
-int obfh_abs_proxy(int value) {
+static int obfh_abs_proxy(int value) {
     BREAK_STACK_1;
     return value < (int)FALSE ? -value : value;
 }
 #define abs(x) obfh_abs_proxy(x)
 
 #if virt_std == 1
-#define _MUTATE_MATH(value) VM_MUL_DBL(VM_ADD_DBL(0, value), 1)
+#define OBFH_MATH_KEY() ((ULONG_PTR)VM_OBF_INT(SALT_SHIFT))
 #else
-#define _MUTATE_MATH(value) (FALSE + (value)*TRUE)
+#define OBFH_MATH_KEY() ((ULONG_PTR)obfh_condition_proxy((float)_1, (float)obfh_int_proxy(SALT_SHIFT)))
 #endif
+// Mutate the typed value's address: arithmetic identities can change -0,
+// rounding, NaN payloads or wide integer exponents before the math call.
+#define _MUTATE_MATH(value) ({                                                                           \
+    __typeof__((value)) volatile __obfh_math_value = (value);                                            \
+    volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY();                                                \
+    ULONG_PTR __obfh_math_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_math_value ^ __obfh_math_key); \
+    *(__typeof__(&__obfh_math_value))(__obfh_math_address ^ __obfh_math_key);                            \
+})
 
 #define fma(x, y, z) fma(_MUTATE_MATH(x), _MUTATE_MATH(y), _MUTATE_MATH(z))
 #define nexttoward(x, y) nexttoward(_MUTATE_MATH(x), _MUTATE_MATH(y))
@@ -1701,7 +1953,7 @@ int obfh_abs_proxy(int value) {
 #define tan(x) tan(_MUTATE_MATH(x))
 #define erf(x) erf(_MUTATE_MATH(x))
 
-__declspec(dllexport) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
+__declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
     return HIDE_STRING("Moo");
 }
 
