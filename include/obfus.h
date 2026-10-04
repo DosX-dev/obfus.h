@@ -353,9 +353,8 @@ char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
     }
 
     // ['\0', 's', 't', 'r', 'i', 'n', 'g'] => "string"
-    char string_to_return[4096];
-    strcpy(string_to_return, string + 1);
-    return string_to_return;
+    // STACK_STRING storage belongs to the HIDE_STRING call site.
+    return string + 1;
 }
 
 float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
