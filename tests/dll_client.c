@@ -16,6 +16,6 @@ int main(int argc, char **argv) {
     for (int i = -1000; i <= 1000; ++i)
         if (transformer(i) != i * 7 + 3) return 5;
     if (!FreeLibrary(dll)) return 6;
-    puts("DLL_PASS");
-    return 0;
+    if (puts("DLL_PASS") < 0) return 7;
+    return fflush(stdout) == 0 ? 0 : 7;
 }

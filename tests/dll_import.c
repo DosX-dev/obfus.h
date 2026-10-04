@@ -12,6 +12,6 @@ int main(void) {
     if (hello_func() != 42) return 2;
     for (int i = -1000; i <= 1000; ++i)
         if (transform(i) != i * 7 + 3) return 3;
-    puts("DLL_IMPORT_PASS");
-    return 0;
+    if (puts("DLL_IMPORT_PASS") < 0) return 4;
+    return fflush(stdout) == 0 ? 0 : 4;
 }

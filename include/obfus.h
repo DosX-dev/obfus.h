@@ -63,6 +63,7 @@
 
 #if NO_OBF == 1
 #define HIDE_STRING(str) str
+#define BREAK_STACK_CFLOW ((void)0)
 #define ANTI_DEBUG 0
 #endif
 
@@ -95,6 +96,7 @@
 #define SECTION_ATTRIBUTE(NAME) __attribute__((section(NAME)))
 
 #define DATA_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".data")  // Data section
+#define TEXT_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".text")  // Text section
 
 // Fake signatures ;)
 #if FAKE_SIGNS == 1
@@ -183,7 +185,7 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 #define STACK_STRING(str) ((char[]){str})
 
 #define HIDE_STRING(str) \
-    (_0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), (float)__s_rdtsc(RND(0, 255)) != 0.1) : (char *)(ULONG_PTR)((float)__s_rdtsc(RND(0, 255)) == RND(0, 255)))
+    (OBFH_HIDE_JUNK(), (_0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), (float)__s_rdtsc(RND(0, 255)) != 0.1) : (char *)(ULONG_PTR)((float)__s_rdtsc(RND(0, 255)) == RND(0, 255))))
 
 typedef enum {
     SALT_SHIFT = RND(0xBAD, 0xBEEF)
@@ -197,6 +199,11 @@ typedef enum {
         return *(__typeof__(&(value)))(__obfh_ret_address ^ __obfh_ret_shift);   \
     }
 
+// Mix separate compile-time draws so the payload is not an affine byte pattern.
+#define OBFH_JUNK_BYTE (((RND(0, 65535) * 2246822519u) ^ ((RND(0, 65535) * 3266489917u) >> 13)) & 255u)
+#define OBFH_JUNK_WORD ((RND(0, 65535) * 2246822519u) ^ ((unsigned int)RND(0, 65535) << 16) ^ (RND(0, 65535) * 3266489917u))
+#define OBFH_MIX_A(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) * 2246822507u)
+#define OBFH_MIX_B(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 13)) * 3266489909u)
 volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
                             _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
                             _s_i[] OBFH_SECTION_ATTRIBUTE = "i", _s_j[] OBFH_SECTION_ATTRIBUTE = "j", _s_k[] OBFH_SECTION_ATTRIBUTE = "k", _s_l[] OBFH_SECTION_ATTRIBUTE = "l",
@@ -218,104 +225,570 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
-// Skipped bytes vary per site; the legacy CPUID paths retain their clobbers.
-#define BREAK_STACK_1                                                                 \
-    __obfh_asm__("xorl %%eax, %%eax; jz 1f; .byte 0xE8; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                    \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                   \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define OBFH_JUNK_RANDOM_INPUTS \
+    "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_WORD)
 
-#define BREAK_STACK_2 ({                                                                               \
-    enum { __obfh_break_salt = RND(1, 32767),                                                          \
-           __obfh_break_gap = RND(1, 255) };                                                           \
-    if (((unsigned int)(unsigned char)_0 ^ __obfh_break_salt) == __obfh_break_salt + __obfh_break_gap) \
-        __obfh_asm__(".byte 0x00, 0xE8; .fill %c0, 1, %c1;"                                            \
-                     :                                                                                 \
-                     : "i"(RND(1, 6)), "i"(RND(0, 255))                                                \
-                     : "eax", "ebx", "ecx", "edx", "cc", "memory");                                    \
-    (void)0;                                                                                           \
+// Operand positions are part of the payload contract. Keep each draw per expansion.
+#define OBFH_JUNK_INPUTS "i"(RND(1, 15)), "i"(RND(0, 255)), OBFH_JUNK_RANDOM_INPUTS
+#define OBFH_STACK_JUNK_INPUTS "i"(RND(1, 32767)), OBFH_JUNK_INPUTS
+#define OBFH_CFLOW_RANDOM_INPUTS "i"(RND(1, 32767)), "i"(RND(1, 15)), "i"(RND(0, 255)), "i"(RND(1, 2147483646u))
+#define OBFH_CPUID_CLOBBERS "eax", "ebx", "ecx", "edx", "cc", "memory"
+#define OBFH_CFLOW_CLOBBERS "eax", "edx", "ecx", "cc", "memory"
+#define OBFH_JUNK_ASM(code) __obfh_asm__(code               \
+                                         :                  \
+                                         : OBFH_JUNK_INPUTS \
+                                         : OBFH_CPUID_CLOBBERS)
+#define OBFH_STACK_JUNK_ASM(code, ...) __obfh_asm__(code                     \
+                                                    :                        \
+                                                    : OBFH_STACK_JUNK_INPUTS \
+                                                    : __VA_ARGS__, "cc", "memory")
+#define OBFH_CFLOW_ASM(code) __obfh_asm__(code                       \
+                                          :                          \
+                                          : OBFH_CFLOW_RANDOM_INPUTS \
+                                          : OBFH_CFLOW_CLOBBERS)
+
+// These bytes belong only to skipped regions; labels and branch predicates stay at the call site.
+#define OBFH_JUNK_PAYLOAD ".byte %c2, %c3, %c4, %c5; .long %c6; .fill %c0, 1, %c1;"
+#define OBFH_STACK_JUNK_PAYLOAD ".byte %c3, %c4, %c5, %c6; .long %c7; .fill %c1, 1, %c2;"
+#define OBFH_CFLOW_FILL ".fill %c1, 1, %c2;"
+#define OBFH_CFLOW_PAYLOAD_CALL ".byte 0xE8; " OBFH_CFLOW_FILL
+#define OBFH_CFLOW_PAYLOAD_INDIRECT ".byte 0xFF, 0x25; .long %c3; " OBFH_CFLOW_FILL
+#define OBFH_CFLOW_PAYLOAD_MOV ".byte 0x48, 0xB8; .long %c3; .long %c3; " OBFH_CFLOW_FILL
+#define OBFH_CFLOW_PAYLOAD_JUMP ".byte 0xE9; .long %c3; " OBFH_CFLOW_FILL
+#define OBFH_CFLOW_PAYLOAD_CALL_DATA ".byte 0xE8, %c2; .long %c3; " OBFH_CFLOW_FILL
+#define OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT ".byte 0x0F, 0x0B; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9;"
+
+// Every skip identity holds modulo 2^32 for every input, not just aligned SP.
+// Unsigned polynomial/bit identities; parameters are asm register strings.
+#define OBFH_CFLOW_PRED_ADJACENT_PRODUCT(r0, r1) "leal 1(" r0 "), " r1 "; imull " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_SQUARE(r0) "imull " r0 ", " r0 ";"
+#define OBFH_CFLOW_PRED_SQUARE_XOR(r0, r1) "movl " r0 ", " r1 "; imull " r0 ", " r0 "; xorl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_ODD_PRODUCT(r0, r1) "leal 1(" r0 "), " r1 "; imull " r1 ", " r0 "; addl $1, " r0 ";"
+#define OBFH_CFLOW_PRED_CUBE_MINUS(r0, r1) "movl " r0 ", " r1 "; imull " r0 ", " r0 "; imull " r1 ", " r0 "; subl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_THREE_PRODUCT(r0, r1, r2) "leal 1(" r0 "), " r1 "; leal 2(" r0 "), " r2 "; imull " r1 ", " r0 "; imull " r2 ", " r0 ";"
+#define OBFH_CFLOW_PRED_FOUR_PRODUCT(r0, r1, r2) "leal 1(" r0 "), " r1 "; leal 2(" r0 "), " r2 "; imull " r0 ", " r1 "; addl $3, " r0 "; imull " r2 ", " r1 "; imull " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_SQUARE_PRODUCT(r0, r1) "imull " r0 ", " r0 "; leal -1(" r0 "), " r1 "; imull " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_FOURTH(r0) "imull " r0 ", " r0 "; imull " r0 ", " r0 ";"
+#define OBFH_CFLOW_PRED_FIFTH_MINUS(r0, r1) "movl " r0 ", " r1 "; imull " r0 ", " r0 "; imull " r0 ", " r0 "; imull " r1 ", " r0 "; subl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_ADJACENT_OR(r0, r1) "leal 1(" r0 "), " r1 "; orl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_ADJACENT_AND(r0, r1) "leal 1(" r0 "), " r1 "; andl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_PREVIOUS_PRODUCT(r0, r1) "leal -1(" r0 "), " r1 "; imull " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_SQUARE_PLUS(r0, r1) "movl " r0 ", " r1 "; imull " r0 ", " r0 "; addl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_CUBE_PLUS(r0, r1) "movl " r0 ", " r1 "; imull " r0 ", " r0 "; imull " r1 ", " r0 "; addl " r1 ", " r0 ";"
+#define OBFH_CFLOW_PRED_ODD_SQUARE(r0) "imull " r0 ", " r0 "; orl $1, " r0 ";"
+
+// The live path reads SP only. Stack writes, traps and indirect transfers are skipped data.
+#define OBFH_CFLOW_NAMED_INPUTS                                        \
+    [junk_salt] "i"(RND(1, 32767)), "i"(RND(1, 15)), "i"(RND(0, 255)), \
+        [junk_key] "i"(OBFH_JUNK_WORD), OBFH_JUNK_RANDOM_INPUTS, [junk_rotate] "i"(RND(1, 31))
+#define OBFH_CFLOW_NAMED_ASM(code) __obfh_asm__(code                      \
+                                                :                         \
+                                                : OBFH_CFLOW_NAMED_INPUTS \
+                                                : OBFH_CFLOW_CLOBBERS)
+#define OBFH_CFLOW_INPUT(reg) "movl %%esp, " reg "; xorl %[junk_salt], " reg "; roll %[junk_rotate], " reg ";"
+#define OBFH_CFLOW_DATA ".byte %c4, %c5, %c6, %c7; .long %c8;" OBFH_CFLOW_FILL
+#define OBFH_CFLOW_DATA_CALL ".byte 0xE8; .long %c3;" OBFH_CFLOW_DATA
+#define OBFH_CFLOW_DATA_STACK ".byte 0x48, 0xBC; .long %c8; .long %c3; .byte 0xFF, 0xE4;" OBFH_CFLOW_DATA
+#define OBFH_CFLOW_DATA_FRAME ".byte 0xC8, %c4, %c5, %c6, 0xC9, 0xC3;" OBFH_CFLOW_DATA
+#define OBFH_CFLOW_DATA_INDIRECT ".byte 0xFF, 0x15; .long %c8; .byte 0xE9; .long %c3;" OBFH_CFLOW_DATA
+#define OBFH_CFLOW_DATA_TRAP ".byte 0x0F, 0x0B, 0x8F, 0x04, 0x24;" OBFH_CFLOW_DATA
+#define OBFH_CFLOW_DATA_RETURN ".byte 0xC2, %c4, %c5, 0xE8; .long %c8;" OBFH_CFLOW_DATA
+
+#define OBFH_CFLOW_PRED_ADD_CARRY OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; xorl %[junk_key], %%eax; andl %[junk_key], %%edx; addl %%edx, %%edx; addl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") "addl %[junk_key], %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_OR_AND_SUM OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; orl %[junk_key], %%eax; andl %[junk_key], %%edx; addl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") "addl %[junk_key], %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_SUB_BORROW OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; xorl %[junk_key], %%eax; notl %%edx; andl %[junk_key], %%edx; addl %%edx, %%edx; subl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") "subl %[junk_key], %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_DEMORGAN OBFH_CFLOW_INPUT("%%eax") "orl %[junk_key], %%eax; notl %%eax; " OBFH_CFLOW_INPUT("%%edx") "notl %%edx; movl %[junk_key], %%ecx; notl %%ecx; andl %%ecx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_OR_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; orl %[junk_key], %%eax; movl %[junk_key], %%ecx; notl %%ecx; orl %%ecx, %%edx; andl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") " cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_AND_PARTITION OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; andl %[junk_key], %%eax; movl %[junk_key], %%ecx; notl %%ecx; andl %%ecx, %%edx; orl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") " cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_XOR_CANCEL OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; xorl %[junk_key], %%eax; xorl %%edx, %%eax; cmpl %[junk_key], %%eax;"
+#define OBFH_CFLOW_PRED_COMPLEMENT_CARRY OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; notl %%edx; addl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_COMPLEMENT_WRAP OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; notl %%edx; addl %%edx, %%eax; addl $1, %%eax;"
+#define OBFH_CFLOW_PRED_MASK_SUBTRACT OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; andl %[junk_key], %%edx; subl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_MASK_OR_ORDER OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; orl %[junk_key], %%eax; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_ROTATE_XOR OBFH_CFLOW_INPUT("%%eax") "xorl %[junk_key], %%eax; roll %[junk_rotate], %%eax; " OBFH_CFLOW_INPUT("%%edx") "roll %[junk_rotate], %%edx; movl %[junk_key], %%ecx; roll %[junk_rotate], %%ecx; xorl %%ecx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_ROTATE_RESTORE OBFH_CFLOW_INPUT("%%eax") "roll %[junk_rotate], %%eax; rorl %[junk_rotate], %%eax; " OBFH_CFLOW_INPUT("%%edx") " cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_BSWAP_XOR OBFH_CFLOW_INPUT("%%eax") "xorl %[junk_key], %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx") "bswap %%edx; movl %[junk_key], %%ecx; bswap %%ecx; xorl %%ecx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_WORD_PARTITION OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; andl $65535, %%eax; andl $-65536, %%edx; orl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") " cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_BYTE_PARITY OBFH_CFLOW_INPUT("%%eax") "movzbl %%al, %%edx; imull %%eax, %%eax; addl %%edx, %%eax; testb $1, %%al;"
+#define OBFH_CFLOW_PRED_BYTE_ROTATE OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; rolb %[junk_rotate], %%al; rorb %[junk_rotate], %%al; cmpb %%dl, %%al;"
+#define OBFH_CFLOW_PRED_WORD_ROTATE OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; rolw %[junk_rotate], %%ax; rorw %[junk_rotate], %%ax; cmpw %%dx, %%ax;"
+#define OBFH_CFLOW_PRED_NEG_COMPLEMENT OBFH_CFLOW_INPUT("%%eax") "notl %%eax; addl $1, %%eax; " OBFH_CFLOW_INPUT("%%edx") "negl %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_MUL_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax") "addl %[junk_key], %%eax; imull %[junk_salt], %%eax; " OBFH_CFLOW_INPUT("%%edx") "imull %[junk_salt], %%edx; movl %[junk_key], %%ecx; imull %[junk_salt], %%ecx; addl %%ecx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_SQUARE_EXPAND OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; imull %%edx, %%edx; movl %%eax, %%ecx; imull %[junk_key], %%ecx; addl %%ecx, %%ecx; addl %[junk_key], %%eax; imull %%eax, %%eax; subl %%edx, %%eax; subl %%ecx, %%eax; movl %[junk_key], %%edx; imull %%edx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_NEG_SQUARE OBFH_CFLOW_INPUT("%%eax") "negl %%eax; imull %%eax, %%eax; " OBFH_CFLOW_INPUT("%%edx") "imull %%edx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_BSWAP_NOT OBFH_CFLOW_INPUT("%%eax") "notl %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx") "bswap %%edx; notl %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_SUB_MASK OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; andl %[junk_key], %%edx; subl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx") "movl %[junk_key], %%ecx; notl %%ecx; andl %%ecx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_MASK_ORDER OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; andl %[junk_key], %%eax; orl %[junk_key], %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE OBFH_CFLOW_INPUT("%%eax") "notl %%eax; addl %[junk_key], %%eax; " OBFH_CFLOW_INPUT("%%edx") "negl %%edx; addl %[junk_key], %%edx; subl $1, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_SQUARE_RESIDUE OBFH_CFLOW_INPUT("%%eax") "imull %%eax, %%eax; andl $7, %%eax; leal -1(%%eax), %%edx; leal -4(%%eax), %%ecx; imull %%edx, %%eax; imull %%ecx, %%eax; testl %%eax, %%eax;"
+#define OBFH_CFLOW_PRED_FOURTH_RESIDUE OBFH_CFLOW_INPUT("%%eax") "imull %%eax, %%eax; imull %%eax, %%eax; andl $15, %%eax; leal -1(%%eax), %%edx; imull %%edx, %%eax; testl %%eax, %%eax;"
+#define OBFH_CFLOW_PRED_ISOLATE_BIT OBFH_CFLOW_INPUT("%%eax") "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax;"
+
+// All 128 templates are available; selection emits only the chosen asm.
+#define OBFH_CFLOW_VARIANT_COUNT 128u
+#define OBFH_CFLOW_GROUP_0(index) \
+    __builtin_choose_expr((index) < 4u, __builtin_choose_expr((index) < 2u, __builtin_choose_expr((index) < 1u, ({ BREAK_STACK_CFLOW_0; }), ({ BREAK_STACK_CFLOW_1; })), __builtin_choose_expr((index) < 3u, ({ BREAK_STACK_CFLOW_2; }), ({ BREAK_STACK_CFLOW_3; }))), __builtin_choose_expr((index) < 6u, __builtin_choose_expr((index) < 5u, ({ BREAK_STACK_CFLOW_4; }), ({ BREAK_STACK_CFLOW_5; })), __builtin_choose_expr((index) < 7u, ({ BREAK_STACK_CFLOW_6; }), ({ BREAK_STACK_CFLOW_7; }))))
+#define OBFH_CFLOW_GROUP_1(index) \
+    __builtin_choose_expr((index) < 12u, __builtin_choose_expr((index) < 10u, __builtin_choose_expr((index) < 9u, ({ BREAK_STACK_CFLOW_8; }), ({ BREAK_STACK_CFLOW_9; })), __builtin_choose_expr((index) < 11u, ({ BREAK_STACK_CFLOW_10; }), ({ BREAK_STACK_CFLOW_11; }))), __builtin_choose_expr((index) < 14u, __builtin_choose_expr((index) < 13u, ({ BREAK_STACK_CFLOW_12; }), ({ BREAK_STACK_CFLOW_13; })), __builtin_choose_expr((index) < 15u, ({ BREAK_STACK_CFLOW_14; }), ({ BREAK_STACK_CFLOW_15; }))))
+#define OBFH_CFLOW_GROUP_2(index) \
+    __builtin_choose_expr((index) < 20u, __builtin_choose_expr((index) < 18u, __builtin_choose_expr((index) < 17u, ({ BREAK_STACK_CFLOW_16; }), ({ BREAK_STACK_CFLOW_17; })), __builtin_choose_expr((index) < 19u, ({ BREAK_STACK_CFLOW_18; }), ({ BREAK_STACK_CFLOW_19; }))), __builtin_choose_expr((index) < 22u, __builtin_choose_expr((index) < 21u, ({ BREAK_STACK_CFLOW_20; }), ({ BREAK_STACK_CFLOW_21; })), __builtin_choose_expr((index) < 23u, ({ BREAK_STACK_CFLOW_22; }), ({ BREAK_STACK_CFLOW_23; }))))
+#define OBFH_CFLOW_GROUP_3(index) \
+    __builtin_choose_expr((index) < 28u, __builtin_choose_expr((index) < 26u, __builtin_choose_expr((index) < 25u, ({ BREAK_STACK_CFLOW_24; }), ({ BREAK_STACK_CFLOW_25; })), __builtin_choose_expr((index) < 27u, ({ BREAK_STACK_CFLOW_26; }), ({ BREAK_STACK_CFLOW_27; }))), __builtin_choose_expr((index) < 30u, __builtin_choose_expr((index) < 29u, ({ BREAK_STACK_CFLOW_28; }), ({ BREAK_STACK_CFLOW_29; })), __builtin_choose_expr((index) < 31u, ({ BREAK_STACK_CFLOW_30; }), ({ BREAK_STACK_CFLOW_31; }))))
+#define OBFH_CFLOW_GROUP_4(index) \
+    __builtin_choose_expr((index) < 36u, __builtin_choose_expr((index) < 34u, __builtin_choose_expr((index) < 33u, ({ BREAK_STACK_CFLOW_32; }), ({ BREAK_STACK_CFLOW_33; })), __builtin_choose_expr((index) < 35u, ({ BREAK_STACK_CFLOW_34; }), ({ BREAK_STACK_CFLOW_35; }))), __builtin_choose_expr((index) < 38u, __builtin_choose_expr((index) < 37u, ({ BREAK_STACK_CFLOW_36; }), ({ BREAK_STACK_CFLOW_37; })), __builtin_choose_expr((index) < 39u, ({ BREAK_STACK_CFLOW_38; }), ({ BREAK_STACK_CFLOW_39; }))))
+#define OBFH_CFLOW_GROUP_5(index) \
+    __builtin_choose_expr((index) < 44u, __builtin_choose_expr((index) < 42u, __builtin_choose_expr((index) < 41u, ({ BREAK_STACK_CFLOW_40; }), ({ BREAK_STACK_CFLOW_41; })), __builtin_choose_expr((index) < 43u, ({ BREAK_STACK_CFLOW_42; }), ({ BREAK_STACK_CFLOW_43; }))), __builtin_choose_expr((index) < 46u, __builtin_choose_expr((index) < 45u, ({ BREAK_STACK_CFLOW_44; }), ({ BREAK_STACK_CFLOW_45; })), __builtin_choose_expr((index) < 47u, ({ BREAK_STACK_CFLOW_46; }), ({ BREAK_STACK_CFLOW_47; }))))
+#define OBFH_CFLOW_GROUP_6(index) \
+    __builtin_choose_expr((index) < 52u, __builtin_choose_expr((index) < 50u, __builtin_choose_expr((index) < 49u, ({ BREAK_STACK_CFLOW_48; }), ({ BREAK_STACK_CFLOW_49; })), __builtin_choose_expr((index) < 51u, ({ BREAK_STACK_CFLOW_50; }), ({ BREAK_STACK_CFLOW_51; }))), __builtin_choose_expr((index) < 54u, __builtin_choose_expr((index) < 53u, ({ BREAK_STACK_CFLOW_52; }), ({ BREAK_STACK_CFLOW_53; })), __builtin_choose_expr((index) < 55u, ({ BREAK_STACK_CFLOW_54; }), ({ BREAK_STACK_CFLOW_55; }))))
+#define OBFH_CFLOW_GROUP_7(index) \
+    __builtin_choose_expr((index) < 60u, __builtin_choose_expr((index) < 58u, __builtin_choose_expr((index) < 57u, ({ BREAK_STACK_CFLOW_56; }), ({ BREAK_STACK_CFLOW_57; })), __builtin_choose_expr((index) < 59u, ({ BREAK_STACK_CFLOW_58; }), ({ BREAK_STACK_CFLOW_59; }))), __builtin_choose_expr((index) < 62u, __builtin_choose_expr((index) < 61u, ({ BREAK_STACK_CFLOW_60; }), ({ BREAK_STACK_CFLOW_61; })), __builtin_choose_expr((index) < 63u, ({ BREAK_STACK_CFLOW_62; }), ({ BREAK_STACK_CFLOW_63; }))))
+#define OBFH_CFLOW_GROUP_8(index) \
+    __builtin_choose_expr((index) < 68u, __builtin_choose_expr((index) < 66u, __builtin_choose_expr((index) < 65u, ({ BREAK_STACK_CFLOW_64; }), ({ BREAK_STACK_CFLOW_65; })), __builtin_choose_expr((index) < 67u, ({ BREAK_STACK_CFLOW_66; }), ({ BREAK_STACK_CFLOW_67; }))), __builtin_choose_expr((index) < 70u, __builtin_choose_expr((index) < 69u, ({ BREAK_STACK_CFLOW_68; }), ({ BREAK_STACK_CFLOW_69; })), __builtin_choose_expr((index) < 71u, ({ BREAK_STACK_CFLOW_70; }), ({ BREAK_STACK_CFLOW_71; }))))
+#define OBFH_CFLOW_GROUP_9(index) \
+    __builtin_choose_expr((index) < 76u, __builtin_choose_expr((index) < 74u, __builtin_choose_expr((index) < 73u, ({ BREAK_STACK_CFLOW_72; }), ({ BREAK_STACK_CFLOW_73; })), __builtin_choose_expr((index) < 75u, ({ BREAK_STACK_CFLOW_74; }), ({ BREAK_STACK_CFLOW_75; }))), __builtin_choose_expr((index) < 78u, __builtin_choose_expr((index) < 77u, ({ BREAK_STACK_CFLOW_76; }), ({ BREAK_STACK_CFLOW_77; })), __builtin_choose_expr((index) < 79u, ({ BREAK_STACK_CFLOW_78; }), ({ BREAK_STACK_CFLOW_79; }))))
+#define OBFH_CFLOW_GROUP_10(index) \
+    __builtin_choose_expr((index) < 84u, __builtin_choose_expr((index) < 82u, __builtin_choose_expr((index) < 81u, ({ BREAK_STACK_CFLOW_80; }), ({ BREAK_STACK_CFLOW_81; })), __builtin_choose_expr((index) < 83u, ({ BREAK_STACK_CFLOW_82; }), ({ BREAK_STACK_CFLOW_83; }))), __builtin_choose_expr((index) < 86u, __builtin_choose_expr((index) < 85u, ({ BREAK_STACK_CFLOW_84; }), ({ BREAK_STACK_CFLOW_85; })), __builtin_choose_expr((index) < 87u, ({ BREAK_STACK_CFLOW_86; }), ({ BREAK_STACK_CFLOW_87; }))))
+#define OBFH_CFLOW_GROUP_11(index) \
+    __builtin_choose_expr((index) < 92u, __builtin_choose_expr((index) < 90u, __builtin_choose_expr((index) < 89u, ({ BREAK_STACK_CFLOW_88; }), ({ BREAK_STACK_CFLOW_89; })), __builtin_choose_expr((index) < 91u, ({ BREAK_STACK_CFLOW_90; }), ({ BREAK_STACK_CFLOW_91; }))), __builtin_choose_expr((index) < 94u, __builtin_choose_expr((index) < 93u, ({ BREAK_STACK_CFLOW_92; }), ({ BREAK_STACK_CFLOW_93; })), __builtin_choose_expr((index) < 95u, ({ BREAK_STACK_CFLOW_94; }), ({ BREAK_STACK_CFLOW_95; }))))
+#define OBFH_CFLOW_GROUP_12(index) \
+    __builtin_choose_expr((index) < 100u, __builtin_choose_expr((index) < 98u, __builtin_choose_expr((index) < 97u, ({ BREAK_STACK_CFLOW_96; }), ({ BREAK_STACK_CFLOW_97; })), __builtin_choose_expr((index) < 99u, ({ BREAK_STACK_CFLOW_98; }), ({ BREAK_STACK_CFLOW_99; }))), __builtin_choose_expr((index) < 102u, __builtin_choose_expr((index) < 101u, ({ BREAK_STACK_CFLOW_100; }), ({ BREAK_STACK_CFLOW_101; })), __builtin_choose_expr((index) < 103u, ({ BREAK_STACK_CFLOW_102; }), ({ BREAK_STACK_CFLOW_103; }))))
+#define OBFH_CFLOW_GROUP_13(index) \
+    __builtin_choose_expr((index) < 108u, __builtin_choose_expr((index) < 106u, __builtin_choose_expr((index) < 105u, ({ BREAK_STACK_CFLOW_104; }), ({ BREAK_STACK_CFLOW_105; })), __builtin_choose_expr((index) < 107u, ({ BREAK_STACK_CFLOW_106; }), ({ BREAK_STACK_CFLOW_107; }))), __builtin_choose_expr((index) < 110u, __builtin_choose_expr((index) < 109u, ({ BREAK_STACK_CFLOW_108; }), ({ BREAK_STACK_CFLOW_109; })), __builtin_choose_expr((index) < 111u, ({ BREAK_STACK_CFLOW_110; }), ({ BREAK_STACK_CFLOW_111; }))))
+#define OBFH_CFLOW_GROUP_14(index) \
+    __builtin_choose_expr((index) < 116u, __builtin_choose_expr((index) < 114u, __builtin_choose_expr((index) < 113u, ({ BREAK_STACK_CFLOW_112; }), ({ BREAK_STACK_CFLOW_113; })), __builtin_choose_expr((index) < 115u, ({ BREAK_STACK_CFLOW_114; }), ({ BREAK_STACK_CFLOW_115; }))), __builtin_choose_expr((index) < 118u, __builtin_choose_expr((index) < 117u, ({ BREAK_STACK_CFLOW_116; }), ({ BREAK_STACK_CFLOW_117; })), __builtin_choose_expr((index) < 119u, ({ BREAK_STACK_CFLOW_118; }), ({ BREAK_STACK_CFLOW_119; }))))
+#define OBFH_CFLOW_GROUP_15(index) \
+    __builtin_choose_expr((index) < 124u, __builtin_choose_expr((index) < 122u, __builtin_choose_expr((index) < 121u, ({ BREAK_STACK_CFLOW_120; }), ({ BREAK_STACK_CFLOW_121; })), __builtin_choose_expr((index) < 123u, ({ BREAK_STACK_CFLOW_122; }), ({ BREAK_STACK_CFLOW_123; }))), __builtin_choose_expr((index) < 126u, __builtin_choose_expr((index) < 125u, ({ BREAK_STACK_CFLOW_124; }), ({ BREAK_STACK_CFLOW_125; })), __builtin_choose_expr((index) < 127u, ({ BREAK_STACK_CFLOW_126; }), ({ BREAK_STACK_CFLOW_127; }))))
+#define OBFH_CFLOW_SELECT(index) \
+    __builtin_choose_expr((index) < 64u, __builtin_choose_expr((index) < 32u, __builtin_choose_expr((index) < 16u, __builtin_choose_expr((index) < 8u, OBFH_CFLOW_GROUP_0(index), OBFH_CFLOW_GROUP_1(index)), __builtin_choose_expr((index) < 24u, OBFH_CFLOW_GROUP_2(index), OBFH_CFLOW_GROUP_3(index))), __builtin_choose_expr((index) < 48u, __builtin_choose_expr((index) < 40u, OBFH_CFLOW_GROUP_4(index), OBFH_CFLOW_GROUP_5(index)), __builtin_choose_expr((index) < 56u, OBFH_CFLOW_GROUP_6(index), OBFH_CFLOW_GROUP_7(index)))), __builtin_choose_expr((index) < 96u, __builtin_choose_expr((index) < 80u, __builtin_choose_expr((index) < 72u, OBFH_CFLOW_GROUP_8(index), OBFH_CFLOW_GROUP_9(index)), __builtin_choose_expr((index) < 88u, OBFH_CFLOW_GROUP_10(index), OBFH_CFLOW_GROUP_11(index))), __builtin_choose_expr((index) < 112u, __builtin_choose_expr((index) < 104u, OBFH_CFLOW_GROUP_12(index), OBFH_CFLOW_GROUP_13(index)), __builtin_choose_expr((index) < 120u, OBFH_CFLOW_GROUP_14(index), OBFH_CFLOW_GROUP_15(index)))))
+
+// Avalanche the captured counter and seed before weighted selection.
+// Seven CPUID variants occupy 7/256 slots; the other 121 share the remaining slots.
+#define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 255u)
+#define OBFH_CFLOW_LIGHT_INDEX(value) ((value) < 86u ? (value) : ((value) < 88u ? (value) + 1u : (value) + 7u))
+#define OBFH_CFLOW_WEIGHTED_INDEX(slot) ((slot) < 7u ? ((slot) == 0u ? 86u : (slot) + 88u) : OBFH_CFLOW_LIGHT_INDEX(((slot)-7u) % 121u))
+#define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_WEIGHTED_INDEX(OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u))))
+#define OBFH_CFLOW_SINGLE(index) ((void)0)
+#define OBFH_CFLOW_LIGHT_ORDINAL(index) ((index) < 86u ? (index) : ((index) < 89u ? (index)-1u : (index)-7u))
+#define OBFH_CFLOW_EXTRA_INDEX(index) OBFH_CFLOW_LIGHT_INDEX((OBFH_CFLOW_LIGHT_ORDINAL(index) + 37u) % 121u)
+#if CFLOW_V2
+#define OBFH_CFLOW_EXTRA(index) OBFH_CFLOW_SELECT(OBFH_CFLOW_EXTRA_INDEX(index))
+#else
+#define OBFH_CFLOW_EXTRA(index) OBFH_CFLOW_SINGLE(index)
+#endif
+
+#define OBFH_CFLOW_EMIT(site, extra) ({                                                                                  \
+    enum { __obfh_break_id = (site),                                                                                     \
+           __obfh_break_hash1 = OBFH_MIX_A((unsigned int)__obfh_break_id ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u), \
+           __obfh_break_hash2 = OBFH_MIX_B(__obfh_break_hash1),                                                          \
+           __obfh_break_slot = OBFH_CFLOW_SLOT(__obfh_break_hash2),                                                      \
+           __obfh_break_index = OBFH_CFLOW_WEIGHTED_INDEX(__obfh_break_slot) };                                          \
+    OBFH_CFLOW_SELECT(__obfh_break_index);                                                                               \
+    extra(__obfh_break_index);                                                                                           \
+    (void)0;                                                                                                             \
 })
 
-#define BREAK_STACK_3 ({                                                \
-    enum { __obfh_break_salt = RND(1, 32767) };                         \
-    switch ((unsigned int)(unsigned char)_0 + __obfh_break_salt) {      \
-        case __obfh_break_salt + RND(129, 191):                         \
-            __obfh_asm__(".byte 0x00, 0x00; .fill %c0, 1, %c1;"         \
-                         :                                              \
-                         : "i"(RND(1, 6)), "i"(RND(0, 255))             \
-                         : "eax", "ebx", "ecx", "edx", "cc", "memory"); \
-            break;                                                      \
-        case __obfh_break_salt + RND(257, 319):                         \
-            __obfh_asm__(".byte 0xFF, 0x25; .fill %c0, 1, %c1;"         \
-                         :                                              \
-                         : "i"(RND(1, 6)), "i"(RND(0, 255))             \
-                         : "eax", "ebx", "ecx", "edx", "cc", "memory"); \
-            break;                                                      \
-    }                                                                   \
-    (void)0;                                                            \
+// Keep the string compound literal in caller scope and emit exactly one template.
+#define OBFH_HIDE_JUNK() OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_SINGLE)
+
+#define BREAK_STACK_CFLOW_0 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1:")
+
+#define BREAK_STACK_CFLOW_1 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1:")
+
+#define BREAK_STACK_CFLOW_2 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1:")
+
+#define BREAK_STACK_CFLOW_3 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1:")
+
+#define BREAK_STACK_CFLOW_4 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1:")
+
+#define BREAK_STACK_CFLOW_5 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1:")
+
+#define BREAK_STACK_CFLOW_6 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $7, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1:")
+
+#define BREAK_STACK_CFLOW_7 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") " testl $3, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1:")
+
+#define BREAK_STACK_CFLOW_8 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") " testl $14, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1:")
+
+#define BREAK_STACK_CFLOW_9 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1:")
+
+#define BREAK_STACK_CFLOW_10 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1:")
+
+#define BREAK_STACK_CFLOW_11 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1:")
+
+#define BREAK_STACK_CFLOW_12 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1:")
+
+#define BREAK_STACK_CFLOW_13 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1:")
+
+#define BREAK_STACK_CFLOW_14 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1:")
+
+#define BREAK_STACK_CFLOW_15 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1:")
+
+#define BREAK_STACK_CFLOW_16 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL " 2:")
+
+#define BREAK_STACK_CFLOW_17 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") " testl $2, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT " 2:")
+
+#define BREAK_STACK_CFLOW_18 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV " 2:")
+
+#define BREAK_STACK_CFLOW_19 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP " 2:")
+
+#define BREAK_STACK_CFLOW_20 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") " testl $1, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL " 2:")
+
+#define BREAK_STACK_CFLOW_21 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $1, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT " 2:")
+
+#define BREAK_STACK_CFLOW_22 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $7, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV " 2:")
+
+#define BREAK_STACK_CFLOW_23 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") " testl $3, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP " 2:")
+
+#define BREAK_STACK_CFLOW_24 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; xorl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") " testl $14, %%ecx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL " 2:")
+
+#define BREAK_STACK_CFLOW_25 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; xorl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT " 2:")
+
+#define BREAK_STACK_CFLOW_26 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; xorl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV " 2:")
+
+#define BREAK_STACK_CFLOW_27 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; xorl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP " 2:")
+
+#define BREAK_STACK_CFLOW_28 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL " 2:")
+
+#define BREAK_STACK_CFLOW_29 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT " 2:")
+
+#define BREAK_STACK_CFLOW_30 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV " 2:")
+
+#define BREAK_STACK_CFLOW_31 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP " 2:")
+
+#define BREAK_STACK_CFLOW_32 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_33 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $2, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_34 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_35 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $1, %%eax; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_36 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_37 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_38 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $7, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $7, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_39 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") " testl $3, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $3, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_40 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") " testl $14, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $14, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_41 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_42 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%ecx; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_43 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $1, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_44 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_45 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_46 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_47 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $2, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+
+#define BREAK_STACK_CFLOW_48 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL " 2: testl $1, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_49 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") " testl $2, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT " 2: testl $2, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_50 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV " 2: testl $1, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_51 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP " 2: testl $1, %%eax; jnz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_52 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; roll $7, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") " testl $1, %%edx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL " 2: testl $1, %%edx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_53 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; roll $7, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $1, %%edx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT " 2: testl $1, %%edx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_54 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; roll $7, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $7, %%edx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV " 2: testl $7, %%edx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_55 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; roll $7, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") " testl $3, %%edx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP " 2: testl $3, %%edx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_56 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") " testl $14, %%ecx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL " 2: testl $14, %%ecx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_57 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT " 2: testl $1, %%ecx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_58 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV " 2: testl $1, %%ecx; jnz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_59 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP " 2: testl $1, %%ecx; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_60 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL " 2: testl $1, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_61 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT " 2: testl $1, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_62 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV " 2: testl $1, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_63 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP " 2: testl $2, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
+
+#define BREAK_STACK_CFLOW_64 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "  testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "  testl $3, %%edx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_65 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "  testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "  testl $14, %%ecx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_66 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "  testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "  testl $1, %%ecx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_67 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "  testl $1, %%eax; jnz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "  testl $1, %%ecx; jnz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_68 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "  testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "  testl $1, %%ecx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_69 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "  testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "  testl $1, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_70 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "  testl $7, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "  testl $1, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_71 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "  testl $3, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "  testl $1, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_72 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "  testl $14, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "  testl $2, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_73 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "  testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "  testl $1, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_74 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "  testl $1, %%ecx; jnz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "  testl $2, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_75 \
+    OBFH_CFLOW_ASM("movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "  testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "  testl $1, %%eax; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_76 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "  testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "  testl $1, %%eax; jnz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_77 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "  testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "  testl $1, %%edx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_78 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "  testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "  testl $1, %%edx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_79 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "  testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA " 1: movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "  testl $7, %%edx; jz 2f; .byte 0xFF, 0x25; .long %c3; .byte %c2, 0xE9; 2:")
+
+#define BREAK_STACK_CFLOW_80 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "  testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA " 2: movl %%esp, %%edx; addl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "  testl $3, %%edx; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT " 3:")
+
+#define BREAK_STACK_CFLOW_81 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "  testl $2, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA " 2: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "  testl $14, %%ecx; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT " 3:")
+
+#define BREAK_STACK_CFLOW_82 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "  testl $1, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA " 2: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "  testl $1, %%ecx; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT " 3:")
+
+#define BREAK_STACK_CFLOW_83 \
+    OBFH_CFLOW_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "  testl $1, %%eax; jz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA " 2: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "  testl $1, %%ecx; jnz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT " 3:")
+
+#define BREAK_STACK_CFLOW_84 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "  testl $1, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA " 2: movl %%esp, %%ecx; addl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "  testl $1, %%ecx; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT " 3:")
+
+#define BREAK_STACK_CFLOW_85 \
+    OBFH_CFLOW_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "  testl $1, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA " 2: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "  testl $1, %%eax; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT " 3:")
+
+#define BREAK_STACK_CFLOW_86 \
+    OBFH_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
+
+#define BREAK_STACK_CFLOW_87 ({                                                                                         \
+    enum { __obfh_break_salt = RND(1, 32767),                                                                           \
+           __obfh_break_gap = RND(1, 255) };                                                                            \
+    __obfh_asm__("movzbl %7, %%eax; xorl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0xE8; " OBFH_JUNK_PAYLOAD " 1:" \
+                 :                                                                                                      \
+                 : OBFH_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_gap)         \
+                 : OBFH_CPUID_CLOBBERS);                                                                                \
 })
 
-#define BREAK_STACK_4                                                                                                                      \
-    __obfh_asm__("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                                                                         \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                                                                        \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_88 ({                                                                                                                                \
+    enum { __obfh_break_salt = RND(1, 32767),                                                                                                                  \
+           __obfh_break_case1 = RND(129, 191),                                                                                                                 \
+           __obfh_break_case2 = RND(257, 319) };                                                                                                               \
+    __obfh_asm__("movzbl %7, %%eax; addl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD                                              \
+                 " 1: cmpl %10, %%eax; jne 2f; .byte 0xFF, 0x25; " OBFH_JUNK_PAYLOAD " 2:"                                                                     \
+                 :                                                                                                                                             \
+                 : OBFH_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_case1), "i"(__obfh_break_salt + __obfh_break_case2) \
+                 : OBFH_CPUID_CLOBBERS);                                                                                                                       \
+})
 
-#define BREAK_STACK_5                                                                                                                                           \
-    __obfh_asm__("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                                                                                              \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                                                                                             \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_89 \
+    OBFH_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-#define BREAK_STACK_6                                                                                                      \
-    __obfh_asm__("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                                                         \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                                                        \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_90 \
+    OBFH_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-#define BREAK_STACK_7                                                                 \
-    __obfh_asm__("xorl %%edx, %%edx; jz 1f; .byte 0xE8; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                    \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                   \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_91 \
+    OBFH_JUNK_ASM("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-#define BREAK_STACK_8                                                                 \
-    __obfh_asm__("xorl %%eax, %%eax; jz 1f; .byte 0x50; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                    \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                   \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_92 \
+    OBFH_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-#define BREAK_STACK_9                                                                       \
-    __obfh_asm__("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; .fill %c0, 1, %c1; 1: cpuid;" \
-                 :                                                                          \
-                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                         \
-                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_93 \
+    OBFH_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0x50; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-// Lightweight variants: unsigned parity predicates, no serialization or asm stack changes.
-// Read the stack pointer without modifying it; parity identities survive 32-bit wrap.
-#define BREAK_STACK_10                                                                                                                                    \
-    __obfh_asm__("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0xE8; .fill %c1, 1, %c2; 1:" \
-                 :                                                                                                                                        \
-                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255))                                                                                   \
-                 : "eax", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_94 \
+    OBFH_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-#define BREAK_STACK_11 \
-    __obfh_asm__("movl %%esp, %%edx; addl %0, %%edx; imull %%edx, %%edx; testl $2, %%edx; jz 1f; .byte 0xFF, 0x25; .fill %c1, 1, %c2; 1:" \
-                 : \
-                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255)) \
-                 : "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_95 \
+    OBFH_STACK_JUNK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0xE8; " OBFH_STACK_JUNK_PAYLOAD " 1:", "eax", "edx")
 
-#define BREAK_STACK_12                                                                                                                                                                \
-    __obfh_asm__("movl %%esp, %%eax; addl %0, %%eax; movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 1:" \
-                 :                                                                                                                                                                    \
-                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255))                                                                                                               \
-                 : "eax", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_96 \
+    OBFH_STACK_JUNK_ASM("movl %%esp, %%edx; addl %0, %%edx; imull %%edx, %%edx; testl $2, %%edx; jz 1f; .byte 0xFF, 0x25; " OBFH_STACK_JUNK_PAYLOAD " 1:", "edx")
 
-#define BREAK_STACK_13                                                                                                                                                           \
-    __obfh_asm__("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testl $1, %%eax; jnz 1f; .byte 0xC3, 0xE8; .fill %c1, 1, %c2; 1:" \
-                 :                                                                                                                                                               \
-                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255))                                                                                                          \
-                 : "eax", "edx", "cc", "memory")
+#define BREAK_STACK_CFLOW_97 \
+    OBFH_STACK_JUNK_ASM("movl %%esp, %%eax; addl %0, %%eax; movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0x0F, 0x0B, 0xE8; " OBFH_STACK_JUNK_PAYLOAD " 1:", "eax", "edx")
+
+#define BREAK_STACK_CFLOW_98 \
+    OBFH_STACK_JUNK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testl $1, %%eax; jnz 1f; .byte 0xC3, 0xE8; " OBFH_STACK_JUNK_PAYLOAD " 1:", "eax", "edx")
+
+#define BREAK_STACK_CFLOW_99 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_ADD_CARRY "je 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_ROTATE_XOR "je 2f;" OBFH_CFLOW_DATA_INDIRECT "2:")
+
+#define BREAK_STACK_CFLOW_100 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_OR_AND_SUM "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_ROTATE_RESTORE "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_TRAP "3:")
+
+#define BREAK_STACK_CFLOW_101 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_SUB_BORROW "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_BSWAP_XOR "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_RETURN "3:")
+
+#define BREAK_STACK_CFLOW_102 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_DEMORGAN "je 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_WORD_PARTITION "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_CALL "3:")
+
+#define BREAK_STACK_CFLOW_103 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_OR_DISTRIBUTE "je 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_BYTE_PARITY "je 2f;" OBFH_CFLOW_DATA_STACK "2:")
+
+#define BREAK_STACK_CFLOW_104 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_AND_PARTITION "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_BYTE_ROTATE "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_FRAME "3:")
+
+#define BREAK_STACK_CFLOW_105 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_XOR_CANCEL "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_WORD_ROTATE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_INDIRECT "3:")
+
+#define BREAK_STACK_CFLOW_106 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_COMPLEMENT_CARRY "jnc 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_NEG_COMPLEMENT "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_TRAP "3:")
+
+#define BREAK_STACK_CFLOW_107 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_COMPLEMENT_WRAP "jc 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_MUL_DISTRIBUTE "je 2f;" OBFH_CFLOW_DATA_RETURN "2:")
+
+#define BREAK_STACK_CFLOW_108 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_MASK_SUBTRACT "jc 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_SQUARE_EXPAND "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_CALL "3:")
+
+#define BREAK_STACK_CFLOW_109 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_MASK_OR_ORDER "setae %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_NEG_SQUARE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_STACK "3:")
+
+#define BREAK_STACK_CFLOW_110 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_ROTATE_XOR "je 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_BSWAP_NOT "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_FRAME "3:")
+
+#define BREAK_STACK_CFLOW_111 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_ROTATE_RESTORE "je 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_SUB_MASK "je 2f;" OBFH_CFLOW_DATA_INDIRECT "2:")
+
+#define BREAK_STACK_CFLOW_112 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_BSWAP_XOR "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_MASK_ORDER "setbe %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_TRAP "3:")
+
+#define BREAK_STACK_CFLOW_113 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_WORD_PARTITION "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_RETURN "3:")
+
+#define BREAK_STACK_CFLOW_114 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_BYTE_PARITY "je 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_SQUARE_RESIDUE "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_CALL "3:")
+
+#define BREAK_STACK_CFLOW_115 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_BYTE_ROTATE "je 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_FOURTH_RESIDUE "je 2f;" OBFH_CFLOW_DATA_STACK "2:")
+
+#define BREAK_STACK_CFLOW_116 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_WORD_ROTATE "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_ISOLATE_BIT "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_FRAME "3:")
+
+#define BREAK_STACK_CFLOW_117 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_NEG_COMPLEMENT "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_ADD_CARRY "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_INDIRECT "3:")
+
+#define BREAK_STACK_CFLOW_118 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_MUL_DISTRIBUTE "je 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_OR_AND_SUM "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_TRAP "3:")
+
+#define BREAK_STACK_CFLOW_119 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_SQUARE_EXPAND "je 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_SUB_BORROW "je 2f;" OBFH_CFLOW_DATA_RETURN "2:")
+
+#define BREAK_STACK_CFLOW_120 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_NEG_SQUARE "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_DEMORGAN "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_CALL "3:")
+
+#define BREAK_STACK_CFLOW_121 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_BSWAP_NOT "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_OR_DISTRIBUTE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_STACK "3:")
+
+#define BREAK_STACK_CFLOW_122 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_SUB_MASK "je 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_AND_PARTITION "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_FRAME "3:")
+
+#define BREAK_STACK_CFLOW_123 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_MASK_ORDER "jbe 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_XOR_CANCEL "je 2f;" OBFH_CFLOW_DATA_INDIRECT "2:")
+
+#define BREAK_STACK_CFLOW_124 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_COMPLEMENT_CARRY "setnc %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_TRAP "3:")
+
+#define BREAK_STACK_CFLOW_125 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_SQUARE_RESIDUE "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_COMPLEMENT_WRAP "jnc 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_RETURN "3:")
+
+#define BREAK_STACK_CFLOW_126 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_FOURTH_RESIDUE "je 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_MASK_SUBTRACT "jc 1b; jmp 3f;" OBFH_CFLOW_DATA_CALL "3:")
+
+#define BREAK_STACK_CFLOW_127 \
+    OBFH_CFLOW_NAMED_ASM(OBFH_CFLOW_PRED_ISOLATE_BIT "je 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_MASK_OR_ORDER "jae 2f;" OBFH_CFLOW_DATA_STACK "2:")
+
+#define BREAK_STACK_CFLOW OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_EXTRA)
 
 #if defined(__x86_64__)
 #define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4;")
@@ -326,13 +799,13 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 #define BAD_CALL __obfh_asm__(".byte 0xB8;")
 
 static void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     __obfh_asm__("nop;");
     return;
 }
 
 static void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
-    BREAK_STACK_5;
+    BREAK_STACK_CFLOW;
     __obfh_asm__("nop;");
     return;
 }
@@ -352,7 +825,7 @@ static void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     "nop;"                       \
     :                            \
     :                            \
-    : "eax", "ebx", "ecx", "edx", "cc", "memory")
+    : OBFH_CPUID_CLOBBERS)
 
 #define NOP_FLOOD                                  \
     (RND(0, 1000)) + obfh_int_proxy(RND(0, 1000)); \
@@ -366,7 +839,7 @@ static void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
     } while (RND(0, 200) * _0)
 
 static void *malloc_proxy(size_t size) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return malloc(size);
 }
 #define malloc(...) malloc_proxy(__VA_ARGS__)
@@ -374,20 +847,20 @@ static void *malloc_proxy(size_t size) {
 static float rndValueToProxy = RND(0, 10);
 
 static int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
     RET_BY_VAR(value);
 }
 
 // Preserve pointer and SIZE_T width on both Windows targets.
 static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
     RET_BY_VAR(value);
 }
 
 #define OBFH_PTR(type, value) ((type)obfh_uintptr_proxy((ULONG_PTR)(value)))
 
 static double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_12;
+    BREAK_STACK_CFLOW;
     RET_BY_VAR(value);
 }
 
@@ -395,7 +868,7 @@ static float obfh_condition_true();
 
 // Hidden string access
 static char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
 
     if (!obfh_condition_true() || _0) {
         BAD_JMP;
@@ -407,16 +880,17 @@ static char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUT
 }
 
 static float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return _1 && TRUE;
 }
 
 static int obfh_condition_proxy(float junk, float condition, ...) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_11;
+    BREAK_STACK_CFLOW;
     RET_BY_VAR(condition);
 }
 
 static long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_CFLOW;
     {
         unsigned int lo, hi;
         __obfh_asm__(".byte 0x0f, 0x31;"  // rdtsc
@@ -489,6 +963,7 @@ static FARPROC obfh_crt_cached(const char *name) {
 }
 
 static void obfh_crt_publish(const char *name, FARPROC function) {
+    BREAK_STACK_CFLOW;
     if (!function || obfh_crt_cached(name)) return;
     unsigned int length = 0;
     while (name[length] && length < 31) ++length;
@@ -513,7 +988,7 @@ typedef struct {
 } OBFH_VM_VALUE;
 
 static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char floating) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_12;
+    BREAK_STACK_CFLOW;
     OBFH_VM_VALUE encoded;
     volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
     const unsigned char *bytes = (const unsigned char *)&value;
@@ -524,7 +999,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char f
 }
 
 static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
     long double value;
     volatile int key = obfh_condition_proxy((float)salt, (float)obfh_int_proxy(salt));
     unsigned char *bytes = (unsigned char *)&value;
@@ -553,35 +1028,38 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_
 
 // Different data dependencies and conversion positions across call sites.
 static unsigned int obfh_flow_route_0(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
     volatile int scaled = obfh_int_proxy((int)input) * 3 + (site & 255u);
     volatile float converted = (float)scaled;
     return (unsigned int)obfh_double_proxy((double)converted) ^ (site & 4095u);
 }
+
 static unsigned int obfh_flow_route_1(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_11;
+    BREAK_STACK_CFLOW;
     volatile float converted = (float)obfh_int_proxy((int)input);
     volatile unsigned int scaled = (unsigned int)obfh_double_proxy((double)converted) * 5u + (site & 127u);
     return (unsigned int)obfh_condition_proxy((float)(site & 255u), (float)(scaled ^ ((site >> 1) & 4095u)));
 }
+
 static unsigned int obfh_flow_route_2(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_12;
+    BREAK_STACK_CFLOW;
     volatile unsigned int mixed = input ^ (site & 1023u);
     volatile float converted = (float)obfh_int_proxy((int)mixed);
     return (unsigned int)obfh_double_proxy((double)converted) * 7u + 19u;
 }
+
 static unsigned int obfh_flow_route_3(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
     volatile unsigned int scaled = (input + (site & 255u)) * 9u + 23u;
     volatile double converted = obfh_double_proxy((double)(float)obfh_int_proxy((int)scaled));
     return (unsigned int)converted ^ ((site >> 2) & 8191u);
 }
 
 static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
 #if CFLOW_V2
-    BREAK_STACK_11;
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
+    BREAK_STACK_CFLOW;
 #endif
     volatile unsigned int input = (unsigned int)obfh_double_proxy((double)encoded);
     // Keep a misleading failure path without putting a timestamp on every if.
@@ -609,7 +1087,7 @@ static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATT
     volatile float intermediate = (float)obfh_int_proxy((int)second);
     stage = ((unsigned int)obfh_double_proxy((double)intermediate) * 3u + 11u) ^ (site & 8191u);
     converted = (float)obfh_int_proxy((int)stage);
-    BREAK_STACK_2;
+    BREAK_STACK_CFLOW;
 #endif
     return obfh_double_proxy((double)(float)obfh_condition_proxy((float)(site & 255u), converted, site));
 }
@@ -622,23 +1100,29 @@ static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATT
     __obfh_flow_result == (double)OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(OBFH_FLOW_BASE(__obfh_flow_site) + OBFH_FLOW_STEP(__obfh_flow_site), __obfh_flow_site), __obfh_flow_site); \
 })
 
+// Each intercepted if emits CFLOW-specific junk before evaluating its condition.
 // if
-#define if(cond) if (OBFH_FLOW_CONDITION(cond, RND(1, 65535)))
+#define if(cond) if (({                                             \
+                         enum { __obfh_if_site = RND(1, 65535) };   \
+                         BREAK_STACK_CFLOW;                         \
+                         OBFH_FLOW_CONDITION(cond, __obfh_if_site); \
+                     }))
 
 // else
-#define else      \
-    else if (0) { \
-        BAD_CALL; \
-    }             \
+#define else               \
+    else if (0) {          \
+        BAD_CALL;          \
+        BREAK_STACK_CFLOW; \
+    }                      \
     else
 
 #define OBFUS_CONDITION_BLOCK(...) OBFH_FLOW_CONDITION((__VA_ARGS__), RND(1, 65535))
 
 // break
-#define break                                                  \
-    {                                                          \
-        if (OBFUS_CONDITION_BLOCK(RND(1, 255))) BREAK_STACK_1; \
-        break;                                                 \
+#define break                                                      \
+    {                                                              \
+        if (OBFUS_CONDITION_BLOCK(RND(1, 255))) BREAK_STACK_CFLOW; \
+        break;                                                     \
     }
 
 // switch
@@ -735,30 +1219,31 @@ static long double obfh_vm_branch_program(long double condition, unsigned int no
 #define VM_ELSE else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!obfh_condition_true(), RND(1, 65535), _2))
 
 static long double Obfh_VirtualMachine(long double uni_key, long long command, OBFH_VM_VALUE encodedNum1, long double junk_2, OBFH_VM_VALUE encodedNum2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_CFLOW;
     long double num1, num2;
     volatile long double obfhVmResult = 0;
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     goto firstFakePoint;
 
     // Restore values
 restoreCommand:
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     command /= ~_salt;
     command += uni_key;
     goto restoreNum2;
 
 restoreNum1:
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     num1 = obfh_vm_decode(encodedNum1, SALT_NUM1);
     goto letsExecute;
 
 restoreNum2:
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     num2 = obfh_vm_decode(encodedNum2, SALT_NUM2);
     goto restoreNum1;
 
 firstFakePoint:
-    BREAK_STACK_2;
+    BREAK_STACK_CFLOW;
     goto secondFakePoint;
 
 letsExecute:
@@ -873,32 +1358,35 @@ letsExecute:
             obfhVmResult = _0 * (uni_key * _3);
             BAD_JMP;
     }
-    BREAK_STACK_8;
+    BREAK_STACK_CFLOW;
 
     long double result = uni_key;
 afterCalc:
-
+    BREAK_STACK_CFLOW;
     goto saveValueToLocal;
 resetResult:
+    BREAK_STACK_CFLOW;
     obfhVmResult = 0;
     goto returnValue;
 saveValueToLocal:
+    BREAK_STACK_CFLOW;
     result = obfhVmResult;
     goto resetResult;
 
 returnValue:
+    BREAK_STACK_CFLOW;
     return result;
 
     __obfh_asm__(".byte 0xFF, 0xE0;");  // fake indirect JMP (EAX on x86, RAX on x64)
 
 secondFakePoint:
-    BREAK_STACK_7;
+    BREAK_STACK_CFLOW;
     goto restoreCommand;
 }
 
 // A local encoded instruction pointer selects one of three decision programs.
 static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
     unsigned int variant = (nonce ^ site ^ kind) % 3u;
     volatile unsigned int pc = (variant + 1u) ^ mask;
@@ -935,7 +1423,7 @@ static long double obfh_vm_branch_program(long double condition, unsigned int no
 }
 
 static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_7;
+    BREAK_STACK_CFLOW;
     unsigned int low, high;
     __obfh_asm__(".byte 0x0f, 0x31;"
                  : "=a"(low), "=d"(high)
@@ -956,24 +1444,24 @@ static int obfh_vm_branch(long double key, long long command, float condition, u
 
 // Caller-owned storage keeps the mask valid and avoids shared-buffer races.
 static char *getCharMask(int count, char *mask, size_t capacity) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     if (!mask || !capacity || count < 0 || (size_t)count > (capacity - 1) / 2) return NULL;
     int i = (((_1 * _5) - _4) + _1) - _2;
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     char *ptr = mask;
     for (i = _0; i < count; ++i) {
         *ptr++ = '%';
         *ptr++ = _c;
     }
     *ptr = _0;
-    BREAK_STACK_8;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return mask;
 }
 
 // WriteConsoleA
 static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
@@ -981,14 +1469,14 @@ static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWO
 
 // GetStdHandle
 static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return GetStdHandle(obfh_int_proxy(nStdHandle));
 }
 #define GetStdHandle(...) GetStdHandle_proxy(__VA_ARGS__)
 
 static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_9;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
 }
@@ -996,7 +1484,7 @@ static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUT
 
 // strcmp
 static int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
         if ((obfh_int_proxy((unsigned char)*str1) < obfh_int_proxy((unsigned char)*str2)) && obfh_int_proxy(_1)) {
@@ -1014,7 +1502,7 @@ static int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIB
 
 // strlen
 static size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     size_t length = _0;
     while (*str != '\0') {
         length += obfh_int_proxy(_1);
@@ -1030,11 +1518,11 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
 
 // Bounded string scan used by the export parser.
 static const char *obfh_find_zero(const void *buffer, size_t count) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     const char *bytes = buffer;
     for (size_t i = _0; i < count; ++i)
         if (bytes[i] == _0) return bytes + i;
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return NULL;
 }
 // Check an RVA range against the loaded image size.
@@ -1043,10 +1531,10 @@ static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
 }
 // GetProcAddress: custom PE export lookup, including ordinals and forwarders.
 static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_2;
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
+    BREAK_STACK_CFLOW;
     obfh_junk_func_args(RND(0, 885));
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     if (!hModule || !lpProcName || depth >= 32 || ((ULONG_PTR)hModule & 3)) return NULL;
     // Module handles must designate OS-loaded modules, as required by WinAPI.
     BYTE *base = (BYTE *)hModule;
@@ -1081,7 +1569,7 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
             }
         }
     }
-    BREAK_STACK_2;
+    BREAK_STACK_CFLOW;
     if (index >= table->NumberOfFunctions) return NULL;
     DWORD rva = functions[index];
     if (!rva || !obfh_image_range(size, rva, 1)) return NULL;
@@ -1121,19 +1609,20 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
 }
 static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
     FARPROC result = obfh_find_export(hModule, lpProcName, 0);
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return result;
 }
 #define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
 // LoadLibraryA: dynamic loader resolution and proxy chain.
 static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_CFLOW;
     switch (_0) {
         case 1:
             __obfh_asm__(".byte 0x74;");
             break;
         case 0: {
-            BREAK_STACK_3;
+            BREAK_STACK_CFLOW;
             typedef HMODULE(WINAPI * LoadLibraryAFunc)(LPCSTR);
             static PVOID volatile cachedLoader;
             LoadLibraryAFunc loader = (LoadLibraryAFunc)InterlockedCompareExchangePointer(&cachedLoader, NULL, NULL);
@@ -1149,7 +1638,7 @@ static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
                 FAKE_CPUID;
                 char charL = _L;
                 obfh_junk_func_args(_0 + RND(1, 5));
-                BREAK_STACK_2;
+                BREAK_STACK_CFLOW;
                 format = getCharMask(_4, mask, sizeof mask);
                 sprintf(funcName, format, obfh_int_proxy(charL), obfh_int_proxy(_o), obfh_int_proxy(_a), obfh_int_proxy(_d));
                 char tail[] = {_L, _i, _b, _r, _a, _r, _y, _A, _0};
@@ -1163,7 +1652,7 @@ static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
             SetProcessWorkingSetSize(GetCurrentProcess(), value, value);
 #endif
             if (loader) {
-                BREAK_STACK_1;
+                BREAK_STACK_CFLOW;
                 return loader(lpLibFileName);
             }
             return NULL;
@@ -1173,32 +1662,32 @@ static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
 }
 
 static HMODULE LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_6;
+    BREAK_STACK_CFLOW;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_2(LPCSTR lpLibFileName) {
-    BREAK_STACK_5;
+    BREAK_STACK_CFLOW;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_4;
+    BREAK_STACK_CFLOW;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_4(LPCSTR lpLibFileName) {
-    BREAK_STACK_3;
+    BREAK_STACK_CFLOW;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_2;
+    BREAK_STACK_CFLOW;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
 }
 #define LoadLibraryA(...) LoadLibraryA_proxy(__VA_ARGS__)
@@ -1209,7 +1698,7 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
 
 #if ANTIDEBUG_V2 == 1  // for ANTIDEBUG_V2
 static void ad_ZeroDRs(PCONTEXT pCtx) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     pCtx->Dr0 = _0;
     pCtx->Dr1 = _0;
     pCtx->Dr2 = _0;
@@ -1219,7 +1708,7 @@ static void ad_ZeroDRs(PCONTEXT pCtx) {
 }
 
 static int ad_CompareDRs(PCONTEXT pCtx) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     if (pCtx->Dr7 != _0) {
         ad_ZeroDRs(pCtx);
         return _1;
@@ -1238,11 +1727,11 @@ static int ad_CompareDRs(PCONTEXT pCtx) {
 }
 
 static DWORD WINAPI ThreadCompareDRs(void *p) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     DWORD dwRet = _0;
     HANDLE hMainThread = (HANDLE)p;
     if (-1 != SuspendThread(hMainThread)) {
-        BREAK_STACK_2;
+        BREAK_STACK_CFLOW;
         CONTEXT context;
         context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
         if (GetThreadContext(hMainThread, &context)) {
@@ -1257,9 +1746,9 @@ static DWORD WINAPI ThreadCompareDRs(void *p) {
 #endif
 
 static int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     NOP_FLOOD;
-    BREAK_STACK_2;
+    BREAK_STACK_CFLOW;
 #if ANTIDEBUG_V2 == 1
 
     // Registers validation
@@ -1300,7 +1789,7 @@ static int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
     funcName[_3 * _3 * _1] = _r;
     funcName[_9 + _4 * _1] = _s;
     funcName[_5 * _3 * _1] = _n;
-    BREAK_STACK_3;
+    BREAK_STACK_CFLOW;
     funcName[_1 + _1 * _1] = _D;
     funcName[_1 + _2 * _1] = _e;
     funcName[_5 * _2 * _1] = _P;
@@ -1328,7 +1817,7 @@ static int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
 // =============================================================
 
 static void crash() {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     __obfh_asm__(
         "int $3;"
         ".byte 0xED, 0x00;");
@@ -1346,7 +1835,7 @@ static void loop() {
         while (1) {                                                                                     \
         };                                                                                              \
         __obfh_asm__(".byte 0xED;");                                                                    \
-        BREAK_STACK_1;                                                                                  \
+        BREAK_STACK_CFLOW;                                                                                  \
         __obfh_asm__(".byte 0x66, 0xC1, 0xE8, 0x05;");                                                  \
         __obfh_asm__(".byte 0x00;");                                                                    \
         __obfh_asm__("ret;");                                                                           \
@@ -1361,7 +1850,7 @@ static void loop() {
 
 // CRT module name, copied within the hidden string's lifetime.
 static char *getStdLibName_proxy(char *name, size_t capacity) {
-    BREAK_STACK_7;
+    BREAK_STACK_CFLOW;
     if (!name || capacity < 11) return NULL;
     const char *hidden = HIDE_STRING("msvcrt.dll");
     for (int i = _0; i <= _9 + _1; ++i) name[i] = hidden[i];
@@ -1371,7 +1860,7 @@ static char *getStdLibName_proxy(char *name, size_t capacity) {
 
 // Resolve through the custom loader/export chain once, then keep its DLL alive.
 static FARPROC obfh_crt_resolve(const char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FARPROC cached = obfh_crt_cached(name);
     if (cached) return cached;
     static PVOID volatile cachedModule;
@@ -1394,7 +1883,7 @@ static FARPROC obfh_crt_resolve(const char *name) {
 
 // A count conversion writes to user memory and must not run in a sizing pass.
 static int obfh_format_has_count(const char *format) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     for (const char *cursor = format; *cursor; ++cursor) {
         if (*cursor != '%') continue;
         ++cursor;
@@ -1418,7 +1907,7 @@ static int obfh_format_has_count(const char *format) OBFH_SECTION_ATTRIBUTE {
 
 // printf
 static int printf_custom(int junk, const char *format, ...) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     va_list args;
     NOP_FLOOD;
     obfh_junk_func_args(RND(0, 1000) + junk);
@@ -1453,7 +1942,7 @@ static int printf_custom(int junk, const char *format, ...) {
     ({                                                                                      \
         int __obfh_printf_result;                                                           \
         do {                                                                                \
-            BREAK_STACK_1;                                                                  \
+            BREAK_STACK_CFLOW;                                                              \
             obfh_junk_func_args((RND(0, 1000) * 3) < _0);                                   \
             __obfh_printf_result = printf_custom(RND(0, 1000), __VA_ARGS__);                \
         } while (_0 > ((unsigned long long)RND(0, 100000000000) * (unsigned char)_2) + 82); \
@@ -1462,7 +1951,7 @@ static int printf_custom(int junk, const char *format, ...) {
 
 // scanf
 static char *getScanfName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _s;
     name[1] = _c;
@@ -1471,15 +1960,22 @@ static char *getScanfName_proxy(char *name) {
     name[4] = _f;
     name[5] = _0;
 #if CFLOW_V2
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define scanf(...) ({ char __obfh_crt_name[32]; ((int (*)(const char *, ...))obfh_crt_resolve(getScanfName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+// Build the name in caller-owned storage, then invoke the resolved typed function.
+#define OBFH_CRT_CALL(name_builder, function_type, ...) ({                         \
+    BREAK_STACK_CFLOW;                                                             \
+    char __obfh_crt_name[32];                                                      \
+    ((function_type)obfh_crt_resolve(name_builder(__obfh_crt_name)))(__VA_ARGS__); \
+})
+
+#define scanf(...) OBFH_CRT_CALL(getScanfName_proxy, int (*)(const char *, ...), __VA_ARGS__)
 
 // sprintf
 static char *getSprintfName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _s;
     name[1] = _p;
@@ -1490,15 +1986,15 @@ static char *getSprintfName_proxy(char *name) {
     name[6] = _f;
     name[7] = _0;
 #if CFLOW_V2
-    BREAK_STACK_11;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define sprintf(...) ({ char __obfh_crt_name[32]; ((int (*)(char *, const char *, ...))obfh_crt_resolve(getSprintfName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define sprintf(...) OBFH_CRT_CALL(getSprintfName_proxy, int (*)(char *, const char *, ...), __VA_ARGS__)
 
 // fclose
 static char *getFcloseName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _f;
     name[1] = _c;
@@ -1508,15 +2004,15 @@ static char *getFcloseName_proxy(char *name) {
     name[5] = _e;
     name[6] = _0;
 #if CFLOW_V2
-    BREAK_STACK_12;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define fclose(...) ({ char __obfh_crt_name[32]; ((int (*)(FILE *))obfh_crt_resolve(getFcloseName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define fclose(...) OBFH_CRT_CALL(getFcloseName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 // fopen
 static char *getFopenName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _f;
     name[1] = _o;
@@ -1525,15 +2021,15 @@ static char *getFopenName_proxy(char *name) {
     name[4] = _n;
     name[5] = _0;
 #if CFLOW_V2
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define fopen(...) ({ char __obfh_crt_name[32]; ((FILE * (*)(const char *, const char *)) obfh_crt_resolve(getFopenName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define fopen(...) OBFH_CRT_CALL(getFopenName_proxy, FILE *(*)(const char *, const char *), __VA_ARGS__)
 
 // fread
 static char *getFreadName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _f;
     name[1] = _r;
@@ -1542,15 +2038,15 @@ static char *getFreadName_proxy(char *name) {
     name[4] = _d;
     name[5] = _0;
 #if CFLOW_V2
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define fread(...) ({ char __obfh_crt_name[32]; ((size_t(*)(void *, size_t, size_t, FILE *))obfh_crt_resolve(getFreadName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define fread(...) OBFH_CRT_CALL(getFreadName_proxy, size_t (*)(void *, size_t, size_t, FILE *), __VA_ARGS__)
 
 // fwrite
 static char *getFwriteName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _f;
     name[1] = _w;
@@ -1560,15 +2056,15 @@ static char *getFwriteName_proxy(char *name) {
     name[5] = _e;
     name[6] = _0;
 #if CFLOW_V2
-    BREAK_STACK_11;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define fwrite(...) ({ char __obfh_crt_name[32]; ((size_t(*)(const void *, size_t, size_t, FILE *))obfh_crt_resolve(getFwriteName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define fwrite(...) OBFH_CRT_CALL(getFwriteName_proxy, size_t (*)(const void *, size_t, size_t, FILE *), __VA_ARGS__)
 
 // exit
 static char *getExitName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _e;
     name[1] = _x;
@@ -1576,15 +2072,15 @@ static char *getExitName_proxy(char *name) {
     name[3] = _t;
     name[4] = _0;
 #if CFLOW_V2
-    BREAK_STACK_12;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define exit(...) ({ char __obfh_crt_name[32]; ((void (*)(int))obfh_crt_resolve(getExitName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define exit(...) OBFH_CRT_CALL(getExitName_proxy, void (*)(int), __VA_ARGS__)
 
 // strcpy
 static char *getStrcpyName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _s;
     name[1] = _t;
@@ -1594,15 +2090,15 @@ static char *getStrcpyName_proxy(char *name) {
     name[5] = _y;
     name[6] = _0;
 #if CFLOW_V2
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define strcpy(...) ({ char __obfh_crt_name[32]; ((char *(*)(char *, const char *))obfh_crt_resolve(getStrcpyName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define strcpy(...) OBFH_CRT_CALL(getStrcpyName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
 
 // strtok
 static char *getStrtokName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _s;
     name[1] = _t;
@@ -1612,22 +2108,22 @@ static char *getStrtokName_proxy(char *name) {
     name[5] = _k;
     name[6] = _0;
 #if CFLOW_V2
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define strtok(...) ({ char __obfh_crt_name[32]; ((char *(*)(char *, const char *))obfh_crt_resolve(getStrtokName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define strtok(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
 
 // memset
 static void *memset_proxy(void *ptr, int value, size_t num) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return memset(ptr, value * _1, num);
 }
 #define memset(...) memset_proxy(__VA_ARGS__)
 
 // memcpy
 static char *getMemcpyName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _m;
     name[1] = _e;
@@ -1637,15 +2133,15 @@ static char *getMemcpyName_proxy(char *name) {
     name[5] = _y;
     name[6] = _0;
 #if CFLOW_V2
-    BREAK_STACK_11;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define memcpy(...) ({ char __obfh_crt_name[32]; ((void *(*)(void *, const void *, size_t))obfh_crt_resolve(getMemcpyName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define memcpy(...) OBFH_CRT_CALL(getMemcpyName_proxy, void *(*)(void *, const void *, size_t), __VA_ARGS__)
 
 // strchr
 static char *getStrchrName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _s;
     name[1] = _t;
@@ -1655,15 +2151,15 @@ static char *getStrchrName_proxy(char *name) {
     name[5] = _r;
     name[6] = _0;
 #if CFLOW_V2
-    BREAK_STACK_12;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define strchr(...) ({ char __obfh_crt_name[32]; ((char *(*)(const char *, int))obfh_crt_resolve(getStrchrName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define strchr(...) OBFH_CRT_CALL(getStrchrName_proxy, char *(*)(const char *, int), __VA_ARGS__)
 
 // strrchr
 static char *getStrrchrName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _s;
     name[1] = _t;
@@ -1674,15 +2170,15 @@ static char *getStrrchrName_proxy(char *name) {
     name[6] = _r;
     name[7] = _0;
 #if CFLOW_V2
-    BREAK_STACK_13;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define strrchr(...) ({ char __obfh_crt_name[32]; ((char *(*)(const char *, int))obfh_crt_resolve(getStrrchrName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define strrchr(...) OBFH_CRT_CALL(getStrrchrName_proxy, char *(*)(const char *, int), __VA_ARGS__)
 
 // rand
 static char *getRandName_proxy(char *name) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _r;
     name[1] = _a;
@@ -1690,15 +2186,15 @@ static char *getRandName_proxy(char *name) {
     name[3] = _d;
     name[4] = _0;
 #if CFLOW_V2
-    BREAK_STACK_10;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define rand(...) ({ char __obfh_crt_name[32]; ((int (*)(void))obfh_crt_resolve(getRandName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define rand(...) OBFH_CRT_CALL(getRandName_proxy, int (*)(void), __VA_ARGS__)
 
 // realloc
 static char *getReallocName_proxy(char *name) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _r;
     name[1] = _e;
@@ -1709,34 +2205,34 @@ static char *getReallocName_proxy(char *name) OBFH_SECTION_ATTRIBUTE {
     name[6] = _c;
     name[7] = _0;
 #if CFLOW_V2
-    BREAK_STACK_11;
+    BREAK_STACK_CFLOW;
 #endif
     return name;
 }
-#define realloc(...) ({ char __obfh_crt_name[32]; ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(__obfh_crt_name)))(__VA_ARGS__); })
+#define realloc(...) OBFH_CRT_CALL(getReallocName_proxy, void *(*)(void *, size_t), __VA_ARGS__)
 
 static void *calloc_proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return calloc(nmemb, size);
 }
 #define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
 #undef realloc
 static void *realloc_proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     char name[32];
     return ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
 }
 #define realloc(ptr, size) realloc_proxy(ptr, size)
 
 static char *gets_proxy(char *s) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return gets(s);
 }
 #define gets(s) gets_proxy(s)
 
 static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     va_list args;
     va_start(args, format);
     int result = vsnprintf(str, size, format, args);
@@ -1746,55 +2242,55 @@ static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_
 #define snprintf(...) snprintf_proxy(__VA_ARGS__)
 
 static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return vsprintf(str, format, args);
 }
 #define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
 static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return vsnprintf(str, size, format, args);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
 static char *getenv_proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return getenv(name);
 }
 #define getenv(name) getenv_proxy(name)
 
 static int system_proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return system(command);
 }
 #define system(command) system_proxy(command)
 
 static void abort_proxy(void) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     abort();
 }
 #define abort() abort_proxy()
 
 static int atexit_proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return atexit(func);
 }
 #define atexit(func) atexit_proxy(func)
 
 static char *getcwd_proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return getcwd(buf, size);
 }
 #define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
 static int tolower_proxy(int c) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return tolower(c);
 }
 #define tolower(c) tolower_proxy(c)
 
 static int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return toupper(c);
 }
 #define toupper(c) toupper_proxy(c)
@@ -1907,7 +2403,7 @@ static int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
 #define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, obfh_uintptr_proxy((ULONG_PTR)(_Size)))
 
 static int obfh_abs_proxy(int value) {
-    BREAK_STACK_1;
+    BREAK_STACK_CFLOW;
     return value < (int)FALSE ? -value : value;
 }
 #define abs(x) obfh_abs_proxy(x)
@@ -1920,6 +2416,7 @@ static int obfh_abs_proxy(int value) {
 // Mutate the typed value's address: arithmetic identities can change -0,
 // rounding, NaN payloads or wide integer exponents before the math call.
 #define _MUTATE_MATH(value) ({                                                                           \
+    BREAK_STACK_CFLOW;                                                                                   \
     __typeof__((value)) volatile __obfh_math_value = (value);                                            \
     volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY();                                                \
     ULONG_PTR __obfh_math_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_math_value ^ __obfh_math_key); \
@@ -1928,22 +2425,22 @@ static int obfh_abs_proxy(int value) {
 
 #define fma(x, y, z) fma(_MUTATE_MATH(x), _MUTATE_MATH(y), _MUTATE_MATH(z))
 #define nexttoward(x, y) nexttoward(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define remquo(x, y, z) remquo(_MUTATE_MATH(x), _MUTATE_MATH(y), (z))
 #define nextafter(x, y) nextafter(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define remainder(x, y) remainder(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define copysign(x, y) copysign(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define scalbln(x, y) scalbln(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define remquo(x, y, z) remquo(_MUTATE_MATH(x), _MUTATE_MATH(y), (z))
 #define scalbn(x, y) scalbn(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define copysign(x, y) copysign(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define atan2(y, x) atan2(_MUTATE_MATH(y), _MUTATE_MATH(x))
 #define ldexp(x, y) ldexp(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define frexp(x, y) frexp(_MUTATE_MATH(x), (y))
+#define scalbln(x, y) scalbln(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define hypot(x, y) hypot(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define fmod(x, y) fmod(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define modf(x, y) modf(_MUTATE_MATH(x), (y))
 #define fdim(x, y) fdim(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define fmax(x, y) fmax(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define fmin(x, y) fmin(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define pow(x, y) pow(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define frexp(x, y) frexp(_MUTATE_MATH(x), (y))
+#define modf(x, y) modf(_MUTATE_MATH(x), (y))
 #define nearbyint(x) nearbyint(_MUTATE_MATH(x))
 #define lgamma(x) lgamma(_MUTATE_MATH(x))
 #define tgamma(x) tgamma(_MUTATE_MATH(x))

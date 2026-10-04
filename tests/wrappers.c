@@ -20,9 +20,18 @@ int main(void) {
     CHECK((ULONG_PTR)OBFH_PTR(void *, wide) == wide);
 #endif
     char *hidden = HIDE_STRING("hello");
+    char *second_hidden = HIDE_STRING("second-hidden");
+    char *empty_hidden = HIDE_STRING("");
     char overwrite[8192];
     memset(overwrite, 'x', sizeof overwrite);
     CHECK(strcmp(hidden, "hello") == 0);
+    CHECK(strcmp(second_hidden, "second-hidden") == 0);
+    CHECK(empty_hidden[0] == 0);
+#if !NO_OBF
+    hidden[0] = 'H';
+    CHECK(strcmp(hidden, "Hello") == 0);
+    CHECK(strcmp(second_hidden, "second-hidden") == 0);
+#endif
     char large[8192];
     memset(large, 'a', sizeof large);
     large[0] = 0;

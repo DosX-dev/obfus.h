@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
+const breakRandom = require('./break_random');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8');
 const results = [];
@@ -109,7 +110,7 @@ function pe(binary) {
     }
     return { machine: binary.readUInt16LE(nt + 4), sections };
 }
-function junkCode(binary) {
+function junkCode(binary, siteCount = 13) {
     const { sections } = pe(binary);
     const offset = rva => {
         const section = sections.find(s => rva >= s.virtualAddress && rva - s.virtualAddress < s.rawSize);
@@ -126,8 +127,8 @@ function junkCode(binary) {
         const name = binary.subarray(start, binary.indexOf(0, start)).toString();
         entries.set(name, binary.readUInt32LE(functions + binary.readUInt16LE(ordinals + i * 2) * 4));
     }
-    return Array.from({ length: 13 }, (_, i) => {
-        const start = entries.get('junk_site_' + i), end = entries.get(i === 12 ? 'junk_anchor' : 'junk_site_' + (i + 1));
+    return Array.from({ length: siteCount }, (_, i) => {
+        const start = entries.get('junk_site_' + i), end = entries.get(i === siteCount - 1 ? 'junk_anchor' : 'junk_site_' + (i + 1));
         assert(start && end > start && end - start < 16384, 'invalid junk function boundaries');
         return binary.subarray(offset(start), offset(end));
     });
@@ -140,6 +141,11 @@ async function main() {
         directory = fs.mkdtempSync(path.join(os.tmpdir(), 'obfh-js-suite-'));
         artifactDirectory = directory;
         console.log(`Artifacts: ${directory}`);
+        await check('source: contiguous numbered pool with helpers above it', async () => {
+            const pool = source.slice(source.indexOf('#define BREAK_STACK_CFLOW_0 '), source.indexOf('#define BREAK_STACK_CFLOW OBFH_CFLOW_EMIT'));
+            const definitions = [...pool.matchAll(/^#define (\w+)/gm)].map(match => match[1]);
+            assert(definitions.length === 128 && definitions.every((name, index) => name === 'BREAK_STACK_CFLOW_' + index), 'pool contains intervening helpers or missing/out-of-order variants');
+        });
         await check('source: protected VM macros still call the interpreter', async () => {
             const start = source.indexOf('#define VM_ADD(', source.indexOf('#define _ENC_OP__NOP'));
             const block = source.slice(start, source.indexOf('#define VM_IF', start));
@@ -168,6 +174,14 @@ async function main() {
             const resolver = source.slice(source.indexOf('FARPROC obfh_crt_resolve'), source.indexOf('// printf', source.indexOf('FARPROC obfh_crt_resolve')));
             assert(resolver.includes('LoadLibraryA_proxy('), 'CRT loader chain bypassed');
             assert(source.includes('return value < (int)FALSE ? -value : value;'), 'custom abs replaced');
+        });
+        await check('source: every library break uses the unified selector', async () => {
+            assert(!/\bBREAK_STACK_\d+\b/.test(source), 'old numbered public macro remains');
+            const callsStart = source.indexOf('#define BAD_JMP');
+            assert(callsStart > 0, 'library call-site boundary missing');
+            const calls = source.slice(callsStart);
+            assert(!/\bBREAK_STACK_CFLOW_\d+\b/.test(calls), 'library pins a numbered template');
+            assert(source.includes('#define BREAK_STACK_CFLOW OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_EXTRA)'), 'public macro does not capture a fresh counter');
         });
         await check('runner: timeout terminates the whole process tree', async () => {
             const script = "const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{windowsHide:true,stdio:'ignore'}); console.log('TIMEOUT_CHILD:'+child.pid); console.error('TEST_PHASE: watchdog control'); setInterval(()=>{},1000);";
@@ -207,11 +221,106 @@ async function main() {
                 const first = junkVariants.get(1), second = junkVariants.get(2);
                 assert(first && second, 'seed stress failed before binary comparison');
                 assert(first.every((code, i) => !code.equals(second[i])), 'a junk site did not vary across seeds');
+                const payloads = [...junkVariants.values()].map(sites => {
+                    const code = sites[0], instruction = code.indexOf(Buffer.from([0x31, 0xc0, 0x0f, 0x84]));
+                    const anchor = instruction + 8;
+                    assert(instruction >= 0 && code[anchor] === 0xe8, 'legacy skip anchor changed');
+                    const destination = anchor + code.readInt32LE(instruction + 4);
+                    assert(destination >= anchor + 10 && code[destination] === 0x0f && code[destination + 1] === 0xa2, 'junk skip does not land at CPUID');
+                    return code.subarray(anchor + 1, anchor + 5);
+                });
+                assert(new Set(payloads.map(bytes => [...bytes].slice(1).map((b, i) => (b - bytes[i]) & 255).join(','))).size > 1, 'random bytes repeat the same affine pattern');
                 for (const index of [0, 3, 4, 5, 6, 7, 8]) assert(first[index].includes(Buffer.from([0x0f, 0xa2])), 'legacy CPUID was removed');
                 for (const index of [9, 10, 11, 12]) assert(!first[index].includes(Buffer.from([0x0f, 0xa2])), 'lightweight site serializes with CPUID');
                 const repeat = await compile(compiler, directory, `${arch}-junk-repeat.dll`, path.join(__dirname, 'junk.c'), ['VIRT=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'], ['-shared']);
                 const repeated = junkCode(fs.readFileSync(repeat));
                 assert(first.every((code, i) => code.equals(repeated[i])), 'fixed-seed junk code is not reproducible');
+            });
+            for (const seed of [0, 1, 2, 3735928559, 4294967295]) await check(`${arch}/ASM identities/arbitrary inputs/seed ${seed}`, async () => {
+                await execute(await compile(compiler, directory, `${arch}-predicates-${seed}.exe`, path.join(__dirname, 'break_predicates.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'BREAK_PREDICATES_PASS');
+            });
+            for (const seed of [0, 1]) await check(`${arch}/choose_expr/direct and captured RND/seed ${seed}`, async () => {
+                await execute(await compile(compiler, directory, `${arch}-choose-${seed}.exe`, path.join(__dirname, 'choose_random.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'CHOOSE_RANDOM_PASS');
+            });
+            const cflowVariants = new Map();
+            for (const seed of [0, 1, 2, 3735928559, 4294967295]) await check(`${arch}/CFLOW pool seed ${seed}/128 templates`, async () => {
+                const flags = ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`];
+                const file = path.join(__dirname, 'cflow_junk.c');
+                await execute(await compile(compiler, directory, `${arch}-cflow-pool-${seed}.exe`, file, flags), 'CFLOW_JUNK_PASS');
+                const dll = await compile(compiler, directory, `${arch}-cflow-pool-${seed}.dll`, file, flags, ['-shared']);
+                cflowVariants.set(seed, junkCode(fs.readFileSync(dll), 128));
+            });
+            await check(`${arch}/CFLOW pool changes by seed and repeats exactly`, async () => {
+                const first = cflowVariants.get(1), second = cflowVariants.get(2);
+                assert(first && second && first.every((code, i) => !code.equals(second[i])), 'CFLOW template did not change with seed');
+                const dll = await compile(compiler, directory, `${arch}-cflow-repeat.dll`, path.join(__dirname, 'cflow_junk.c'), ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'], ['-shared']);
+                const repeated = junkCode(fs.readFileSync(dll), 128);
+                assert(first.every((code, i) => code.equals(repeated[i])), 'CFLOW fixed-seed build differs');
+                assert(new Set(first.map(code => code.toString('hex'))).size === 128, 'duplicate CFLOW machine-code templates');
+            });
+            const randomRoot = path.join(directory, `${arch}-break-random`);
+            fs.mkdirSync(path.join(randomRoot, 'include'), { recursive: true });
+            fs.mkdirSync(path.join(randomRoot, 'tests'), { recursive: true });
+            const tracedRandom = source.replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_break_visit(__obfh_break_id, __obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);');
+            assert(tracedRandom !== source, 'public selector trace target missing');
+            fs.writeFileSync(path.join(randomRoot, 'include', 'obfus.h'), tracedRandom);
+            const randomFile = path.join(randomRoot, 'tests', 'random.c');
+            fs.writeFileSync(randomFile, breakRandom.fixture());
+            // Measure machine code without the trace call or its unique counter argument.
+            const randomCodeRoot = path.join(directory, `${arch}-break-random-code`);
+            fs.mkdirSync(path.join(randomCodeRoot, 'include'), { recursive: true });
+            fs.mkdirSync(path.join(randomCodeRoot, 'tests'), { recursive: true });
+            fs.writeFileSync(path.join(randomCodeRoot, 'include', 'obfus.h'), source);
+            const randomCodeFile = path.join(randomCodeRoot, 'tests', 'random.c');
+            fs.writeFileSync(randomCodeFile, breakRandom.fixture());
+            const randomBuilds = new Map();
+            for (const seed of [0, 1, 2, 3735928559, 4294967295]) await check(`${arch}/public break seed ${seed}/512 call sites`, async () => {
+                const flags = ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'CFLOW_V2=0', `OBFH_BUILD_SEED=${seed}u`];
+                const output = await run(await compile(compiler, directory, `${arch}-random-${seed}.exe`, randomFile, flags), []);
+                assert(output.status === 0, 'public break corrupted execution: ' + output.stderr);
+                const measurement = breakRandom.measurements(output.stdout, seed, assert);
+                const dll = await compile(compiler, directory, `${arch}-random-${seed}.dll`, randomCodeFile, flags, ['-shared']);
+                const code = junkCode(fs.readFileSync(dll), breakRandom.siteCount);
+                measurement.distinctMachineCode = new Set(code.map(bytes => bytes.toString('hex'))).size;
+                assert(measurement.distinctMachineCode >= 500, 'public call sites repeat almost identical machine code');
+                randomBuilds.set(seed, { ...measurement, code });
+            });
+            await check(`${arch}/public break distribution + reproducibility`, async () => {
+                assert(randomBuilds.size === 5, 'public selector sampling build failed');
+                const histogram = Array(128).fill(0);
+                let heavyCount = 0, adjacentRepeats = 0;
+                for (const sample of randomBuilds.values()) {
+                    sample.histogram.forEach((count, index) => histogram[index] += count);
+                    heavyCount += sample.heavyCount;
+                    adjacentRepeats += sample.adjacentRepeats;
+                }
+                assert(histogram.every(count => count > 0), 'not all 128 templates were selected across sampled seeds');
+                assert(heavyCount > 0 && heavyCount < 2560 * 0.06, 'CPUID weighting failed');
+                assert(adjacentRepeats < 2560 * 0.04, 'too many adjacent template repetitions');
+                const first = randomBuilds.get(1), second = randomBuilds.get(2);
+                const changedTemplates = first.rows.filter((row, index) => row[2] !== second.rows[index][2]).length;
+                assert(changedTemplates > 460, 'different seed barely changes selection');
+                assert(first.code.every((code, index) => !code.equals(second.code[index])), 'seed did not change a public call site');
+                const flags = ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'CFLOW_V2=0', 'OBFH_BUILD_SEED=1u'];
+                const repeated = junkCode(fs.readFileSync(await compile(compiler, directory, `${arch}-random-repeat.dll`, randomCodeFile, flags, ['-shared'])), breakRandom.siteCount);
+                assert(first.code.every((code, index) => code.equals(repeated[index])), 'public fixed-seed code is not reproducible');
+                const report = { samples: 2560, histogram, heavyCount, adjacentRepeats, changedTemplates, builds: [...randomBuilds].map(([seed, { code, ...measurement }]) => ({ seed, ...measurement })) };
+                fs.writeFileSync(path.join(directory, `${arch}-break-random.json`), JSON.stringify(report, null, 2));
+                console.log(`RANDOM ${arch}: 128/128 templates, ${heavyCount}/2560 CPUID selections, ${adjacentRepeats} adjacent repeats, ${changedTemplates}/512 templates changed between seeds 1 and 2`);
+            });
+            await check(`${arch}/public break CFLOW_V2 + syntax`, async () => {
+                for (let index = 0; index < 128; ++index) assert(breakRandom.extraIndex(index) !== index, 'advanced second template equals the first');
+                const output = await run(await compile(compiler, directory, `${arch}-random-v2.exe`, randomFile, ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'CFLOW_V2=1']), []);
+                assert(output.status === 0, 'advanced public selector failed');
+                breakRandom.measurements(output.stdout, 0, assert);
+                const syntax = path.join(randomRoot, 'tests', 'syntax.c');
+                fs.writeFileSync(syntax, '#include "../include/obfus.h"\nint main(void) { int x=1; if(x) BREAK_STACK_CFLOW; else x=3; BREAK_STACK_CFLOW; BREAK_STACK_CFLOW; return x != 1; }');
+                for (const flags of [['NO_OBF=1'], ['NO_ANTIDEBUG=1'], ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']]) {
+                    const nativeHeader = path.join(randomRoot, 'include', 'obfus.h');
+                    fs.writeFileSync(nativeHeader, source);
+                    const result = await run(await compile(compiler, directory, `${arch}-random-syntax-${flags.length}-${flags[0]}.exe`, syntax, flags), []);
+                    assert(result.status === 0, 'public macro breaks dangling else or adjacent expansions');
+                }
             });
             if (process.argv.includes('--only-junk')) continue;
             if (process.argv.includes('--only-numeric')) {
@@ -260,7 +369,7 @@ async function main() {
                 fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
                 fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
                 const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {';
-                const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);');
+                const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);').replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);');
                 assert(traced !== source, 'flow trace injection missing');
                 const header = path.join(traceRoot, 'include', 'obfus.h');
                 fs.writeFileSync(header, traced);
@@ -268,7 +377,9 @@ async function main() {
                 fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
                 const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
                 await execute(await compile(compiler, directory, `${arch}-cflow-${mode}.exe`, file, flags), 'CFLOW_PASS');
-                fs.writeFileSync(header, traced.replace('#define if(cond) if (OBFH_FLOW_CONDITION(cond, RND(1, 65535)))', '#define if(cond) if (cond)'));
+                const ifMutant = traced.replace(/#define if\(cond\)[\s\S]*?(?=\r?\n\r?\n)/, '#define if(cond) if (cond)');
+                assert(ifMutant !== traced, 'if bypass target missing');
+                fs.writeFileSync(header, ifMutant);
                 const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
                 assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
                 const whileMutant = traced.replace('#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))', '#define while(...) while (__VA_ARGS__)');
