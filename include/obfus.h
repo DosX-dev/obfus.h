@@ -464,12 +464,49 @@ long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
 // Control Flow (global)
 #if NO_CFLOW != 1
 
+// Every intermediate contributes to the branch token; values stay exactly
+// representable in float on both TCC targets. No shared state or VM required.
+#define OBFH_FLOW_BASE(site) (((site)&1023u) + 17u)
+#define OBFH_FLOW_STEP(site) ((((site) >> 5) & 31u) * 2u + 1u)
+#define OBFH_FLOW_FIRST(value, site) (((site)&1u) ? (((value)*3u + ((site)&255u)) ^ ((site)&4095u)) : (((value)*5u + ((site)&127u)) ^ (((site) >> 1) & 4095u)))
+#if CFLOW_V2
+#define OBFH_FLOW_FINAL(value, site) (((((value)*5u + 7u) ^ (((site) >> 3) & 2047u)) * 3u + 11u) ^ ((site)&8191u))
+#else
+#define OBFH_FLOW_FINAL(value, site) (value)
+#endif
+
+double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    // Retain the misleading byte without serializing every branch with CPUID.
+    __obfh_asm__("xorl %%eax, %%eax; jz 1f; .byte 0xE8; 1:"
+                 :
+                 :
+                 : "eax", "cc", "memory");
+    volatile unsigned int input = (unsigned int)obfh_double_proxy((double)encoded);
+    // Keep a misleading failure path without putting a timestamp on every if.
+    if (obfh_int_proxy((int)input) > 4095) {
+        BAD_CALL;
+    }
+    volatile unsigned int stage = OBFH_FLOW_FIRST(input, site);
+    volatile float converted = (float)obfh_int_proxy((int)stage);
+#if CFLOW_V2
+    volatile unsigned int second = ((unsigned int)obfh_double_proxy((double)converted) * 5u + 7u) ^ ((site >> 3) & 2047u);
+    volatile float intermediate = (float)obfh_int_proxy((int)second);
+    stage = ((unsigned int)obfh_double_proxy((double)intermediate) * 3u + 11u) ^ (site & 8191u);
+    converted = (float)obfh_int_proxy((int)stage);
+    BREAK_STACK_2;
+#endif
+    return obfh_double_proxy((double)(float)obfh_condition_proxy((float)(site & 255u), converted, site));
+}
+
+#define OBFH_FLOW_CONDITION(condition, site_value) ({                                                                                                                        \
+    unsigned int __obfh_flow_site = (site_value);                                                                                                                            \
+    unsigned int __obfh_flow_input = OBFH_FLOW_BASE(__obfh_flow_site) + !!(condition)*OBFH_FLOW_STEP(__obfh_flow_site);                                                      \
+    double __obfh_flow_result = obfh_flow_token((float)__obfh_flow_input, __obfh_flow_site);                                                                                 \
+    __obfh_flow_result == (double)OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(OBFH_FLOW_BASE(__obfh_flow_site) + OBFH_FLOW_STEP(__obfh_flow_site), __obfh_flow_site), __obfh_flow_site); \
+})
+
 // if
-#define if(cond)                                                                         \
-    if ((float)__s_rdtsc(RND(0, 255)) == (float)((RND(1, 255) * -1)) * (float)1.0) {     \
-        BAD_CALL;                                                                        \
-    } else if (&__s_rdtsc && (cond ? ((float)__s_rdtsc(RND(0, 255), RND(0, 255)) != 0.1) \
-                                   : (float)__s_rdtsc(RND(0, 255)) == 0.1))
+#define if(cond) if (OBFH_FLOW_CONDITION(cond, RND(1, 65535)))
 
 // else
 #define else      \
@@ -478,11 +515,7 @@ long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
     }             \
     else
 
-#if CFLOW_V2
-#define OBFUS_CONDITION_BLOCK(...) (obfh_condition_proxy(RND(0, 255), (__VA_ARGS__) ? !!obfh_int_proxy(!!obfh_condition_true()) : !!!obfh_condition_true(), RND(0, 255)) ? !!obfh_condition_true() : obfh_int_proxy(!obfh_condition_true()))
-#else
-#define OBFUS_CONDITION_BLOCK(...) (obfh_condition_proxy(RND(0, 255), !!(__VA_ARGS__), RND(0, 255)) ? !!obfh_condition_true() : !obfh_condition_true())
-#endif
+#define OBFUS_CONDITION_BLOCK(...) OBFH_FLOW_CONDITION((__VA_ARGS__), RND(1, 65535))
 
 // break
 #define break                                                  \
