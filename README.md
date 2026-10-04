@@ -31,6 +31,8 @@ Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/ob
 ```
 This enables compile-time obfuscation to make your code harder to analyze and help protect your intellectual property.
 
+Junk branches use different compile-time constants and skipped byte sequences at each expansion. Define `OBFH_BUILD_SEED` before including the header, or pass `-DOBFH_BUILD_SEED=123u`, to vary them between builds. The default seed is `0`; a fixed seed keeps the variation reproducible with the same source and compiler.
+
 > Available options for protection configuring:
 > ```c
 > // Advanced code protection (see the "Virtualization" part of the documentation!)

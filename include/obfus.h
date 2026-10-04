@@ -172,9 +172,13 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 
 #endif
 
+// A fixed seed makes builds repeatable; override it to vary builds as well as sites.
+#ifndef OBFH_BUILD_SEED
+#define OBFH_BUILD_SEED 0u
+#endif
 // Thanks to @horsicq && @ac3ss0r
 #define RND(min, max) \
-    (min + (((__COUNTER__ + (__LINE__ * __LINE__)) * 2654435761u) % (max - min + 1)))
+    ((min) + (((__COUNTER__ + (__LINE__ * __LINE__) + (unsigned int)OBFH_BUILD_SEED) * 2654435761u) % ((max) - (min) + 1)))
 
 #define STACK_STRING(str) ((char[]){str})
 
@@ -215,106 +219,103 @@ volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_AT
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
 // Skipped bytes vary per site; the legacy CPUID paths retain their clobbers.
-#define BREAK_STACK_1        \
-    __obfh_asm__(            \
-        "xorl %%eax, %%eax;" \
-        "jz 1f;"             \
-        ".byte 0xE8;"        \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_1                                                                 \
+    __obfh_asm__("xorl %%eax, %%eax; jz 1f; .byte 0xE8; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                    \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                   \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
 
-#define BREAK_STACK_2                  \
-    if (_0) __obfh_asm__(".byte 0x00;" \
-                         :             \
-                         :             \
-                         : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_2 ({                                                                               \
+    enum { __obfh_break_salt = RND(1, 32767),                                                          \
+           __obfh_break_gap = RND(1, 255) };                                                           \
+    if (((unsigned int)(unsigned char)_0 ^ __obfh_break_salt) == __obfh_break_salt + __obfh_break_gap) \
+        __obfh_asm__(".byte 0x00, 0xE8; .fill %c0, 1, %c1;"                                            \
+                     :                                                                                 \
+                     : "i"(RND(1, 6)), "i"(RND(0, 255))                                                \
+                     : "eax", "ebx", "ecx", "edx", "cc", "memory");                                    \
+    (void)0;                                                                                           \
+})
 
-#define BREAK_STACK_3                                                   \
-    switch (_0) {                                                       \
-        case RND(1, 1000):                                              \
-            __obfh_asm__(".byte 0x00, 0x00;"                            \
+#define BREAK_STACK_3 ({                                                \
+    enum { __obfh_break_salt = RND(1, 32767) };                         \
+    switch ((unsigned int)(unsigned char)_0 + __obfh_break_salt) {      \
+        case __obfh_break_salt + RND(129, 191):                         \
+            __obfh_asm__(".byte 0x00, 0x00; .fill %c0, 1, %c1;"         \
                          :                                              \
-                         :                                              \
+                         : "i"(RND(1, 6)), "i"(RND(0, 255))             \
                          : "eax", "ebx", "ecx", "edx", "cc", "memory"); \
-    }
+            break;                                                      \
+        case __obfh_break_salt + RND(257, 319):                         \
+            __obfh_asm__(".byte 0xFF, 0x25; .fill %c0, 1, %c1;"         \
+                         :                                              \
+                         : "i"(RND(1, 6)), "i"(RND(0, 255))             \
+                         : "eax", "ebx", "ecx", "edx", "cc", "memory"); \
+            break;                                                      \
+    }                                                                   \
+    (void)0;                                                            \
+})
 
-#define BREAK_STACK_4        \
-    __obfh_asm__(            \
-        "xorl %%ebx, %%ebx;" \
-        "xorl %%edx, %%edx;" \
-        "xorl %%ebx, %%edx;" \
-        "jz 1f;"             \
-        "mov $4, %%eax;"     \
-        ".byte 0x00;"        \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_4                                                                                                                      \
+    __obfh_asm__("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                                                                         \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                                                                        \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
 
-#define BREAK_STACK_5        \
-    __obfh_asm__(            \
-        "xorl %%ebx, %%ebx;" \
-        "xorl %%eax, %%eax;" \
-        "mov %%eax, %%ebx;"  \
-        "mov %%edx, %%ebx;"  \
-        "xorl %%eax, %%edx;" \
-        "jz 1f;"             \
-        ".byte 0x20;"        \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_5                                                                                                                                           \
+    __obfh_asm__("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                                                                                              \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                                                                                             \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
 
-#define BREAK_STACK_6        \
-    __obfh_asm__(            \
-        "xorl %%edx, %%edx;" \
-        "xorl %%eax, %%eax;" \
-        "mov %%eax, %%edx;"  \
-        "jz 1f;"             \
-        ".byte 0xE8;"        \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_6                                                                                                      \
+    __obfh_asm__("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                                                         \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                                                        \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
 
-#define BREAK_STACK_7        \
-    __obfh_asm__(            \
-        "xorl %%edx, %%edx;" \
-        "jz 1f;"             \
-        ".byte 0xE8;"        \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_7                                                                 \
+    __obfh_asm__("xorl %%edx, %%edx; jz 1f; .byte 0xE8; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                    \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                   \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
 
-#define BREAK_STACK_8        \
-    __obfh_asm__(            \
-        "xorl %%eax, %%eax;" \
-        "jz 1f;"             \
-        ".byte 0x50;"        \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_8                                                                 \
+    __obfh_asm__("xorl %%eax, %%eax; jz 1f; .byte 0x50; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                    \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                   \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
 
-#define BREAK_STACK_9        \
-    __obfh_asm__(            \
-        "xorl %%edx, %%edx;" \
-        "jz 1f;"             \
-        ".byte 0x00, 0x00;"  \
-        "1:"                 \
-        "cpuid;"             \
-        :                    \
-        :                    \
-        : "eax", "ebx", "ecx", "edx", "cc", "memory")
+#define BREAK_STACK_9                                                                       \
+    __obfh_asm__("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; .fill %c0, 1, %c1; 1: cpuid;" \
+                 :                                                                          \
+                 : "i"(RND(1, 6)), "i"(RND(0, 255))                                         \
+                 : "eax", "ebx", "ecx", "edx", "cc", "memory")
+
+// Lightweight variants: unsigned parity predicates, no serialization or asm stack changes.
+// Read the stack pointer without modifying it; parity identities survive 32-bit wrap.
+#define BREAK_STACK_10                                                                                                                                    \
+    __obfh_asm__("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0xE8; .fill %c1, 1, %c2; 1:" \
+                 :                                                                                                                                        \
+                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255))                                                                                   \
+                 : "eax", "edx", "cc", "memory")
+
+#define BREAK_STACK_11 \
+    __obfh_asm__("movl %%esp, %%edx; addl %0, %%edx; imull %%edx, %%edx; testl $2, %%edx; jz 1f; .byte 0xFF, 0x25; .fill %c1, 1, %c2; 1:" \
+                 : \
+                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255)) \
+                 : "edx", "cc", "memory")
+
+#define BREAK_STACK_12                                                                                                                                                                \
+    __obfh_asm__("movl %%esp, %%eax; addl %0, %%eax; movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 1:" \
+                 :                                                                                                                                                                    \
+                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255))                                                                                                               \
+                 : "eax", "edx", "cc", "memory")
+
+#define BREAK_STACK_13                                                                                                                                                           \
+    __obfh_asm__("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testl $1, %%eax; jnz 1f; .byte 0xC3, 0xE8; .fill %c1, 1, %c2; 1:" \
+                 :                                                                                                                                                               \
+                 : "i"(RND(1, 32767)), "i"(RND(1, 7)), "i"(RND(0, 255))                                                                                                          \
+                 : "eax", "edx", "cc", "memory")
 
 #if defined(__x86_64__)
 #define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4;")
@@ -373,17 +374,20 @@ static void *malloc_proxy(size_t size) {
 static float rndValueToProxy = RND(0, 10);
 
 static int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_13;
     RET_BY_VAR(value);
 }
 
 // Preserve pointer and SIZE_T width on both Windows targets.
 static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_10;
     RET_BY_VAR(value);
 }
 
 #define OBFH_PTR(type, value) ((type)obfh_uintptr_proxy((ULONG_PTR)(value)))
 
 static double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_12;
     RET_BY_VAR(value);
 }
 
@@ -408,6 +412,7 @@ static float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
 }
 
 static int obfh_condition_proxy(float junk, float condition, ...) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_11;
     RET_BY_VAR(condition);
 }
 
@@ -508,6 +513,7 @@ typedef struct {
 } OBFH_VM_VALUE;
 
 static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char floating) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_12;
     OBFH_VM_VALUE encoded;
     volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
     const unsigned char *bytes = (const unsigned char *)&value;
@@ -518,6 +524,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char f
 }
 
 static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_13;
     long double value;
     volatile int key = obfh_condition_proxy((float)salt, (float)obfh_int_proxy(salt));
     unsigned char *bytes = (unsigned char *)&value;
@@ -546,28 +553,35 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_
 
 // Different data dependencies and conversion positions across call sites.
 static unsigned int obfh_flow_route_0(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_10;
     volatile int scaled = obfh_int_proxy((int)input) * 3 + (site & 255u);
     volatile float converted = (float)scaled;
     return (unsigned int)obfh_double_proxy((double)converted) ^ (site & 4095u);
 }
 static unsigned int obfh_flow_route_1(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_11;
     volatile float converted = (float)obfh_int_proxy((int)input);
     volatile unsigned int scaled = (unsigned int)obfh_double_proxy((double)converted) * 5u + (site & 127u);
     return (unsigned int)obfh_condition_proxy((float)(site & 255u), (float)(scaled ^ ((site >> 1) & 4095u)));
 }
 static unsigned int obfh_flow_route_2(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_12;
     volatile unsigned int mixed = input ^ (site & 1023u);
     volatile float converted = (float)obfh_int_proxy((int)mixed);
     return (unsigned int)obfh_double_proxy((double)converted) * 7u + 19u;
 }
 static unsigned int obfh_flow_route_3(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_13;
     volatile unsigned int scaled = (input + (site & 255u)) * 9u + 23u;
     volatile double converted = obfh_double_proxy((double)(float)obfh_int_proxy((int)scaled));
     return (unsigned int)converted ^ ((site >> 2) & 8191u);
 }
 
 static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+    BREAK_STACK_10;
 #if CFLOW_V2
+    BREAK_STACK_11;
+    BREAK_STACK_13;
 #endif
     volatile unsigned int input = (unsigned int)obfh_double_proxy((double)encoded);
     // Keep a misleading failure path without putting a timestamp on every if.
@@ -1457,6 +1471,7 @@ static char *getScanfName_proxy(char *name) {
     name[4] = _f;
     name[5] = _0;
 #if CFLOW_V2
+    BREAK_STACK_10;
 #endif
     return name;
 }
@@ -1475,6 +1490,7 @@ static char *getSprintfName_proxy(char *name) {
     name[6] = _f;
     name[7] = _0;
 #if CFLOW_V2
+    BREAK_STACK_11;
 #endif
     return name;
 }
@@ -1492,6 +1508,7 @@ static char *getFcloseName_proxy(char *name) {
     name[5] = _e;
     name[6] = _0;
 #if CFLOW_V2
+    BREAK_STACK_12;
 #endif
     return name;
 }
@@ -1508,6 +1525,7 @@ static char *getFopenName_proxy(char *name) {
     name[4] = _n;
     name[5] = _0;
 #if CFLOW_V2
+    BREAK_STACK_13;
 #endif
     return name;
 }
@@ -1524,6 +1542,7 @@ static char *getFreadName_proxy(char *name) {
     name[4] = _d;
     name[5] = _0;
 #if CFLOW_V2
+    BREAK_STACK_10;
 #endif
     return name;
 }
@@ -1541,6 +1560,7 @@ static char *getFwriteName_proxy(char *name) {
     name[5] = _e;
     name[6] = _0;
 #if CFLOW_V2
+    BREAK_STACK_11;
 #endif
     return name;
 }
@@ -1556,6 +1576,7 @@ static char *getExitName_proxy(char *name) {
     name[3] = _t;
     name[4] = _0;
 #if CFLOW_V2
+    BREAK_STACK_12;
 #endif
     return name;
 }
@@ -1573,6 +1594,7 @@ static char *getStrcpyName_proxy(char *name) {
     name[5] = _y;
     name[6] = _0;
 #if CFLOW_V2
+    BREAK_STACK_13;
 #endif
     return name;
 }
@@ -1590,6 +1612,7 @@ static char *getStrtokName_proxy(char *name) {
     name[5] = _k;
     name[6] = _0;
 #if CFLOW_V2
+    BREAK_STACK_10;
 #endif
     return name;
 }
@@ -1614,6 +1637,7 @@ static char *getMemcpyName_proxy(char *name) {
     name[5] = _y;
     name[6] = _0;
 #if CFLOW_V2
+    BREAK_STACK_11;
 #endif
     return name;
 }
@@ -1631,6 +1655,7 @@ static char *getStrchrName_proxy(char *name) {
     name[5] = _r;
     name[6] = _0;
 #if CFLOW_V2
+    BREAK_STACK_12;
 #endif
     return name;
 }
@@ -1649,6 +1674,7 @@ static char *getStrrchrName_proxy(char *name) {
     name[6] = _r;
     name[7] = _0;
 #if CFLOW_V2
+    BREAK_STACK_13;
 #endif
     return name;
 }
@@ -1664,6 +1690,7 @@ static char *getRandName_proxy(char *name) {
     name[3] = _d;
     name[4] = _0;
 #if CFLOW_V2
+    BREAK_STACK_10;
 #endif
     return name;
 }
@@ -1682,6 +1709,7 @@ static char *getReallocName_proxy(char *name) OBFH_SECTION_ATTRIBUTE {
     name[6] = _c;
     name[7] = _0;
 #if CFLOW_V2
+    BREAK_STACK_11;
 #endif
     return name;
 }
