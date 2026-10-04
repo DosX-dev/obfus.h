@@ -917,20 +917,23 @@ int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
 #if ANTIDEBUG_V2 == 1
 
     // Registers validation
-    HANDLE hMainThread;
-    DWORD dwDummy, exitCode;
+    HANDLE hMainThread = NULL;
+    DWORD dwDummy = 0, exitCode = 0;
 
-    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
-                    &hMainThread, _0, FALSE, DUPLICATE_SAME_ACCESS);
-
-    HANDLE hThread = CreateThread(NULL, _0, ThreadCompareDRs, hMainThread, _0, &dwDummy);
-    if (hThread) {
-        WaitForSingleObject(hThread, INFINITE);
-        GetExitCodeThread(hThread, &exitCode);
-        CloseHandle(hThread);
+    if (DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
+                        &hMainThread, _0, FALSE, DUPLICATE_SAME_ACCESS)) {
+        HANDLE hThread = CreateThread(NULL, _0, ThreadCompareDRs, hMainThread, _0, &dwDummy);
+        if (hThread) {
+            if (WaitForSingleObject(hThread, INFINITE) == WAIT_OBJECT_0 &&
+                GetExitCodeThread(hThread, &exitCode) && exitCode) {
+                CloseHandle(hThread);
+                return exitCode;
+            }
+            CloseHandle(hThread);
+        } else {
+            CloseHandle(hMainThread);
+        }
     }
-
-    if (exitCode) return exitCode;
 
     // Dynamic antidebugger
     char result[32];
