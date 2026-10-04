@@ -12,13 +12,24 @@
 - 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
 - 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
 
+## 🎯 Intended use
+
+**obfus.h is a full-featured obfuscation tool, not a proof of concept.** It is a powerful tool when you understand where and how to apply it: use it to protect selected native components containing sensitive logic.
+
+Since obfus.h requires **TCC**, the recommended approach for larger projects is to isolate that logic in C DLLs compiled with TCC and obfuscated with obfus.h. The main application can remain in **C#, C++**, another language, or **C compiled with GCC, LLVM/Clang or Visual C** and call those DLLs through their exported interfaces.
+
+The resulting binaries can also be processed by commercial protectors and packers to add another layer of protection. Check compatibility with your chosen protector and settings before distributing the protected components.
+
+> [!IMPORTANT]
+> obfus.h significantly raises the barrier to reverse engineering, but it is not a panacea. Protecting trade secrets also requires your own internal protection mechanisms; obfuscation should be one layer of your protection strategy.
+
 ## 👾 Usage
 
 Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** into your project is a simple process. Just include the following line in your code:
 ```c
 #include "obfus.h"
 ```
-This will automatically obfuscate your code during compilation, ensuring protection and confidentiality of your intellectual property.
+This enables compile-time obfuscation to make your code harder to analyze and help protect your intellectual property.
 
 > Available options for protection configuring:
 > ```c
@@ -173,7 +184,10 @@ void main() {
 > ![](pics/how-it-works.png)
 
 ## 🛠 Compiler (important)
-The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
+**Tiny C** `0.9.27` is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
+
+> [!NOTE]
+> Originally created by Fabrice Bellard, TCC is now maintained and developed by the community. You can build the latest development version yourself from the [TCC source mirror](https://github.com/Tiny-C-Compiler/tinycc-mirror-repository).
 
 ## 🌐 obfus.h updater
 You can use [special script](include-updater/obfh-update.cmd) for Windows to get the latest versions of `obfus.h` by downloading the package from the official repository. This is useful if you need to automate security updates without using `git`.
