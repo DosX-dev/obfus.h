@@ -25,8 +25,16 @@ The VM tests instrument actual calls to `Obfh_VirtualMachine`, so replacing prot
 
 `failures.c.in` mocks all thread-setup/wait/exit-code branches using the current header's setup block. `math.c` bridges `nan` and `remquo` to UCRT because old msvcrt does not export them; UCRT is required. Old decompiler snapshots are removed: structural binary checks do not claim immunity to every decompiler.
 
-`protection.c` checks fractional/pointer conditions, loader calls and long console output through a private console buffer.
+`protection.c` checks fractional/pointer conditions, loader calls, long console output and embedded NUL characters through a private console buffer.
 
-`cflow.c` checks automatic if interception in both modes, all 65,535 call-site parameters, scalar truth, side effects, recursion and dangling else. Handler tracing detects a deliberately bypassed if macro. Run the focused checks with `node tests/run.js --only-cflow`.
+`cflow.c` checks automatic if/while interception in both modes, all 65,535 call-site parameters and four conversion routes, scalar truth, side effects, recursion and dangling else around for/switch. Handler tracing detects deliberately bypassed if and while macros. Run the focused checks with `node tests/run.js --only-cflow`.
+
+`numeric.c` compares math and VM results with native operations, including signed zero, subnormals, tiny fractions, extreme finite values, infinities, quiet NaNs and 1,500 random bit patterns. It checks exact identity transport and single evaluation. Focused run: `node tests/run.js --only-numeric`.
+
+`charset.c` exercises ANSI/Unicode calls and Unicode filenames. The multi-file tests build EXEs and DLLs across all configurations, call their exports and require a single cow export with no exported internal helpers. Focused run: `node tests/run.js --only-platform`.
+
+`cache.c` exercises cold concurrent CRT resolution with eight workers, warm reuse, copied cache names, missing exports and capacity fallback. A cache-bypass mutant must fail the reuse check. The cache retains one CRT module reference per translation unit to keep cached addresses valid. Focused run: `node tests/run.js --only-cache`.
 
 Passing the suite establishes the tested contracts on these compiler builds and this Windows environment, not universal safety of arbitrary programs or third-party protectors.
+
+`junk.c` executes all 13 BREAK_STACK variants with live integer, pointer, floating-point and memory values in five stress runs, including four concurrent workers. Five build seeds exercise VM dispatch in both control-flow modes. PE export boundaries isolate each site's machine code: all sites must change with a different seed and repeat with the same seed. Existing CPUID variants retain that instruction; the four lightweight variants omit it. Focused run: `node tests/run.js --only-junk`.

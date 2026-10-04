@@ -105,9 +105,32 @@ function pe(binary) {
     const sections = [];
     for (let i = 0; i < count; i++) {
         const offset = optional + optionalSize + i * 40;
-        sections.push({ name: binary.subarray(offset, offset + 8).toString().replace(/\0.*$/, ''), bytes: binary.subarray(binary.readUInt32LE(offset + 20), binary.readUInt32LE(offset + 20) + binary.readUInt32LE(offset + 16)) });
+        sections.push({ name: binary.subarray(offset, offset + 8).toString().replace(/\0.*$/, ''), virtualAddress: binary.readUInt32LE(offset + 12), rawOffset: binary.readUInt32LE(offset + 20), rawSize: binary.readUInt32LE(offset + 16), bytes: binary.subarray(binary.readUInt32LE(offset + 20), binary.readUInt32LE(offset + 20) + binary.readUInt32LE(offset + 16)) });
     }
     return { machine: binary.readUInt16LE(nt + 4), sections };
+}
+function junkCode(binary) {
+    const { sections } = pe(binary);
+    const offset = rva => {
+        const section = sections.find(s => rva >= s.virtualAddress && rva - s.virtualAddress < s.rawSize);
+        assert(section, 'export RVA is outside the binary');
+        return section.rawOffset + rva - section.virtualAddress;
+    };
+    const optional = binary.readUInt32LE(0x3c) + 24;
+    const exports = offset(binary.readUInt32LE(optional + (binary.readUInt16LE(optional) === 0x20b ? 112 : 96)));
+    const count = binary.readUInt32LE(exports + 24), functions = offset(binary.readUInt32LE(exports + 28));
+    const names = offset(binary.readUInt32LE(exports + 32)), ordinals = offset(binary.readUInt32LE(exports + 36));
+    const entries = new Map();
+    for (let i = 0; i < count; ++i) {
+        const start = offset(binary.readUInt32LE(names + i * 4));
+        const name = binary.subarray(start, binary.indexOf(0, start)).toString();
+        entries.set(name, binary.readUInt32LE(functions + binary.readUInt16LE(ordinals + i * 2) * 4));
+    }
+    return Array.from({ length: 13 }, (_, i) => {
+        const start = entries.get('junk_site_' + i), end = entries.get(i === 12 ? 'junk_anchor' : 'junk_site_' + (i + 1));
+        assert(start && end > start && end - start < 16384, 'invalid junk function boundaries');
+        return binary.subarray(offset(start), offset(end));
+    });
 }
 async function main() {
     let directory;
@@ -170,12 +193,74 @@ async function main() {
             }
             await check(`${arch}/working-set option`, async () => await execute(await compile(compiler, directory, `${arch}-working-set.exe`, path.join(__dirname, 'protection.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'MEM_CLEANER__JUST_FOR_FUN=1'], ['-luser32']), 'PROTECTION_PASS'));
             if (process.argv.includes('--only-working-set')) continue;
+            const junkVariants = new Map();
+            for (const seed of [0, 1, 2, 3735928559, 4294967295]) await check(`${arch}/seed ${seed}/all junk sites + VM stress`, async () => {
+                const flags = ['VIRT=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`, `CFLOW_V2=${seed & 1}`];
+                const file = path.join(__dirname, 'junk.c');
+                await execute(await compile(compiler, directory, `${arch}-junk-${seed}.exe`, file, flags), 'JUNK_PASS');
+                // Keep modes equal for the machine-code diversity comparison.
+                const dllFlags = ['VIRT=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`];
+                const dll = await compile(compiler, directory, `${arch}-junk-${seed}.dll`, file, dllFlags, ['-shared']);
+                junkVariants.set(seed, junkCode(fs.readFileSync(dll)));
+            });
+            await check(`${arch}/junk bytes vary by seed and repeat with a fixed seed`, async () => {
+                const first = junkVariants.get(1), second = junkVariants.get(2);
+                assert(first && second, 'seed stress failed before binary comparison');
+                assert(first.every((code, i) => !code.equals(second[i])), 'a junk site did not vary across seeds');
+                for (const index of [0, 3, 4, 5, 6, 7, 8]) assert(first[index].includes(Buffer.from([0x0f, 0xa2])), 'legacy CPUID was removed');
+                for (const index of [9, 10, 11, 12]) assert(!first[index].includes(Buffer.from([0x0f, 0xa2])), 'lightweight site serializes with CPUID');
+                const repeat = await compile(compiler, directory, `${arch}-junk-repeat.dll`, path.join(__dirname, 'junk.c'), ['VIRT=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'], ['-shared']);
+                const repeated = junkCode(fs.readFileSync(repeat));
+                assert(first.every((code, i) => code.equals(repeated[i])), 'fixed-seed junk code is not reproducible');
+            });
+            if (process.argv.includes('--only-junk')) continue;
+            if (process.argv.includes('--only-numeric')) {
+                for (const [config, flags] of Object.entries(configs))
+                    await check(`${arch}/${config}/numeric representation`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-numeric.exe`, path.join(__dirname, 'numeric.c'), flags), 'NUMERIC_PASS'));
+                continue;
+            }
+            for (const unicode of [false, true]) for (const protectedBuild of [false, true])
+                await check(`${arch}/${unicode ? 'Unicode' : 'ANSI'}/${protectedBuild ? 'protected' : 'plain'}`, async () => {
+                    const flags = [...(unicode ? ['UNICODE=1', '_UNICODE=1'] : []), ...(protectedBuild ? ['NO_ANTIDEBUG=1', 'CFLOW_V2=1'] : ['NO_OBF=1'])];
+                    await execute(await compile(compiler, directory, `${arch}-charset-${unicode}-${protectedBuild}.exe`, path.join(__dirname, 'charset.c'), flags, ['-luser32']), 'CHARSET_PASS');
+                });
+            for (const [config, flags] of Object.entries(configs)) await check(`${arch}/${config}/multiple translation units + exports`, async () => {
+                const files = ['multi_a.c', 'multi_b.c', 'multi_main.c'].map(name => path.join(__dirname, name));
+                const exe = await compile(compiler, directory, `${arch}-${config}-multi.exe`, files[0], flags, files.slice(1));
+                await execute(exe, 'MULTI_PASS');
+                const dll = await compile(compiler, directory, `${arch}-${config}-multi.dll`, files[0], flags, [files[1], '-shared']);
+                const exports = fs.readFileSync(dll.replace(/\.dll$/, '.def'), 'utf8');
+                assert((exports.match(/\bmulti_export\b/g) || []).length === 1, 'public export missing or duplicated');
+                if (config !== 'plain') assert((exports.match(/\bWhatSoundDoesACowMake\b/g) || []).length === 1, 'cow export missing or duplicated');
+                assert(!exports.includes('obfh_flow') && !exports.includes('obfh_crt'), 'internal helper leaked into exports');
+                const client = await compile(compiler, directory, `${arch}-${config}-multi-client.exe`, path.join(__dirname, 'multi_client.c'), flags);
+                await execute(client, 'MULTI_DLL_PASS', [dll]);
+            });
+            if (process.argv.includes('--only-platform')) continue;
+            await check(`${arch}/CRT cache concurrency, lifetime and capacity`, async () => {
+                const traceRoot = path.join(directory, arch + '-cache');
+                fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
+                fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
+                const target = 'FARPROC function = GetProcAddress(module, name);';
+                const traced = source.replace(target, 'obfh_test_crt_cold();\n    ' + target);
+                assert(traced !== source, 'CRT trace injection missing');
+                fs.writeFileSync(path.join(traceRoot, 'include', 'obfus.h'), traced);
+                const file = path.join(traceRoot, 'tests', 'cache.c');
+                fs.copyFileSync(path.join(__dirname, 'cache.c'), file);
+                await execute(await compile(compiler, directory, arch + '-cache.exe', file, ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']), 'CACHE_PASS');
+                const mutant = traced.replace('FARPROC cached = obfh_crt_cached(name);', 'FARPROC cached = NULL;');
+                assert(mutant !== traced, 'CRT cache bypass target missing');
+                fs.writeFileSync(path.join(traceRoot, 'include', 'obfus.h'), mutant);
+                const result = await run(await compile(compiler, directory, arch + '-cache-bypass.exe', file, ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']), []);
+                assert(result.status === 1 && result.stderr.includes('cache failure'), 'cache bypass was not detected');
+            });
+            if (process.argv.includes('--only-cache')) continue;
             for (const mode of [0, 1]) await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () => {
                 const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
                 fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
                 fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
                 const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {';
-                const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit();');
+                const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);');
                 assert(traced !== source, 'flow trace injection missing');
                 const header = path.join(traceRoot, 'include', 'obfus.h');
                 fs.writeFileSync(header, traced);
@@ -186,6 +271,11 @@ async function main() {
                 fs.writeFileSync(header, traced.replace('#define if(cond) if (OBFH_FLOW_CONDITION(cond, RND(1, 65535)))', '#define if(cond) if (cond)'));
                 const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
                 assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
+                const whileMutant = traced.replace('#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))', '#define while(...) while (__VA_ARGS__)');
+                assert(whileMutant !== traced, 'while bypass target missing');
+                fs.writeFileSync(header, whileMutant);
+                const whileResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-while-bypass.exe`, file, flags), []);
+                assert(whileResult.status === 1 && whileResult.stderr.includes('cflow failure'), 'ordinary-while bypass was not detected');
             });
             if (process.argv.includes('--only-cflow')) continue;
             await check(`${arch}/API failure branches`, async () => await execute(await compile(compiler, directory, `${arch}-failures.exe`, failureFile, []), 'failure branches passed'));
@@ -237,7 +327,7 @@ async function main() {
             if (process.argv.includes('--only-branches')) continue;
             for (const [config, flags] of Object.entries(configs)) {
                 const label = `${arch}/${config}`;
-                for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
+                for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['numeric', 'NUMERIC_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
                     await check(`${label}/${file}`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-${file}.exe`, path.join(__dirname, file + '.c'), flags, ['-luser32', '-lgdi32']), marker));
                 }
                 await check(`${label}/stdin + CRT streams`, async () => {

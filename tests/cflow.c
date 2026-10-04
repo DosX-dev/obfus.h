@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <windows.h>
 static volatile LONG visits;
+static volatile LONG routes[4];
 void obfh_test_flow_visit(void) { InterlockedIncrement(&visits); }
+void obfh_test_flow_route(unsigned int route) { InterlockedIncrement(&routes[route]); }
 #define BODY            \
     int result = 0;     \
     if (a)              \
@@ -16,8 +18,60 @@ void obfh_test_flow_visit(void) { InterlockedIncrement(&visits); }
         result = 6;     \
     return result;
 static int native(double a, double b) { BODY }
+#define LOOP_BODY                                \
+    int result = 0, i = 0, cases = 0;            \
+    if (outer)                                   \
+        for (int j = 0; j < 2; ++j) result += 1; \
+    else                                         \
+        result = 7;                              \
+    if (outer) switch (++cases) {                \
+            case 1:                              \
+                result += 3;                     \
+                break;                           \
+            default:                             \
+                result += 4;                     \
+        }                                        \
+    else                                         \
+        result += 11;                            \
+    for (; i < 8; ++i) {                         \
+        if (i == 2) continue;                    \
+        if (i == 5) break;                       \
+        result += i;                             \
+    }                                            \
+    int count = 3;                               \
+    do {                                         \
+        result++;                                \
+    } while (--count);                           \
+    while (i-- > 0) {                            \
+        if (i == 2) continue;                    \
+        result += i;                             \
+    }                                            \
+    for (;;) {                                   \
+        result++;                                \
+        break;                                   \
+    }                                            \
+    switch ((unsigned long long)0x80000000u) {   \
+        case 0x80000000ull:                      \
+            result += 13;                        \
+            break;                               \
+        default:                                 \
+            result = -1;                         \
+    }                                            \
+    switch (-2) {                                \
+        case -2:                                 \
+            result += 17;                        \
+            break;                               \
+    }                                            \
+    return result + cases;
+static int native_loops(int outer) { LOOP_BODY }
 #include "../include/obfus.h"
 static int protected_branch(double a, double b) { BODY }
+static int protected_loops(int outer) { LOOP_BODY }
+static int while_effect(int *count) {
+    int result = 0;
+    while (++*count < 4) result++;
+    return result;
+}
 static int effects(int *count, int first) {
     if (first && ++*count)
         return 1;
@@ -63,6 +117,10 @@ int main(void) {
     CHECK(pointer_branch(&count) && !pointer_branch(NULL));
     CHECK(wide_branch(1ull << 63) && !wide_branch(0));
     CHECK(recursive(100) == 100);
+    CHECK(protected_loops(0) == native_loops(0));
+    CHECK(protected_loops(1) == native_loops(1));
+    count = 0;
+    CHECK(while_effect(&count) == 3 && count == 4);
     for (unsigned int site = 1; site <= 65535; ++site) {
         unsigned int base = OBFH_FLOW_BASE(site), step = OBFH_FLOW_STEP(site);
         double expected = OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(base + step, site), site);
@@ -71,8 +129,13 @@ int main(void) {
     }
 #ifdef OBFH_TEST_FLOW_TRACE
     CHECK(visits > 131000);
+    for (int route = 0; route < 4; ++route) CHECK(routes[route] > 0);
     LONG before = visits;
     protected_branch(0.25, 1.0);
+    CHECK(visits > before);
+    before = visits;
+    count = 0;
+    while_effect(&count);
     CHECK(visits > before);
 #endif
     puts("CFLOW_PASS");

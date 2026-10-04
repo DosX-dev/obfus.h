@@ -52,6 +52,15 @@ int main(void) {
     COORD size = {256, 256}, origin = {0, 0};
     CHECK(SetConsoleScreenBufferSize(screen, size));
     CHECK(SetStdHandle(STD_OUTPUT_HANDLE, screen));
+    DWORD embeddedWritten;
+    char embedded[3];
+    CHECK(printf("%c%c%c", 'A', 0, 'B') == 3);
+    CHECK(ReadConsoleOutputCharacterA(screen, embedded, 3, origin, &embeddedWritten));
+    // Console modes can render NUL as a cell or skip it; B must survive either.
+    int embeddedValid = embeddedWritten == 3 && embedded[0] == 'A' && (embedded[1] == 'B' || embedded[2] == 'B');
+    if (!embeddedValid) fprintf(stderr, "embedded console output: count=%lu bytes=%u,%u,%u\n", embeddedWritten, (unsigned char)embedded[0], (unsigned char)embedded[1], (unsigned char)embedded[2]);
+    CHECK(embeddedValid);
+    CHECK(SetConsoleCursorPosition(screen, origin));
     char text[4097], readback[4097];
     memset(text, 'Q', 4096);
     text[4096] = 0;
