@@ -16,7 +16,10 @@ int main(void) {
     char large[8192]; memset(large, 'a', sizeof large); large[0] = 0; large[8191] = 0;
     CHECK(obfh_process_hidden_string(large) == large + 1);
     CHECK(strlen(obfh_process_hidden_string(large)) == 8190);
-    char name[MAX_PATH]; CHECK(GetTempPath(MAX_PATH, name));
+    char name[MAX_PATH];
+    DWORD name_length = GetTempPath(MAX_PATH, name);
+    CHECK(name_length > 0 && name_length < MAX_PATH);
+    CHECK(name_length + sizeof("obfh-wrapper-regression.tmp") <= sizeof name);
     strcat(name, "obfh-wrapper-regression.tmp");
     HANDLE file = CreateFile(name, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
     CHECK(file != INVALID_HANDLE_VALUE);
