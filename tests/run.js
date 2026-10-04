@@ -170,6 +170,24 @@ async function main() {
             }
             await check(`${arch}/working-set option`, async () => await execute(await compile(compiler, directory, `${arch}-working-set.exe`, path.join(__dirname, 'protection.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'MEM_CLEANER__JUST_FOR_FUN=1'], ['-luser32']), 'PROTECTION_PASS'));
             if (process.argv.includes('--only-working-set')) continue;
+            for (const mode of [0, 1]) await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () => {
+                const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
+                fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
+                fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
+                const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {';
+                const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit();');
+                assert(traced !== source, 'flow trace injection missing');
+                const header = path.join(traceRoot, 'include', 'obfus.h');
+                fs.writeFileSync(header, traced);
+                const file = path.join(traceRoot, 'tests', 'cflow.c');
+                fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
+                const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
+                await execute(await compile(compiler, directory, `${arch}-cflow-${mode}.exe`, file, flags), 'CFLOW_PASS');
+                fs.writeFileSync(header, traced.replace('#define if(cond) if (OBFH_FLOW_CONDITION(cond, RND(1, 65535)))', '#define if(cond) if (cond)'));
+                const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
+                assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
+            });
+            if (process.argv.includes('--only-cflow')) continue;
             await check(`${arch}/API failure branches`, async () => await execute(await compile(compiler, directory, `${arch}-failures.exe`, failureFile, []), 'failure branches passed'));
             await check(`${arch}/negative control: disabled VM must fail`, async () => {
                 const mutantRoot = path.join(directory, arch + '-mutant');

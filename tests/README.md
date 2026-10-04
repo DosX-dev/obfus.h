@@ -10,14 +10,14 @@ One command builds and runs x86 and x64 binaries across six configurations: no o
 
 Coverage replaces the former manual examples:
 
-| Former example | Automated replacement |
-| --- | --- |
-| `fib.c`, `sorter.c` | Recursion with known Fibonacci results; randomized insertion sort against `qsort`; nested control flow and side effects |
-| `virtualmachine.c`, `virtualmachine_unit.c` | Every VM arithmetic/comparison/identity/branch macro, randomized reference results, boundary values and four concurrent workers |
-| `dll.c`, `hello_dll.c` | Build a protected DLL, dynamic client and import-linked client; resolve/import exported code/data, mutate shared data and verify 2001 calls in each client |
-| `hello_win.c` | Create a hidden window, exercise paint/create/destroy callbacks, geometry and positioning; close automatically |
-| Old disassembly examples | Headless snake-style array movement; binary checks for hidden strings, protected sections, CPUID, RDTSCP, x64 SSE conversions and absence of selected direct imports |
-| String/WinAPI regressions | Full-header file/memory/thread/event/window calls, long strings, guarded formatting and path boundaries |
+| Former example                              | Automated replacement                                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fib.c`, `sorter.c`                         | Recursion with known Fibonacci results; randomized insertion sort against `qsort`; nested control flow and side effects                                              |
+| `virtualmachine.c`, `virtualmachine_unit.c` | Every VM arithmetic/comparison/identity/branch macro, randomized reference results, boundary values and four concurrent workers                                      |
+| `dll.c`, `hello_dll.c`                      | Build a protected DLL, dynamic client and import-linked client; resolve/import exported code/data, mutate shared data and verify 2001 calls in each client           |
+| `hello_win.c`                               | Create a hidden window, exercise paint/create/destroy callbacks, geometry and positioning; close automatically                                                       |
+| Old disassembly examples                    | Headless snake-style array movement; binary checks for hidden strings, protected sections, CPUID, RDTSCP, x64 SSE conversions and absence of selected direct imports |
+| String/WinAPI regressions                   | Full-header file/memory/thread/event/window calls, long strings, guarded formatting and path boundaries                                                              |
 
 The VM tests instrument actual calls to `Obfh_VirtualMachine`, so replacing protected arithmetic with normal C cannot pass just because results agree. The runner also builds a deliberately mutated header with `VM_ADD` bypassed and requires the test to fail. Branch tests additionally trace the dedicated VM command and all six microinstruction states, and reject ordinary-C replacements of each of VM_IF, VM_ELSE_IF and VM_ELSE. They cover side effects, fractional/pointer/NaN conditions, short circuiting, unbraced nesting, recursion and concurrent calls. These temporary mutants never modify the real header.
 
@@ -27,4 +27,6 @@ The VM tests instrument actual calls to `Obfh_VirtualMachine`, so replacing prot
 
 `protection.c` checks fractional/pointer conditions, loader calls and long console output through a private console buffer.
 
-See [REVIEW.md](REVIEW.md) for the implementation changes and protection tradeoffs. Passing the suite establishes the tested contracts on these compiler builds and this Windows environment, not universal safety of arbitrary programs or third-party protectors.
+`cflow.c` checks automatic if interception in both modes, all 65,535 call-site parameters, scalar truth, side effects, recursion and dangling else. Handler tracing detects a deliberately bypassed if macro. Run the focused checks with `node tests/run.js --only-cflow`.
+
+Passing the suite establishes the tested contracts on these compiler builds and this Windows environment, not universal safety of arbitrary programs or third-party protectors.
