@@ -110,6 +110,10 @@ function pe(binary) {
     }
     return { machine: binary.readUInt16LE(nt + 4), sections };
 }
+function assertNoConstantSignature(binary) {
+    for (const signature of [Buffer.from('abcdefghijklmnopqrstuvwxyz'), Buffer.from('a\0b\0c\0d\0e\0f\0g\0h\0'), Buffer.from('SLAIDP'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])])
+        assert(!binary.includes(signature), 'constant data signature survives: ' + signature.toString('hex'));
+}
 function junkCode(binary, siteCount = 13) {
     const { sections } = pe(binary);
     const offset = rva => {
@@ -201,6 +205,26 @@ async function main() {
         fs.writeFileSync(failureFile, fs.readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8').replace('/* SETUP_BLOCK */', setup));
         for (const [arch, compiler] of Object.entries(compilers)) {
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
+            const constantBuilds = new Map();
+            for (const seed of [0, 1, 2, 3735928559, 4294967295]) await check(`${arch}/constant data types and binary signatures/seed ${seed}`, async () => {
+                const exe = await compile(compiler, directory, `${arch}-constants-${seed}.exe`, path.join(__dirname, 'constant_data.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]);
+                const output = await execute(exe, 'CONSTANT_DATA_PASS');
+                const rows = [...output.stdout.matchAll(/^JUNK (\w+) (\d+) ([0-9a-f]+)\r?$/gm)];
+                assert(rows.length === 68 && rows.every(row => row[3].length === Number(row[2]) * 2), 'random data objects missing');
+                const binary = fs.readFileSync(exe);
+                assertNoConstantSignature(binary);
+                const protectedData = pe(binary).sections.find(section => section.name === '.obfh');
+                assert(protectedData && protectedData.bytes.length > 512, 'random data was not emitted');
+                constantBuilds.set(seed, rows.map(row => row[0].trim()).join('\n'));
+            });
+            await check(`${arch}/constant data seed changes and exact reproducibility`, async () => {
+                assert(constantBuilds.get(1) !== constantBuilds.get(2), 'seed did not change constant data');
+                const repeated = await compile(compiler, directory, `${arch}-constants-repeat.exe`, path.join(__dirname, 'constant_data.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u']);
+                const output = await execute(repeated, 'CONSTANT_DATA_PASS');
+                const rows = [...output.stdout.matchAll(/^JUNK (\w+) (\d+) ([0-9a-f]+)\r?$/gm)];
+                assert(constantBuilds.get(1) === rows.map(row => row[0].trim()).join('\n'), 'fixed-seed constant data differs');
+            });
+            if (process.argv.includes('--only-data')) continue;
             if (process.argv.includes('--only-integration')) {
                 await check(`${arch}/default/integration phases + deadline`, async () => await execute(await compile(compiler, directory, `${arch}-default-integration.exe`, path.join(__dirname, 'integration.c'), [], ['-luser32', '-lgdi32']), 'Full-header stress passed'));
                 continue;
@@ -473,6 +497,7 @@ async function main() {
                     const literal = binary.includes(Buffer.from(marker));
                     assert(config === 'plain' ? literal : !literal, 'hidden string binary check failed');
                     if (config !== 'plain') {
+                        assertNoConstantSignature(binary);
                         for (const name of ['GetProcAddress', 'LoadLibraryA', 'abs', 'memchr', 'vprintf'])
                             assert(!binary.includes(Buffer.from('\0' + name + '\0')), 'native import leaked: ' + name);
                         assert(binary.includes(Buffer.from([0x0f, 0x01, 0xf9])), 'RDTSCP missing from executable');

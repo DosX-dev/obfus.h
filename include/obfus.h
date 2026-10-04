@@ -204,24 +204,88 @@ typedef enum {
 #define OBFH_JUNK_WORD ((RND(0, 65535) * 2246822519u) ^ ((unsigned int)RND(0, 65535) << 16) ^ (RND(0, 65535) * 3266489917u))
 #define OBFH_MIX_A(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) * 2246822507u)
 #define OBFH_MIX_B(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 13)) * 3266489909u)
-volatile static char _s_a[] OBFH_SECTION_ATTRIBUTE = "a", _s_b[] OBFH_SECTION_ATTRIBUTE = "b", _s_c[] OBFH_SECTION_ATTRIBUTE = "c", _s_d[] OBFH_SECTION_ATTRIBUTE = "d",
-                            _s_e[] OBFH_SECTION_ATTRIBUTE = "e", _s_f[] OBFH_SECTION_ATTRIBUTE = "f", _s_g[] OBFH_SECTION_ATTRIBUTE = "g", _s_h[] OBFH_SECTION_ATTRIBUTE = "h",
-                            _s_i[] OBFH_SECTION_ATTRIBUTE = "i", _s_j[] OBFH_SECTION_ATTRIBUTE = "j", _s_k[] OBFH_SECTION_ATTRIBUTE = "k", _s_l[] OBFH_SECTION_ATTRIBUTE = "l",
-                            _s_m[] OBFH_SECTION_ATTRIBUTE = "m", _s_n[] OBFH_SECTION_ATTRIBUTE = "n", _s_o[] OBFH_SECTION_ATTRIBUTE = "o", _s_p[] OBFH_SECTION_ATTRIBUTE = "p",
-                            _s_q[] OBFH_SECTION_ATTRIBUTE = "q", _s_r[] OBFH_SECTION_ATTRIBUTE = "r", _s_s[] OBFH_SECTION_ATTRIBUTE = "s", _s_t[] OBFH_SECTION_ATTRIBUTE = "t",
-                            _s_u[] OBFH_SECTION_ATTRIBUTE = "u", _s_v[] OBFH_SECTION_ATTRIBUTE = "v", _s_w[] OBFH_SECTION_ATTRIBUTE = "w", _s_x[] OBFH_SECTION_ATTRIBUTE = "x",
-                            _s_y[] OBFH_SECTION_ATTRIBUTE = "y", _s_z[] = "z",
-                            _a OBFH_SECTION_ATTRIBUTE = 'a', _b OBFH_SECTION_ATTRIBUTE = 'b', _c OBFH_SECTION_ATTRIBUTE = 'c', _d OBFH_SECTION_ATTRIBUTE = 'd',
-                            _e OBFH_SECTION_ATTRIBUTE = 'e', _f OBFH_SECTION_ATTRIBUTE = 'f', _g OBFH_SECTION_ATTRIBUTE = 'g', _h OBFH_SECTION_ATTRIBUTE = 'h',
-                            _i OBFH_SECTION_ATTRIBUTE = 'i', _j OBFH_SECTION_ATTRIBUTE = 'j', _k OBFH_SECTION_ATTRIBUTE = 'k', _l OBFH_SECTION_ATTRIBUTE = 'l',
-                            _m OBFH_SECTION_ATTRIBUTE = 'm', _n OBFH_SECTION_ATTRIBUTE = 'n', _o OBFH_SECTION_ATTRIBUTE = 'o', _p OBFH_SECTION_ATTRIBUTE = 'p',
-                            _q OBFH_SECTION_ATTRIBUTE = 'q', _r OBFH_SECTION_ATTRIBUTE = 'r', _s OBFH_SECTION_ATTRIBUTE = 's', _t OBFH_SECTION_ATTRIBUTE = 't',
-                            _u OBFH_SECTION_ATTRIBUTE = 'u', _v OBFH_SECTION_ATTRIBUTE = 'v', _w OBFH_SECTION_ATTRIBUTE = 'w', _x OBFH_SECTION_ATTRIBUTE = 'x',
-                            _y OBFH_SECTION_ATTRIBUTE = 'y', _z OBFH_SECTION_ATTRIBUTE = 'z',
-                            _S OBFH_SECTION_ATTRIBUTE = 'S', _L OBFH_SECTION_ATTRIBUTE = 'L', _A OBFH_SECTION_ATTRIBUTE = 'A', _I OBFH_SECTION_ATTRIBUTE = 'I',
-                            _D OBFH_SECTION_ATTRIBUTE = 'D', _P OBFH_SECTION_ATTRIBUTE = 'P',
-                            _0 DATA_SECTION_ATTRIBUTE = 0, _1 DATA_SECTION_ATTRIBUTE = 1, _2 DATA_SECTION_ATTRIBUTE = 2, _3 DATA_SECTION_ATTRIBUTE = 3, _4 DATA_SECTION_ATTRIBUTE = 4,
-                            _5 DATA_SECTION_ATTRIBUTE = 5, _6 DATA_SECTION_ATTRIBUTE = 6, _7 DATA_SECTION_ATTRIBUTE = 7, _8 DATA_SECTION_ATTRIBUTE = 8, _9 DATA_SECTION_ATTRIBUTE = 9;
+#define OBFH_DATA_DRAW(salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u)))
+
+// Interleave retained random data; the original volatile objects keep their types.
+#define OBFH_DATA_JUNK(name, section)                                                                                       \
+    static volatile unsigned char __obfh_data_##name[8u + (OBFH_DATA_DRAW(0u) & 15u)] section __attribute__((used)) = {     \
+        (OBFH_DATA_DRAW(1u) & 255u), (OBFH_DATA_DRAW(2u) & 255u), (OBFH_DATA_DRAW(3u) & 255u), (OBFH_DATA_DRAW(4u) & 255u), \
+        (OBFH_DATA_DRAW(5u) & 255u), (OBFH_DATA_DRAW(6u) & 255u), (OBFH_DATA_DRAW(7u) & 255u), (OBFH_DATA_DRAW(8u) & 255u)}
+#define OBFH_STRING_CONST(name, value)                          \
+    static volatile char name[] OBFH_SECTION_ATTRIBUTE = value; \
+    OBFH_DATA_JUNK(name, OBFH_SECTION_ATTRIBUTE)
+#define OBFH_CHAR_CONST(name, value, section)  \
+    static volatile char name section = value; \
+    OBFH_DATA_JUNK(name, section)
+
+OBFH_STRING_CONST(_s_a, "a");
+OBFH_STRING_CONST(_s_b, "b");
+OBFH_STRING_CONST(_s_c, "c");
+OBFH_STRING_CONST(_s_d, "d");
+OBFH_STRING_CONST(_s_e, "e");
+OBFH_STRING_CONST(_s_f, "f");
+OBFH_STRING_CONST(_s_g, "g");
+OBFH_STRING_CONST(_s_h, "h");
+OBFH_STRING_CONST(_s_i, "i");
+OBFH_STRING_CONST(_s_j, "j");
+OBFH_STRING_CONST(_s_k, "k");
+OBFH_STRING_CONST(_s_l, "l");
+OBFH_STRING_CONST(_s_m, "m");
+OBFH_STRING_CONST(_s_n, "n");
+OBFH_STRING_CONST(_s_o, "o");
+OBFH_STRING_CONST(_s_p, "p");
+OBFH_STRING_CONST(_s_q, "q");
+OBFH_STRING_CONST(_s_r, "r");
+OBFH_STRING_CONST(_s_s, "s");
+OBFH_STRING_CONST(_s_t, "t");
+OBFH_STRING_CONST(_s_u, "u");
+OBFH_STRING_CONST(_s_v, "v");
+OBFH_STRING_CONST(_s_w, "w");
+OBFH_STRING_CONST(_s_x, "x");
+OBFH_STRING_CONST(_s_y, "y");
+OBFH_STRING_CONST(_s_z, "z");
+OBFH_CHAR_CONST(_a, 'a', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_b, 'b', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_c, 'c', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_d, 'd', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_e, 'e', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_f, 'f', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_g, 'g', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_h, 'h', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_i, 'i', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_j, 'j', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_k, 'k', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_l, 'l', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_m, 'm', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_n, 'n', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_o, 'o', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_p, 'p', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_q, 'q', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_r, 'r', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_s, 's', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_t, 't', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_u, 'u', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_v, 'v', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_w, 'w', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_x, 'x', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_y, 'y', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_z, 'z', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_S, 'S', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_L, 'L', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_A, 'A', DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_I, 'I', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_D, 'D', TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_P, 'P', OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_0, 0, TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_1, 1, OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_2, 2, DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_3, 3, TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_4, 4, OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_5, 5, DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_6, 6, TEXT_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_7, 7, OBFH_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_8, 8, DATA_SECTION_ATTRIBUTE);
+OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
