@@ -509,6 +509,13 @@ async function main() {
                 for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['numeric', 'NUMERIC_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
                     await check(`${label}/${file}`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-${file}.exe`, path.join(__dirname, file + '.c'), flags, ['-luser32', '-lgdi32']), marker));
                 }
+                await check(`${label}/default-integration keygen`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-keygen.exe`, path.join(__dirname, 'keygen_demo.c'), flags);
+                    await execute(exe, 'DCD48287-ACFB1ECA-576C2D3E-E3459984');
+                    await execute(exe, 'STRESS_PASS B2CA27B1', ['--stress']);
+                    const empty = await run(exe, [' -- ']);
+                    assert(empty.status === 1 && empty.stdout === '', 'empty normalized name was accepted');
+                });
                 await check(`${label}/stdin + CRT streams`, async () => {
                     const exe = await compile(compiler, directory, `${arch}-${config}-streams.exe`, path.join(__dirname, 'streams.c'), flags);
                     const result = await run(exe, [path.join(directory, `${arch}-${config}-io.tmp`)], { input: '42 automated\n' });
