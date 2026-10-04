@@ -199,12 +199,57 @@ async function main() {
             let alive = false; try { process.kill(childPid, 0); alive = true; } catch { }
             assert(!alive, 'timeout left a child process alive');
         });
-        const setup = source.slice(source.indexOf('    // Registers validation'), source.indexOf('    // Dynamic antidebugger'));
-        assert(setup.includes('DuplicateHandle'), 'failure-test extraction missing');
+        const setup = source.slice(source.indexOf('static DWORD WINAPI obfh_ad_register_worker'), source.indexOf('static int obfh_ad_process_probe'));
+        assert(setup.includes('DuplicateHandle') && /#endif\s*$/.test(setup), 'failure-test extraction missing');
         const failureFile = path.join(directory, 'failures.c');
-        fs.writeFileSync(failureFile, fs.readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8').replace('/* SETUP_BLOCK */', setup));
+        const processProbe = source.slice(source.indexOf('static int obfh_ad_process_probe'), source.indexOf('static int IsDebuggerPresent_proxy(void)'));
+        assert(processProbe.includes('gs:0x60') && processProbe.includes('fs:0x30'), 'process-probe extraction missing');
+        fs.writeFileSync(failureFile, fs.readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8')
+            .replace('/* REGISTER_PROBES */', '#if ANTIDEBUG_V2 == 1\n' + setup).replace('/* PROCESS_PROBE */', processProbe));
         for (const [arch, compiler] of Object.entries(compilers)) {
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
+            await check(`${arch}/API failure branches`, async () => await execute(await compile(compiler, directory, `${arch}-failures.exe`, failureFile, []), 'failure branches passed'));
+            const antiRoot = path.join(directory, arch + '-antidebug');
+            fs.mkdirSync(path.join(antiRoot, 'include'), { recursive: true });
+            fs.mkdirSync(path.join(antiRoot, 'tests'), { recursive: true });
+            const antiHeader = path.join(antiRoot, 'include', 'obfus.h');
+            const antiFile = path.join(antiRoot, 'tests', 'antidebug.c');
+            fs.writeFileSync(antiHeader, source);
+            fs.copyFileSync(path.join(__dirname, 'antidebug.c'), antiFile);
+            const debugHost = await compile(compiler, directory, `${arch}-antidebug-host.exe`, path.join(__dirname, 'antidebug_host.c'), []);
+            for (const [label, flags] of [['plain', ['NO_OBF=1']], ['disabled', ['NO_ANTIDEBUG=1']], ['default', []], ['advanced', ['ANTIDEBUG_V2=1', 'CFLOW_V2=1', 'VIRT=1']]]) {
+                await check(`${arch}/anti-debug statement syntax and normal execution/${label}`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-antidebug-${label}.exe`, antiFile, flags);
+                    await execute(exe, 'ANTIDEBUG_PASS');
+                    if (label === 'default' || label === 'advanced') {
+                        const binary = fs.readFileSync(exe);
+                        assert(!binary.includes(Buffer.from('IsDebuggerPresent\0')), 'plain debugger API name/import remains');
+                        await execute(debugHost, 'ANTIDEBUG_REAL_DEBUGGER_PASS', [exe]);
+                        for (const route of ['0', '1']) {
+                            let stopped;
+                            try { await run(exe, [route], { timeout: 1500 }); } catch (error) { stopped = error; }
+                            assert(stopped?.code === 'ETIMEDOUT' && stopped.stdout.includes('RESPONSE_ENTER') && !stopped.stdout.includes('RESPONSE_RETURNED'), 'remote response crashed or returned');
+                        }
+                    }
+                });
+            }
+            await check(`${arch}/anti-debug resolver fallback`, async () => {
+                const fallback = source.replace('if (check) return check() != FALSE;', 'if (0) return check() != FALSE;');
+                assert(fallback !== source, 'fallback target missing');
+                fs.writeFileSync(antiHeader, fallback);
+                await execute(await compile(compiler, directory, `${arch}-antidebug-fallback.exe`, antiFile, []), 'ANTIDEBUG_PASS');
+            });
+            await check(`${arch}/anti-debug positive signal dispatch`, async () => {
+                const start = source.indexOf('static int IsDebuggerPresent_proxy(void)');
+                const end = source.indexOf('// Live paths', start);
+                assert(start >= 0 && end > start, 'detector target missing');
+                fs.writeFileSync(antiHeader, source.slice(0, start) + 'static int IsDebuggerPresent_proxy(void) { return 1; }\n\n' + source.slice(end));
+                const exe = await compile(compiler, directory, `${arch}-antidebug-signal.exe`, antiFile, []);
+                let stopped;
+                try { await run(exe, ['signal'], { timeout: 1500 }); } catch (error) { stopped = error; }
+                assert(stopped?.code === 'ETIMEDOUT' && stopped.stdout.includes('RESPONSE_ENTER') && !stopped.stdout.includes('RESPONSE_RETURNED'), 'positive signal did not reach the remote response');
+            });
+            if (process.argv.includes('--only-antidebug')) continue;
             const constantBuilds = new Map();
             for (const seed of [0, 1, 2, 3735928559, 4294967295]) await check(`${arch}/constant data types and binary signatures/seed ${seed}`, async () => {
                 const exe = await compile(compiler, directory, `${arch}-constants-${seed}.exe`, path.join(__dirname, 'constant_data.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]);
@@ -413,7 +458,6 @@ async function main() {
                 assert(whileResult.status === 1 && whileResult.stderr.includes('cflow failure'), 'ordinary-while bypass was not detected');
             });
             if (process.argv.includes('--only-cflow')) continue;
-            await check(`${arch}/API failure branches`, async () => await execute(await compile(compiler, directory, `${arch}-failures.exe`, failureFile, []), 'failure branches passed'));
             await check(`${arch}/negative control: disabled VM must fail`, async () => {
                 const mutantRoot = path.join(directory, arch + '-mutant');
                 fs.mkdirSync(path.join(mutantRoot, 'include'), { recursive: true });

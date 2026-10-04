@@ -42,7 +42,7 @@ Junk branches use different compile-time constants and skipped byte sequences at
 > 
 > // Additional options
 > #define CFLOW_V2       1  // More powerful Control Flow obfuscation (slowly!)
-> #define ANTIDEBUG_V2   1  // Use better dynamic anti-debugging protection
+> #define ANTIDEBUG_V2   1  // Add hardware-breakpoint checks to anti-debugging protection
 > #define FAKE_SIGNS     1  // Adds fake signatures of various protectors or packers
 > 
 > // Disabling default features

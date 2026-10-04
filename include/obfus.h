@@ -1757,159 +1757,111 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
 #define LoadLibraryA(...) LoadLibraryA_proxy(__VA_ARGS__)
 
 // =============================================================
-// Anti-Debug (global)
+// Anti-Debug: probes return evidence; the response lives outside the call site.
 #if NO_ANTIDEBUG != 1
 
-#if ANTIDEBUG_V2 == 1  // for ANTIDEBUG_V2
-static void ad_ZeroDRs(PCONTEXT pCtx) {
+#if ANTIDEBUG_V2 == 1
+// The worker owns the duplicated handle, including after a failed/timed-out wait.
+static DWORD WINAPI obfh_ad_register_worker(void *argument) {
+    HANDLE thread = (HANDLE)argument;
+    DWORD detected = 0;
     BREAK_STACK_CFLOW;
-    pCtx->Dr0 = _0;
-    pCtx->Dr1 = _0;
-    pCtx->Dr2 = _0;
-    pCtx->Dr3 = _0;
-    pCtx->Dr6 = _0;
-    pCtx->Dr7 = _0;
-}
-
-static int ad_CompareDRs(PCONTEXT pCtx) {
-    BREAK_STACK_CFLOW;
-    if (pCtx->Dr7 != _0) {
-        ad_ZeroDRs(pCtx);
-        return _1;
-    } else {
-        // ensure DR0 - DR3 contain zeros even if they are disabled.
-        // Skip DR6.  It seems to change erratically, but it's output-only.
-        if (_0 == (pCtx->Dr0 | pCtx->Dr1 | pCtx->Dr2 | pCtx->Dr3)) {
-            ad_ZeroDRs(pCtx);
-        }
-        // zero any active debug registers to erase breakpoints.
-        // the caller is responsible for ensuring the DR values set are
-        // actually applied.
-        ad_ZeroDRs(pCtx);
-    }
-    return _0;
-}
-
-static DWORD WINAPI ThreadCompareDRs(void *p) {
-    BREAK_STACK_CFLOW;
-    DWORD dwRet = _0;
-    HANDLE hMainThread = (HANDLE)p;
-    if (-1 != SuspendThread(hMainThread)) {
-        BREAK_STACK_CFLOW;
-        CONTEXT context;
+    if (SuspendThread(thread) != (DWORD)-1) {
+        CONTEXT context = {0};
         context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-        if (GetThreadContext(hMainThread, &context)) {
-            if (ad_CompareDRs(&context))
-                dwRet = _1;
+        if (GetThreadContext(thread, &context)) {
+            // Only enabled local/global breakpoints count. DR6 and reserved DR7
+            // bits are not evidence; reading context does not erase breakpoints.
+            detected = (context.Dr7 & 0xffu) != 0;
         }
-        ResumeThread(hMainThread);
+        ResumeThread(thread);
     }
-    CloseHandle(hMainThread);
-    return dwRet;
+    CloseHandle(thread);
+    return detected;
+}
+
+static int obfh_ad_register_probe(void) {
+    HANDLE target = NULL;
+    BREAK_STACK_CFLOW;
+    if (!DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
+                         &target, 0, FALSE, DUPLICATE_SAME_ACCESS)) return 0;
+    HANDLE worker = CreateThread(NULL, 0, obfh_ad_register_worker, target, 0, NULL);
+    if (!worker) {
+        CloseHandle(target);
+        return 0;
+    }
+    DWORD detected = 0;
+    DWORD wait = WaitForSingleObject(worker, 5000);
+    int result = wait == WAIT_OBJECT_0 && GetExitCodeThread(worker, &detected) && detected != 0;
+    CloseHandle(worker);
+    return result;
 }
 #endif
 
-static int IsDebuggerPresent_proxy() OBFH_SECTION_ATTRIBUTE {
+static int obfh_ad_process_probe(void) {
+    typedef BOOL(WINAPI * ObfhDebuggerCheck)(void);
     BREAK_STACK_CFLOW;
-    NOP_FLOOD;
+    // Caller-owned hidden strings remain alive through the export lookup.
+    HMODULE kernel = GetModuleHandleA(HIDE_STRING("kernel32.dll"));
+    ObfhDebuggerCheck check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, HIDE_STRING("IsDebuggerPresent")) : NULL;
+    if (check) return check() != FALSE;
+    // A resolver failure must not silently disable the base check.
+    ULONG_PTR peb;
+#if defined(__x86_64__)
+    __obfh_asm__("movq %%gs:0x60, %0"
+                 : "=r"(peb));
+#else
+    __obfh_asm__("movl %%fs:0x30, %0"
+                 : "=r"(peb));
+#endif
+    return peb && *((volatile unsigned char *)peb + 2) != 0;
+}
+
+static int IsDebuggerPresent_proxy(void) OBFH_SECTION_ATTRIBUTE {
+    int detected = obfh_ad_process_probe();
     BREAK_STACK_CFLOW;
 #if ANTIDEBUG_V2 == 1
-
-    // Registers validation
-    HANDLE hMainThread = NULL;
-    DWORD dwDummy = 0, exitCode = 0;
-
-    if (DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
-                        &hMainThread, _0, FALSE, DUPLICATE_SAME_ACCESS)) {
-        HANDLE hThread = CreateThread(NULL, _0, ThreadCompareDRs, hMainThread, _0, &dwDummy);
-        if (hThread) {
-            if (WaitForSingleObject(hThread, INFINITE) == WAIT_OBJECT_0 &&
-                GetExitCodeThread(hThread, &exitCode) && exitCode) {
-                CloseHandle(hThread);
-                return exitCode;
-            }
-            CloseHandle(hThread);
-        } else {
-            CloseHandle(hMainThread);
-        }
-    }
-
-    // Dynamic antidebugger
-    char result[32], mask[32];
-    char *format = getCharMask(_6, mask, sizeof mask);
-    format[_6 * _2] = '%';
-    format[_6 * _2 + _1] = _d;
-    format[_6 * _2 + _2] = _0;
-    sprintf(result, format, _k, _e, _r, _n, _e, _l, _6 * _6 - _4);
-
-    char funcName[18];
-    funcName[_9 + _8] = _0;
-
-    funcName[_9 + _7 * _1] = _t;
-    funcName[_2 + _5 * _1] = _g;
-    funcName[_0 * _8 * _1] = _I;
-    funcName[_1 + _0 * _1] = _s;
-    funcName[_7 * _2 * _1] = _e;
-    funcName[_3 * _3 * _1] = _r;
-    funcName[_9 + _4 * _1] = _s;
-    funcName[_5 * _3 * _1] = _n;
-    BREAK_STACK_CFLOW;
-    funcName[_1 + _1 * _1] = _D;
-    funcName[_1 + _2 * _1] = _e;
-    funcName[_5 * _2 * _1] = _P;
-    funcName[_2 + _2 * _1] = _b;
-    funcName[_3 + _2 * _1] = _u;
-    funcName[_4 * _2 * _1] = _e;
-    funcName[_2 + _9 * _1] = _r;
-    funcName[_3 * _2 * _1] = _g;
-    funcName[_6 * _2 * _1] = _e;
-
-    typedef BOOL(WINAPI * DebuggerCheck)(void);
-    HMODULE kernel = LoadLibraryA(result);
-    DebuggerCheck check = (DebuggerCheck)GetProcAddress(kernel, funcName);
-    BOOL detected = check ? check() : IsDebuggerPresent();
-    if (kernel) FreeLibrary(kernel);
-    return detected;
-#else
-
-    // Standard antidebugger
-    NOP_FLOOD;
-    return IsDebuggerPresent();
-
+    if (!detected) detected = obfh_ad_register_probe();
 #endif
-}
-// =============================================================
-
-static void crash() {
-    BREAK_STACK_CFLOW;
-    __obfh_asm__(
-        "int $3;"
-        ".byte 0xED, 0x00;");
+    return detected;
 }
 
-static void loop() {
-    while (1) {
+// Live paths use defined unsigned arithmetic and leave SP untouched. Random
+// instructions come from the shared pool and reside on its skipped paths.
+static void obfh_ad_sink_a(unsigned int initial) OBFH_SECTION_ATTRIBUTE {
+    volatile unsigned int state = initial | 1u;
+    for (;;) {
+        BREAK_STACK_CFLOW;
+        unsigned int next = state ^ RND(1, 2147483646);
+        state = ((next << 7) | (next >> 25)) + RND(1, 65535);
     }
 }
 
-#define ANTI_DEBUG                                                                                      \
-    if (IsDebuggerPresent() || obfh_int_proxy(_0 / !IsDebuggerPresent_proxy() * (_1 + _0 + _1) / _2)) { \
-        obfh_double_proxy(RND(1, 999));                                                                 \
-        loop();                                                                                         \
-        while (1) {                                                                                     \
-        };                                                                                              \
-        __obfh_asm__(".byte 0xED;");                                                                    \
-        BREAK_STACK_CFLOW;                                                                                  \
-        __obfh_asm__(".byte 0x66, 0xC1, 0xE8, 0x05;");                                                  \
-        __obfh_asm__(".byte 0x00;");                                                                    \
-        __obfh_asm__("ret;");                                                                           \
-        crash();                                                                                        \
-    } else {                                                                                            \
-        0.0 / !IsDebuggerPresent();                                                                     \
-    };
+static void obfh_ad_sink_b(unsigned int initial) OBFH_SECTION_ATTRIBUTE {
+    volatile unsigned int state = initial;
+    for (;;) {
+        state = state * (RND(1, 32767) * 2u + 1u) + RND(1, 65535);
+        BREAK_STACK_CFLOW;
+        state ^= state >> 13;
+    }
+}
 
+static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_SECTION_ATTRIBUTE {
+    typedef void (*ObfhResponse)(unsigned int);
+    ObfhResponse volatile response = (route & 1u) ? obfh_ad_sink_a : obfh_ad_sink_b;
+    BREAK_STACK_CFLOW;
+    response(nonce ^ RND(1, 2147483646));
+}
+
+#define ANTI_DEBUG                                                                   \
+    do {                                                                             \
+        BREAK_STACK_CFLOW;                                                           \
+        if (IsDebuggerPresent_proxy()) obfh_ad_react(RND(1, 2147483646), RND(0, 1)); \
+    } while (0)
 #else
-#define ANTI_DEBUG 0
+#define ANTI_DEBUG \
+    do {           \
+    } while (0)
 #endif
 
 // CRT module name, copied within the hidden string's lifetime.

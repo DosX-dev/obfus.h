@@ -1,36 +1,118 @@
-
-#include <windows.h>
 #include <stdio.h>
-#define _0 0
-#define FALSE 0
-static int mode, duplicate_calls, create_calls, wait_calls, exit_calls, closed_worker, closed_main;
+#include <string.h>
+#include <windows.h>
+#define ANTIDEBUG_V2 1
+#define BREAK_STACK_CFLOW
+static int mode, duplicates, creates, waits, exits, targets, workers, suspends, resumes, contexts;
+static DWORD(WINAPI *pending)(void *);
+static void *pending_argument;
+static DWORD worker_result;
 static BOOL fake_duplicate(HANDLE a, HANDLE b, HANDLE c, HANDLE *out, DWORD d, BOOL e, DWORD f) {
-    duplicate_calls++; if (mode == 1) return FALSE; *out = (HANDLE)11; return TRUE;
+    duplicates++;
+    if (mode == 1) return FALSE;
+    *out = (HANDLE)11;
+    return TRUE;
 }
-static HANDLE fake_create(void *a, SIZE_T b, void *c, void *d, DWORD e, DWORD *f) {
-    create_calls++; return mode == 2 ? NULL : (HANDLE)22;
+static HANDLE fake_create(LPSECURITY_ATTRIBUTES a, SIZE_T b, LPTHREAD_START_ROUTINE c, void *d, DWORD e, DWORD *f) {
+    creates++;
+    if (mode == 2) return NULL;
+    pending = c;
+    pending_argument = d;
+    return (HANDLE)22;
 }
-static DWORD fake_wait(HANDLE h, DWORD timeout) { wait_calls++; return mode == 3 ? WAIT_FAILED : WAIT_OBJECT_0; }
-static BOOL fake_exit(HANDLE h, DWORD *out) { exit_calls++; if (mode == 4) return FALSE; *out = mode == 5 ? 7 : 0; return TRUE; }
-static BOOL fake_close(HANDLE h) { if (h == (HANDLE)11) closed_main++; else if (h == (HANDLE)22) closed_worker++; else return FALSE; return TRUE; }
+static DWORD fake_suspend(HANDLE h) {
+    suspends++;
+    return mode == 7 ? (DWORD)-1 : 0;
+}
+static DWORD fake_resume(HANDLE h) {
+    resumes++;
+    return 1;
+}
+static BOOL fake_context(HANDLE h, CONTEXT *out) {
+    contexts++;
+    if (out->ContextFlags != CONTEXT_DEBUG_REGISTERS || out->Dr0 || out->Dr7) return FALSE;
+    if (mode == 8) return FALSE;
+    out->Dr7 = mode == 5 ? 1 : mode == 9 ? 0x400
+                                         : 0;
+    out->Dr0 = mode == 10 ? 0x1234 : 0;
+    out->Dr6 = mode == 11 ? 0xffff0ff0u : 0;
+    return TRUE;
+}
+static DWORD fake_wait(HANDLE h, DWORD timeout) {
+    waits++;
+    if (timeout != 5000) return WAIT_FAILED;
+    if (mode == 3) return WAIT_FAILED;
+    if (mode == 6) return WAIT_TIMEOUT;
+    worker_result = pending(pending_argument);
+    pending = NULL;
+    return WAIT_OBJECT_0;
+}
+static BOOL fake_exit(HANDLE h, DWORD *out) {
+    exits++;
+    if (mode == 4) return FALSE;
+    *out = worker_result;
+    return TRUE;
+}
+static BOOL fake_close(HANDLE h) {
+    if (h == (HANDLE)11)
+        targets++;
+    else if (h == (HANDLE)22)
+        workers++;
+    else
+        return FALSE;
+    return TRUE;
+}
 #define DuplicateHandle fake_duplicate
 #define CreateThread fake_create
+#define SuspendThread fake_suspend
+#define ResumeThread fake_resume
+#define GetThreadContext fake_context
 #define WaitForSingleObject fake_wait
 #define GetExitCodeThread fake_exit
 #define CloseHandle fake_close
-#define ThreadCompareDRs NULL
-int check_setup(void) {
-/* SETUP_BLOCK */
-    return 0;
+/* REGISTER_PROBES */
+static int module_calls, export_calls, api_calls;
+static BOOL WINAPI fake_debugger_check(void) {
+    api_calls++;
+    return mode == 14;
 }
+static HMODULE fake_module(const char *name) {
+    module_calls++;
+    if (strcmp(name, "kernel32.dll")) return NULL;
+    return mode == 12 ? NULL : (HMODULE)33;
+}
+static FARPROC fake_export(HMODULE module, const char *name) {
+    export_calls++;
+    if (module != (HMODULE)33 || strcmp(name, "IsDebuggerPresent")) return NULL;
+    return mode == 13 ? NULL : (FARPROC)fake_debugger_check;
+}
+#define GetModuleHandleA fake_module
+#define GetProcAddress fake_export
+#define HIDE_STRING(value) (value)
+#define __obfh_asm__(...) __asm__ __volatile__(__VA_ARGS__)
+/* PROCESS_PROBE */
 int main(void) {
-    for (mode = 0; mode <= 5; mode++) {
-        duplicate_calls = create_calls = wait_calls = exit_calls = closed_worker = closed_main = 0;
-        int result = check_setup();
-        if (result != (mode == 5 ? 7 : 0) || duplicate_calls != 1 ||
-            create_calls != (mode != 1) || wait_calls != (mode != 1 && mode != 2) ||
-            exit_calls != (mode != 1 && mode != 2 && mode != 3) ||
-            closed_main != (mode == 2) || closed_worker != (mode != 1 && mode != 2)) return 1;
+    for (mode = 0; mode <= 11; mode++) {
+        duplicates = creates = waits = exits = targets = workers = suspends = resumes = contexts = 0;
+        pending = NULL;
+        int result = obfh_ad_register_probe();
+        if (result != (mode == 5) || duplicates != 1 || creates != (mode != 1) ||
+            waits != (mode != 1 && mode != 2) || exits != (mode != 1 && mode != 2 && mode != 3 && mode != 6) ||
+            workers != (mode != 1 && mode != 2)) return 10 + mode;
+        // On timeout/failure, the live worker still owns the duplicated handle.
+        if ((mode == 3 || mode == 6) && targets != 0) return 30 + mode;
+        if (pending) {
+            pending(pending_argument);
+            pending = NULL;
+        }
+        if (targets != (mode != 1) || suspends != (mode != 1 && mode != 2) ||
+            resumes != (mode != 1 && mode != 2 && mode != 7) || contexts != resumes) return 50 + mode;
     }
-    puts("ANTIDEBUG_V2 failure branches passed"); return 0;
+    for (mode = 12; mode <= 15; ++mode) {
+        module_calls = export_calls = api_calls = 0;
+        if (obfh_ad_process_probe() != (mode == 14) || module_calls != 1 ||
+            export_calls != (mode != 12) || api_calls != (mode >= 14)) return 80 + mode;
+    }
+    puts("ANTIDEBUG_V2 failure branches passed");
+    return 0;
 }
