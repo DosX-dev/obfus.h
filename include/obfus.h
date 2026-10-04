@@ -338,6 +338,15 @@ int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
     RET_BY_VAR(value);
 }
 
+// Preserve pointer and SIZE_T width on both Windows targets.
+ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_SECTION_ATTRIBUTE {
+    int shift = SALT_SHIFT;
+    ULONG_PTR *address = &value + shift;
+    return *(address - shift);
+}
+
+#define OBFH_PTR(type, value) ((type)obfh_uintptr_proxy((ULONG_PTR)(value)))
+
 double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
     RET_BY_VAR(value);
 }
@@ -1027,7 +1036,7 @@ void printf_custom(int junk, const char *format, ...) {
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
 
-    HANDLE hConsole = obfh_int_proxy(GetStdHandle(obfh_int_proxy(STD_OUTPUT_HANDLE)));
+    HANDLE hConsole = OBFH_PTR(HANDLE, GetStdHandle(obfh_int_proxy(STD_OUTPUT_HANDLE)));
     obfh_junk_func_args(RND(0, 1000) * (int)hConsole + junk);
     WriteConsoleA(hConsole, buffer, strlen(buffer), NULL, NULL);
 }
@@ -1271,94 +1280,100 @@ int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
 #define Sleep(x) Sleep(obfh_int_proxy((_8 - (_4 * obfh_int_proxy(_2))) + x * TRUE))
 
 #define GetParent(hWnd) \
-    GetParent(obfh_int_proxy(((int)hWnd) + (int)hWnd) / _2)
+    GetParent(OBFH_PTR(HWND, hWnd))
 
 #define GetWindowRect(hWnd, lpRect) \
-    GetWindowRect(obfh_int_proxy((int)hWnd *TRUE), obfh_int_proxy((int)lpRect *TRUE))
+    GetWindowRect(OBFH_PTR(HWND, hWnd), OBFH_PTR(LPRECT, lpRect))
 
 #define GetClientRect(hWnd, lpRect) \
-    GetClientRect(obfh_int_proxy((int)hWnd *TRUE), obfh_int_proxy((int)lpRect *TRUE))
+    GetClientRect(OBFH_PTR(HWND, hWnd), OBFH_PTR(LPRECT, lpRect))
 
 #define SetWindowPos(hWnd, hWndInsertAfter, X, Y, cx, cy, uFlags) \
-    SetWindowPos(obfh_int_proxy(hWnd), obfh_int_proxy(hWndInsertAfter), obfh_int_proxy(X), obfh_int_proxy(Y), obfh_int_proxy(cx), obfh_int_proxy(cy), obfh_int_proxy(uFlags))
+    SetWindowPos(OBFH_PTR(HWND, hWnd), OBFH_PTR(HWND, hWndInsertAfter), obfh_int_proxy(X), obfh_int_proxy(Y), obfh_int_proxy(cx), obfh_int_proxy(cy), obfh_int_proxy(uFlags))
 
 #define SetConsoleTextAttribute(hConsoleOutput, wAttributes) \
-    SetConsoleTextAttribute(obfh_int_proxy(hConsoleOutput), obfh_int_proxy(wAttributes))
+    SetConsoleTextAttribute(OBFH_PTR(HANDLE, hConsoleOutput), obfh_int_proxy(wAttributes))
 
 #define GetDesktopWindow() \
-    obfh_int_proxy((int)GetDesktopWindow() * TRUE)
+    OBFH_PTR(HWND, GetDesktopWindow())
 
 #define GetStockObject(i) \
     GetStockObject(obfh_int_proxy(i) * TRUE)
 
 #define CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile) \
-    CreateFileA(obfh_int_proxy(lpFileName), obfh_int_proxy(dwDesiredAccess), obfh_int_proxy(dwShareMode), obfh_int_proxy(lpSecurityAttributes), obfh_int_proxy(dwCreationDisposition), obfh_int_proxy(dwFlagsAndAttributes), obfh_int_proxy(hTemplateFile))
+    CreateFileA(OBFH_PTR(LPCSTR, lpFileName), obfh_int_proxy(dwDesiredAccess), obfh_int_proxy(dwShareMode), OBFH_PTR(LPSECURITY_ATTRIBUTES, lpSecurityAttributes), obfh_int_proxy(dwCreationDisposition), obfh_int_proxy(dwFlagsAndAttributes), OBFH_PTR(HANDLE, hTemplateFile))
 
 #define ReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped) \
-    ReadFile(obfh_int_proxy(hFile), obfh_int_proxy(lpBuffer), obfh_int_proxy(nNumberOfBytesToRead), obfh_int_proxy(lpNumberOfBytesRead), obfh_int_proxy(lpOverlapped))
+    ReadFile(OBFH_PTR(HANDLE, hFile), OBFH_PTR(LPVOID, lpBuffer), obfh_int_proxy(nNumberOfBytesToRead), OBFH_PTR(LPDWORD, lpNumberOfBytesRead), OBFH_PTR(LPOVERLAPPED, lpOverlapped))
 
 #define WriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped) \
-    WriteFile(obfh_int_proxy(hFile), obfh_int_proxy(lpBuffer), obfh_int_proxy(nNumberOfBytesToWrite), obfh_int_proxy(lpNumberOfBytesWritten), obfh_int_proxy(lpOverlapped))
+    WriteFile(OBFH_PTR(HANDLE, hFile), OBFH_PTR(LPCVOID, lpBuffer), obfh_int_proxy(nNumberOfBytesToWrite), OBFH_PTR(LPDWORD, lpNumberOfBytesWritten), OBFH_PTR(LPOVERLAPPED, lpOverlapped))
 
 #define CloseHandle(hObject) \
-    CloseHandle(obfh_int_proxy(hObject))
+    CloseHandle(OBFH_PTR(HANDLE, hObject))
 
 #define GetModuleHandle(lpModuleName) \
-    GetModuleHandleA(obfh_int_proxy(lpModuleName))
+    GetModuleHandleA(OBFH_PTR(LPCSTR, lpModuleName))
 
 #define GetCurrentProcess() \
-    obfh_int_proxy(GetCurrentProcess())
+    OBFH_PTR(HANDLE, GetCurrentProcess())
 
 #define VirtualAlloc(lpAddress, dwSize, flAllocationType, flProtect) \
-    VirtualAlloc(obfh_int_proxy(lpAddress), obfh_int_proxy(dwSize), obfh_int_proxy(flAllocationType), obfh_int_proxy(flProtect))
+    VirtualAlloc(OBFH_PTR(LPVOID, lpAddress), obfh_uintptr_proxy((ULONG_PTR)(dwSize)), obfh_int_proxy(flAllocationType), obfh_int_proxy(flProtect))
 
 #define VirtualFree(lpAddress, dwSize, dwFreeType) \
-    VirtualFree(obfh_int_proxy(lpAddress), obfh_int_proxy(dwSize), obfh_int_proxy(dwFreeType))
+    VirtualFree(OBFH_PTR(LPVOID, lpAddress), obfh_uintptr_proxy((ULONG_PTR)(dwSize)), obfh_int_proxy(dwFreeType))
 
-#define CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) CreateThread(obfh_int_proxy(lpThreadAttributes), obfh_int_proxy(dwStackSize), obfh_int_proxy(lpStartAddress), obfh_int_proxy(lpParameter), obfh_int_proxy(dwCreationFlags), obfh_int_proxy(lpThreadId))
+#define CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) CreateThread(OBFH_PTR(LPSECURITY_ATTRIBUTES, lpThreadAttributes), obfh_uintptr_proxy((ULONG_PTR)(dwStackSize)), OBFH_PTR(LPTHREAD_START_ROUTINE, lpStartAddress), OBFH_PTR(LPVOID, lpParameter), obfh_int_proxy(dwCreationFlags), OBFH_PTR(LPDWORD, lpThreadId))
 
 #define WaitForSingleObject(hHandle, dwMilliseconds) \
-    WaitForSingleObject(obfh_int_proxy(hHandle), obfh_int_proxy(dwMilliseconds))
+    WaitForSingleObject(OBFH_PTR(HANDLE, hHandle), obfh_int_proxy(dwMilliseconds))
 
 #define ExitProcess(uExitCode) \
     ExitProcess(obfh_int_proxy(uExitCode))
 
+#ifdef UNICODE
+#define OBFH_WINAPI(name) name##W
+#else
+#define OBFH_WINAPI(name) name##A
+#endif
+
 #define GetStartupInfo(lpStartupInfo) \
-    GetStartupInfo(obfh_int_proxy(lpStartupInfo))
+    OBFH_WINAPI(GetStartupInfo)(OBFH_PTR(LPSTARTUPINFO, lpStartupInfo))
 
 #define GetModuleFileName(hModule, lpFilename, nSize) \
-    GetModuleFileName(obfh_int_proxy(hModule), obfh_int_proxy(lpFilename), obfh_int_proxy(nSize))
+    OBFH_WINAPI(GetModuleFileName)(OBFH_PTR(HMODULE, hModule), OBFH_PTR(LPTSTR, lpFilename), obfh_int_proxy(nSize))
 
 #define HeapCreate(flOptions, dwInitialSize, dwMaximumSize) \
-    HeapCreate(obfh_int_proxy(flOptions), obfh_int_proxy(dwInitialSize), obfh_int_proxy(dwMaximumSize))
+    HeapCreate(obfh_int_proxy(flOptions), obfh_uintptr_proxy((ULONG_PTR)(dwInitialSize)), obfh_uintptr_proxy((ULONG_PTR)(dwMaximumSize)))
 
 #define HeapAlloc(hHeap, dwFlags, dwBytes) \
-    HeapAlloc(obfh_int_proxy(hHeap), obfh_int_proxy(dwFlags), obfh_int_proxy(dwBytes))
+    HeapAlloc(OBFH_PTR(HANDLE, hHeap), obfh_int_proxy(dwFlags), obfh_uintptr_proxy((ULONG_PTR)(dwBytes)))
 
 #define HeapFree(hHeap, dwFlags, lpMem) \
-    HeapFree(obfh_int_proxy(hHeap), obfh_int_proxy(dwFlags), obfh_int_proxy(lpMem))
+    HeapFree(OBFH_PTR(HANDLE, hHeap), obfh_int_proxy(dwFlags), OBFH_PTR(LPVOID, lpMem))
 
 #define GlobalAlloc(uFlags, dwBytes) \
-    GlobalAlloc(obfh_int_proxy(uFlags), obfh_int_proxy(dwBytes))
+    GlobalAlloc(obfh_int_proxy(uFlags), obfh_uintptr_proxy((ULONG_PTR)(dwBytes)))
 
 #define GlobalFree(hMem) \
-    GlobalFree(obfh_int_proxy(hMem))
+    GlobalFree(OBFH_PTR(HGLOBAL, hMem))
 
 #define GetTempPath(nBufferLength, lpBuffer) \
-    GetTempPath(obfh_int_proxy(nBufferLength), obfh_int_proxy(lpBuffer))
+    OBFH_WINAPI(GetTempPath)(obfh_int_proxy(nBufferLength), OBFH_PTR(LPTSTR, lpBuffer))
 
 #define GetCurrentThreadId() \
     GetCurrentThreadId()
 
 #define SetEvent(hEvent) \
-    SetEvent(obfh_int_proxy(hEvent))
+    SetEvent(OBFH_PTR(HANDLE, hEvent))
 
 #define ResetEvent(hEvent) \
-    ResetEvent(obfh_int_proxy(hEvent))
+    ResetEvent(OBFH_PTR(HANDLE, hEvent))
 
-#define WaitForMultipleObjects(nCount, lpHandles, bWaitAll, dwMilliseconds) WaitForMultipleObjects(obfh_int_proxy(nCount), obfh_int_proxy(lpHandles), obfh_int_proxy(bWaitAll), obfh_int_proxy(dwMilliseconds))
+#define WaitForMultipleObjects(nCount, lpHandles, bWaitAll, dwMilliseconds) WaitForMultipleObjects(obfh_int_proxy(nCount), OBFH_PTR(const HANDLE *, lpHandles), obfh_int_proxy(bWaitAll), obfh_int_proxy(dwMilliseconds))
 
-#define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, obfh_int_proxy(_Size *(TRUE + FALSE)))
+#define memmove(_Dst, _Src, _Size) memmove(_Dst, _Src, obfh_uintptr_proxy((ULONG_PTR)(_Size)))
 
 #define abs(x) ((x) < FALSE ? -(x) : (x))
 

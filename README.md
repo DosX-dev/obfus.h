@@ -59,6 +59,8 @@ The `HIDE_STRING(str)` obfuscates and visually hides strings by mutating them, s
 > [!IMPORTANT]
 > Some decompilers may still reveal them due to static optimizations. In disassembler output, the code will appear complex and cumbersome, which can deter straightforward analysis but may not fully prevent determined reverse engineering efforts.
 
+The returned pointer remains valid until the enclosing block ends. Copy the string if it needs to outlive that block. There is no fixed 4096-byte helper buffer.
+
 An example of calling the `printf` function from the standard library with static hiding of the message and its decryption on the stack:
 ```c
 char *hidden_message = HIDE_STRING("Hello, world!");
