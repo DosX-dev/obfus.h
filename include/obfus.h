@@ -2566,7 +2566,8 @@ static int obfh_ad_process_probe(void) {
     typedef BOOL(WINAPI * ObfhDebuggerCheck)(void);
     BREAK_STACK_CFLOW;
     // Caller-owned hidden strings remain alive through the export lookup.
-    HMODULE kernel = GetModuleHandleA(HIDE_STRING("kernel32.dll"));
+    HMODULE kernel = GetModuleHandleA(HIDE_STRING("kernel32"));
+    BREAK_STACK_CFLOW;
     ObfhDebuggerCheck check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, HIDE_STRING("IsDebuggerPresent")) : NULL;
     if (check) return check() != FALSE;
     // A resolver failure must not silently disable the base check.
