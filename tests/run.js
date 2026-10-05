@@ -5,6 +5,7 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const breakRandom = require('./break_random');
 const stackProxy = require('./stack_proxy');
+const pdataDecoys = require('./pdata_decoys');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8');
 const selectedArch = process.argv.find(value => value.startsWith('--arch='))?.slice(7);
@@ -109,7 +110,7 @@ function pe(binary) {
     const sections = [];
     for (let i = 0; i < count; i++) {
         const offset = optional + optionalSize + i * 40;
-        sections.push({ name: binary.subarray(offset, offset + 8).toString().replace(/\0.*$/, ''), virtualAddress: binary.readUInt32LE(offset + 12), rawOffset: binary.readUInt32LE(offset + 20), rawSize: binary.readUInt32LE(offset + 16), bytes: binary.subarray(binary.readUInt32LE(offset + 20), binary.readUInt32LE(offset + 20) + binary.readUInt32LE(offset + 16)) });
+        sections.push({ executable: !!(binary.readUInt32LE(offset + 36) & 0x20000000), name: binary.subarray(offset, offset + 8).toString().replace(/\0.*$/, ''), virtualAddress: binary.readUInt32LE(offset + 12), rawOffset: binary.readUInt32LE(offset + 20), rawSize: binary.readUInt32LE(offset + 16), bytes: binary.subarray(binary.readUInt32LE(offset + 20), binary.readUInt32LE(offset + 20) + binary.readUInt32LE(offset + 16)) });
     }
     return { machine: binary.readUInt16LE(nt + 4), sections };
 }
@@ -231,6 +232,10 @@ async function main() {
         for (const [arch, compiler] of Object.entries(compilers)) {
             if (selectedArch && selectedArch !== arch) continue;
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
+            if (process.argv.includes('--only-pdata') || process.argv.includes('--only-integration') || !process.argv.some(arg => arg.startsWith('--only-'))) {
+                await pdataDecoys.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                if (process.argv.includes('--only-pdata')) continue;
+            }
             if (!process.argv.includes('--only-integration')) {
                 const proxyRoot = path.join(directory, arch + '-stack-proxy');
                 fs.mkdirSync(path.join(proxyRoot, 'include'), { recursive: true });
@@ -501,7 +506,7 @@ async function main() {
                     const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
                     fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
                     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
-                    const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {';
+                    const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {';
                     const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);')
                         .replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);')
                         .replace(/STACK_PROXY_FUNCTIONS;(\s*\\\r?\n\s*BREAK_STACK_CFLOW;)/, 'obfh_test_proxy_if_visit(); STACK_PROXY_FUNCTIONS;$1');
@@ -621,10 +626,12 @@ async function main() {
                             assert(!binary.includes(Buffer.from('\0' + name + '\0')), 'native import leaked: ' + name);
                         assert(binary.includes(Buffer.from([0x0f, 0x01, 0xf9])), 'RDTSCP missing from executable');
                         const protectedSection = data.sections.find(section => section.name === (flags.includes('FAKE_SIGNS=1') ? 'UPX0' : '.obfh'));
-                        assert(protectedSection?.bytes.includes(Buffer.from([0x0f, 0xa2])), 'CPUID/junk obfuscation missing from protected section');
+                        assert(protectedSection, 'protected data section missing');
+                        const executableSections = data.sections.filter(section => section.executable);
+                        assert(executableSections.some(section => section.bytes.includes(Buffer.from([0x0f, 0xa2]))), 'CPUID/junk obfuscation missing from executable sections');
                         if (arch === 'x64') {
-                            assert(protectedSection.bytes.includes(Buffer.from([0xf3, 0x0f, 0x2a])), 'integer-to-float SSE conversion missing');
-                            assert(protectedSection.bytes.includes(Buffer.from([0xf3, 0x0f, 0x2c])), 'float-to-integer SSE conversion missing');
+                            assert(executableSections.some(section => section.bytes.includes(Buffer.from([0xf3, 0x0f, 0x2a]))), 'integer-to-float SSE conversion missing');
+                            assert(executableSections.some(section => section.bytes.includes(Buffer.from([0xf3, 0x0f, 0x2c]))), 'float-to-integer SSE conversion missing');
                         }
                     }
                 });

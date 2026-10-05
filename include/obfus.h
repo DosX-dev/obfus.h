@@ -175,6 +175,16 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 
 #endif
 
+// TCC encodes custom-section function RVAs relative to .text. Keep code in
+// .text when publishing unwind-backed decoys; protected data stays separate.
+#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+#define OBFH_CODE_SECTION_ATTRIBUTE TEXT_SECTION_ATTRIBUTE
+#define OBFH_DATA_CODE_SECTION_ATTRIBUTE TEXT_SECTION_ATTRIBUTE
+#else
+#define OBFH_CODE_SECTION_ATTRIBUTE OBFH_SECTION_ATTRIBUTE
+#define OBFH_DATA_CODE_SECTION_ATTRIBUTE DATA_SECTION_ATTRIBUTE
+#endif
+
 // A fixed seed makes builds repeatable; override it to vary builds as well as sites.
 #ifndef OBFH_BUILD_SEED
 #define OBFH_BUILD_SEED 0u
@@ -289,6 +299,272 @@ OBFH_CHAR_CONST(_8, 8, DATA_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
+
+// Static PE unwind-backed decoys. TCC alone supplies the RVA relocations.
+// Its function-table range begins after the carrier's 11-byte prologue;
+// an independent native entry there matches its PUSH_RBP / SET_FPREG info.
+#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+#define OBFH_PD_MIX_A(value) ((((value) ^ ((value) >> 16)) * 2246822519u) & 0xffffffffu)
+#define OBFH_PD_MIX_B(value) ((((value) ^ ((value) >> 13)) * 3266489917u) & 0xffffffffu)
+#define OBFH_PD_DRAW(site, salt) OBFH_PD_MIX_B(OBFH_PD_MIX_A(((OBFH_BUILD_SEED & 0xffffffffu) ^ (((site) + 1u) * 2654435761u & 0xffffffffu) ^ ((salt)*2246822519u & 0xffffffffu))))
+#ifndef OBFH_PDATA_DECOY_COUNT
+#define OBFH_PDATA_DECOY_COUNT (86u + (OBFH_PD_DRAW(0u, 97u) % 43u))
+#endif
+#if OBFH_PDATA_DECOY_COUNT < 86 || OBFH_PDATA_DECOY_COUNT > 128
+#error OBFH_PDATA_DECOY_COUNT must be between 86 and 128
+#endif
+#define OBFH_PD_BODY_0 "xorl %[key], %%eax; imull %[mul], %%eax; addl %[key2], %%eax;"
+#define OBFH_PD_BODY_1 "roll %[rotate], %%eax; xorl %[key], %%eax; addl %[key2], %%eax;"
+#define OBFH_PD_BODY_2 "addl %[key], %%eax; movl %%eax, %%edx; shrl %[rotate], %%edx; xorl %%edx, %%eax;"
+#define OBFH_PD_BODY_3 "bswap %%eax; xorl %[key], %%eax; addl %[key2], %%eax;"
+#define OBFH_PD_BODY_4 "notl %%eax; addl %[key], %%eax; xorl %[key2], %%eax;"
+#define OBFH_PD_BODY_5 "movl %%eax, %%edx; andl %[key], %%edx; orl %[key2], %%eax; xorl %%edx, %%eax;"
+#define OBFH_PD_BODY_6 "movl %%eax, %%edx; shrl $13, %%edx; xorl %%edx, %%eax; imull %[mul], %%eax;"
+#define OBFH_PD_BODY_7 "rorl %[rotate], %%eax; addl %[key], %%eax; bswap %%eax;"
+#define OBFH_PD_BODY_8 "leal (%%eax,%%eax,2), %%edx; xorl %[key], %%edx; addl %%edx, %%eax;"
+#define OBFH_PD_BODY_9 "addl %[key], %%eax; imull %%eax, %%eax; xorl %[key2], %%eax;"
+#define OBFH_PD_BODY_10 "subl %[key], %%eax; roll %[rotate], %%eax; xorl %[key2], %%eax;"
+#define OBFH_PD_BODY_11 "xorl %[key], %%eax; addl -%c[slot](%%rbp), %%eax; imull %[mul], %%eax;"
+#define OBFH_PD_BODY_12 "testl %[key], %%eax; jz 1f; xorl %[key2], %%eax; jmp 2f; 1: addl %[mul], %%eax; 2:"
+#define OBFH_PD_BODY_13 "movl %[loops], %%edx; 1: roll %[rotate], %%eax; xorl %[key], %%eax; decl %%edx; jnz 1b;"
+#define OBFH_PD_BODY_14 "movl %%eax, %%edx; shll $5, %%eax; shrl $3, %%edx; xorl %%edx, %%eax; addl %[key], %%eax;"
+#define OBFH_PD_BODY_15 "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; xorl %[key], %%eax; addl %[key2], %%eax;"
+#define OBFH_PD_ASM(body)                                                                 \
+    __obfh_asm__(                                                                         \
+        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame]; "       \
+        "movl %%ecx, %%eax; movl %%eax, -%c[slot](%%rbp); " body                          \
+        ".byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;"                       \
+        :                                                                                 \
+        : [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot),                       \
+          [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), [mul] "i"(__obfh_pd_mul), \
+          [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops)                    \
+        : "rax", "rcx", "rdx", "cc", "memory")
+#define OBFH_PD_DEFINE(site)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            \
+    static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used));                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        \
+    static void __obfh_pdata_decoy_##site(void) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       \
+        enum { __obfh_pd_kind = OBFH_PD_DRAW(site, 1u) & 15u,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           \
+               __obfh_pd_frame = 48u + 16u * (OBFH_PD_DRAW(site, 2u) % 14u),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            \
+               __obfh_pd_slot = 8u + 8u * (OBFH_PD_DRAW(site, 3u) % 5u),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                \
+               __obfh_pd_key = OBFH_PD_DRAW(site, 4u),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  \
+               __obfh_pd_key2 = OBFH_PD_DRAW(site, 5u),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 \
+               __obfh_pd_mul = OBFH_PD_DRAW(site, 6u) | 1u,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             \
+               __obfh_pd_rotate = 1u + (OBFH_PD_DRAW(site, 7u) % 31u),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  \
+               __obfh_pd_loops = 2u + (OBFH_PD_DRAW(site, 8u) % 6u) };                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  \
+        __builtin_choose_expr(__obfh_pd_kind < 8u, __builtin_choose_expr(__obfh_pd_kind < 4u, __builtin_choose_expr(__obfh_pd_kind < 2u, __builtin_choose_expr(__obfh_pd_kind < 1u, ({ OBFH_PD_ASM(OBFH_PD_BODY_0); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_1); })), __builtin_choose_expr(__obfh_pd_kind < 3u, ({ OBFH_PD_ASM(OBFH_PD_BODY_2); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_3); }))), __builtin_choose_expr(__obfh_pd_kind < 6u, __builtin_choose_expr(__obfh_pd_kind < 5u, ({ OBFH_PD_ASM(OBFH_PD_BODY_4); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_5); })), __builtin_choose_expr(__obfh_pd_kind < 7u, ({ OBFH_PD_ASM(OBFH_PD_BODY_6); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_7); })))), __builtin_choose_expr(__obfh_pd_kind < 12u, __builtin_choose_expr(__obfh_pd_kind < 10u, __builtin_choose_expr(__obfh_pd_kind < 9u, ({ OBFH_PD_ASM(OBFH_PD_BODY_8); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_9); })), __builtin_choose_expr(__obfh_pd_kind < 11u, ({ OBFH_PD_ASM(OBFH_PD_BODY_10); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_11); }))), __builtin_choose_expr(__obfh_pd_kind < 14u, __builtin_choose_expr(__obfh_pd_kind < 13u, ({ OBFH_PD_ASM(OBFH_PD_BODY_12); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_13); })), __builtin_choose_expr(__obfh_pd_kind < 15u, ({ OBFH_PD_ASM(OBFH_PD_BODY_14); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_15); }))))); \
+    }
+OBFH_PD_DEFINE(0);
+OBFH_PD_DEFINE(1);
+OBFH_PD_DEFINE(2);
+OBFH_PD_DEFINE(3);
+OBFH_PD_DEFINE(4);
+OBFH_PD_DEFINE(5);
+OBFH_PD_DEFINE(6);
+OBFH_PD_DEFINE(7);
+OBFH_PD_DEFINE(8);
+OBFH_PD_DEFINE(9);
+OBFH_PD_DEFINE(10);
+OBFH_PD_DEFINE(11);
+OBFH_PD_DEFINE(12);
+OBFH_PD_DEFINE(13);
+OBFH_PD_DEFINE(14);
+OBFH_PD_DEFINE(15);
+OBFH_PD_DEFINE(16);
+OBFH_PD_DEFINE(17);
+OBFH_PD_DEFINE(18);
+OBFH_PD_DEFINE(19);
+OBFH_PD_DEFINE(20);
+OBFH_PD_DEFINE(21);
+OBFH_PD_DEFINE(22);
+OBFH_PD_DEFINE(23);
+OBFH_PD_DEFINE(24);
+OBFH_PD_DEFINE(25);
+OBFH_PD_DEFINE(26);
+OBFH_PD_DEFINE(27);
+OBFH_PD_DEFINE(28);
+OBFH_PD_DEFINE(29);
+OBFH_PD_DEFINE(30);
+OBFH_PD_DEFINE(31);
+OBFH_PD_DEFINE(32);
+OBFH_PD_DEFINE(33);
+OBFH_PD_DEFINE(34);
+OBFH_PD_DEFINE(35);
+OBFH_PD_DEFINE(36);
+OBFH_PD_DEFINE(37);
+OBFH_PD_DEFINE(38);
+OBFH_PD_DEFINE(39);
+OBFH_PD_DEFINE(40);
+OBFH_PD_DEFINE(41);
+OBFH_PD_DEFINE(42);
+OBFH_PD_DEFINE(43);
+OBFH_PD_DEFINE(44);
+OBFH_PD_DEFINE(45);
+OBFH_PD_DEFINE(46);
+OBFH_PD_DEFINE(47);
+OBFH_PD_DEFINE(48);
+OBFH_PD_DEFINE(49);
+OBFH_PD_DEFINE(50);
+OBFH_PD_DEFINE(51);
+OBFH_PD_DEFINE(52);
+OBFH_PD_DEFINE(53);
+OBFH_PD_DEFINE(54);
+OBFH_PD_DEFINE(55);
+OBFH_PD_DEFINE(56);
+OBFH_PD_DEFINE(57);
+OBFH_PD_DEFINE(58);
+OBFH_PD_DEFINE(59);
+OBFH_PD_DEFINE(60);
+OBFH_PD_DEFINE(61);
+OBFH_PD_DEFINE(62);
+OBFH_PD_DEFINE(63);
+OBFH_PD_DEFINE(64);
+OBFH_PD_DEFINE(65);
+OBFH_PD_DEFINE(66);
+OBFH_PD_DEFINE(67);
+OBFH_PD_DEFINE(68);
+OBFH_PD_DEFINE(69);
+OBFH_PD_DEFINE(70);
+OBFH_PD_DEFINE(71);
+OBFH_PD_DEFINE(72);
+OBFH_PD_DEFINE(73);
+OBFH_PD_DEFINE(74);
+OBFH_PD_DEFINE(75);
+OBFH_PD_DEFINE(76);
+OBFH_PD_DEFINE(77);
+OBFH_PD_DEFINE(78);
+OBFH_PD_DEFINE(79);
+OBFH_PD_DEFINE(80);
+OBFH_PD_DEFINE(81);
+OBFH_PD_DEFINE(82);
+OBFH_PD_DEFINE(83);
+OBFH_PD_DEFINE(84);
+OBFH_PD_DEFINE(85);
+#if OBFH_PDATA_DECOY_COUNT > 86
+OBFH_PD_DEFINE(86);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 87
+OBFH_PD_DEFINE(87);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 88
+OBFH_PD_DEFINE(88);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 89
+OBFH_PD_DEFINE(89);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 90
+OBFH_PD_DEFINE(90);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 91
+OBFH_PD_DEFINE(91);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 92
+OBFH_PD_DEFINE(92);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 93
+OBFH_PD_DEFINE(93);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 94
+OBFH_PD_DEFINE(94);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 95
+OBFH_PD_DEFINE(95);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 96
+OBFH_PD_DEFINE(96);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 97
+OBFH_PD_DEFINE(97);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 98
+OBFH_PD_DEFINE(98);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 99
+OBFH_PD_DEFINE(99);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 100
+OBFH_PD_DEFINE(100);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 101
+OBFH_PD_DEFINE(101);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 102
+OBFH_PD_DEFINE(102);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 103
+OBFH_PD_DEFINE(103);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 104
+OBFH_PD_DEFINE(104);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 105
+OBFH_PD_DEFINE(105);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 106
+OBFH_PD_DEFINE(106);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 107
+OBFH_PD_DEFINE(107);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 108
+OBFH_PD_DEFINE(108);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 109
+OBFH_PD_DEFINE(109);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 110
+OBFH_PD_DEFINE(110);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 111
+OBFH_PD_DEFINE(111);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 112
+OBFH_PD_DEFINE(112);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 113
+OBFH_PD_DEFINE(113);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 114
+OBFH_PD_DEFINE(114);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 115
+OBFH_PD_DEFINE(115);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 116
+OBFH_PD_DEFINE(116);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 117
+OBFH_PD_DEFINE(117);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 118
+OBFH_PD_DEFINE(118);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 119
+OBFH_PD_DEFINE(119);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 120
+OBFH_PD_DEFINE(120);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 121
+OBFH_PD_DEFINE(121);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 122
+OBFH_PD_DEFINE(122);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 123
+OBFH_PD_DEFINE(123);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 124
+OBFH_PD_DEFINE(124);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 125
+OBFH_PD_DEFINE(125);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 126
+OBFH_PD_DEFINE(126);
+#endif
+#if OBFH_PDATA_DECOY_COUNT > 127
+OBFH_PD_DEFINE(127);
+#endif
+#endif
 
 #define OBFH_JUNK_RANDOM_INPUTS \
     "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_WORD)
@@ -1349,13 +1625,13 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 
 #define BAD_CALL __obfh_asm__(".byte 0xB8;")
 
-static void obfh_junk_func_args(int z, ...) OBFH_SECTION_ATTRIBUTE {
+static void obfh_junk_func_args(int z, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     __obfh_asm__("nop;");
     return;
 }
 
-static void obfh_junk_func() DATA_SECTION_ATTRIBUTE {
+static void obfh_junk_func() OBFH_DATA_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     __obfh_asm__("nop;");
     return;
@@ -1397,20 +1673,20 @@ static void *malloc_proxy(size_t size) {
 
 static float rndValueToProxy = RND(0, 10);
 
-static int obfh_int_proxy(int value) OBFH_SECTION_ATTRIBUTE {
+static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     RET_BY_VAR(value);
 }
 
 // Preserve pointer and SIZE_T width on both Windows targets.
-static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_SECTION_ATTRIBUTE {
+static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     RET_BY_VAR(value);
 }
 
 #define OBFH_PTR(type, value) ((type)obfh_uintptr_proxy((ULONG_PTR)(value)))
 
-static double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
+static double obfh_double_proxy(double value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     RET_BY_VAR(value);
 }
@@ -1418,7 +1694,7 @@ static double obfh_double_proxy(double value) OBFH_SECTION_ATTRIBUTE {
 static float obfh_condition_true();
 
 // Hidden string access
-static char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUTE {
+static char *obfh_process_hidden_string(char *string, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
 
     if (!obfh_condition_true() || _0) {
@@ -1430,17 +1706,17 @@ static char *obfh_process_hidden_string(char *string, ...) OBFH_SECTION_ATTRIBUT
     return string + 1;
 }
 
-static float obfh_condition_true() OBFH_SECTION_ATTRIBUTE {
+static float obfh_condition_true() OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return _1 && TRUE;
 }
 
-static int obfh_condition_proxy(float junk, float condition, ...) OBFH_SECTION_ATTRIBUTE {
+static int obfh_condition_proxy(float junk, float condition, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     RET_BY_VAR(condition);
 }
 
-static long double __s_rdtsc(float junk, ...) OBFH_SECTION_ATTRIBUTE {
+static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     {
         unsigned int lo, hi;
@@ -1538,7 +1814,7 @@ typedef struct {
     unsigned char floating;
 } OBFH_VM_VALUE;
 
-static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char floating) OBFH_SECTION_ATTRIBUTE {
+static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char floating) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     OBFH_VM_VALUE encoded;
     volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
@@ -1549,7 +1825,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char f
     return encoded;
 }
 
-static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_ATTRIBUTE {
+static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     long double value;
     volatile int key = obfh_condition_proxy((float)salt, (float)obfh_int_proxy(salt));
@@ -1578,35 +1854,35 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_SECTION_
 #endif
 
 // Different data dependencies and conversion positions across call sites.
-static unsigned int obfh_flow_route_0(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+static unsigned int obfh_flow_route_0(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     volatile int scaled = obfh_int_proxy((int)input) * 3 + (site & 255u);
     volatile float converted = (float)scaled;
     return (unsigned int)obfh_double_proxy((double)converted) ^ (site & 4095u);
 }
 
-static unsigned int obfh_flow_route_1(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+static unsigned int obfh_flow_route_1(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     volatile float converted = (float)obfh_int_proxy((int)input);
     volatile unsigned int scaled = (unsigned int)obfh_double_proxy((double)converted) * 5u + (site & 127u);
     return (unsigned int)obfh_condition_proxy((float)(site & 255u), (float)(scaled ^ ((site >> 1) & 4095u)));
 }
 
-static unsigned int obfh_flow_route_2(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+static unsigned int obfh_flow_route_2(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     volatile unsigned int mixed = input ^ (site & 1023u);
     volatile float converted = (float)obfh_int_proxy((int)mixed);
     return (unsigned int)obfh_double_proxy((double)converted) * 7u + 19u;
 }
 
-static unsigned int obfh_flow_route_3(unsigned int input, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+static unsigned int obfh_flow_route_3(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     volatile unsigned int scaled = (input + (site & 255u)) * 9u + 23u;
     volatile double converted = obfh_double_proxy((double)(float)obfh_int_proxy((int)scaled));
     return (unsigned int)converted ^ ((site >> 2) & 8191u);
 }
 
-static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATTRIBUTE {
+static double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -1764,13 +2040,13 @@ static int _salt = SALT_CMD;
 #define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, obfh_vm_encode((long double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((long double)RND(1, 99999999), SALT_NUM2, 0), RND(1, 500)))
 
 // Each condition is evaluated once before entering the floating VM path.
-static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE;
-static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE;
+static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE;
+static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE;
 #define VM_IF(condition) if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!(condition), RND(1, 65535), _0))
 #define VM_ELSE_IF(condition) else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!(condition), RND(1, 65535), _1))
 #define VM_ELSE else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!obfh_condition_true(), RND(1, 65535), _2))
 
-static long double Obfh_VirtualMachine(long double uni_key, long long command, OBFH_VM_VALUE encodedNum1, long double junk_2, OBFH_VM_VALUE encodedNum2, long double junk_3) OBFH_SECTION_ATTRIBUTE {
+static long double Obfh_VirtualMachine(long double uni_key, long long command, OBFH_VM_VALUE encodedNum1, long double junk_2, OBFH_VM_VALUE encodedNum2, long double junk_3) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     long double num1, num2;
     volatile long double obfhVmResult = 0;
@@ -1937,7 +2213,7 @@ secondFakePoint:
 }
 
 // A local encoded instruction pointer selects one of three decision programs.
-static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
+static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
     unsigned int variant = (nonce ^ site ^ kind) % 3u;
@@ -1974,7 +2250,7 @@ static long double obfh_vm_branch_program(long double condition, unsigned int no
     }
 }
 
-static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_SECTION_ATTRIBUTE {
+static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     unsigned int low, high;
     __obfh_asm__(".byte 0x0f, 0x31;"
@@ -1995,7 +2271,7 @@ static int obfh_vm_branch(long double key, long long command, float condition, u
 // =============================================================
 
 // Caller-owned storage keeps the mask valid and avoids shared-buffer races.
-static char *getCharMask(int count, char *mask, size_t capacity) OBFH_SECTION_ATTRIBUTE {
+static char *getCharMask(int count, char *mask, size_t capacity) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     if (!mask || !capacity || count < 0 || (size_t)count > (capacity - 1) / 2) return NULL;
     int i = (((_1 * _5) - _4) + _1) - _2;
@@ -2012,7 +2288,7 @@ static char *getCharMask(int count, char *mask, size_t capacity) OBFH_SECTION_AT
 }
 
 // WriteConsoleA
-static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_SECTION_ATTRIBUTE {
+static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
@@ -2020,14 +2296,14 @@ static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWO
 #define WriteConsoleA(...) WriteConsoleA_proxy(__VA_ARGS__)
 
 // GetStdHandle
-static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_SECTION_ATTRIBUTE {
+static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return GetStdHandle(obfh_int_proxy(nStdHandle));
 }
 #define GetStdHandle(...) GetStdHandle_proxy(__VA_ARGS__)
 
-static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
     return GetModuleHandleA(lpModuleName);
@@ -2035,7 +2311,7 @@ static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_SECTION_ATTRIBUT
 #define GetModuleHandleA(...) GetModuleHandleA_proxy(__VA_ARGS__)
 
 // strcmp
-static int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIBUTE {
+static int strcmp_custom(const char *str1, const char *str2) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
@@ -2053,7 +2329,7 @@ static int strcmp_custom(const char *str1, const char *str2) OBFH_SECTION_ATTRIB
 #define strcmp(...) strcmp_custom(__VA_ARGS__)
 
 // strlen
-static size_t strlen_custom(const char *str) OBFH_SECTION_ATTRIBUTE {
+static size_t strlen_custom(const char *str) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     size_t length = _0;
     while (*str != '\0') {
@@ -2082,7 +2358,7 @@ static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
     return rva <= size && length <= (size_t)(size - rva);
 }
 // GetProcAddress: custom PE export lookup, including ordinals and forwarders.
-static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_SECTION_ATTRIBUTE {
+static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     BREAK_STACK_CFLOW;
     obfh_junk_func_args(RND(0, 885));
@@ -2159,7 +2435,7 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
     FAKE_CPUID;
     return (FARPROC)(base + rva);
 }
-static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SECTION_ATTRIBUTE {
+static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_CODE_SECTION_ATTRIBUTE {
     FARPROC result = obfh_find_export(hModule, lpProcName, 0);
     BREAK_STACK_CFLOW;
     return result;
@@ -2167,7 +2443,7 @@ static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_SE
 #define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
 // LoadLibraryA: dynamic loader resolution and proxy chain.
-static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     switch (_0) {
         case 1:
@@ -2213,7 +2489,7 @@ static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
     return NULL;
 }
 
-static HMODULE LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
@@ -2223,7 +2499,7 @@ static HMODULE LoadLibraryA_2(LPCSTR lpLibFileName) {
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 
-static HMODULE LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
@@ -2233,7 +2509,7 @@ static HMODULE LoadLibraryA_4(LPCSTR lpLibFileName) {
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 
-static HMODULE LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_SECTION_ATTRIBUTE {
+static HMODULE LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
@@ -2305,7 +2581,7 @@ static int obfh_ad_process_probe(void) {
     return peb && *((volatile unsigned char *)peb + 2) != 0;
 }
 
-static int IsDebuggerPresent_proxy(void) OBFH_SECTION_ATTRIBUTE {
+static int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     int detected = obfh_ad_process_probe();
     BREAK_STACK_CFLOW;
 #if ANTIDEBUG_V2 == 1
@@ -2316,7 +2592,7 @@ static int IsDebuggerPresent_proxy(void) OBFH_SECTION_ATTRIBUTE {
 
 // Live paths use defined unsigned arithmetic and leave SP untouched. Random
 // instructions come from the shared pool and reside on its skipped paths.
-static void obfh_ad_sink_a(unsigned int initial) OBFH_SECTION_ATTRIBUTE {
+static void obfh_ad_sink_a(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     volatile unsigned int state = initial | 1u;
     for (;;) {
         BREAK_STACK_CFLOW;
@@ -2325,7 +2601,7 @@ static void obfh_ad_sink_a(unsigned int initial) OBFH_SECTION_ATTRIBUTE {
     }
 }
 
-static void obfh_ad_sink_b(unsigned int initial) OBFH_SECTION_ATTRIBUTE {
+static void obfh_ad_sink_b(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     volatile unsigned int state = initial;
     for (;;) {
         state = state * (RND(1, 32767) * 2u + 1u) + RND(1, 65535);
@@ -2334,7 +2610,7 @@ static void obfh_ad_sink_b(unsigned int initial) OBFH_SECTION_ATTRIBUTE {
     }
 }
 
-static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_SECTION_ATTRIBUTE {
+static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECTION_ATTRIBUTE {
     typedef void (*ObfhResponse)(unsigned int);
     ObfhResponse volatile response = (route & 1u) ? obfh_ad_sink_a : obfh_ad_sink_b;
     BREAK_STACK_CFLOW;
@@ -2386,7 +2662,7 @@ static FARPROC obfh_crt_resolve(const char *name) {
 }
 
 // A count conversion writes to user memory and must not run in a sizing pass.
-static int obfh_format_has_count(const char *format) OBFH_SECTION_ATTRIBUTE {
+static int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     for (const char *cursor = format; *cursor; ++cursor) {
         if (*cursor != '%') continue;
@@ -2698,7 +2974,7 @@ static char *getRandName_proxy(char *name) {
 #define rand(...) OBFH_CRT_CALL(getRandName_proxy, int (*)(void), __VA_ARGS__)
 
 // realloc
-static char *getReallocName_proxy(char *name) OBFH_SECTION_ATTRIBUTE {
+static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
     name[0] = _r;
@@ -2716,27 +2992,27 @@ static char *getReallocName_proxy(char *name) OBFH_SECTION_ATTRIBUTE {
 }
 #define realloc(...) OBFH_CRT_CALL(getReallocName_proxy, void *(*)(void *, size_t), __VA_ARGS__)
 
-static void *calloc_proxy(size_t nmemb, size_t size) OBFH_SECTION_ATTRIBUTE {
+static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return calloc(nmemb, size);
 }
 #define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
 #undef realloc
-static void *realloc_proxy(void *ptr, size_t size) OBFH_SECTION_ATTRIBUTE {
+static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     char name[32];
     return ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
 }
 #define realloc(ptr, size) realloc_proxy(ptr, size)
 
-static char *gets_proxy(char *s) OBFH_SECTION_ATTRIBUTE {
+static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return gets(s);
 }
 #define gets(s) gets_proxy(s)
 
-static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_SECTION_ATTRIBUTE {
+static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     va_list args;
     va_start(args, format);
@@ -2746,55 +3022,55 @@ static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_
 }
 #define snprintf(...) snprintf_proxy(__VA_ARGS__)
 
-static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
+static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return vsprintf(str, format, args);
 }
 #define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
-static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_SECTION_ATTRIBUTE {
+static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return vsnprintf(str, size, format, args);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
-static char *getenv_proxy(const char *name) OBFH_SECTION_ATTRIBUTE {
+static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return getenv(name);
 }
 #define getenv(name) getenv_proxy(name)
 
-static int system_proxy(const char *command) OBFH_SECTION_ATTRIBUTE {
+static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return system(command);
 }
 #define system(command) system_proxy(command)
 
-static void abort_proxy(void) OBFH_SECTION_ATTRIBUTE {
+static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     abort();
 }
 #define abort() abort_proxy()
 
-static int atexit_proxy(void (*func)(void)) OBFH_SECTION_ATTRIBUTE {
+static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return atexit(func);
 }
 #define atexit(func) atexit_proxy(func)
 
-static char *getcwd_proxy(char *buf, size_t size) OBFH_SECTION_ATTRIBUTE {
+static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return getcwd(buf, size);
 }
 #define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
-static int tolower_proxy(int c) OBFH_SECTION_ATTRIBUTE {
+static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return tolower(c);
 }
 #define tolower(c) tolower_proxy(c)
 
-static int toupper_proxy(int c) OBFH_SECTION_ATTRIBUTE {
+static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     return toupper(c);
 }
@@ -2983,7 +3259,7 @@ static int obfh_abs_proxy(int value) {
 #define tan(x) tan(_MUTATE_MATH(x))
 #define erf(x) erf(_MUTATE_MATH(x))
 
-__declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_SECTION_ATTRIBUTE {
+__declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_CODE_SECTION_ATTRIBUTE {
     return HIDE_STRING("Moo");
 }
 

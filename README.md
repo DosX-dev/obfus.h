@@ -37,6 +37,11 @@ Junk branches use different compile-time constants and skipped byte sequences at
 
 Every intercepted `if` also emits `STACK_PROXY_FUNCTIONS` before its break-stack template. This layer inserts two to four linked fake functions with Windows x86/x64 calling conventions. 128 combinations of fifteen skip predicates and twenty-two call layouts vary at compile time, together with frame sizes, arguments, arithmetic constants, rotations, frame/epilogue forms and skipped padding bytes. The live path skips the fake calls and stack operations, and evaluates the user's condition once. `NO_CFLOW` disables automatic insertion; `NO_OBF` disables the macro itself.
 
+On TCC Windows x64, the header also emits 86–128 standalone native decoys per translation unit. The build seed selects their count, arithmetic bodies, frame sizes, spill slots and constants. TCC publishes their static PE unwind entries directly; no post-build script, startup registration or runtime dispatcher is required. Their independent native entries match TCC's unwind description, including partial prologues and epilogues. They are not called by the normal application path. This adds functions to analysis; it does not guarantee decompiler failure or conceal the real algorithm.
+
+Define `NO_PDATA_DECOYS=1` to omit this layer, or set `OBFH_PDATA_DECOY_COUNT` to a fixed value from 86 to 128. `NO_OBF` also omits it; x86 emits no pool. With this layer enabled, library functions use `.text` and protected data retains its separate section: TCC otherwise writes incorrect RVAs for functions in custom code sections, which can invalidate the shared exception table. The feature does not repair the compiler's unwind records for application functions placed in other custom code sections. All pools use private symbols, so including the header in several translation units adds one pool per unit.
+
+
 > Available options for protection configuring:
 > ```c
 > // Advanced code protection (see the "Virtualization" part of the documentation!)
@@ -51,6 +56,7 @@ Every intercepted `if` also emits `STACK_PROXY_FUNCTIONS` before its break-stack
 > #define NO_OBF         1  // Don't obfuscate (for debugging)
 > #define NO_CFLOW       1  // Don't use Control-Flow obfuscation
 > #define NO_ANTIDEBUG   1  // Don't build in debugging protection
+> #define NO_PDATA_DECOYS 1 // Omit x64 unwind-backed native decoys
 > ```
 > or use it with compiler args:
 > 
