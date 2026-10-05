@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <windows.h>
 static volatile LONG visits;
+static volatile LONG proxy_visits;
+void obfh_test_proxy_if_visit(void) { InterlockedIncrement(&proxy_visits); }
 static volatile LONG routes[4];
 static volatile LONG if_junk_routes[128];
 void obfh_test_if_junk_visit(unsigned int route) { InterlockedIncrement(&if_junk_routes[route]); }
@@ -87,6 +89,12 @@ static int pointer_branch(void *p) {
         return 1;
     else
         return 0;
+}
+static int comma_condition(int *count, int truth) {
+    if (++*count, truth)
+        return 1;
+    else
+        return 2;
 }
 static int wide_branch(unsigned long long n) {
     if (n)
@@ -244,6 +252,10 @@ int main(void) {
     CHECK(effects(&count, 0) == 2 && count == 1);
     count = 0;
     CHECK(effects(&count, 1) == 1 && count == 1);
+    count = 0;
+    CHECK(comma_condition(&count, 0) == 2 && count == 1);
+    count = 0;
+    CHECK(comma_condition(&count, 1) == 1 && count == 1);
     CHECK(pointer_branch(&count) && !pointer_branch(NULL));
     CHECK(wide_branch(1ull << 63) && !wide_branch(0));
     CHECK(recursive(100) == 100);
@@ -258,6 +270,7 @@ int main(void) {
         CHECK(obfh_flow_token((float)base, site) != expected);
     }
 #ifdef OBFH_TEST_FLOW_TRACE
+    CHECK(proxy_visits > 0);
     CHECK(visits > 131000);
     for (int route = 0; route < 4; ++route) CHECK(routes[route] > 0);
     LONG selected_if_sites = 0;

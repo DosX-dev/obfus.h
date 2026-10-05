@@ -35,6 +35,8 @@ Junk branches use different compile-time constants and skipped byte sequences at
 
 `BREAK_STACK_CFLOW;` inserts a compile-time-selected template from the shared pool of 128 variants. The header uses it throughout its protection paths, with fresh parameters per expansion and less frequent selection of the CPUID variants. The pool includes paired arithmetic, bitwise, carry and rotation predicates with varied branch layouts and randomized skipped payloads. `CFLOW_V2` adds a different lightweight template; `HIDE_STRING` emits one template.
 
+Every intercepted `if` also emits `STACK_PROXY_FUNCTIONS` before its break-stack template. This layer inserts two to four linked fake functions with Windows x86/x64 calling conventions. 128 combinations of fifteen skip predicates and twenty-two call layouts vary at compile time, together with frame sizes, arguments, arithmetic constants, rotations, frame/epilogue forms and skipped padding bytes. The live path skips the fake calls and stack operations, and evaluates the user's condition once. `NO_CFLOW` disables automatic insertion; `NO_OBF` disables the macro itself.
+
 > Available options for protection configuring:
 > ```c
 > // Advanced code protection (see the "Virtualization" part of the documentation!)

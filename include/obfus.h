@@ -64,6 +64,7 @@
 #if NO_OBF == 1
 #define HIDE_STRING(str) str
 #define BREAK_STACK_CFLOW ((void)0)
+#define STACK_PROXY_FUNCTIONS ((void)0)
 #define ANTI_DEBUG 0
 #endif
 
@@ -854,6 +855,492 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 
 #define BREAK_STACK_CFLOW OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_EXTRA)
 
+// Self-contained fake functions: live guards skip all calls and stack edits.
+// Frames and calling conventions follow Windows TCC x86/x64. Numeric labels
+// stay inside each ASM expansion; no insertion refers to another call site.
+#define OBFH_SF_INPUTS                                                                                              \
+    [sf_salt] "i"(RND(1, 32767)), [sf_rotate] "i"(RND(1, 31)),                                                      \
+        [sf_frame_a] "i"(RND(2, 12) * 16u), [sf_frame_b] "i"(RND(2, 12) * 16u), [sf_frame_c] "i"(RND(2, 12) * 16u), \
+        [sf_arg_a] "i"(RND(1, 65535)), [sf_arg_b] "i"(RND(1, 65535)),                                               \
+        [sf_key_a] "i"(OBFH_JUNK_WORD), [sf_key_b] "i"(OBFH_JUNK_WORD), [sf_factor] "i"(RND(1, 32767) * 2u + 1u),   \
+        [sf_pad] "i"(RND(0, 7)), [sf_loops] "i"(RND(1, 7)), [sf_mask] "i"(__obfh_sf_mask),                          \
+        [sf_not_mask] "i"(~(unsigned int)__obfh_sf_mask), [sf_frame_d] "i"(RND(2, 12) * 16u), [sf_pad_b] "i"(RND(0, 15)), [sf_noise_a] "i"(OBFH_JUNK_BYTE), [sf_noise_b] "i"(OBFH_JUNK_BYTE)
+
+#if defined(__x86_64__)
+#define OBFH_SF_INPUT "movl %%esp, %%eax;"
+#define OBFH_SF_FRAME(size) "pushq %%rbp; movq %%rsp, %%rbp; subq $%c[" size "], %%rsp; movq %%rcx, 16(%%rbp); movq %%rdx, 24(%%rbp);"
+#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp; movq %%rsp, %%rbp; leaq -%c[" size "](%%rsp), %%rsp; movq %%rcx, 16(%%rbp); movq %%rdx, 24(%%rbp);"
+#define OBFH_SF_EPILOGUE_ALT "movq %%rbp, %%rsp; popq %%rbp; ret;"
+#define OBFH_SF_ARGS "movl 16(%%rbp), %%eax; movl 24(%%rbp), %%edx;"
+#define OBFH_SF_CALL(target) "subq $32, %%rsp; movl $%c[sf_arg_a], %%ecx; movl $%c[sf_arg_b], %%edx; call " target "; addq $32, %%rsp;"
+#else
+#define OBFH_SF_INPUT "movl %%esp, %%eax;"
+#define OBFH_SF_FRAME(size) "pushl %%ebp; movl %%esp, %%ebp; subl $%c[" size "], %%esp; nop;"
+#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp; movl %%esp, %%ebp; leal -%c[" size "](%%esp), %%esp;"
+#define OBFH_SF_EPILOGUE_ALT "movl %%ebp, %%esp; popl %%ebp; ret;"
+#define OBFH_SF_ARGS "movl 8(%%ebp), %%eax; movl 12(%%ebp), %%edx;"
+#define OBFH_SF_CALL(target) "pushl $%c[sf_arg_b]; pushl $%c[sf_arg_a]; call " target "; addl $8, %%esp;"
+#endif
+#define OBFH_SF_EPILOGUE "leave; ret;"
+#define OBFH_SF_PADDING ".fill %c[sf_pad], 1, 0x90;"
+#define OBFH_SF_GAP ".fill %c[sf_pad_b], 1, 0x90; .byte %c[sf_noise_a], %c[sf_noise_b];"
+#define OBFH_SF_LOCAL "movl %%eax, -4(%%ebp); movl %%edx, -8(%%ebp);"
+// Use pointer-width addressing in fake x64 bodies as well as their prologues.
+#if defined(__x86_64__)
+#undef OBFH_SF_LOCAL
+#define OBFH_SF_LOCAL "movl %%eax, -4(%%rbp); movl %%edx, -8(%%rbp);"
+#endif
+#define OBFH_SF_BODY_A OBFH_SF_ARGS "xorl $%c[sf_key_a], %%eax; imull $%c[sf_factor], %%eax; addl %%edx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_B OBFH_SF_ARGS "addl $%c[sf_key_b], %%eax; roll $%c[sf_rotate], %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_C OBFH_SF_ARGS "leal (%%eax, %%eax, 2), %%eax; xorl %%eax, %%edx; addl $%c[sf_key_a], %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_D OBFH_SF_ARGS "notl %%eax; addl %%edx, %%eax; imull $%c[sf_factor], %%eax; roll $%c[sf_rotate], %%eax;" OBFH_SF_LOCAL
+
+#define OBFH_SF_BODY_E OBFH_SF_ARGS "bswap %%eax; xorl %%edx, %%eax; roll $%c[sf_rotate], %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_F OBFH_SF_ARGS "movl $%c[sf_loops], %%ecx; 6: addl %%edx, %%eax; imull $%c[sf_factor], %%eax; xorl $%c[sf_key_b], %%eax; decl %%ecx; jnz 6b;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_G OBFH_SF_ARGS "movzbl %%al, %%ecx; shrl $8, %%eax; xorl %%edx, %%ecx; leal (%%eax, %%ecx, 4), %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_H OBFH_SF_ARGS "imull %%eax, %%edx; xorl $%c[sf_key_b], %%edx; subl %%edx, %%eax; negl %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_I OBFH_SF_ARGS "movl %%eax, %%ecx; orl $%c[sf_mask], %%eax; andl $%c[sf_mask], %%ecx; subl %%ecx, %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_J OBFH_SF_ARGS "xorl $%c[sf_key_a], %%eax; movl %%edx, %%ecx; shll $%c[sf_rotate], %%ecx; shrl $%c[sf_rotate], %%eax; orl %%ecx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_K OBFH_SF_ARGS "testl %%edx, %%edx; js 6f; addl $%c[sf_key_a], %%eax; jmp 7f; 6: negl %%eax; xorl %%edx, %%eax; 7: roll $%c[sf_rotate], %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_L OBFH_SF_ARGS "movl %%eax, %%ecx; movl %%edx, %%eax; addl %%ecx, %%eax; imull $%c[sf_factor], %%eax; notl %%edx; xorl %%edx, %%eax;" OBFH_SF_LOCAL
+
+#define OBFH_SF_BODY_M OBFH_SF_ARGS "movl %%eax, %%ecx; shrl $16, %%ecx; xorl %%ecx, %%eax; imull $%c[sf_factor], %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_N OBFH_SF_ARGS "addl $%c[sf_key_a], %%eax; adcl $%c[sf_key_b], %%edx; xorl %%edx, %%eax; rorl $%c[sf_rotate], %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_O OBFH_SF_ARGS "xchgl %%eax, %%edx; subl $%c[sf_key_a], %%eax; bswap %%edx; addl %%edx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_P OBFH_SF_ARGS "movl $%c[sf_factor], %%ecx; xorl %%edx, %%edx; divl %%ecx; xorl %%edx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_Q OBFH_SF_ARGS "movzbl %%al, %%ecx; movzbl %%dl, %%edx; imull %%edx, %%ecx; shrl $8, %%eax; addl %%ecx, %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_R OBFH_SF_ARGS "movl $%c[sf_loops], %%ecx; 6: xorl %%edx, %%eax; roll $%c[sf_rotate], %%eax; addl $%c[sf_key_a], %%edx; decl %%ecx; jnz 6b;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_S OBFH_SF_ARGS "shldl $%c[sf_rotate], %%edx, %%eax; subl $%c[sf_key_b], %%eax; xorl $%c[sf_mask], %%eax;" OBFH_SF_LOCAL
+#define OBFH_SF_BODY_T OBFH_SF_ARGS "movl %%eax, %%ecx; shrl $16, %%eax; shll $16, %%ecx; orl %%ecx, %%eax; xorl %%edx, %%eax; negl %%eax;" OBFH_SF_LOCAL
+
+// All fifteen identities hold for arbitrary uint32 inputs, including wraparound.
+#define OBFH_SF_GUARD_0 "imull %%eax, %%eax; testl $2, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_1 "leal 1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_2 "movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testl $1, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_3 "movl %%eax, %%edx; notl %%edx; addl %%eax, %%edx; cmpl $-1, %%edx; je 9f;"
+
+#define OBFH_SF_GUARD_4 "movl %%eax, %%edx; movl %%eax, %%ecx; orl $%c[sf_mask], %%eax; andl $%c[sf_mask], %%edx; addl %%edx, %%eax; addl $%c[sf_mask], %%ecx; cmpl %%ecx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_5 "movl %%eax, %%edx; roll $%c[sf_rotate], %%eax; rorl $%c[sf_rotate], %%eax; cmpl %%edx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_6 "movl %%eax, %%edx; bswap %%eax; bswap %%eax; cmpl %%edx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_7 "leal -1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_8 "movl %%eax, %%edx; notl %%edx; xorl $%c[sf_key_a], %%eax; xorl $%c[sf_key_a], %%edx; xorl %%edx, %%eax; cmpl $-1, %%eax; je 9f;"
+
+#define OBFH_SF_GUARD_9 "movl %%eax, %%ecx; movl %%eax, %%edx; xorl $%c[sf_mask], %%eax; andl $%c[sf_mask], %%edx; leal (%%eax, %%edx, 2), %%eax; addl $%c[sf_mask], %%ecx; cmpl %%ecx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_10 "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_11 "movl %%eax, %%ecx; movl %%eax, %%edx; andl $%c[sf_mask], %%eax; andl $%c[sf_not_mask], %%edx; orl %%edx, %%eax; cmpl %%ecx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_12 "movl %%eax, %%edx; negl %%eax; notl %%edx; addl $1, %%edx; cmpl %%edx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_13 "shrl $31, %%eax; leal -1(%%eax), %%edx; imull %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_14 "movl %%eax, %%edx; roll $16, %%eax; roll $16, %%eax; cmpl %%edx, %%eax; je 9f;"
+
+#define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body
+#define OBFH_SF_ENTRY(label, frame, body) label ": " OBFH_SF_FRAME(frame) body
+#define OBFH_SF_LAYOUT_0(a, b, c)                                               \
+    OBFH_SF_CALL("1f")                                                          \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                            \
+        OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 1b;"
+#define OBFH_SF_LAYOUT_1(a, b, c)                                                                              \
+    OBFH_SF_CALL("1f")                                                                                         \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                                                           \
+        OBFH_SF_ENTRY("1", "sf_frame_a", a) "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2f") "4:" OBFH_SF_EPILOGUE \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_2(a, b, c)                                                                  \
+    OBFH_SF_CALL("1f")                                                                             \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                                               \
+        OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE                \
+                OBFH_SF_ENTRY("3", "sf_frame_c", c) "leave; jmp 1b;"
+#define OBFH_SF_LAYOUT_3(a, b, c)                                                                                                               \
+    OBFH_SF_CALL("1f")                                                                                                                          \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                                                                                            \
+        OBFH_SF_ENTRY("1", "sf_frame_a", a) "testl $1, %%eax; jnz 4f;" OBFH_SF_CALL("2f") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE                                                             \
+                OBFH_SF_ENTRY("3", "sf_frame_c", c) "leave; jmp 1b;"
+#define OBFH_SF_LAYOUT_4(a, b, c)                                                                                                                                   \
+    OBFH_SF_CALL("1f")                                                                                                                                              \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2b") "4:" OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_5(a, b, c) \
+    OBFH_SF_CALL("1f")            \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_6(a, b, c) \
+    OBFH_SF_CALL("1f")            \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) "leave; jmp 2f;" OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_7(a, b, c) \
+    OBFH_SF_CALL("1f")            \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL("1b") "4:" OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_8(a, b, c) \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("1f") "jmp 5f; 4:" OBFH_SF_CALL("2f") "5:" OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_9(a, b, c) \
+    OBFH_SF_CALL("1f")            \
+    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) "testl $1, %%eax; jnz 4f;" OBFH_SF_CALL("1b") "4:" OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) "leave; jmp 2b;"
+
+#define OBFH_SF_LAYOUT_10(a, b, c, d)       \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
+    OBFH_SF_CALL("2b")                      \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_11(a, b, c, d)       \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
+    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
+    OBFH_SF_CALL("2b")                      \
+    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_12(a, b, c, d)       \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
+    OBFH_SF_CALL("2f")                      \
+    OBFH_SF_CALL("8f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
+    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("8", "sf_frame_d", d)     \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_13(a, b, c, d)       \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
+    OBFH_SF_CALL("2f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    "leave; jmp 8f;" OBFH_SF_GAP            \
+        OBFH_SF_ENTRY("8", "sf_frame_d", d) \
+            OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_14(a, b, c, d)       \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("8", "sf_frame_d", d)     \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
+    OBFH_SF_CALL("2f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
+    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_CALL("8b")                      \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_15(a, b, c, d)                                                                      \
+    OBFH_SF_CALL("1f")                                                                                     \
+    OBFH_SF_EPILOGUE                                                                                       \
+    OBFH_SF_GAP                                                                                            \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a)                                                                \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2f") "jmp 5f; 4:" OBFH_SF_CALL("8f") "5:" OBFH_SF_EPILOGUE_ALT \
+        OBFH_SF_GAP                                                                                        \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                            \
+                OBFH_SF_CALL("3f")                                                                         \
+                    OBFH_SF_EPILOGUE                                                                       \
+                        OBFH_SF_GAP                                                                        \
+                            OBFH_SF_ENTRY("8", "sf_frame_d", d)                                            \
+                                OBFH_SF_CALL("3f")                                                         \
+                                    OBFH_SF_EPILOGUE                                                       \
+                                        OBFH_SF_GAP                                                        \
+                                            OBFH_SF_ENTRY("3", "sf_frame_c", c)                            \
+                                                OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_16(a, b, c, d)                                       \
+    OBFH_SF_CALL("1f")                                                      \
+    OBFH_SF_EPILOGUE                                                        \
+    OBFH_SF_GAP                                                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                     \
+    OBFH_SF_CALL("2f")                                                      \
+    OBFH_SF_EPILOGUE                                                        \
+    OBFH_SF_GAP                                                             \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)                                     \
+    "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL("2b") "4:" OBFH_SF_CALL("3f") \
+        OBFH_SF_EPILOGUE                                                    \
+            OBFH_SF_GAP                                                     \
+                OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c)                     \
+                    OBFH_SF_EPILOGUE_ALT
+
+#define OBFH_SF_LAYOUT_17(a, b, c, d)                                                                    \
+    OBFH_SF_CALL("1f")                                                                                   \
+    OBFH_SF_EPILOGUE                                                                                     \
+    OBFH_SF_GAP                                                                                          \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                  \
+    "cmpl %%edx, %%eax; jb 4f;" OBFH_SF_CALL("2f") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+        OBFH_SF_GAP                                                                                      \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP                             \
+                OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c)                                                  \
+                    OBFH_SF_CALL("1b")                                                                   \
+                        OBFH_SF_EPILOGUE_ALT
+
+#define OBFH_SF_LAYOUT_18(a, b, c, d)       \
+    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_CALL("1b")                      \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    OBFH_SF_CALL("2b")                      \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_19(a, b, c, d)                                                                  \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("1f") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+        OBFH_SF_GAP                                                                                    \
+            OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                        \
+                OBFH_SF_CALL("2f")                                                                     \
+                    OBFH_SF_EPILOGUE                                                                   \
+                        OBFH_SF_GAP                                                                    \
+                            OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b)                                    \
+    OBFH_SF_EPILOGUE_ALT                                                                               \
+    OBFH_SF_GAP                                                                                        \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c)                                                                \
+    OBFH_SF_CALL("2b")                                                                                 \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_20(a, b, c, d)                                                                  \
+    OBFH_SF_CALL("1f")                                                                                 \
+    OBFH_SF_EPILOGUE                                                                                   \
+    OBFH_SF_GAP                                                                                        \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                                \
+    OBFH_SF_CALL("8f")                                                                                 \
+    OBFH_SF_EPILOGUE                                                                                   \
+    OBFH_SF_GAP                                                                                        \
+    OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d)                                                            \
+    OBFH_SF_CALL("3f")                                                                                 \
+    OBFH_SF_EPILOGUE_ALT                                                                               \
+    OBFH_SF_GAP                                                                                        \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2b") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+        OBFH_SF_GAP                                                                                    \
+            OBFH_SF_ENTRY("3", "sf_frame_c", c)                                                        \
+                OBFH_SF_CALL("1b")                                                                     \
+                    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_LAYOUT_21(a, b, c, d)       \
+    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d) \
+    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_EPILOGUE_ALT                    \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
+    OBFH_SF_CALL("8b")                      \
+    OBFH_SF_EPILOGUE                        \
+    OBFH_SF_GAP                             \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
+    OBFH_SF_CALL("2b")                      \
+    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_EPILOGUE
+
+#define OBFH_SF_ASM(guard, layout) \
+    ({ enum { __obfh_sf_mask = OBFH_JUNK_WORD }; \
+    __obfh_asm__(OBFH_SF_INPUT "xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9:" \
+                 :                                                                                       \
+                 : OBFH_SF_INPUTS                                                                        \
+                 : "eax", "edx", "ecx", "cc", "memory"); })
+#define OBFH_SF_VARIANT_COUNT 128u
+#define OBFH_SF_GROUP_0(index) __builtin_choose_expr((index) <= 3u, __builtin_choose_expr((index) <= 1u, __builtin_choose_expr((index) <= 0u, ({ OBFH_SF_VARIANT_0; }), ({ OBFH_SF_VARIANT_1; })), __builtin_choose_expr((index) <= 2u, ({ OBFH_SF_VARIANT_2; }), ({ OBFH_SF_VARIANT_3; }))), __builtin_choose_expr((index) <= 5u, __builtin_choose_expr((index) <= 4u, ({ OBFH_SF_VARIANT_4; }), ({ OBFH_SF_VARIANT_5; })), __builtin_choose_expr((index) <= 6u, ({ OBFH_SF_VARIANT_6; }), ({ OBFH_SF_VARIANT_7; }))))
+#define OBFH_SF_GROUP_1(index) __builtin_choose_expr((index) <= 11u, __builtin_choose_expr((index) <= 9u, __builtin_choose_expr((index) <= 8u, ({ OBFH_SF_VARIANT_8; }), ({ OBFH_SF_VARIANT_9; })), __builtin_choose_expr((index) <= 10u, ({ OBFH_SF_VARIANT_10; }), ({ OBFH_SF_VARIANT_11; }))), __builtin_choose_expr((index) <= 13u, __builtin_choose_expr((index) <= 12u, ({ OBFH_SF_VARIANT_12; }), ({ OBFH_SF_VARIANT_13; })), __builtin_choose_expr((index) <= 14u, ({ OBFH_SF_VARIANT_14; }), ({ OBFH_SF_VARIANT_15; }))))
+#define OBFH_SF_GROUP_2(index) __builtin_choose_expr((index) <= 19u, __builtin_choose_expr((index) <= 17u, __builtin_choose_expr((index) <= 16u, ({ OBFH_SF_VARIANT_16; }), ({ OBFH_SF_VARIANT_17; })), __builtin_choose_expr((index) <= 18u, ({ OBFH_SF_VARIANT_18; }), ({ OBFH_SF_VARIANT_19; }))), __builtin_choose_expr((index) <= 21u, __builtin_choose_expr((index) <= 20u, ({ OBFH_SF_VARIANT_20; }), ({ OBFH_SF_VARIANT_21; })), __builtin_choose_expr((index) <= 22u, ({ OBFH_SF_VARIANT_22; }), ({ OBFH_SF_VARIANT_23; }))))
+#define OBFH_SF_GROUP_3(index) __builtin_choose_expr((index) <= 27u, __builtin_choose_expr((index) <= 25u, __builtin_choose_expr((index) <= 24u, ({ OBFH_SF_VARIANT_24; }), ({ OBFH_SF_VARIANT_25; })), __builtin_choose_expr((index) <= 26u, ({ OBFH_SF_VARIANT_26; }), ({ OBFH_SF_VARIANT_27; }))), __builtin_choose_expr((index) <= 29u, __builtin_choose_expr((index) <= 28u, ({ OBFH_SF_VARIANT_28; }), ({ OBFH_SF_VARIANT_29; })), __builtin_choose_expr((index) <= 30u, ({ OBFH_SF_VARIANT_30; }), ({ OBFH_SF_VARIANT_31; }))))
+#define OBFH_SF_GROUP_4(index) __builtin_choose_expr((index) <= 35u, __builtin_choose_expr((index) <= 33u, __builtin_choose_expr((index) <= 32u, ({ OBFH_SF_VARIANT_32; }), ({ OBFH_SF_VARIANT_33; })), __builtin_choose_expr((index) <= 34u, ({ OBFH_SF_VARIANT_34; }), ({ OBFH_SF_VARIANT_35; }))), __builtin_choose_expr((index) <= 37u, __builtin_choose_expr((index) <= 36u, ({ OBFH_SF_VARIANT_36; }), ({ OBFH_SF_VARIANT_37; })), __builtin_choose_expr((index) <= 38u, ({ OBFH_SF_VARIANT_38; }), ({ OBFH_SF_VARIANT_39; }))))
+#define OBFH_SF_GROUP_5(index) __builtin_choose_expr((index) <= 43u, __builtin_choose_expr((index) <= 41u, __builtin_choose_expr((index) <= 40u, ({ OBFH_SF_VARIANT_40; }), ({ OBFH_SF_VARIANT_41; })), __builtin_choose_expr((index) <= 42u, ({ OBFH_SF_VARIANT_42; }), ({ OBFH_SF_VARIANT_43; }))), __builtin_choose_expr((index) <= 45u, __builtin_choose_expr((index) <= 44u, ({ OBFH_SF_VARIANT_44; }), ({ OBFH_SF_VARIANT_45; })), __builtin_choose_expr((index) <= 46u, ({ OBFH_SF_VARIANT_46; }), ({ OBFH_SF_VARIANT_47; }))))
+#define OBFH_SF_GROUP_6(index) __builtin_choose_expr((index) <= 51u, __builtin_choose_expr((index) <= 49u, __builtin_choose_expr((index) <= 48u, ({ OBFH_SF_VARIANT_48; }), ({ OBFH_SF_VARIANT_49; })), __builtin_choose_expr((index) <= 50u, ({ OBFH_SF_VARIANT_50; }), ({ OBFH_SF_VARIANT_51; }))), __builtin_choose_expr((index) <= 53u, __builtin_choose_expr((index) <= 52u, ({ OBFH_SF_VARIANT_52; }), ({ OBFH_SF_VARIANT_53; })), __builtin_choose_expr((index) <= 54u, ({ OBFH_SF_VARIANT_54; }), ({ OBFH_SF_VARIANT_55; }))))
+#define OBFH_SF_GROUP_7(index) __builtin_choose_expr((index) <= 59u, __builtin_choose_expr((index) <= 57u, __builtin_choose_expr((index) <= 56u, ({ OBFH_SF_VARIANT_56; }), ({ OBFH_SF_VARIANT_57; })), __builtin_choose_expr((index) <= 58u, ({ OBFH_SF_VARIANT_58; }), ({ OBFH_SF_VARIANT_59; }))), __builtin_choose_expr((index) <= 61u, __builtin_choose_expr((index) <= 60u, ({ OBFH_SF_VARIANT_60; }), ({ OBFH_SF_VARIANT_61; })), __builtin_choose_expr((index) <= 62u, ({ OBFH_SF_VARIANT_62; }), ({ OBFH_SF_VARIANT_63; }))))
+#define OBFH_SF_GROUP_8(index) __builtin_choose_expr((index) <= 67u, __builtin_choose_expr((index) <= 65u, __builtin_choose_expr((index) <= 64u, ({ OBFH_SF_VARIANT_64; }), ({ OBFH_SF_VARIANT_65; })), __builtin_choose_expr((index) <= 66u, ({ OBFH_SF_VARIANT_66; }), ({ OBFH_SF_VARIANT_67; }))), __builtin_choose_expr((index) <= 69u, __builtin_choose_expr((index) <= 68u, ({ OBFH_SF_VARIANT_68; }), ({ OBFH_SF_VARIANT_69; })), __builtin_choose_expr((index) <= 70u, ({ OBFH_SF_VARIANT_70; }), ({ OBFH_SF_VARIANT_71; }))))
+#define OBFH_SF_GROUP_9(index) __builtin_choose_expr((index) <= 75u, __builtin_choose_expr((index) <= 73u, __builtin_choose_expr((index) <= 72u, ({ OBFH_SF_VARIANT_72; }), ({ OBFH_SF_VARIANT_73; })), __builtin_choose_expr((index) <= 74u, ({ OBFH_SF_VARIANT_74; }), ({ OBFH_SF_VARIANT_75; }))), __builtin_choose_expr((index) <= 77u, __builtin_choose_expr((index) <= 76u, ({ OBFH_SF_VARIANT_76; }), ({ OBFH_SF_VARIANT_77; })), __builtin_choose_expr((index) <= 78u, ({ OBFH_SF_VARIANT_78; }), ({ OBFH_SF_VARIANT_79; }))))
+#define OBFH_SF_GROUP_10(index) __builtin_choose_expr((index) <= 83u, __builtin_choose_expr((index) <= 81u, __builtin_choose_expr((index) <= 80u, ({ OBFH_SF_VARIANT_80; }), ({ OBFH_SF_VARIANT_81; })), __builtin_choose_expr((index) <= 82u, ({ OBFH_SF_VARIANT_82; }), ({ OBFH_SF_VARIANT_83; }))), __builtin_choose_expr((index) <= 85u, __builtin_choose_expr((index) <= 84u, ({ OBFH_SF_VARIANT_84; }), ({ OBFH_SF_VARIANT_85; })), __builtin_choose_expr((index) <= 86u, ({ OBFH_SF_VARIANT_86; }), ({ OBFH_SF_VARIANT_87; }))))
+#define OBFH_SF_GROUP_11(index) __builtin_choose_expr((index) <= 91u, __builtin_choose_expr((index) <= 89u, __builtin_choose_expr((index) <= 88u, ({ OBFH_SF_VARIANT_88; }), ({ OBFH_SF_VARIANT_89; })), __builtin_choose_expr((index) <= 90u, ({ OBFH_SF_VARIANT_90; }), ({ OBFH_SF_VARIANT_91; }))), __builtin_choose_expr((index) <= 93u, __builtin_choose_expr((index) <= 92u, ({ OBFH_SF_VARIANT_92; }), ({ OBFH_SF_VARIANT_93; })), __builtin_choose_expr((index) <= 94u, ({ OBFH_SF_VARIANT_94; }), ({ OBFH_SF_VARIANT_95; }))))
+#define OBFH_SF_GROUP_12(index) __builtin_choose_expr((index) <= 99u, __builtin_choose_expr((index) <= 97u, __builtin_choose_expr((index) <= 96u, ({ OBFH_SF_VARIANT_96; }), ({ OBFH_SF_VARIANT_97; })), __builtin_choose_expr((index) <= 98u, ({ OBFH_SF_VARIANT_98; }), ({ OBFH_SF_VARIANT_99; }))), __builtin_choose_expr((index) <= 101u, __builtin_choose_expr((index) <= 100u, ({ OBFH_SF_VARIANT_100; }), ({ OBFH_SF_VARIANT_101; })), __builtin_choose_expr((index) <= 102u, ({ OBFH_SF_VARIANT_102; }), ({ OBFH_SF_VARIANT_103; }))))
+#define OBFH_SF_GROUP_13(index) __builtin_choose_expr((index) <= 107u, __builtin_choose_expr((index) <= 105u, __builtin_choose_expr((index) <= 104u, ({ OBFH_SF_VARIANT_104; }), ({ OBFH_SF_VARIANT_105; })), __builtin_choose_expr((index) <= 106u, ({ OBFH_SF_VARIANT_106; }), ({ OBFH_SF_VARIANT_107; }))), __builtin_choose_expr((index) <= 109u, __builtin_choose_expr((index) <= 108u, ({ OBFH_SF_VARIANT_108; }), ({ OBFH_SF_VARIANT_109; })), __builtin_choose_expr((index) <= 110u, ({ OBFH_SF_VARIANT_110; }), ({ OBFH_SF_VARIANT_111; }))))
+#define OBFH_SF_GROUP_14(index) __builtin_choose_expr((index) <= 115u, __builtin_choose_expr((index) <= 113u, __builtin_choose_expr((index) <= 112u, ({ OBFH_SF_VARIANT_112; }), ({ OBFH_SF_VARIANT_113; })), __builtin_choose_expr((index) <= 114u, ({ OBFH_SF_VARIANT_114; }), ({ OBFH_SF_VARIANT_115; }))), __builtin_choose_expr((index) <= 117u, __builtin_choose_expr((index) <= 116u, ({ OBFH_SF_VARIANT_116; }), ({ OBFH_SF_VARIANT_117; })), __builtin_choose_expr((index) <= 118u, ({ OBFH_SF_VARIANT_118; }), ({ OBFH_SF_VARIANT_119; }))))
+#define OBFH_SF_GROUP_15(index) __builtin_choose_expr((index) <= 123u, __builtin_choose_expr((index) <= 121u, __builtin_choose_expr((index) <= 120u, ({ OBFH_SF_VARIANT_120; }), ({ OBFH_SF_VARIANT_121; })), __builtin_choose_expr((index) <= 122u, ({ OBFH_SF_VARIANT_122; }), ({ OBFH_SF_VARIANT_123; }))), __builtin_choose_expr((index) <= 125u, __builtin_choose_expr((index) <= 124u, ({ OBFH_SF_VARIANT_124; }), ({ OBFH_SF_VARIANT_125; })), __builtin_choose_expr((index) <= 126u, ({ OBFH_SF_VARIANT_126; }), ({ OBFH_SF_VARIANT_127; }))))
+#define OBFH_SF_SELECT(index) __builtin_choose_expr((index) <= 63u, __builtin_choose_expr((index) <= 31u, __builtin_choose_expr((index) <= 15u, __builtin_choose_expr((index) <= 7u, OBFH_SF_GROUP_0(index), OBFH_SF_GROUP_1(index)), __builtin_choose_expr((index) <= 23u, OBFH_SF_GROUP_2(index), OBFH_SF_GROUP_3(index))), __builtin_choose_expr((index) <= 47u, __builtin_choose_expr((index) <= 39u, OBFH_SF_GROUP_4(index), OBFH_SF_GROUP_5(index)), __builtin_choose_expr((index) <= 55u, OBFH_SF_GROUP_6(index), OBFH_SF_GROUP_7(index)))), __builtin_choose_expr((index) <= 95u, __builtin_choose_expr((index) <= 79u, __builtin_choose_expr((index) <= 71u, OBFH_SF_GROUP_8(index), OBFH_SF_GROUP_9(index)), __builtin_choose_expr((index) <= 87u, OBFH_SF_GROUP_10(index), OBFH_SF_GROUP_11(index))), __builtin_choose_expr((index) <= 111u, __builtin_choose_expr((index) <= 103u, OBFH_SF_GROUP_12(index), OBFH_SF_GROUP_13(index)), __builtin_choose_expr((index) <= 119u, OBFH_SF_GROUP_14(index), OBFH_SF_GROUP_15(index)))))
+
+#define OBFH_SF_VARIANT_0 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_1 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_2 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_3 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_4 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_5 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_6 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_7 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_8 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_9 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_10 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_11 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_12 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_13 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_14 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_15 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_16 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_E, OBFH_SF_BODY_J, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_17 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_F, OBFH_SF_BODY_K, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_18 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_G, OBFH_SF_BODY_L, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_19 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_20 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_21 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_22 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_K, OBFH_SF_BODY_D, OBFH_SF_BODY_H))
+#define OBFH_SF_VARIANT_23 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_L, OBFH_SF_BODY_E, OBFH_SF_BODY_I))
+#define OBFH_SF_VARIANT_24 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_A, OBFH_SF_BODY_F, OBFH_SF_BODY_J))
+#define OBFH_SF_VARIANT_25 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_B, OBFH_SF_BODY_G, OBFH_SF_BODY_K))
+#define OBFH_SF_VARIANT_26 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_C, OBFH_SF_BODY_H, OBFH_SF_BODY_L))
+#define OBFH_SF_VARIANT_27 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_D, OBFH_SF_BODY_I, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_28 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_E, OBFH_SF_BODY_J, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_29 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_F, OBFH_SF_BODY_K, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_30 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_G, OBFH_SF_BODY_L, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_31 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_32 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_33 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_34 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_K, OBFH_SF_BODY_D, OBFH_SF_BODY_H))
+#define OBFH_SF_VARIANT_35 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_L, OBFH_SF_BODY_E, OBFH_SF_BODY_I))
+#define OBFH_SF_VARIANT_36 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_A, OBFH_SF_BODY_F, OBFH_SF_BODY_J))
+#define OBFH_SF_VARIANT_37 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_B, OBFH_SF_BODY_G, OBFH_SF_BODY_K))
+#define OBFH_SF_VARIANT_38 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_C, OBFH_SF_BODY_H, OBFH_SF_BODY_L))
+#define OBFH_SF_VARIANT_39 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_D, OBFH_SF_BODY_I, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_40 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_E, OBFH_SF_BODY_J, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_41 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_F, OBFH_SF_BODY_K, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_42 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_G, OBFH_SF_BODY_L, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_43 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_44 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_45 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_46 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
+#define OBFH_SF_VARIANT_47 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_48 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
+#define OBFH_SF_VARIANT_49 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_50 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
+#define OBFH_SF_VARIANT_51 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
+#define OBFH_SF_VARIANT_52 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
+#define OBFH_SF_VARIANT_53 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
+#define OBFH_SF_VARIANT_54 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_55 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
+#define OBFH_SF_VARIANT_56 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_57 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
+#define OBFH_SF_VARIANT_58 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_59 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
+#define OBFH_SF_VARIANT_60 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
+#define OBFH_SF_VARIANT_61 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
+#define OBFH_SF_VARIANT_62 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
+#define OBFH_SF_VARIANT_63 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_64 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
+#define OBFH_SF_VARIANT_65 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_66 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
+#define OBFH_SF_VARIANT_67 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_68 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
+#define OBFH_SF_VARIANT_69 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_70 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
+#define OBFH_SF_VARIANT_71 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
+#define OBFH_SF_VARIANT_72 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
+#define OBFH_SF_VARIANT_73 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
+#define OBFH_SF_VARIANT_74 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_75 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
+#define OBFH_SF_VARIANT_76 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_77 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
+#define OBFH_SF_VARIANT_78 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_79 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
+#define OBFH_SF_VARIANT_80 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
+#define OBFH_SF_VARIANT_81 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
+#define OBFH_SF_VARIANT_82 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
+#define OBFH_SF_VARIANT_83 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_84 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
+#define OBFH_SF_VARIANT_85 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_86 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
+#define OBFH_SF_VARIANT_87 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_88 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
+#define OBFH_SF_VARIANT_89 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_90 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
+#define OBFH_SF_VARIANT_91 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
+#define OBFH_SF_VARIANT_92 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
+#define OBFH_SF_VARIANT_93 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
+#define OBFH_SF_VARIANT_94 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_95 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
+#define OBFH_SF_VARIANT_96 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_97 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
+#define OBFH_SF_VARIANT_98 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_99 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
+#define OBFH_SF_VARIANT_100 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
+#define OBFH_SF_VARIANT_101 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
+#define OBFH_SF_VARIANT_102 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
+#define OBFH_SF_VARIANT_103 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_104 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
+#define OBFH_SF_VARIANT_105 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_106 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
+#define OBFH_SF_VARIANT_107 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_108 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
+#define OBFH_SF_VARIANT_109 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
+#define OBFH_SF_VARIANT_110 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
+#define OBFH_SF_VARIANT_111 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
+#define OBFH_SF_VARIANT_112 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
+#define OBFH_SF_VARIANT_113 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
+#define OBFH_SF_VARIANT_114 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
+#define OBFH_SF_VARIANT_115 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
+#define OBFH_SF_VARIANT_116 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
+#define OBFH_SF_VARIANT_117 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
+#define OBFH_SF_VARIANT_118 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
+#define OBFH_SF_VARIANT_119 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
+#define OBFH_SF_VARIANT_120 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
+#define OBFH_SF_VARIANT_121 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
+#define OBFH_SF_VARIANT_122 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
+#define OBFH_SF_VARIANT_123 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
+#define OBFH_SF_VARIANT_124 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
+#define OBFH_SF_VARIANT_125 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
+#define OBFH_SF_VARIANT_126 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
+#define OBFH_SF_VARIANT_127 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
+
+#define STACK_PROXY_FUNCTIONS ({                                                                                                                                                    \
+    enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
+           __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
+    OBFH_SF_SELECT(__obfh_sf_variant);                                                                                                                                              \
+    (void)0;                                                                                                                                                                        \
+})
+
 #if defined(__x86_64__)
 #define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4;")
 #else
@@ -1166,11 +1653,12 @@ static double obfh_flow_token(float encoded, unsigned int site) OBFH_SECTION_ATT
 
 // Each intercepted if emits CFLOW-specific junk before evaluating its condition.
 // if
-#define if(cond) if (({                                             \
-                         enum { __obfh_if_site = RND(1, 65535) };   \
-                         BREAK_STACK_CFLOW;                         \
-                         OBFH_FLOW_CONDITION(cond, __obfh_if_site); \
-                     }))
+#define if(...) if (({                                                      \
+                        enum { __obfh_if_site = RND(1, 65535) };            \
+                        STACK_PROXY_FUNCTIONS;                              \
+                        BREAK_STACK_CFLOW;                                  \
+                        OBFH_FLOW_CONDITION((__VA_ARGS__), __obfh_if_site); \
+                    }))
 
 // else
 #define else               \
@@ -1984,6 +2472,7 @@ static char *getScanfName_proxy(char *name) {
 #define OBFH_CRT_CALL(name_builder, function_type, ...) ({                         \
     BREAK_STACK_CFLOW;                                                             \
     char __obfh_crt_name[32];                                                      \
+    STACK_PROXY_FUNCTIONS;                                                         \
     ((function_type)obfh_crt_resolve(name_builder(__obfh_crt_name)))(__VA_ARGS__); \
 })
 
