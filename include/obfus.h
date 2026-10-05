@@ -203,11 +203,13 @@ typedef enum {
 } VAR_ADDR_SHIFT;
 
 // Mutate the address as a pointer-width integer, preserving the value type.
-#define RET_BY_VAR(value)                                                        \
-    {                                                                            \
-        volatile ULONG_PTR __obfh_ret_shift = SALT_SHIFT;                        \
-        ULONG_PTR __obfh_ret_address = (ULONG_PTR) & (value) ^ __obfh_ret_shift; \
-        return *(__typeof__(&(value)))(__obfh_ret_address ^ __obfh_ret_shift);   \
+#define RET_BY_VAR(value)                                                                                                                                                                                                                                    \
+    {                                                                                                                                                                                                                                                        \
+        enum { __obfh_ret_mode = RND(0, 2) };                                                                                                                                                                                                                \
+        volatile ULONG_PTR __obfh_ret_shift = (ULONG_PTR)OBFH_JUNK_WORD;                                                                                                                                                                                     \
+        __obfh_ret_shift ^= (ULONG_PTR)OBFH_JUNK_WORD << (sizeof(ULONG_PTR) == 8 ? 32 : 0);                                                                                                                                                                  \
+        ULONG_PTR __obfh_ret_address = __builtin_choose_expr(__obfh_ret_mode == 0, (ULONG_PTR) & (value) ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, (ULONG_PTR) & (value) + __obfh_ret_shift, (ULONG_PTR) & (value)-__obfh_ret_shift)); \
+        return *(__typeof__(&(value)))__builtin_choose_expr(__obfh_ret_mode == 0, __obfh_ret_address ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, __obfh_ret_address - __obfh_ret_shift, __obfh_ret_address + __obfh_ret_shift));         \
     }
 
 // Mix separate compile-time draws so the payload is not an affine byte pattern.
@@ -1134,13 +1136,22 @@ OBFH_PD_DEFINE(127);
 // Self-contained fake functions: live guards skip all calls and stack edits.
 // Frames and calling conventions follow Windows TCC x86/x64. Numeric labels
 // stay inside each ASM expansion; no insertion refers to another call site.
-#define OBFH_SF_INPUTS                                                                                              \
-    [sf_salt] "i"(RND(1, 32767)), [sf_rotate] "i"(RND(1, 31)),                                                      \
-        [sf_frame_a] "i"(RND(2, 12) * 16u), [sf_frame_b] "i"(RND(2, 12) * 16u), [sf_frame_c] "i"(RND(2, 12) * 16u), \
-        [sf_arg_a] "i"(RND(1, 65535)), [sf_arg_b] "i"(RND(1, 65535)),                                               \
-        [sf_key_a] "i"(OBFH_JUNK_WORD), [sf_key_b] "i"(OBFH_JUNK_WORD), [sf_factor] "i"(RND(1, 32767) * 2u + 1u),   \
-        [sf_pad] "i"(RND(0, 7)), [sf_loops] "i"(RND(1, 7)), [sf_mask] "i"(__obfh_sf_mask),                          \
-        [sf_not_mask] "i"(~(unsigned int)__obfh_sf_mask), [sf_frame_d] "i"(RND(2, 12) * 16u), [sf_pad_b] "i"(RND(0, 15)), [sf_noise_a] "i"(OBFH_JUNK_BYTE), [sf_noise_b] "i"(OBFH_JUNK_BYTE), [sf_local_a] "i"(RND(1, 3) * 4u), [sf_local_b] "i"(RND(4, 7) * 4u)
+#define OBFH_SF_INPUTS                                                                                                                                                                                                                                                                                                                           \
+    [sf_salt] "i"(RND(1, 32767)), [sf_rotate] "i"(RND(1, 31)),                                                                                                                                                                                                                                                                                   \
+        [sf_frame_a] "i"(RND(2, 12) * 16u), [sf_frame_b] "i"(RND(2, 12) * 16u), [sf_frame_c] "i"(RND(2, 12) * 16u),                                                                                                                                                                                                                              \
+        [sf_arg_a] "i"(RND(1, 65535)), [sf_arg_b] "i"(RND(1, 65535)),                                                                                                                                                                                                                                                                            \
+        [sf_key_a] "i"(OBFH_JUNK_WORD), [sf_key_b] "i"(OBFH_JUNK_WORD), [sf_factor] "i"(RND(1, 32767) * 2u + 1u),                                                                                                                                                                                                                                \
+        [sf_pad] "i"(RND(0, 7)), [sf_loops] "i"(RND(1, 7)), [sf_mask] "i"(__obfh_sf_mask),                                                                                                                                                                                                                                                       \
+        [sf_not_mask] "i"(~(unsigned int)__obfh_sf_mask), [sf_frame_d] "i"(RND(2, 12) * 16u), [sf_pad_b] "i"(RND(0, 15)), [sf_noise_a] "i"(OBFH_JUNK_BYTE), [sf_noise_b] "i"(OBFH_JUNK_BYTE), [sf_local_a] "i"(RND(1, 3) * 4u), [sf_local_b] "i"(RND(4, 7) * 4u), [sf_leaf_frame] "i"(RND(2, 6) * 16u + 8u), [sf_leaf_slot] "i"(RND(0, 6) * 4u), \
+        [sf_leaf_alu_a] "i"(__obfh_sf_alu_a == 0 ? 0x05 : __obfh_sf_alu_a == 1 ? 0x0d                                                                                                                                                                                                                                                            \
+                                                      : __obfh_sf_alu_a == 2   ? 0x25                                                                                                                                                                                                                                                            \
+                                                      : __obfh_sf_alu_a == 3   ? 0x2d                                                                                                                                                                                                                                                            \
+                                                                               : 0x35),                                                                                                                                                                                                                                                            \
+        [sf_leaf_alu_b] "i"(0xc2 + __obfh_sf_alu_b * 8),                                                                                                                                                                                                                                                                                         \
+        [sf_leaf_shift] "i"(__obfh_sf_shift == 0 ? 0xc0 : __obfh_sf_shift == 1 ? 0xc8                                                                                                                                                                                                                                                            \
+                                                      : __obfh_sf_shift == 2   ? 0xe0                                                                                                                                                                                                                                                            \
+                                                      : __obfh_sf_shift == 3   ? 0xe8                                                                                                                                                                                                                                                            \
+                                                                               : 0xf8)
 
 #if defined(__x86_64__)
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
@@ -1203,9 +1214,9 @@ OBFH_PD_DEFINE(127);
 
 #define OBFH_SF_GUARD_9 "movl %%eax, %%ecx; movl %%eax, %%edx; xorl $%c[sf_mask], %%eax; andl $%c[sf_mask], %%edx; leal (%%eax, %%edx, 2), %%eax; addl $%c[sf_mask], %%ecx; cmpl %%ecx, %%eax; je 9f;"
 #define OBFH_SF_GUARD_10 "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
-#define OBFH_SF_GUARD_11 "movl %%eax, %%ecx; movl %%eax, %%edx; andl $%c[sf_mask], %%eax; andl $%c[sf_not_mask], %%edx; orl %%edx, %%eax; cmpl %%ecx, %%eax; je 9f;"
-#define OBFH_SF_GUARD_12 "movl %%eax, %%edx; negl %%eax; notl %%edx; addl $1, %%edx; cmpl %%edx, %%eax; je 9f;"
-#define OBFH_SF_GUARD_13 "shrl $31, %%eax; leal -1(%%eax), %%edx; imull %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_11 "movl %%eax, %%edx; movl %%eax, %%ecx; andl $%c[sf_mask], %%eax; andl $%c[sf_not_mask], %%edx; imull $%c[sf_factor], %%eax; imull $%c[sf_factor], %%edx; addl %%edx, %%eax; imull $%c[sf_factor], %%ecx; cmpl %%ecx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_12 "movl %%eax, %%edx; addl $%c[sf_key_a], %%eax; imull $%c[sf_factor], %%eax; imull $%c[sf_factor], %%edx; movl $%c[sf_key_a], %%ecx; imull $%c[sf_factor], %%ecx; addl %%edx, %%ecx; cmpl %%ecx, %%eax; je 9f;"
+#define OBFH_SF_GUARD_13 "movl %%eax, %%ecx; movl %%eax, %%edx; addl $%c[sf_key_a], %%eax; imull %%eax, %%eax; imull %%ecx, %%ecx; subl %%ecx, %%eax; imull $%c[sf_key_a], %%edx; addl %%edx, %%edx; subl %%edx, %%eax; movl $%c[sf_key_a], %%edx; imull %%edx, %%edx; cmpl %%edx, %%eax; je 9f;"
 #define OBFH_SF_GUARD_14 "movl %%eax, %%edx; roll $16, %%eax; roll $16, %%eax; cmpl %%edx, %%eax; je 9f;"
 
 #define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body
@@ -1456,19 +1467,38 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL("3b")                      \
     OBFH_SF_EPILOGUE
 
-// Leaf entries use incoming arguments directly and never create a stack frame.
-// All entries remain unreachable on the live path; no unwind records are added.
+// Skipped native helpers: register-only and scratch-stack forms share no RBP frame.
+// Their arithmetic/opcodes vary per expansion; all stack edits follow the live guard.
 #if defined(__x86_64__)
 #define OBFH_SF_LEAF_ARGS "movl %%ecx, %%eax;"
+#define OBFH_SF_LEAF_ENTER "subq $%c[sf_leaf_frame], %%rsp;"
+#define OBFH_SF_LEAF_STORE "movl %%eax, %c[sf_leaf_slot](%%rsp);"
+#define OBFH_SF_LEAF_LOAD "movl %c[sf_leaf_slot](%%rsp), %%ecx;"
+#define OBFH_SF_LEAF_EXIT "addq $%c[sf_leaf_frame], %%rsp; ret;"
 #else
 #define OBFH_SF_LEAF_ARGS "movl 4(%%esp), %%eax; movl 8(%%esp), %%edx;"
+#define OBFH_SF_LEAF_ENTER "subl $%c[sf_leaf_frame], %%esp;"
+#define OBFH_SF_LEAF_STORE "movl %%eax, %c[sf_leaf_slot](%%esp);"
+#define OBFH_SF_LEAF_LOAD "movl %c[sf_leaf_slot](%%esp), %%ecx;"
+#define OBFH_SF_LEAF_EXIT "addl $%c[sf_leaf_frame], %%esp; ret;"
 #endif
-#define OBFH_SF_LEAF_A OBFH_SF_LEAF_ARGS "leal (%%eax, %%edx, 2), %%eax; ret;"
-#define OBFH_SF_LEAF_B OBFH_SF_LEAF_ARGS "xorl $%c[sf_key_a], %%eax; rorl $%c[sf_rotate], %%eax; addl %%edx, %%eax; ret;"
-#define OBFH_SF_LEAF_C OBFH_SF_LEAF_ARGS "cmpl %%edx, %%eax; jge 6f; movl %%edx, %%eax; 6: ret;"
-#define OBFH_SF_LEAF_D OBFH_SF_LEAF_ARGS "movl $%c[sf_loops], %%ecx; 6: imull $%c[sf_factor], %%eax; addl %%edx, %%eax; decl %%ecx; jnz 6b; ret;"
-#define OBFH_SF_LEAF_E OBFH_SF_LEAF_ARGS "testl %%eax, %%eax; jz 6f; bswap %%eax; xorl %%edx, %%eax; ret; 6: movl $%c[sf_key_b], %%eax; ret;"
-#define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS "subl %%edx, %%eax; negl %%eax; adcl $%c[sf_key_a], %%eax; ret;"
+// Only valid register ALU/shift encodings are selected. These are instructions,
+// not arbitrary bytes: immediate lengths and register operands remain fixed.
+#define OBFH_SF_LEAF_ALU_A ".byte %c[sf_leaf_alu_a]; .long %c[sf_key_a];"
+#define OBFH_SF_LEAF_ALU_B ".byte 0x81, %c[sf_leaf_alu_b]; .long %c[sf_key_b];"
+#define OBFH_SF_LEAF_SHIFT ".byte 0xc1, %c[sf_leaf_shift], %c[sf_rotate];"
+#define OBFH_SF_LEAF_A OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ALU_A "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_SHIFT "subl %%edx, %%eax; ret; 6:" OBFH_SF_LEAF_ALU_B "leal (%%eax, %%edx, 2), %%eax; ret;"
+#define OBFH_SF_LEAF_B OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax; addl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
+#define OBFH_SF_LEAF_C OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl %%edx, %%ecx; roll $%c[sf_rotate], %%ecx; cmpl %%ecx, %%eax; jge 6f;" OBFH_SF_LEAF_ALU_A "xorl %%ecx, %%eax; jmp 7f; 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
+#define OBFH_SF_LEAF_D OBFH_SF_LEAF_ARGS "movl $%c[sf_loops], %%ecx; 6:" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_ALU_B "addl %%edx, %%eax; decl %%ecx; jnz 6b; ret;"
+#define OBFH_SF_LEAF_E OBFH_SF_LEAF_ARGS "cmpl $%c[sf_key_a], %%eax; jb 6f; bswap %%eax;" OBFH_SF_LEAF_ALU_A "ret; 6: movl $%c[sf_factor], %%ecx; xorl %%edx, %%edx; divl %%ecx; xorl %%edx, %%eax;" OBFH_SF_LEAF_SHIFT "ret;"
+#define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "subl %%edx, %%eax; negl %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_B "adcl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
+#define OBFH_SF_LEAF_G OBFH_SF_LEAF_ARGS "movl %%eax, %%ecx;" OBFH_SF_LEAF_SHIFT "testl $%c[sf_mask], %%ecx; jnz 6f;" OBFH_SF_LEAF_ALU_A "ret; 6: imull $%c[sf_factor], %%eax;" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; ret;"
+#define OBFH_SF_LEAF_H OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl $%c[sf_loops], %%ecx; 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; decl %%ecx; jnz 6b;" OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
+#define OBFH_SF_LEAF_I OBFH_SF_LEAF_ARGS "bswap %%eax;" OBFH_SF_LEAF_ALU_A "cmpl %%edx, %%eax; jne 6f;" OBFH_SF_LEAF_SHIFT "ret; 6: imull $%c[sf_factor], %%eax; subl %%edx, %%eax; ret;"
+#define OBFH_SF_LEAF_J OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_ALU_B "testl %%edx, %%edx; js 6f;" OBFH_SF_LEAF_SHIFT "jmp 7f; 6: negl %%eax; 7:" OBFH_SF_LEAF_LOAD "addl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
+#define OBFH_SF_LEAF_K OBFH_SF_LEAF_ARGS "movzbl %%al, %%ecx; shrl $8, %%eax; imull $%c[sf_factor], %%ecx; xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; ret;"
+#define OBFH_SF_LEAF_L OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_ALU_A "jmp 7f; 6:" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
 #define OBFH_SF_LAYOUT_22(a, b, c, d)   \
     OBFH_SF_CALL("1f")                  \
@@ -1518,7 +1548,7 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_ASM(guard, layout) \
-    ({ enum { __obfh_sf_mask = OBFH_JUNK_WORD }; \
+    ({ enum { __obfh_sf_mask = OBFH_JUNK_WORD, __obfh_sf_alu_a = RND(0, 4), __obfh_sf_alu_b = RND(0, 6), __obfh_sf_shift = RND(0, 4) }; \
     __obfh_asm__(OBFH_SF_INPUT "xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9:" \
                  :                                                                                       \
                  : OBFH_SF_INPUTS                                                                        \
@@ -1588,88 +1618,88 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_VARIANT_43 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E))
 #define OBFH_SF_VARIANT_44 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F))
 #define OBFH_SF_VARIANT_45 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G))
-#define OBFH_SF_VARIANT_46 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_47 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_48 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_49 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_50 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_51 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_52 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_53 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_54 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_55 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_56 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_57 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_58 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_59 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_60 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_61 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_62 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_63 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_64 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_65 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_66 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_67 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_68 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_69 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_70 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_71 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_72 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_73 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_74 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_75 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_76 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_77 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_78 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_79 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_80 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_81 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_82 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_83 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_84 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_85 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_86 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_87 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_88 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_89 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_90 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_91 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_92 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_93 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_94 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_95 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_96 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_97 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_46 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_A, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_47 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_F, OBFH_SF_LEAF_L))
+#define OBFH_SF_VARIANT_48 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_K, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_49 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_D, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_50 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_I, OBFH_SF_LEAF_J))
+#define OBFH_SF_VARIANT_51 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_52 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_H, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_53 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_A, OBFH_SF_LEAF_H))
+#define OBFH_SF_VARIANT_54 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_55 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_K, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_56 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_D, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_57 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_I, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_58 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_C, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_59 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_H, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_60 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_A, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_61 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_F, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_62 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_K, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_63 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_D, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_64 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_J, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_65 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_C, OBFH_SF_LEAF_L))
+#define OBFH_SF_VARIANT_66 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_H, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_67 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_A, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_68 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_F, OBFH_SF_LEAF_J))
+#define OBFH_SF_VARIANT_69 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_K, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_70 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_E, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_71 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_J, OBFH_SF_LEAF_H))
+#define OBFH_SF_VARIANT_72 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_C, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_73 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_H, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_74 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_A, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_75 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_F, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_76 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_L, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_77 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_E, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_78 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_J, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_79 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_C, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_80 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_H, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_81 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_A, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_82 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_G, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_83 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_L, OBFH_SF_LEAF_L))
+#define OBFH_SF_VARIANT_84 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_E, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_85 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_J, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_86 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_C, OBFH_SF_LEAF_J))
+#define OBFH_SF_VARIANT_87 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_H, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_88 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_B, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_89 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_G, OBFH_SF_LEAF_H))
+#define OBFH_SF_VARIANT_90 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_L, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_91 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_E, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_92 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_J, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_93 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_C, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_94 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_I, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_95 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_B, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_96 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_G, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_97 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_L, OBFH_SF_LEAF_G))
 #define OBFH_SF_VARIANT_98 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_99 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_100 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_101 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_102 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_103 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_104 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_105 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_106 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_107 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_108 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_109 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_110 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_111 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_112 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_113 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_114 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_115 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_116 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_117 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_118 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_119 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_120 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_121 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
-#define OBFH_SF_VARIANT_122 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
-#define OBFH_SF_VARIANT_123 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
-#define OBFH_SF_VARIANT_124 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
-#define OBFH_SF_VARIANT_125 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
-#define OBFH_SF_VARIANT_126 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
-#define OBFH_SF_VARIANT_127 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_99 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_J, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_100 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_D, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_101 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_I, OBFH_SF_LEAF_L))
+#define OBFH_SF_VARIANT_102 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_B, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_103 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_G, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_104 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_L, OBFH_SF_LEAF_J))
+#define OBFH_SF_VARIANT_105 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_E, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_106 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_K, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_107 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_D, OBFH_SF_LEAF_H))
+#define OBFH_SF_VARIANT_108 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_I, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_109 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_B, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_110 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_G, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_111 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_L, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_112 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_F, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_113 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_K, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_114 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_D, OBFH_SF_LEAF_K))
+#define OBFH_SF_VARIANT_115 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_I, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_116 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_B, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_117 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_G, OBFH_SF_LEAF_I))
+#define OBFH_SF_VARIANT_118 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_A, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_119 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_F, OBFH_SF_LEAF_L))
+#define OBFH_SF_VARIANT_120 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_K, OBFH_SF_LEAF_G))
+#define OBFH_SF_VARIANT_121 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_D, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_122 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_I, OBFH_SF_LEAF_J))
+#define OBFH_SF_VARIANT_123 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_124 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_H, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_125 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_A, OBFH_SF_LEAF_H))
+#define OBFH_SF_VARIANT_126 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_127 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_K, OBFH_SF_LEAF_K))
 
 #define STACK_PROXY_FUNCTIONS ({                                                                                                                                                    \
     enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
@@ -1726,9 +1756,14 @@ static void obfh_junk_func() OBFH_DATA_CODE_SECTION_ATTRIBUTE {
             "nop;");                               \
     } while (RND(0, 200) * _0)
 
+static FARPROC obfh_crt_resolve(const char *name);
 static void *malloc_proxy(size_t size) {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return malloc(size);
+    char name[] = {_m, _a, _l, _l, _o, _c, _0};
+    void *result = ((void *(*)(size_t))obfh_crt_resolve(name))(size);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define malloc(...) malloc_proxy(__VA_ARGS__)
 
@@ -1919,6 +1954,10 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 // Control Flow (global)
 #if NO_CFLOW != 1
 
+#ifndef CFLOW_V2
+#define CFLOW_V2 0
+#endif
+
 // Every intermediate contributes to the branch token; values stay exactly
 // representable in float on both TCC targets. No shared state or VM required.
 #define OBFH_FLOW_BASE(site) (((site)&1023u) + 17u)
@@ -1998,39 +2037,279 @@ static double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTIO
     return obfh_double_proxy((double)(float)obfh_condition_proxy((float)(site & 255u), converted, site));
 }
 
-#define OBFH_FLOW_CONDITION(condition, site_value) ({                                                                                                                        \
-    int __obfh_flow_truth = !!(condition);                                                                                                                                   \
-    unsigned int __obfh_flow_site = (site_value);                                                                                                                            \
-    unsigned int __obfh_flow_input = OBFH_FLOW_BASE(__obfh_flow_site) + __obfh_flow_truth * OBFH_FLOW_STEP(__obfh_flow_site);                                                \
-    double __obfh_flow_result = obfh_flow_token((float)__obfh_flow_input, __obfh_flow_site);                                                                                 \
-    __obfh_flow_result == (double)OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(OBFH_FLOW_BASE(__obfh_flow_site) + OBFH_FLOW_STEP(__obfh_flow_site), __obfh_flow_site), __obfh_flow_site); \
+// Instruction starts and their following bytes belong only to skipped regions.
+#define OBFH_FLOW_OPCODE(kind) \
+    ((((kind)&4u ? 0xF3660FFFu : 0xE9E8898Bu) >> (((kind)&3u) * 8u)) & 255u)
+#define OBFH_FLOW_DEAD_BYTES()                                                              \
+    ({                                                                                      \
+        enum { __obfh_dead_kind = OBFH_JUNK_BYTE & 7u };                                    \
+        __obfh_asm__(".byte %c0, %c1, %c2, %c3; .long %c4; .fill %c5, 1, %c6;"              \
+                     :                                                                      \
+                     : "i"(OBFH_FLOW_OPCODE(__obfh_dead_kind)),                             \
+                       "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE),       \
+                       "i"(OBFH_JUNK_WORD), "i"(OBFH_JUNK_BYTE & 7u), "i"(OBFH_JUNK_BYTE)); \
+    })
+
+// A native false guard runs only on the original else path; no loop or switch wrapper.
+#define OBFH_FLOW_ELSE_GUARD()                                                         \
+    (({                                                                                \
+        enum { __obfh_else_kind = OBFH_JUNK_BYTE & 7u,                                 \
+               __obfh_else_gap = OBFH_JUNK_BYTE & 3u };                                \
+        __obfh_asm__(".byte 0xEB, %c5; .byte %c0, %c1; .long %c2; .fill %c3, 1, %c4;"  \
+                     :                                                                 \
+                     : "i"(OBFH_FLOW_OPCODE(__obfh_else_kind)), "i"(OBFH_JUNK_BYTE),   \
+                       "i"(OBFH_JUNK_WORD), "i"(__obfh_else_gap), "i"(OBFH_JUNK_BYTE), \
+                       "i"(6u + __obfh_else_gap));                                     \
+        0;                                                                             \
+    }))
+
+// Small transport helpers keep automatic macro formatting bounded.
+#define OBFH_FLOW_INPUT_ASM(code)                                                                                                                                                      \
+    ({                                                                                                                                                                                 \
+        enum { __obfh_input_kind = OBFH_JUNK_BYTE & 7u };                                                                                                                              \
+        __obfh_asm__(code                                                                                                                                                              \
+                     : "+a"(__obfh_flow_state)                                                                                                                                         \
+                     : [flow_flip] "i"(__obfh_flow_flip), [flow_base] "i"(__obfh_flow_base), [flow_step] "i"(__obfh_flow_step),                                                        \
+                       [flow_upper] "i"(__obfh_flow_base + __obfh_flow_step), [flow_key] "i"(__obfh_flow_key), [flow_rotate] "i"(__obfh_flow_rotate),                                  \
+                       [flow_payload] "i"(OBFH_JUNK_WORD), [flow_gap] "i"(OBFH_JUNK_BYTE & 7u), [flow_byte] "i"(OBFH_FLOW_OPCODE(__obfh_input_kind)), [flow_extra] "i"(OBFH_JUNK_BYTE) \
+                     : "cc", "memory");                                                                                                                                                \
+    })
+
+#define OBFH_FLOW_INPUT_0()                                                        \
+    OBFH_FLOW_INPUT_ASM(                                                           \
+        "xorl %[flow_flip], %%eax; negl %%eax; andl %[flow_step], %%eax; jmp 7f; " \
+        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_base], %%eax;")
+
+#define OBFH_FLOW_INPUT_1()                                             \
+    OBFH_FLOW_INPUT_ASM(                                                \
+        "xorl %[flow_flip], %%eax; imull %[flow_step], %%eax; jmp 7f; " \
+        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; " \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_base], %%eax;")
+
+#define OBFH_FLOW_INPUT_2()                                                                \
+    OBFH_FLOW_INPUT_ASM(                                                                   \
+        "xorl %[flow_flip], %%eax; subl $1, %%eax; andl %[flow_step], %%eax; negl %%eax; " \
+        "jmp 7f; .byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_upper], %%eax;")
+
+#define OBFH_FLOW_INPUT_3()                                                                \
+    OBFH_FLOW_INPUT_ASM(                                                                   \
+        "xorl %[flow_flip], %%eax; testl %%eax, %%eax; jz 6f; movl %[flow_upper], %%eax; " \
+        "jmp 7f; .byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 6: movl %[flow_base], %%eax; 7:")
+
+#define OBFH_FLOW_INPUT_4()                                                                    \
+    OBFH_FLOW_INPUT_ASM(                                                                       \
+        "xorl %[flow_flip], %%eax; decl %%eax; notl %%eax; andl %[flow_step], %%eax; jmp 7f; " \
+        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "                        \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_base], %%eax;")
+
+#define OBFH_FLOW_INPUT_5()                                                           \
+    OBFH_FLOW_INPUT_ASM(                                                              \
+        "xorl %[flow_flip], %%eax; btl $0, %%eax; movl %[flow_base], %%eax; jnc 7f; " \
+        "addl %[flow_step], %%eax; jmp 7f; .byte %c[flow_byte], %c[flow_extra]; "     \
+        ".long %c[flow_payload]; .fill %c[flow_gap], 1, %c[flow_byte]; 7:")
+
+#define OBFH_FLOW_INPUT_6()                                                                \
+    OBFH_FLOW_INPUT_ASM(                                                                   \
+        "xorl %[flow_flip], %%eax; testl %%eax, %%eax; jnz 6f; movl %[flow_base], %%eax; " \
+        "jmp 7f; .byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 6: movl %[flow_upper], %%eax; 7:")
+
+#define OBFH_FLOW_INPUT_7()                                                     \
+    OBFH_FLOW_INPUT_ASM(                                                        \
+        "xorl %[flow_flip], %%eax; negl %%eax; andl %[flow_step], %%eax; "      \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; jmp 7f; "         \
+        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "         \
+        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: rorl %[flow_rotate], %%eax; " \
+        "xorl %[flow_key], %%eax; addl %[flow_base], %%eax;")
+
+#define OBFH_FLOW_TEST_ASM(code)                                                                                                \
+    ({                                                                                                                          \
+        __obfh_asm__(code                                                                                                       \
+                     : "+a"(__obfh_flow_state)                                                                                  \
+                     : [flow_true] "i"(__obfh_flow_true), [flow_false] "i"(__obfh_flow_false), [flow_bit] "i"(__obfh_flow_bit), \
+                       [flow_key] "i"(__obfh_flow_key), [flow_rotate] "i"(__obfh_flow_rotate)                                   \
+                     : "cc", "memory");                                                                                         \
+    })
+
+#define OBFH_FLOW_TEST_0()                                                                \
+    OBFH_FLOW_TEST_ASM(                                                                   \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_true], %%eax; " \
+        "sete %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_1()                                                                 \
+    OBFH_FLOW_TEST_ASM(                                                                    \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_false], %%eax; " \
+        "setne %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_2()                                                                \
+    OBFH_FLOW_TEST_ASM(                                                                   \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; xorl %[flow_true], %%eax; " \
+        "subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
+
+#define OBFH_FLOW_TEST_3()                                                                \
+    OBFH_FLOW_TEST_ASM(                                                                   \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; testl %[flow_bit], %%eax; " \
+        "setnz %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_4()                                                                \
+    OBFH_FLOW_TEST_ASM(                                                                   \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; testl %[flow_bit], %%eax; " \
+        "setz %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_5()                                                                 \
+    OBFH_FLOW_TEST_ASM(                                                                    \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_false], %%eax; " \
+        "seta %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_6()                                                                 \
+    OBFH_FLOW_TEST_ASM(                                                                    \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_false], %%eax; " \
+        "setb %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_7()                                                                \
+    OBFH_FLOW_TEST_ASM(                                                                   \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; subl %[flow_true], %%eax; " \
+        "negl %%eax; sbbl %%eax, %%eax; incl %%eax;")
+
+#define OBFH_FLOW_TEST_8()                                                                 \
+    OBFH_FLOW_TEST_ASM(                                                                    \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; xorl %[flow_false], %%eax; " \
+        "negl %%eax; sbbl %%eax, %%eax; negl %%eax;")
+
+#define OBFH_FLOW_TEST_9()                                                                \
+    OBFH_FLOW_TEST_ASM(                                                                   \
+        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; xorl %[flow_true], %%eax; " \
+        "cmpl $1, %%eax; setb %%al; movzbl %%al, %%eax;")
+
+#define OBFH_FLOW_TEST_BIT()                                          \
+    __builtin_choose_expr((__obfh_flow_true & __obfh_flow_bit) != 0u, \
+                          OBFH_FLOW_TEST_3(), OBFH_FLOW_TEST_4())
+
+#define OBFH_FLOW_TEST_ORDER()                                                              \
+    __builtin_choose_expr((unsigned int)__obfh_flow_true > (unsigned int)__obfh_flow_false, \
+                          OBFH_FLOW_TEST_5(), OBFH_FLOW_TEST_6())
+
+#define OBFH_FLOW_INPUT_SELECT_6()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 6u, \
+                          OBFH_FLOW_INPUT_6(), OBFH_FLOW_INPUT_7())
+
+#define OBFH_FLOW_INPUT_SELECT_5()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 5u, \
+                          OBFH_FLOW_INPUT_5(), OBFH_FLOW_INPUT_SELECT_6())
+
+#define OBFH_FLOW_INPUT_SELECT_4()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 4u, \
+                          OBFH_FLOW_INPUT_4(), OBFH_FLOW_INPUT_SELECT_5())
+
+#define OBFH_FLOW_INPUT_SELECT_3()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 3u, \
+                          OBFH_FLOW_INPUT_3(), OBFH_FLOW_INPUT_SELECT_4())
+
+#define OBFH_FLOW_INPUT_SELECT_2()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 2u, \
+                          OBFH_FLOW_INPUT_2(), OBFH_FLOW_INPUT_SELECT_3())
+
+#define OBFH_FLOW_INPUT_SELECT_1()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 1u, \
+                          OBFH_FLOW_INPUT_1(), OBFH_FLOW_INPUT_SELECT_2())
+
+#define OBFH_FLOW_INPUT_SELECT_0()                  \
+    __builtin_choose_expr(__obfh_flow_layout == 0u, \
+                          OBFH_FLOW_INPUT_0(), OBFH_FLOW_INPUT_SELECT_1())
+
+#define OBFH_FLOW_TEST_SELECT_6()                 \
+    __builtin_choose_expr(__obfh_flow_test == 6u, \
+                          OBFH_FLOW_TEST_8(), OBFH_FLOW_TEST_9())
+
+#define OBFH_FLOW_TEST_SELECT_5()                 \
+    __builtin_choose_expr(__obfh_flow_test == 5u, \
+                          OBFH_FLOW_TEST_7(), OBFH_FLOW_TEST_SELECT_6())
+
+#define OBFH_FLOW_TEST_SELECT_4()                 \
+    __builtin_choose_expr(__obfh_flow_test == 4u, \
+                          OBFH_FLOW_TEST_ORDER(), OBFH_FLOW_TEST_SELECT_5())
+
+#define OBFH_FLOW_TEST_SELECT_3()                 \
+    __builtin_choose_expr(__obfh_flow_test == 3u, \
+                          OBFH_FLOW_TEST_BIT(), OBFH_FLOW_TEST_SELECT_4())
+
+#define OBFH_FLOW_TEST_SELECT_2()                 \
+    __builtin_choose_expr(__obfh_flow_test == 2u, \
+                          OBFH_FLOW_TEST_2(), OBFH_FLOW_TEST_SELECT_3())
+
+#define OBFH_FLOW_TEST_SELECT_1()                 \
+    __builtin_choose_expr(__obfh_flow_test == 1u, \
+                          OBFH_FLOW_TEST_1(), OBFH_FLOW_TEST_SELECT_2())
+
+#define OBFH_FLOW_TEST_SELECT_0()                 \
+    __builtin_choose_expr(__obfh_flow_test == 0u, \
+                          OBFH_FLOW_TEST_0(), OBFH_FLOW_TEST_SELECT_1())
+
+// Carry the evaluated condition through selected asm layouts and a site-specific token.
+#define OBFH_FLOW_CONDITION(condition, site_value, ...) ({                                                                                                                                                                            \
+    __label__ __obfh_flow_resume;                                                                                                                                                                                                     \
+    enum { __obfh_flow_site = (site_value),                                                                                                                                                                                           \
+           __obfh_flow_hash = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u)),                                                                                                   \
+           __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u),                                                                                                                                                              \
+           __obfh_flow_test = (__obfh_flow_hash >> 8) % (CFLOW_V2 ? 8u : 4u),                                                                                                                                                         \
+           __obfh_flow_flip = (__obfh_flow_hash >> 16) & 1u,                                                                                                                                                                          \
+           __obfh_flow_key = OBFH_JUNK_WORD,                                                                                                                                                                                          \
+           __obfh_flow_rotate = RND(1, 31),                                                                                                                                                                                           \
+           __obfh_flow_base = OBFH_FLOW_BASE(__obfh_flow_site),                                                                                                                                                                       \
+           __obfh_flow_step = OBFH_FLOW_STEP(__obfh_flow_site),                                                                                                                                                                       \
+           __obfh_flow_raw_true = OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(__obfh_flow_base + (1u ^ __obfh_flow_flip) * __obfh_flow_step, __obfh_flow_site), __obfh_flow_site),                                                                \
+           __obfh_flow_raw_false = OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(__obfh_flow_base + __obfh_flow_flip * __obfh_flow_step, __obfh_flow_site), __obfh_flow_site),                                                                      \
+           __obfh_flow_true = (((unsigned int)__obfh_flow_raw_true ^ (unsigned int)__obfh_flow_key) << __obfh_flow_rotate) | (((unsigned int)__obfh_flow_raw_true ^ (unsigned int)__obfh_flow_key) >> (32u - __obfh_flow_rotate)),    \
+           __obfh_flow_false = (((unsigned int)__obfh_flow_raw_false ^ (unsigned int)__obfh_flow_key) << __obfh_flow_rotate) | (((unsigned int)__obfh_flow_raw_false ^ (unsigned int)__obfh_flow_key) >> (32u - __obfh_flow_rotate)), \
+           __obfh_flow_difference = __obfh_flow_true ^ __obfh_flow_false,                                                                                                                                                             \
+           __obfh_flow_bit = __obfh_flow_difference & (0u - __obfh_flow_difference) };                                                                                                                                                \
+    unsigned int __obfh_flow_state = !!(condition);                                                                                                                                                                                   \
+    OBFH_FLOW_INPUT_SELECT_0();                                                                                                                                                                                                       \
+    __VA_ARGS__;                                                                                                                                                                                                                      \
+    __obfh_flow_state = (unsigned int)obfh_flow_token((float)__obfh_flow_state, __obfh_flow_site);                                                                                                                                    \
+    OBFH_FLOW_TEST_SELECT_0();                                                                                                                                                                                                        \
+    ULONG_PTR __obfh_flow_resume_address = (ULONG_PTR) && __obfh_flow_resume;                                                                                                                                                         \
+    __obfh_flow_resume_address = obfh_uintptr_proxy(__obfh_flow_resume_address ^ (ULONG_PTR)(LONG)__obfh_flow_key) ^ (ULONG_PTR)(LONG)__obfh_flow_key;                                                                                \
+    goto *(void *)__obfh_flow_resume_address;                                                                                                                                                                                         \
+    __obfh_asm__(".fill %c0, 1, %c1;"                                                                                                                                                                                                 \
+                 :                                                                                                                                                                                                                    \
+                 : "i"(OBFH_JUNK_BYTE & 1u), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_WORD));                                                                                                                                               \
+__obfh_flow_resume:                                                                                                                                                                                                                   \
+    __obfh_flow_state;                                                                                                                                                                                                                \
 })
 
-// Each intercepted if emits CFLOW-specific junk before evaluating its condition.
+// Each intercepted if inserts its selected template between condition transport stages.
 // if
-#define if(...) if (({                                                      \
-                        enum { __obfh_if_site = RND(1, 65535) };            \
-                        STACK_PROXY_FUNCTIONS;                              \
-                        BREAK_STACK_CFLOW;                                  \
-                        OBFH_FLOW_CONDITION((__VA_ARGS__), __obfh_if_site); \
+#define if(...) if (({                                                                         \
+                        enum { __obfh_if_site = RND(1, 65535) };                               \
+                        STACK_PROXY_FUNCTIONS;                                                 \
+                        OBFH_FLOW_CONDITION((__VA_ARGS__), __obfh_if_site, BREAK_STACK_CFLOW); \
                     }))
 
-// else
-#define else               \
-    else if (0) {          \
-        BAD_CALL;          \
-        BREAK_STACK_CFLOW; \
-    }                      \
+// Keep if separate from its parentheses during macro rescan to avoid another CFLOW layer.
+#define else                          \
+    else if OBFH_FLOW_ELSE_GUARD () { \
+    }                                 \
     else
 
 #define OBFUS_CONDITION_BLOCK(...) OBFH_FLOW_CONDITION((__VA_ARGS__), RND(1, 65535))
 
-// break
-#define break                                                      \
-    {                                                              \
+// Keep the native break outside the expression so it retains its original target.
+#define OBFH_FLOW_BREAK_GUARD()                                    \
+    (({                                                            \
         if (OBFUS_CONDITION_BLOCK(RND(1, 255))) BREAK_STACK_CFLOW; \
-        break;                                                     \
-    }
+        1;                                                         \
+    }))
+
+// A matched conditional consumes the caller's semicolon and preserves dangling else.
+#define break                   \
+    if OBFH_FLOW_BREAK_GUARD () \
+        break;                  \
+    else                        \
+        (void)0
 
 // switch
 #define switch(...)                                                                                                  \
@@ -2044,10 +2323,12 @@ static double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTIO
 // while
 #define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))
 
-// for
-#define for(...)                                                                                         \
-    for (int __obfh_for_once = OBFUS_CONDITION_BLOCK(RND(1, 255)); __obfh_for_once; __obfh_for_once = 0) \
-        for (__VA_ARGS__)
+// Protect every iteration and retain randomized bytes in the never-taken arm.
+#define for(...)                    \
+    for (__VA_ARGS__)               \
+        if (0) {                    \
+            OBFH_FLOW_DEAD_BYTES(); \
+        } else
 
 #endif
 // =============================================================
@@ -2733,9 +3014,9 @@ static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECT
 // CRT module name, copied within the hidden string's lifetime.
 static char *getStdLibName_proxy(char *name, size_t capacity) {
     BREAK_STACK_CFLOW;
-    if (!name || capacity < 11) return NULL;
+    if (!name || capacity < sizeof("msvcrt")) return NULL;
     const char *hidden = HIDE_STRING("msvcrt");
-    for (int i = _0; i <= _9 + _1; ++i) name[i] = hidden[i];
+    for (int i = _0; i < sizeof("msvcrt"); ++i) name[i] = hidden[i];
     FAKE_CPUID;
     return name;
 }
@@ -2999,8 +3280,11 @@ static char *getStrtokName_proxy(char *name) {
 
 // memset
 static void *memset_proxy(void *ptr, int value, size_t num) {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return memset(ptr, value * _1, num);
+    void *result = ((void *(*)(void *, int, size_t))obfh_crt_resolve(HIDE_STRING("memset")))(ptr, value * _1, num);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define memset(...) memset_proxy(__VA_ARGS__)
 
@@ -3095,86 +3379,123 @@ static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
 #define realloc(...) OBFH_CRT_CALL(getReallocName_proxy, void *(*)(void *, size_t), __VA_ARGS__)
 
 static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return calloc(nmemb, size);
+    void *result = ((void *(*)(size_t, size_t))obfh_crt_resolve(HIDE_STRING("calloc")))(nmemb, size);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
 #undef realloc
 static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     char name[32];
-    return ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
+    void *result = ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define realloc(ptr, size) realloc_proxy(ptr, size)
 
 static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return gets(s);
+    char *result = ((char *(*)(char *))obfh_crt_resolve(HIDE_STRING("gets")))(s);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define gets(s) gets_proxy(s)
 
 static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     va_list args;
     va_start(args, format);
     int result = vsnprintf(str, size, format, args);
     va_end(args);
-    return result;
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define snprintf(...) snprintf_proxy(__VA_ARGS__)
 
 static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return vsprintf(str, format, args);
+    int result = ((int (*)(char *, const char *, va_list))obfh_crt_resolve(HIDE_STRING("vsprintf")))(str, format, args);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
 static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return vsnprintf(str, size, format, args);
+    // Keep TCC's formatting adapter: it need not be an msvcrt export.
+    int result = vsnprintf(str, size, format, args);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
 static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return getenv(name);
+    char *result = ((char *(*)(const char *))obfh_crt_resolve(HIDE_STRING("getenv")))(name);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define getenv(name) getenv_proxy(name)
 
 static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return system(command);
+    int result = ((int (*)(const char *))obfh_crt_resolve(HIDE_STRING("system")))(command);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define system(command) system_proxy(command)
 
 static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    abort();
+    ((void (*)(void))obfh_crt_resolve(HIDE_STRING("abort")))();
 }
 #define abort() abort_proxy()
 
 static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return atexit(func);
+    int result = ((int (*)(void (*)(void)))obfh_crt_resolve(HIDE_STRING("atexit")))(func);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define atexit(func) atexit_proxy(func)
 
 static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return getcwd(buf, size);
+    char *result = ((char *(*)(char *, int))obfh_crt_resolve(HIDE_STRING("_getcwd")))(buf, (int)size);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
 static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return tolower(c);
+    int result = ((int (*)(int))obfh_crt_resolve(HIDE_STRING("tolower")))(c);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define tolower(c) tolower_proxy(c)
 
 static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
+    STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
-    return toupper(c);
+    int result = ((int (*)(int))obfh_crt_resolve(HIDE_STRING("toupper")))(c);
+    STACK_PROXY_FUNCTIONS;
+    RET_BY_VAR(result);
 }
 #define toupper(c) toupper_proxy(c)
 
@@ -3313,22 +3634,22 @@ static int obfh_abs_proxy(int value) {
 #define remainder(x, y) remainder(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define scalbn(x, y) scalbn(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define copysign(x, y) copysign(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define atan2(y, x) atan2(_MUTATE_MATH(y), _MUTATE_MATH(x))
-#define ldexp(x, y) ldexp(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define atan2(y, x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[6]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[5] = _0), (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); ((double (*)(double, double))obfh_crt_resolve(__obfh_math_name))(y, x); })
+#define ldexp(x, y) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[6]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _l, __obfh_math_name[1] = _d, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0), (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _d, __obfh_math_name[0] = _l)); ((double (*)(double, int))obfh_crt_resolve(__obfh_math_name))(x, y); })
 #define scalbln(x, y) scalbln(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define hypot(x, y) hypot(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define fmod(x, y) fmod(_MUTATE_MATH(x), _MUTATE_MATH(y))
+#define fmod(x, y) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _f, __obfh_math_name[1] = _m, __obfh_math_name[2] = _o, __obfh_math_name[3] = _d, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _d, __obfh_math_name[2] = _o, __obfh_math_name[1] = _m, __obfh_math_name[0] = _f)); ((double (*)(double, double))obfh_crt_resolve(__obfh_math_name))(x, y); })
 #define fdim(x, y) fdim(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define fmax(x, y) fmax(_MUTATE_MATH(x), _MUTATE_MATH(y))
 #define fmin(x, y) fmin(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define pow(x, y) pow(_MUTATE_MATH(x), _MUTATE_MATH(y))
-#define frexp(x, y) frexp(_MUTATE_MATH(x), (y))
-#define modf(x, y) modf(_MUTATE_MATH(x), (y))
+#define pow(x, y) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[4]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _p, __obfh_math_name[1] = _o, __obfh_math_name[2] = _w, __obfh_math_name[3] = _0), (__obfh_math_name[3] = _0, __obfh_math_name[2] = _w, __obfh_math_name[1] = _o, __obfh_math_name[0] = _p)); ((double (*)(double, double))obfh_crt_resolve(__obfh_math_name))(x, y); })
+#define frexp(x, y) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[6]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _f, __obfh_math_name[1] = _r, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0), (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _r, __obfh_math_name[0] = _f)); ((double (*)(double, int *))obfh_crt_resolve(__obfh_math_name))(x, y); })
+#define modf(x, y) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _m, __obfh_math_name[1] = _o, __obfh_math_name[2] = _d, __obfh_math_name[3] = _f, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _f, __obfh_math_name[2] = _d, __obfh_math_name[1] = _o, __obfh_math_name[0] = _m)); ((double (*)(double, double *))obfh_crt_resolve(__obfh_math_name))(x, y); })
 #define nearbyint(x) nearbyint(_MUTATE_MATH(x))
 #define lgamma(x) lgamma(_MUTATE_MATH(x))
 #define tgamma(x) tgamma(_MUTATE_MATH(x))
-#define log10(x) log10(_MUTATE_MATH(x))
-#define floor(x) floor(_MUTATE_MATH(x))
+#define log10(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[6]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[5] = _0), (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define floor(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[6]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _f, __obfh_math_name[1] = _l, __obfh_math_name[2] = _o, __obfh_math_name[3] = _o, __obfh_math_name[4] = _r, __obfh_math_name[5] = _0), (__obfh_math_name[5] = _0, __obfh_math_name[4] = _r, __obfh_math_name[3] = _o, __obfh_math_name[2] = _o, __obfh_math_name[1] = _l, __obfh_math_name[0] = _f)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
 #define expm1(x) expm1(_MUTATE_MATH(x))
 #define log1p(x) log1p(_MUTATE_MATH(x))
 #define acosh(x) acosh(_MUTATE_MATH(x))
@@ -3337,28 +3658,28 @@ static int obfh_abs_proxy(int value) {
 #define ilogb(x) ilogb(_MUTATE_MATH(x))
 #define round(x) round(_MUTATE_MATH(x))
 #define trunc(x) trunc(_MUTATE_MATH(x))
-#define ceil(x) ceil(_MUTATE_MATH(x))
-#define fabs(x) fabs(_MUTATE_MATH(x))
-#define sqrt(x) sqrt(_MUTATE_MATH(x))
-#define asin(x) asin(_MUTATE_MATH(x))
-#define acos(x) acos(_MUTATE_MATH(x))
-#define atan(x) atan(_MUTATE_MATH(x))
-#define sinh(x) sinh(_MUTATE_MATH(x))
-#define cosh(x) cosh(_MUTATE_MATH(x))
-#define tanh(x) tanh(_MUTATE_MATH(x))
-#define ceil(x) ceil(_MUTATE_MATH(x))
-#define fabs(x) fabs(_MUTATE_MATH(x))
+#define ceil(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _c, __obfh_math_name[1] = _e, __obfh_math_name[2] = _i, __obfh_math_name[3] = _l, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _l, __obfh_math_name[2] = _i, __obfh_math_name[1] = _e, __obfh_math_name[0] = _c)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define fabs(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _f, __obfh_math_name[1] = _a, __obfh_math_name[2] = _b, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _b, __obfh_math_name[1] = _a, __obfh_math_name[0] = _f)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define sqrt(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _s, __obfh_math_name[1] = _q, __obfh_math_name[2] = _r, __obfh_math_name[3] = _t, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _t, __obfh_math_name[2] = _r, __obfh_math_name[1] = _q, __obfh_math_name[0] = _s)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define asin(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _a, __obfh_math_name[1] = _s, __obfh_math_name[2] = _i, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _i, __obfh_math_name[1] = _s, __obfh_math_name[0] = _a)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define acos(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _a, __obfh_math_name[1] = _c, __obfh_math_name[2] = _o, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _o, __obfh_math_name[1] = _c, __obfh_math_name[0] = _a)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define atan(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define sinh(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define cosh(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define tanh(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define ceil(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _c, __obfh_math_name[1] = _e, __obfh_math_name[2] = _i, __obfh_math_name[3] = _l, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _l, __obfh_math_name[2] = _i, __obfh_math_name[1] = _e, __obfh_math_name[0] = _c)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define fabs(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[5]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _f, __obfh_math_name[1] = _a, __obfh_math_name[2] = _b, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _b, __obfh_math_name[1] = _a, __obfh_math_name[0] = _f)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
 #define erfc(x) erfc(_MUTATE_MATH(x))
 #define log2(x) log2(_MUTATE_MATH(x))
 #define cbrt(x) cbrt(_MUTATE_MATH(x))
 #define exp2(x) exp2(_MUTATE_MATH(x))
 #define logb(x) logb(_MUTATE_MATH(x))
 #define rint(x) rint(_MUTATE_MATH(x))
-#define exp(x) exp(_MUTATE_MATH(x))
-#define log(x) log(_MUTATE_MATH(x))
-#define sin(x) sin(_MUTATE_MATH(x))
-#define cos(x) cos(_MUTATE_MATH(x))
-#define tan(x) tan(_MUTATE_MATH(x))
+#define exp(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[4]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _e, __obfh_math_name[1] = _x, __obfh_math_name[2] = _p, __obfh_math_name[3] = _0), (__obfh_math_name[3] = _0, __obfh_math_name[2] = _p, __obfh_math_name[1] = _x, __obfh_math_name[0] = _e)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define log(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[4]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = _0), (__obfh_math_name[3] = _0, __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define sin(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[4]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0), (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define cos(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[4]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _0), (__obfh_math_name[3] = _0, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
+#define tan(x) ({ enum { __obfh_math_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; char __obfh_math_name[4]; __builtin_choose_expr(__obfh_math_order, (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0), (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x); })
 #define erf(x) erf(_MUTATE_MATH(x))
 
 __declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_CODE_SECTION_ATTRIBUTE {

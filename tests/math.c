@@ -32,6 +32,8 @@ int main(void) {
     CHECK(modf(3.5, &whole) == 0.5 && whole == 3.0);
     CHECK(remquo(7.0, 2.0, &quotient) == -1.0 && quotient != 0);
     CHECK(sin(0.0) == 0.0 && pow(2.0 + 1.0, 2.0) == 9.0);
+    CHECK(log10(100.0) == 2.0);
+    CHECK(atan2(0.0, 1.0) == 0.0);
     CHECK(FreeLibrary(crt));
     puts("Math string/pointer arguments passed");
     return 0;

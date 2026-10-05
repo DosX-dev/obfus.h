@@ -42,7 +42,11 @@ int main(void) {
     char mask[32], name[11];
     CHECK(getCharMask(6, mask, sizeof mask) == mask);
     CHECK(strlen(mask) == 12);
-    CHECK(strcmp(getStdLibName_proxy(name, sizeof name), "msvcrt.dll") == 0);
+    CHECK(strcmp(getStdLibName_proxy(name, sizeof name), "msvcrt") == 0);
+    unsigned char boundedName[9] = {0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5};
+    CHECK(getStdLibName_proxy((char *)boundedName, 6) == NULL && boundedName[0] == 0xa5);
+    CHECK(getStdLibName_proxy((char *)boundedName, 7) == (char *)boundedName);
+    CHECK(strcmp((char *)boundedName, "msvcrt") == 0 && boundedName[7] == 0xa5 && boundedName[8] == 0xa5);
     HANDLE originalOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     FreeConsole();
     CHECK(AllocConsole());

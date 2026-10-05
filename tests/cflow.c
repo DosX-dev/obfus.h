@@ -6,6 +6,12 @@ static volatile LONG proxy_visits;
 void obfh_test_proxy_if_visit(void) { InterlockedIncrement(&proxy_visits); }
 static volatile LONG routes[4];
 static volatile LONG if_junk_routes[128];
+static volatile LONG transport_layouts[8], transport_tests[8], transport_flips[2];
+void obfh_test_transport_visit(unsigned int layout, unsigned int test, unsigned int flip) {
+    InterlockedIncrement(&transport_layouts[layout]);
+    InterlockedIncrement(&transport_tests[test]);
+    InterlockedIncrement(&transport_flips[flip]);
+}
 void obfh_test_if_junk_visit(unsigned int route) { InterlockedIncrement(&if_junk_routes[route]); }
 void obfh_test_flow_visit(void) { InterlockedIncrement(&visits); }
 void obfh_test_flow_route(unsigned int route) { InterlockedIncrement(&routes[route]); }
@@ -68,9 +74,55 @@ static int native(double a, double b) { BODY }
     }                                            \
     return result + cases;
 static int native_loops(int outer) { LOOP_BODY }
+#define ELSE_CONTROL_BODY                          \
+    int result = 0, evaluations = 0;               \
+    for (int i = 0; i < limit; ++i) {              \
+        if (++evaluations && i == 0)               \
+            result += 10;                          \
+        else if (i == 2)                           \
+            continue;                              \
+        else if (i == 6)                           \
+            break;                                 \
+        else {                                     \
+            if (i & 1)                             \
+                result += i;                       \
+            else                                   \
+                result += 2 * i;                   \
+        }                                          \
+    }                                              \
+    int j = 0;                                     \
+    do {                                           \
+        if (++j < 2)                               \
+            result += 1;                           \
+        else                                       \
+            break;                                 \
+        result += 3;                               \
+    } while (j < 4);                               \
+    switch (mode) {                                \
+        case 0:                                    \
+            if (result < 0)                        \
+                return -1;                         \
+            else                                   \
+                break;                             \
+        default:                                   \
+            if (result < 0)                        \
+                return -2;                         \
+            else                                   \
+                return result + 100 * evaluations; \
+    }                                              \
+    return result + 100 * evaluations;
+static int native_else_control(int limit, int mode) {
+    ELSE_CONTROL_BODY
+}
 #include "../include/obfus.h"
 static int protected_branch(double a, double b) { BODY }
 static int protected_loops(int outer) { LOOP_BODY }
+static int protected_else_control(int limit, int mode) { ELSE_CONTROL_BODY }
+static int body_gate_only(void) {
+    int total = 0;
+    for (int i = 0; i < 5; ++i) total += i;
+    return total;
+}
 static int while_effect(int *count) {
     int result = 0;
     while (++*count < 4) result++;
@@ -115,7 +167,78 @@ static int recursive(int n) {
             return 1;                                   \
         }                                               \
     } while (0)
+#define TRANSPORT_CHECK(site)                                                           \
+    do {                                                                                \
+        int side_effect = 0;                                                            \
+        CHECK(OBFH_FLOW_CONDITION((++side_effect, 0), site) == 0 && side_effect == 1);  \
+        side_effect = 0;                                                                \
+        CHECK(OBFH_FLOW_CONDITION((++side_effect, -7), site) == 1 && side_effect == 1); \
+    } while (0)
 int main(void) {
+    TRANSPORT_CHECK(1u);
+    TRANSPORT_CHECK(978u);
+    TRANSPORT_CHECK(1955u);
+    TRANSPORT_CHECK(2932u);
+    TRANSPORT_CHECK(3909u);
+    TRANSPORT_CHECK(4886u);
+    TRANSPORT_CHECK(5863u);
+    TRANSPORT_CHECK(6840u);
+    TRANSPORT_CHECK(7817u);
+    TRANSPORT_CHECK(8794u);
+    TRANSPORT_CHECK(9771u);
+    TRANSPORT_CHECK(10748u);
+    TRANSPORT_CHECK(11725u);
+    TRANSPORT_CHECK(12702u);
+    TRANSPORT_CHECK(13679u);
+    TRANSPORT_CHECK(14656u);
+    TRANSPORT_CHECK(15633u);
+    TRANSPORT_CHECK(16610u);
+    TRANSPORT_CHECK(17587u);
+    TRANSPORT_CHECK(18564u);
+    TRANSPORT_CHECK(19541u);
+    TRANSPORT_CHECK(20518u);
+    TRANSPORT_CHECK(21495u);
+    TRANSPORT_CHECK(22472u);
+    TRANSPORT_CHECK(23449u);
+    TRANSPORT_CHECK(24426u);
+    TRANSPORT_CHECK(25403u);
+    TRANSPORT_CHECK(26380u);
+    TRANSPORT_CHECK(27357u);
+    TRANSPORT_CHECK(28334u);
+    TRANSPORT_CHECK(29311u);
+    TRANSPORT_CHECK(30288u);
+    TRANSPORT_CHECK(31265u);
+    TRANSPORT_CHECK(32242u);
+    TRANSPORT_CHECK(33219u);
+    TRANSPORT_CHECK(34196u);
+    TRANSPORT_CHECK(35173u);
+    TRANSPORT_CHECK(36150u);
+    TRANSPORT_CHECK(37127u);
+    TRANSPORT_CHECK(38104u);
+    TRANSPORT_CHECK(39081u);
+    TRANSPORT_CHECK(40058u);
+    TRANSPORT_CHECK(41035u);
+    TRANSPORT_CHECK(42012u);
+    TRANSPORT_CHECK(42989u);
+    TRANSPORT_CHECK(43966u);
+    TRANSPORT_CHECK(44943u);
+    TRANSPORT_CHECK(45920u);
+    TRANSPORT_CHECK(46897u);
+    TRANSPORT_CHECK(47874u);
+    TRANSPORT_CHECK(48851u);
+    TRANSPORT_CHECK(49828u);
+    TRANSPORT_CHECK(50805u);
+    TRANSPORT_CHECK(51782u);
+    TRANSPORT_CHECK(52759u);
+    TRANSPORT_CHECK(53736u);
+    TRANSPORT_CHECK(54713u);
+    TRANSPORT_CHECK(55690u);
+    TRANSPORT_CHECK(56667u);
+    TRANSPORT_CHECK(57644u);
+    TRANSPORT_CHECK(58621u);
+    TRANSPORT_CHECK(59598u);
+    TRANSPORT_CHECK(60575u);
+    TRANSPORT_CHECK(61552u);
     OBFH_CFLOW_SELECT(0);
     OBFH_CFLOW_SELECT(1);
     OBFH_CFLOW_SELECT(2);
@@ -261,6 +384,10 @@ int main(void) {
     CHECK(recursive(100) == 100);
     CHECK(protected_loops(0) == native_loops(0));
     CHECK(protected_loops(1) == native_loops(1));
+    for (int limit = 0; limit <= 12; ++limit) {
+        CHECK(protected_else_control(limit, 0) == native_else_control(limit, 0));
+        CHECK(protected_else_control(limit, 1) == native_else_control(limit, 1));
+    }
     count = 0;
     CHECK(while_effect(&count) == 3 && count == 4);
     for (unsigned int site = 1; site <= 65535; ++site) {
@@ -270,7 +397,16 @@ int main(void) {
         CHECK(obfh_flow_token((float)base, site) != expected);
     }
 #ifdef OBFH_TEST_FLOW_TRACE
+    LONG before_gate = visits;
+    int gate_result = body_gate_only();
+    LONG after_gate = visits;
+    CHECK(gate_result == 10 && after_gate - before_gate == 5);
     CHECK(proxy_visits > 0);
+    for (int variant = 0; variant < (CFLOW_V2 ? 8 : 4); ++variant) {
+        CHECK(transport_layouts[variant] > 0);
+        CHECK(transport_tests[variant] > 0);
+    }
+    CHECK(transport_flips[0] > 0 && transport_flips[1] > 0);
     CHECK(visits > 131000);
     for (int route = 0; route < 4; ++route) CHECK(routes[route] > 0);
     LONG selected_if_sites = 0;

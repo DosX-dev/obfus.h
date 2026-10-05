@@ -147,6 +147,45 @@ function junkCode(binary, siteCount = 13) {
         return binary.subarray(offset(start), offset(end));
     });
 }
+async function checkFlowTransport(arch, compiler, directory, mode) {
+
+    const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
+    fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
+    fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
+    const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {';
+    const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);')
+        .replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);')
+        .replace(/STACK_PROXY_FUNCTIONS;(\s*\\\r?\n\s*OBFH_FLOW_CONDITION)/, 'obfh_test_proxy_if_visit(); STACK_PROXY_FUNCTIONS;$1')
+        .replace('unsigned int __obfh_flow_state = !!(condition);', 'unsigned int __obfh_flow_state = !!(condition); obfh_test_transport_visit(__obfh_flow_layout, __obfh_flow_test, __obfh_flow_flip);');
+    assert(traced !== source, 'flow trace injection missing');
+    const header = path.join(traceRoot, 'include', 'obfus.h');
+    fs.writeFileSync(header, traced);
+    const file = path.join(traceRoot, 'tests', 'cflow.c');
+    fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
+    const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
+    await execute(await compile(compiler, directory, `${arch}-cflow-${mode}.exe`, file, flags), 'CFLOW_PASS');
+    const ifMutant = traced.replace(/#define if\((?:cond|\.\.\.)\)[\s\S]*?(?=\r?\n\r?\n)/, '#define if(...) if (__VA_ARGS__)');
+    assert(ifMutant !== traced, 'if bypass target missing');
+    fs.writeFileSync(header, ifMutant);
+    const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
+    assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
+    const whileMutant = traced.replace('#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))', '#define while(...) while (__VA_ARGS__)');
+    assert(whileMutant !== traced, 'while bypass target missing');
+    fs.writeFileSync(header, whileMutant);
+    const whileResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-while-bypass.exe`, file, flags), []);
+    assert(whileResult.status === 1 && whileResult.stderr.includes('cflow failure'), 'ordinary-while bypass was not detected');
+    const forMutant = traced.replace(/#define for\(\.\.\.\)[\s\S]*?(?=\r?\n\r?\n)/, '#define for(...) for (__VA_ARGS__)');
+    assert(forMutant !== traced, 'for bypass target missing');
+    fs.writeFileSync(header, forMutant);
+    const forResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-for-bypass.exe`, file, flags), []);
+    assert(forResult.status === 1 && forResult.stderr.includes('cflow failure'), 'per-iteration for bypass was not detected');
+
+    const tokenMutant = traced.replace('unsigned int __obfh_flow_state = !!(condition);', 'unsigned int __obfh_flow_state = 0u; (void)!!(condition);');
+    fs.writeFileSync(header, tokenMutant);
+    const tokenResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags), []);
+    assert(tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'), 'discarded condition transport was not detected');
+}
+
 async function main() {
     let directory;
     try {
@@ -236,6 +275,10 @@ async function main() {
                 await pdataDecoys.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
                 if (process.argv.includes('--only-pdata')) continue;
             }
+            if (process.argv.includes('--only-flow-tokens')) {
+                for (const mode of [0, 1]) await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () => checkFlowTransport(arch, compiler, directory, mode));
+                continue;
+            }
             if (!process.argv.includes('--only-integration')) {
                 const proxyRoot = path.join(directory, arch + '-stack-proxy');
                 fs.mkdirSync(path.join(proxyRoot, 'include'), { recursive: true });
@@ -266,10 +309,17 @@ async function main() {
                     const oldLocalPair = Buffer.from('8945fc8955f8', 'hex');
                     assert(first.every(code => !code.includes(oldLocalPair)), 'fixed proxy local-slot pair returned');
                     if (arch === 'x64') assert(first.every(code => !code.includes(oldSpillReload)), 'proxy spill/immediate-reload signature returned');
+                    if (arch === 'x64') {
+                        for (const signature of ['89c8678d0450c3', '89c839d00f8d0200000089d0c3'])
+                            assert(first.every(code => !code.includes(Buffer.from(signature, 'hex'))), 'unparameterized leaf-body signature returned');
+                    }
                     fs.writeFileSync(proxyHeader, source);
                     const repeat = await compile(compiler, directory, `${arch}-stack-proxy-repeat.dll`, proxyFile, ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'], ['-shared']);
                     assert(junkCode(fs.readFileSync(repeat), stackProxy.count).every((code, i) => code.equals(first[i])), 'fixed-seed proxy bytes are not reproducible');
                     fs.writeFileSync(path.join(directory, `${arch}-stack-proxy-distribution.json`), JSON.stringify(proxyHistograms, null, 2));
+                });
+                for (const seed of [1, 2]) await check(`${arch}/stack proxies/native leaf instructions + scratch stack/seed ${seed}`, async () => {
+                    await execute(await compile(compiler, directory, `${arch}-stack-proxy-native-${seed}.exe`, path.join(root, 'tests', 'stack_proxy_native.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'STACK_PROXY_NATIVE_PASS');
                 });
                 if (process.argv.includes('--only-stack-proxy')) continue;
                 await check(`${arch}/API failure branches`, async () => await execute(await compile(compiler, directory, `${arch}-failures.exe`, failureFile, []), 'failure branches passed'));
@@ -506,32 +556,7 @@ async function main() {
                     assert(result.status === 1 && result.stderr.includes('cache failure'), 'cache bypass was not detected');
                 });
                 if (process.argv.includes('--only-cache')) continue;
-                for (const mode of [0, 1]) await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () => {
-                    const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
-                    fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
-                    fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
-                    const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {';
-                    const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);')
-                        .replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);')
-                        .replace(/STACK_PROXY_FUNCTIONS;(\s*\\\r?\n\s*BREAK_STACK_CFLOW;)/, 'obfh_test_proxy_if_visit(); STACK_PROXY_FUNCTIONS;$1');
-                    assert(traced !== source, 'flow trace injection missing');
-                    const header = path.join(traceRoot, 'include', 'obfus.h');
-                    fs.writeFileSync(header, traced);
-                    const file = path.join(traceRoot, 'tests', 'cflow.c');
-                    fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
-                    const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
-                    await execute(await compile(compiler, directory, `${arch}-cflow-${mode}.exe`, file, flags), 'CFLOW_PASS');
-                    const ifMutant = traced.replace(/#define if\((?:cond|\.\.\.)\)[\s\S]*?(?=\r?\n\r?\n)/, '#define if(...) if (__VA_ARGS__)');
-                    assert(ifMutant !== traced, 'if bypass target missing');
-                    fs.writeFileSync(header, ifMutant);
-                    const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
-                    assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
-                    const whileMutant = traced.replace('#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))', '#define while(...) while (__VA_ARGS__)');
-                    assert(whileMutant !== traced, 'while bypass target missing');
-                    fs.writeFileSync(header, whileMutant);
-                    const whileResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-while-bypass.exe`, file, flags), []);
-                    assert(whileResult.status === 1 && whileResult.stderr.includes('cflow failure'), 'ordinary-while bypass was not detected');
-                });
+                for (const mode of [0, 1]) await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () => checkFlowTransport(arch, compiler, directory, mode));
                 if (process.argv.includes('--only-cflow')) continue;
                 await check(`${arch}/negative control: disabled VM must fail`, async () => {
                     const mutantRoot = path.join(directory, arch + '-mutant');
@@ -586,6 +611,12 @@ async function main() {
                 for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['numeric', 'NUMERIC_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
                     await check(`${label}/${file}`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-${file}.exe`, path.join(__dirname, file + '.c'), flags, ['-luser32', '-lgdi32']), marker));
                 }
+                await check(`${label}/CRT proxy calls + atexit + input`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-crt-proxies.exe`, path.join(__dirname, 'crt_proxies.c'), flags);
+                    await execute(exe, 'CRT_ATEXIT_PASS');
+                    const input = await run(exe, ['gets'], { input: 'proxy-input\n' });
+                    assert(input.status === 0 && input.stdout.includes('CRT_GETS_PASS'), 'protected gets input failed');
+                });
                 await check(`${label}/default-integration keygen`, async () => {
                     const exe = await compile(compiler, directory, `${arch}-${config}-keygen.exe`, path.join(__dirname, 'keygen_demo.c'), flags);
                     await execute(exe, 'DCD48287-ACFB1ECA-576C2D3E-E3459984');

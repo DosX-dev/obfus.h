@@ -78,7 +78,7 @@ static BOOL WINAPI fake_debugger_check(void) {
 }
 static HMODULE fake_module(const char *name) {
     module_calls++;
-    if (strcmp(name, "kernel32.dll")) return NULL;
+    if (strcmp(name, "kernel32")) return NULL;
     return mode == 12 ? NULL : (HMODULE)33;
 }
 static FARPROC fake_export(HMODULE module, const char *name) {
