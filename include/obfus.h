@@ -1140,31 +1140,31 @@ OBFH_PD_DEFINE(127);
         [sf_arg_a] "i"(RND(1, 65535)), [sf_arg_b] "i"(RND(1, 65535)),                                               \
         [sf_key_a] "i"(OBFH_JUNK_WORD), [sf_key_b] "i"(OBFH_JUNK_WORD), [sf_factor] "i"(RND(1, 32767) * 2u + 1u),   \
         [sf_pad] "i"(RND(0, 7)), [sf_loops] "i"(RND(1, 7)), [sf_mask] "i"(__obfh_sf_mask),                          \
-        [sf_not_mask] "i"(~(unsigned int)__obfh_sf_mask), [sf_frame_d] "i"(RND(2, 12) * 16u), [sf_pad_b] "i"(RND(0, 15)), [sf_noise_a] "i"(OBFH_JUNK_BYTE), [sf_noise_b] "i"(OBFH_JUNK_BYTE)
+        [sf_not_mask] "i"(~(unsigned int)__obfh_sf_mask), [sf_frame_d] "i"(RND(2, 12) * 16u), [sf_pad_b] "i"(RND(0, 15)), [sf_noise_a] "i"(OBFH_JUNK_BYTE), [sf_noise_b] "i"(OBFH_JUNK_BYTE), [sf_local_a] "i"(RND(1, 3) * 4u), [sf_local_b] "i"(RND(4, 7) * 4u)
 
 #if defined(__x86_64__)
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
-#define OBFH_SF_FRAME(size) "pushq %%rbp; movq %%rsp, %%rbp; subq $%c[" size "], %%rsp; movq %%rcx, 16(%%rbp); movq %%rdx, 24(%%rbp);"
-#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp; movq %%rsp, %%rbp; leaq -%c[" size "](%%rsp), %%rsp; movq %%rcx, 16(%%rbp); movq %%rdx, 24(%%rbp);"
+#define OBFH_SF_FRAME(size) "pushq %%rbp; movq %%rsp, %%rbp; subq $%c[" size "], %%rsp;"
+#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp; movq %%rsp, %%rbp; leaq -%c[" size "](%%rsp), %%rsp;"
 #define OBFH_SF_EPILOGUE_ALT "movq %%rbp, %%rsp; popq %%rbp; ret;"
-#define OBFH_SF_ARGS "movl 16(%%rbp), %%eax; movl 24(%%rbp), %%edx;"
+#define OBFH_SF_ARGS "movl %%ecx, %%eax;"
 #define OBFH_SF_CALL(target) "subq $32, %%rsp; movl $%c[sf_arg_a], %%ecx; movl $%c[sf_arg_b], %%edx; call " target "; addq $32, %%rsp;"
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
 #define OBFH_SF_FRAME(size) "pushl %%ebp; movl %%esp, %%ebp; subl $%c[" size "], %%esp; nop;"
 #define OBFH_SF_FRAME_ALT(size) "pushl %%ebp; movl %%esp, %%ebp; leal -%c[" size "](%%esp), %%esp;"
 #define OBFH_SF_EPILOGUE_ALT "movl %%ebp, %%esp; popl %%ebp; ret;"
-#define OBFH_SF_ARGS "movl 8(%%ebp), %%eax; movl 12(%%ebp), %%edx;"
+#define OBFH_SF_ARGS "movl 12(%%ebp), %%edx; movl 8(%%ebp), %%eax;"
 #define OBFH_SF_CALL(target) "pushl $%c[sf_arg_b]; pushl $%c[sf_arg_a]; call " target "; addl $8, %%esp;"
 #endif
 #define OBFH_SF_EPILOGUE "leave; ret;"
 #define OBFH_SF_PADDING ".fill %c[sf_pad], 1, 0x90;"
 #define OBFH_SF_GAP ".fill %c[sf_pad_b], 1, 0x90; .byte %c[sf_noise_a], %c[sf_noise_b];"
-#define OBFH_SF_LOCAL "movl %%eax, -4(%%ebp); movl %%edx, -8(%%ebp);"
+#define OBFH_SF_LOCAL "movl %%eax, -%c[sf_local_a](%%ebp); movl %%edx, -%c[sf_local_b](%%ebp);"
 // Use pointer-width addressing in fake x64 bodies as well as their prologues.
 #if defined(__x86_64__)
 #undef OBFH_SF_LOCAL
-#define OBFH_SF_LOCAL "movl %%eax, -4(%%rbp); movl %%edx, -8(%%rbp);"
+#define OBFH_SF_LOCAL "movl %%eax, -%c[sf_local_a](%%rbp); movl %%edx, -%c[sf_local_b](%%rbp);"
 #endif
 #define OBFH_SF_BODY_A OBFH_SF_ARGS "xorl $%c[sf_key_a], %%eax; imull $%c[sf_factor], %%eax; addl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_B OBFH_SF_ARGS "addl $%c[sf_key_b], %%eax; roll $%c[sf_rotate], %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
@@ -1456,6 +1456,66 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL("3b")                      \
     OBFH_SF_EPILOGUE
 
+// Leaf entries use incoming arguments directly and never create a stack frame.
+// All entries remain unreachable on the live path; no unwind records are added.
+#if defined(__x86_64__)
+#define OBFH_SF_LEAF_ARGS "movl %%ecx, %%eax;"
+#else
+#define OBFH_SF_LEAF_ARGS "movl 4(%%esp), %%eax; movl 8(%%esp), %%edx;"
+#endif
+#define OBFH_SF_LEAF_A OBFH_SF_LEAF_ARGS "leal (%%eax, %%edx, 2), %%eax; ret;"
+#define OBFH_SF_LEAF_B OBFH_SF_LEAF_ARGS "xorl $%c[sf_key_a], %%eax; rorl $%c[sf_rotate], %%eax; addl %%edx, %%eax; ret;"
+#define OBFH_SF_LEAF_C OBFH_SF_LEAF_ARGS "cmpl %%edx, %%eax; jge 6f; movl %%edx, %%eax; 6: ret;"
+#define OBFH_SF_LEAF_D OBFH_SF_LEAF_ARGS "movl $%c[sf_loops], %%ecx; 6: imull $%c[sf_factor], %%eax; addl %%edx, %%eax; decl %%ecx; jnz 6b; ret;"
+#define OBFH_SF_LEAF_E OBFH_SF_LEAF_ARGS "testl %%eax, %%eax; jz 6f; bswap %%eax; xorl %%edx, %%eax; ret; 6: movl $%c[sf_key_b], %%eax; ret;"
+#define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS "subl %%edx, %%eax; negl %%eax; adcl $%c[sf_key_a], %%eax; ret;"
+#define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
+#define OBFH_SF_LAYOUT_22(a, b, c, d)   \
+    OBFH_SF_CALL("1f")                  \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP        \
+        OBFH_SF_LEAF_ENTRY("2", c)      \
+    OBFH_SF_GAP                         \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL("2b")                  \
+    OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_23(a, b, c, d) \
+    OBFH_SF_CALL("1f")                \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP  \
+        OBFH_SF_LEAF_ENTRY("1", c)    \
+    OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("2", d)
+#define OBFH_SF_LAYOUT_24(a, b, c, d)                                                                                  \
+    OBFH_SF_CALL("1f")                                                                                                 \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP                                                                                       \
+        OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) OBFH_SF_CALL("3f") OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+            OBFH_SF_LEAF_ENTRY("2", c)                                                                                 \
+    OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d)
+#define OBFH_SF_LAYOUT_25(a, b, c, d)   \
+    OBFH_SF_CALL("1f")                  \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP    \
+        OBFH_SF_LEAF_ENTRY("3", d)      \
+    OBFH_SF_GAP                         \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL("2f")                  \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP        \
+        OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) OBFH_SF_CALL("3b") OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_26(a, b, c, d)                                                     \
+    OBFH_SF_CALL("1f")                                                                    \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP                                                          \
+        OBFH_SF_LEAF_ENTRY("2", c)                                                        \
+    OBFH_SF_GAP                                                                           \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a)                                               \
+    "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL("2b") "4:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("3", d)
+#define OBFH_SF_LAYOUT_27(a, b, c, d)      \
+    OBFH_SF_CALL("2f")                     \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP       \
+        OBFH_SF_LEAF_ENTRY("1", c)         \
+    OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d) \
+    OBFH_SF_GAP                            \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b)    \
+    OBFH_SF_CALL("1b")                     \
+    OBFH_SF_CALL("3b") OBFH_SF_EPILOGUE
+
 #define OBFH_SF_ASM(guard, layout) \
     ({ enum { __obfh_sf_mask = OBFH_JUNK_WORD }; \
     __obfh_asm__(OBFH_SF_INPUT "xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9:" \
@@ -1527,88 +1587,88 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_VARIANT_43 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E))
 #define OBFH_SF_VARIANT_44 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F))
 #define OBFH_SF_VARIANT_45 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G))
-#define OBFH_SF_VARIANT_46 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
-#define OBFH_SF_VARIANT_47 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
-#define OBFH_SF_VARIANT_48 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
-#define OBFH_SF_VARIANT_49 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
-#define OBFH_SF_VARIANT_50 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
-#define OBFH_SF_VARIANT_51 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
-#define OBFH_SF_VARIANT_52 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
-#define OBFH_SF_VARIANT_53 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
-#define OBFH_SF_VARIANT_54 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
-#define OBFH_SF_VARIANT_55 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
-#define OBFH_SF_VARIANT_56 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
-#define OBFH_SF_VARIANT_57 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
-#define OBFH_SF_VARIANT_58 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
-#define OBFH_SF_VARIANT_59 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
-#define OBFH_SF_VARIANT_60 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
-#define OBFH_SF_VARIANT_61 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
-#define OBFH_SF_VARIANT_62 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
-#define OBFH_SF_VARIANT_63 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
-#define OBFH_SF_VARIANT_64 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
-#define OBFH_SF_VARIANT_65 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
-#define OBFH_SF_VARIANT_66 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
-#define OBFH_SF_VARIANT_67 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
-#define OBFH_SF_VARIANT_68 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
-#define OBFH_SF_VARIANT_69 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
-#define OBFH_SF_VARIANT_70 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
-#define OBFH_SF_VARIANT_71 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
-#define OBFH_SF_VARIANT_72 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
-#define OBFH_SF_VARIANT_73 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
-#define OBFH_SF_VARIANT_74 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
-#define OBFH_SF_VARIANT_75 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
-#define OBFH_SF_VARIANT_76 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
-#define OBFH_SF_VARIANT_77 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
-#define OBFH_SF_VARIANT_78 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
-#define OBFH_SF_VARIANT_79 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
-#define OBFH_SF_VARIANT_80 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
-#define OBFH_SF_VARIANT_81 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
-#define OBFH_SF_VARIANT_82 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
-#define OBFH_SF_VARIANT_83 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
-#define OBFH_SF_VARIANT_84 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
-#define OBFH_SF_VARIANT_85 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
-#define OBFH_SF_VARIANT_86 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
-#define OBFH_SF_VARIANT_87 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
-#define OBFH_SF_VARIANT_88 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
-#define OBFH_SF_VARIANT_89 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
-#define OBFH_SF_VARIANT_90 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
-#define OBFH_SF_VARIANT_91 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
-#define OBFH_SF_VARIANT_92 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
-#define OBFH_SF_VARIANT_93 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
-#define OBFH_SF_VARIANT_94 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
-#define OBFH_SF_VARIANT_95 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
-#define OBFH_SF_VARIANT_96 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
-#define OBFH_SF_VARIANT_97 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
-#define OBFH_SF_VARIANT_98 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
-#define OBFH_SF_VARIANT_99 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
-#define OBFH_SF_VARIANT_100 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
-#define OBFH_SF_VARIANT_101 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
-#define OBFH_SF_VARIANT_102 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
-#define OBFH_SF_VARIANT_103 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
-#define OBFH_SF_VARIANT_104 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
-#define OBFH_SF_VARIANT_105 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
-#define OBFH_SF_VARIANT_106 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
-#define OBFH_SF_VARIANT_107 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
-#define OBFH_SF_VARIANT_108 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_C, OBFH_SF_BODY_N, OBFH_SF_BODY_F, OBFH_SF_BODY_P))
-#define OBFH_SF_VARIANT_109 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_D, OBFH_SF_BODY_Q, OBFH_SF_BODY_M, OBFH_SF_BODY_G))
-#define OBFH_SF_VARIANT_110 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_E, OBFH_SF_BODY_T, OBFH_SF_BODY_T, OBFH_SF_BODY_R))
-#define OBFH_SF_VARIANT_111 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_F, OBFH_SF_BODY_C, OBFH_SF_BODY_G, OBFH_SF_BODY_I))
-#define OBFH_SF_VARIANT_112 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_G, OBFH_SF_BODY_F, OBFH_SF_BODY_N, OBFH_SF_BODY_T))
-#define OBFH_SF_VARIANT_113 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_H, OBFH_SF_BODY_I, OBFH_SF_BODY_A, OBFH_SF_BODY_K))
-#define OBFH_SF_VARIANT_114 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_I, OBFH_SF_BODY_L, OBFH_SF_BODY_H, OBFH_SF_BODY_B))
-#define OBFH_SF_VARIANT_115 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_J, OBFH_SF_BODY_O, OBFH_SF_BODY_O, OBFH_SF_BODY_M))
-#define OBFH_SF_VARIANT_116 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_20(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_BODY_B, OBFH_SF_BODY_D))
-#define OBFH_SF_VARIANT_117 OBFH_SF_ASM(OBFH_SF_GUARD_14, OBFH_SF_LAYOUT_21(OBFH_SF_BODY_L, OBFH_SF_BODY_A, OBFH_SF_BODY_I, OBFH_SF_BODY_O))
-#define OBFH_SF_VARIANT_118 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_10(OBFH_SF_BODY_M, OBFH_SF_BODY_D, OBFH_SF_BODY_P, OBFH_SF_BODY_F))
-#define OBFH_SF_VARIANT_119 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_11(OBFH_SF_BODY_N, OBFH_SF_BODY_G, OBFH_SF_BODY_C, OBFH_SF_BODY_Q))
-#define OBFH_SF_VARIANT_120 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_12(OBFH_SF_BODY_O, OBFH_SF_BODY_J, OBFH_SF_BODY_J, OBFH_SF_BODY_H))
-#define OBFH_SF_VARIANT_121 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_13(OBFH_SF_BODY_P, OBFH_SF_BODY_M, OBFH_SF_BODY_Q, OBFH_SF_BODY_S))
-#define OBFH_SF_VARIANT_122 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_14(OBFH_SF_BODY_Q, OBFH_SF_BODY_P, OBFH_SF_BODY_D, OBFH_SF_BODY_J))
-#define OBFH_SF_VARIANT_123 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_15(OBFH_SF_BODY_R, OBFH_SF_BODY_S, OBFH_SF_BODY_K, OBFH_SF_BODY_A))
-#define OBFH_SF_VARIANT_124 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_16(OBFH_SF_BODY_S, OBFH_SF_BODY_B, OBFH_SF_BODY_R, OBFH_SF_BODY_L))
-#define OBFH_SF_VARIANT_125 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_17(OBFH_SF_BODY_T, OBFH_SF_BODY_E, OBFH_SF_BODY_E, OBFH_SF_BODY_C))
-#define OBFH_SF_VARIANT_126 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_18(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_BODY_L, OBFH_SF_BODY_N))
-#define OBFH_SF_VARIANT_127 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_19(OBFH_SF_BODY_B, OBFH_SF_BODY_K, OBFH_SF_BODY_S, OBFH_SF_BODY_E))
+#define OBFH_SF_VARIANT_46 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_47 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_48 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_49 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_50 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_51 OBFH_SF_ASM(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_52 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_53 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_54 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_55 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_56 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_57 OBFH_SF_ASM(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_58 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_59 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_60 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_61 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_62 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_63 OBFH_SF_ASM(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_64 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_65 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_66 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_67 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_68 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_69 OBFH_SF_ASM(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_70 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_71 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_72 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_73 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_74 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_75 OBFH_SF_ASM(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_76 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_77 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_78 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_79 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_80 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_81 OBFH_SF_ASM(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_82 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_83 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_84 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_85 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_86 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_87 OBFH_SF_ASM(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_88 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_89 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_90 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_91 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_92 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_93 OBFH_SF_ASM(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_94 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_95 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_96 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_97 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_98 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_99 OBFH_SF_ASM(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_100 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_101 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_102 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_103 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_104 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_105 OBFH_SF_ASM(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_106 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_107 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_108 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_109 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_110 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_111 OBFH_SF_ASM(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_112 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_113 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_114 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_115 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_116 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_117 OBFH_SF_ASM(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_118 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_119 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_120 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_121 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
+#define OBFH_SF_VARIANT_122 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B))
+#define OBFH_SF_VARIANT_123 OBFH_SF_ASM(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_27(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C))
+#define OBFH_SF_VARIANT_124 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_D))
+#define OBFH_SF_VARIANT_125 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E))
+#define OBFH_SF_VARIANT_126 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_C, OBFH_SF_LEAF_F))
+#define OBFH_SF_VARIANT_127 OBFH_SF_ASM(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_D, OBFH_SF_LEAF_A))
 
 #define STACK_PROXY_FUNCTIONS ({                                                                                                                                                    \
     enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
@@ -1812,16 +1872,26 @@ static void obfh_crt_publish(const char *name, FARPROC function) {
 typedef struct {
     unsigned char bytes[sizeof(long double)];
     unsigned char floating;
+    unsigned int nonce;
 } OBFH_VM_VALUE;
 
-static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned char floating) OBFH_CODE_SECTION_ATTRIBUTE {
+static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int floating) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     OBFH_VM_VALUE encoded;
     volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
     const unsigned char *bytes = (const unsigned char *)&value;
-    for (size_t i = 0; i < sizeof(value); ++i)
-        encoded.bytes[i] = bytes[i] ^ (unsigned char)(key + i * 17u);
-    encoded.floating = floating;
+    encoded.nonce = (floating >> 1) ^ (unsigned int)OBFH_BUILD_SEED;
+    encoded.floating = floating & 1u;
+    unsigned int state = encoded.nonce ^ ((unsigned int)key * 2246822519u) ^ 0x9e3779b9u;
+    size_t offset = encoded.nonce % sizeof(value);
+    for (size_t i = 0; i < sizeof(value); ++i) {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        unsigned int rotate = (state >> 24) & 7u;
+        unsigned char rotated = (unsigned char)((bytes[i] << rotate) | (bytes[i] >> (8u - rotate)));
+        encoded.bytes[(i + offset) % sizeof(value)] = (unsigned char)(rotated + (unsigned char)(state >> 8)) ^ (unsigned char)(state ^ (state >> 16));
+    }
     return encoded;
 }
 
@@ -1830,8 +1900,16 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     long double value;
     volatile int key = obfh_condition_proxy((float)salt, (float)obfh_int_proxy(salt));
     unsigned char *bytes = (unsigned char *)&value;
-    for (size_t i = 0; i < sizeof(value); ++i)
-        bytes[i] = encoded.bytes[i] ^ (unsigned char)(key + i * 17u);
+    unsigned int state = encoded.nonce ^ ((unsigned int)key * 2246822519u) ^ 0x9e3779b9u;
+    size_t offset = encoded.nonce % sizeof(value);
+    for (size_t i = 0; i < sizeof(value); ++i) {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        unsigned int rotate = (state >> 24) & 7u;
+        unsigned char rotated = (unsigned char)((encoded.bytes[(i + offset) % sizeof(value)] ^ (unsigned char)(state ^ (state >> 16))) - (unsigned char)(state >> 8));
+        bytes[i] = (unsigned char)((rotated >> rotate) | (rotated << (8u - rotate)));
+    }
     RET_BY_VAR(value);
 }
 #endif
@@ -2003,7 +2081,13 @@ static int _salt = SALT_CMD;
 #define _VM_DEMUTATOR_KEY (__COUNTER__) / 5
 #define _VM_MUTATOR_KEY (__COUNTER__ - 1) / 5
 
-#define _VM_ENCRYPT_INT(value) (((long long)(value)-_VM_MUTATOR_KEY) * ~(int)SALT_CMD)
+// Capture the paired counter once; unsigned arithmetic wraps modulo 2^64.
+#define _VM_ENCRYPT_INT(value) ({                                                                                                                                                                                               \
+    enum { __obfh_command_site = _VM_MUTATOR_KEY };                                                                                                                                                                             \
+    (long long)((((((unsigned long long)(value) ^ ((unsigned long long)(__obfh_command_site + SALT_CMD) * 0x9e3779b97f4a7c15ull)) * ((unsigned long long)SALT_CMD * 2u + 1u)) << ((__obfh_command_site % 63u) + 1u)) |          \
+                 ((((unsigned long long)(value) ^ ((unsigned long long)(__obfh_command_site + SALT_CMD) * 0x9e3779b97f4a7c15ull)) * ((unsigned long long)SALT_CMD * 2u + 1u)) >> (64u - ((__obfh_command_site % 63u) + 1u)))) ^ \
+                ((unsigned long long)(__obfh_command_site + 1u) * 0xd1b54a32d192ed03ull));                                                                                                                                      \
+})
 #define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
 #define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
 #define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
@@ -2018,26 +2102,30 @@ static int _salt = SALT_CMD;
 #define _ENC_OP__NOP _VM_ENCRYPT_INT(OP__NOP)
 #define _ENC_OP__BRANCH _VM_ENCRYPT_INT(OP__BRANCH)
 
-#define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_MUL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_DIV(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_MOD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_EQU(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_NEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_LSS(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)(num2), SALT_NUM2, 0), RND(1, 500))
-#define VM_OBF_INT(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, obfh_vm_encode((long double)(num1), SALT_NUM1, 0), RND(1, 500), obfh_vm_encode((long double)RND(1, 99999999), SALT_NUM2, 0), RND(1, 500)))
+// Keep nonce draws at the operand position to preserve counter expansion order.
+#define OBFH_VM_OPERAND(value, salt, floating) \
+    obfh_vm_encode(value, salt, floating | (RND(1, 2147483647u) << 1))
 
-#define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
-#define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
-#define VM_MUL_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
-#define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
-#define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
-#define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, obfh_vm_encode((double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((double)(num2), SALT_NUM2, 1), RND(1, 500))
-#define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, obfh_vm_encode((long double)(num1), SALT_NUM1, 1), RND(1, 500), obfh_vm_encode((long double)RND(1, 99999999), SALT_NUM2, 0), RND(1, 500)))
+#define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_MUL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_DIV(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_MOD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_EQU(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_NEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_LSS(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
+#define VM_OBF_INT(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)RND(1, 99999999), SALT_NUM2, 0u), RND(1, 500)))
+
+#define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
+#define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
+#define VM_MUL_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
+#define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
+#define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
+#define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
+#define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((long double)RND(1, 99999999), SALT_NUM2, 0u), RND(1, 500)))
 
 // Each condition is evaluated once before entering the floating VM path.
 static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE;
@@ -2056,8 +2144,20 @@ static long double Obfh_VirtualMachine(long double uni_key, long long command, O
     // Restore values
 restoreCommand:
     BREAK_STACK_CFLOW;
-    command /= ~_salt;
-    command += uni_key;
+    unsigned long long site = (unsigned long long)uni_key;
+    unsigned int rotate = (unsigned int)(site % 63u) + 1u;
+    unsigned long long mixed = (unsigned long long)command ^ ((site + 1u) * 0xd1b54a32d192ed03ull);
+    mixed = (mixed >> rotate) | (mixed << (64u - rotate));
+    unsigned long long multiplier = (unsigned int)_salt * 2ull + 1ull;
+    unsigned long long inverse = 1ull;
+    // Six Newton steps recover all 64 bits of an odd multiplier's inverse.
+    inverse *= 2ull - multiplier * inverse;
+    inverse *= 2ull - multiplier * inverse;
+    inverse *= 2ull - multiplier * inverse;
+    inverse *= 2ull - multiplier * inverse;
+    inverse *= 2ull - multiplier * inverse;
+    inverse *= 2ull - multiplier * inverse;
+    command = (long long)((mixed * inverse) ^ ((site + (unsigned int)_salt) * 0x9e3779b97f4a7c15ull));
     goto restoreNum2;
 
 restoreNum1:

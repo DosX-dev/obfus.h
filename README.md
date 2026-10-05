@@ -33,13 +33,13 @@ This enables compile-time obfuscation to make your code harder to analyze and he
 
 Junk branches use different compile-time constants and skipped byte sequences at each expansion. Define `OBFH_BUILD_SEED` before including the header, or pass `-DOBFH_BUILD_SEED=123u`, to vary them between builds. The default seed is `0`; a fixed seed keeps the variation reproducible with the same source and compiler.
 
-`BREAK_STACK_CFLOW;` inserts a compile-time-selected template from the shared pool of 128 variants. The header uses it throughout its protection paths, with fresh parameters per expansion and less frequent selection of the CPUID variants. The pool includes paired arithmetic, bitwise, carry and rotation predicates with varied branch layouts and randomized skipped payloads. `CFLOW_V2` adds a different lightweight template; `HIDE_STRING` emits one template.
+Control-flow protection turns straightforward conditions and loops into a tangled graph of branches, junk code and fake functions, making the original logic harder to follow in disassemblers and decompilers. The inserted code varies throughout the program and can change between builds. `CFLOW_V2` adds another layer of control-flow mutation.
 
-Every intercepted `if` also emits `STACK_PROXY_FUNCTIONS` before its break-stack template. This layer inserts two to four linked fake functions with Windows x86/x64 calling conventions. 128 combinations of fifteen skip predicates and twenty-two call layouts vary at compile time, together with frame sizes, arguments, arithmetic constants, rotations, frame/epilogue forms and skipped padding bytes. The live path skips the fake calls and stack operations, and evaluates the user's condition once. `NO_CFLOW` disables automatic insertion; `NO_OBF` disables the macro itself.
+Protection is inserted automatically around `if` conditions. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
 
-On TCC Windows x64, the header also emits 86–128 standalone native decoys per translation unit. The build seed selects their count, arithmetic bodies, frame sizes, spill slots and constants. TCC publishes their static PE unwind entries directly; no post-build script, startup registration or runtime dispatcher is required. Their independent native entries match TCC's unwind description, including partial prologues and epilogues. They are not called by the normal application path. This adds functions to analysis; it does not guarantee decompiler failure or conceal the real algorithm.
+On Windows x64, additional fake functions add noise to the function graph without requiring extra setup.
 
-Define `NO_PDATA_DECOYS=1` to omit this layer, or set `OBFH_PDATA_DECOY_COUNT` to a fixed value from 86 to 128. `NO_OBF` also omits it; x86 emits no pool. With this layer enabled, library functions use `.text` and protected data retains its separate section: TCC otherwise writes incorrect RVAs for functions in custom code sections, which can invalidate the shared exception table. The feature does not repair the compiler's unwind records for application functions placed in other custom code sections. All pools use private symbols, so including the header in several translation units adds one pool per unit.
+Define `NO_PDATA_DECOYS=1` to disable these x64 decoys, or set `OBFH_PDATA_DECOY_COUNT` to a fixed count from 86 to 128 per translation unit. This layer does not apply to x86. It handles the library's code-section placement; application functions in custom code sections still depend on TCC's unwind support.
 
 
 > Available options for protection configuring:
@@ -93,6 +93,8 @@ printf(hidden_message);
 
 ## 👺 Virtualization
 This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `VIRT` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
+
+VM macros vary their internal representation throughout the program, making protected calculations harder to recognize and trace. Use the existing macros with `VIRT` enabled; no extra initialization is required.
 
 > [!WARNING]
 > Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
@@ -171,13 +173,16 @@ If you need advanced protection against skilled reversers, use `CFLOW_V2` and `A
 
 #include "obfus.h"
 
-void main() {
+void _start(void) {
+	ANTI_DEBUG;
+
 	char *out = malloc(256);
 
-	strcpy(out, HIDE_STRING("Hello, world!\n"));
+	STACK_PROXY_FUNCTIONS;
 
 	if (out) {
-		printf(out);
+		strcpy(out, HIDE_STRING("Hello, world!\n"));
+		printf("%s", out);
 	} else {
 		printf("Error!\n");
 	}
@@ -186,9 +191,12 @@ void main() {
 
 	int result = VM_ADD(5, 7); // 5 + 7
 
+	BREAK_STACK_CFLOW;
 	VM_IF (VM_EQU(result, 12)) { // (5 + 7) == 12
 		printf("5 + 7 == 12");
 	}
+
+	exit(0);
 }
 ```
 

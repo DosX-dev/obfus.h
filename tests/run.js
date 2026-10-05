@@ -262,6 +262,10 @@ async function main() {
                     assert(Array.from({ length: stackProxy.variantCount }, (_, i) => proxyHistograms.some(h => h[i])).every(Boolean), 'a proxy layout was never selected');
                     const first = proxyBuilds.get(1), second = proxyBuilds.get(2);
                     assert(first && second && first.every((code, i) => !code.equals(second[i])), 'proxy payload did not change by seed');
+                    const oldSpillReload = Buffer.from('48894d10488955188b45108b5518', 'hex');
+                    const oldLocalPair = Buffer.from('8945fc8955f8', 'hex');
+                    assert(first.every(code => !code.includes(oldLocalPair)), 'fixed proxy local-slot pair returned');
+                    if (arch === 'x64') assert(first.every(code => !code.includes(oldSpillReload)), 'proxy spill/immediate-reload signature returned');
                     fs.writeFileSync(proxyHeader, source);
                     const repeat = await compile(compiler, directory, `${arch}-stack-proxy-repeat.dll`, proxyFile, ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'], ['-shared']);
                     assert(junkCode(fs.readFileSync(repeat), stackProxy.count).every((code, i) => code.equals(first[i])), 'fixed-seed proxy bytes are not reproducible');

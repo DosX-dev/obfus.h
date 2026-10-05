@@ -29,6 +29,24 @@ static long double counted_vm(long double key, long long cmd, OBFH_VM_VALUE a, l
 #define ROUTE(expr) ((void)(expr))
 #endif
 static int stress(void) {
+#if VIRT && !NO_OBF
+    OBFH_VM_VALUE previous = obfh_vm_encode(-1337.25L, SALT_NUM1, 1u | (1u << 1));
+    CHECK(previous.floating == 1);
+    for (unsigned int nonce = 2; nonce < 34; ++nonce) {
+        OBFH_VM_VALUE current = obfh_vm_encode(-1337.25L, SALT_NUM1, 1u | (nonce << 1));
+        CHECK(current.floating == 1 && current.nonce != previous.nonce);
+        CHECK(obfh_vm_decode(current, SALT_NUM1) == -1337.25L);
+        CHECK(memcmp(current.bytes, previous.bytes, sizeof(current.bytes)) != 0);
+        previous = current;
+    }
+    OBFH_VM_VALUE integer_packet = obfh_vm_encode(1337.0L, SALT_NUM2, 0u | (17u << 1));
+    CHECK(integer_packet.floating == 0 && obfh_vm_decode(integer_packet, SALT_NUM2) == 1337.0L);
+    enum { command_site = _VM_DEMUTATOR_KEY };
+    long long encoded_command = _ENC_OP__NOP;
+    CHECK(encoded_command / ~(int)SALT_CMD + command_site != OP__NOP);
+    CHECK((Obfh_VirtualMachine)(command_site, encoded_command, previous, 1,
+                                integer_packet, 2) == -1337.25L);
+#endif
     volatile long double precise = 1000000000.0L;
     precise += 1.0L / 1073741824.0L;
     if (sizeof(long double) > sizeof(double)) CHECK(precise != (long double)(double)precise);
