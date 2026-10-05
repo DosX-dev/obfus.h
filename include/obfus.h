@@ -1514,7 +1514,8 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_GAP                            \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)    \
     OBFH_SF_CALL("1b")                     \
-    OBFH_SF_CALL("3b") OBFH_SF_EPILOGUE
+    OBFH_SF_CALL("3b")                     \
+    OBFH_SF_EPILOGUE
 
 #define OBFH_SF_ASM(guard, layout) \
     ({ enum { __obfh_sf_mask = OBFH_JUNK_WORD }; \
@@ -2733,7 +2734,7 @@ static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECT
 static char *getStdLibName_proxy(char *name, size_t capacity) {
     BREAK_STACK_CFLOW;
     if (!name || capacity < 11) return NULL;
-    const char *hidden = HIDE_STRING("msvcrt.dll");
+    const char *hidden = HIDE_STRING("msvcrt");
     for (int i = _0; i <= _9 + _1; ++i) name[i] = hidden[i];
     FAKE_CPUID;
     return name;
