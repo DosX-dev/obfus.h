@@ -1958,85 +1958,6 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #define CFLOW_V2 0
 #endif
 
-// Every intermediate contributes to the branch token; values stay exactly
-// representable in float on both TCC targets. No shared state or VM required.
-#define OBFH_FLOW_BASE(site) (((site)&1023u) + 17u)
-#define OBFH_FLOW_STEP(site) ((((site) >> 5) & 31u) * 2u + 1u)
-#define OBFH_FLOW_FIRST(value, site) ((((site) >> 1) & 3u) == 0 ? (((value)*3u + ((site)&255u)) ^ ((site)&4095u)) : (((site) >> 1) & 3u) == 1 ? (((value)*5u + ((site)&127u)) ^ (((site) >> 1) & 4095u)) \
-                                                                                                                : (((site) >> 1) & 3u) == 2   ? (((value) ^ ((site)&1023u)) * 7u + 19u)                  \
-                                                                                                                                              : ((((value) + ((site)&255u)) * 9u + 23u) ^ (((site) >> 2) & 8191u)))
-#if CFLOW_V2
-#define OBFH_FLOW_FINAL(value, site) (((((value)*5u + 7u) ^ (((site) >> 3) & 2047u)) * 3u + 11u) ^ ((site)&8191u))
-#else
-#define OBFH_FLOW_FINAL(value, site) (value)
-#endif
-
-// Different data dependencies and conversion positions across call sites.
-static unsigned int obfh_flow_route_0(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    volatile int scaled = obfh_int_proxy((int)input) * 3 + (site & 255u);
-    volatile float converted = (float)scaled;
-    return (unsigned int)obfh_double_proxy((double)converted) ^ (site & 4095u);
-}
-
-static unsigned int obfh_flow_route_1(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    volatile float converted = (float)obfh_int_proxy((int)input);
-    volatile unsigned int scaled = (unsigned int)obfh_double_proxy((double)converted) * 5u + (site & 127u);
-    return (unsigned int)obfh_condition_proxy((float)(site & 255u), (float)(scaled ^ ((site >> 1) & 4095u)));
-}
-
-static unsigned int obfh_flow_route_2(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    volatile unsigned int mixed = input ^ (site & 1023u);
-    volatile float converted = (float)obfh_int_proxy((int)mixed);
-    return (unsigned int)obfh_double_proxy((double)converted) * 7u + 19u;
-}
-
-static unsigned int obfh_flow_route_3(unsigned int input, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    volatile unsigned int scaled = (input + (site & 255u)) * 9u + 23u;
-    volatile double converted = obfh_double_proxy((double)(float)obfh_int_proxy((int)scaled));
-    return (unsigned int)converted ^ ((site >> 2) & 8191u);
-}
-
-static double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-#if CFLOW_V2
-    BREAK_STACK_CFLOW;
-    BREAK_STACK_CFLOW;
-#endif
-    volatile unsigned int input = (unsigned int)obfh_double_proxy((double)encoded);
-    // Keep a misleading failure path without putting a timestamp on every if.
-    if (obfh_int_proxy((int)input) > 4095) {
-        BAD_CALL;
-    }
-    volatile unsigned int stage;
-    switch ((site >> 1) & 3u) {
-        case 0:
-            stage = obfh_flow_route_0(input, site);
-            break;
-        case 1:
-            stage = obfh_flow_route_1(input, site);
-            break;
-        case 2:
-            stage = obfh_flow_route_2(input, site);
-            break;
-        default:
-            stage = obfh_flow_route_3(input, site);
-            break;
-    }
-    volatile float converted = (float)obfh_int_proxy((int)stage);
-#if CFLOW_V2
-    volatile unsigned int second = ((unsigned int)obfh_double_proxy((double)converted) * 5u + 7u) ^ ((site >> 3) & 2047u);
-    volatile float intermediate = (float)obfh_int_proxy((int)second);
-    stage = ((unsigned int)obfh_double_proxy((double)intermediate) * 3u + 11u) ^ (site & 8191u);
-    converted = (float)obfh_int_proxy((int)stage);
-    BREAK_STACK_CFLOW;
-#endif
-    return obfh_double_proxy((double)(float)obfh_condition_proxy((float)(site & 255u), converted, site));
-}
-
 // Instruction starts and their following bytes belong only to skipped regions.
 #define OBFH_FLOW_OPCODE(kind) \
     ((((kind)&4u ? 0xF3660FFFu : 0xE9E8898Bu) >> (((kind)&3u) * 8u)) & 255u)
@@ -2063,223 +1984,305 @@ static double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTIO
         0;                                                                             \
     }))
 
-// Small transport helpers keep automatic macro formatting bounded.
-#define OBFH_FLOW_INPUT_ASM(code)                                                                                                                                                      \
-    ({                                                                                                                                                                                 \
-        enum { __obfh_input_kind = OBFH_JUNK_BYTE & 7u };                                                                                                                              \
-        __obfh_asm__(code                                                                                                                                                              \
-                     : "+a"(__obfh_flow_state)                                                                                                                                         \
-                     : [flow_flip] "i"(__obfh_flow_flip), [flow_base] "i"(__obfh_flow_base), [flow_step] "i"(__obfh_flow_step),                                                        \
-                       [flow_upper] "i"(__obfh_flow_base + __obfh_flow_step), [flow_key] "i"(__obfh_flow_key), [flow_rotate] "i"(__obfh_flow_rotate),                                  \
-                       [flow_payload] "i"(OBFH_JUNK_WORD), [flow_gap] "i"(OBFH_JUNK_BYTE & 7u), [flow_byte] "i"(OBFH_FLOW_OPCODE(__obfh_input_kind)), [flow_extra] "i"(OBFH_JUNK_BYTE) \
-                     : "cc", "memory");                                                                                                                                                \
+// Local condition transport: disjoint input tags and path-specific permutations.
+#ifdef OBFH_TEST_FLOW_TRACE
+#define OBFH_P_BEFORE unsigned int __obfh_before_state = __obfh_flow_state, __obfh_before_tag = __obfh_flow_tag;
+#define OBFH_P_TRACE(s, p)                                                                                            \
+    obfh_test_flow_stage(__obfh_flow_layout, s, p, __obfh_before_state, __obfh_before_tag, __obfh_flow_state,         \
+                         __obfh_flow_tag, __obfh_k##s##p, __obfh_m##s##p, __obfh_a##s##p, __obfh_r##s##p,             \
+                         __obfh_style##s##p);                                                                         \
+    __builtin_choose_expr((s) == 0, ({                                                                                \
+                              obfh_test_flow_visit();                                                                 \
+                              obfh_test_flow_route(__obfh_flow_first);                                                \
+                              obfh_test_transport_visit(__obfh_flow_layout, __obfh_flow_exit, __obfh_flow_hash & 1u); \
+                          }),                                                                                         \
+                          ((void)0))
+#else
+#define OBFH_P_BEFORE
+#define OBFH_P_TRACE(s, p) ((void)0)
+#endif
+#if defined(__x86_64__)
+#define OBFH_P_WORD "q"
+#define OBFH_P_CX "%%rcx"
+#define OBFH_P_SCALE "8"
+#else
+#define OBFH_P_WORD "l"
+#define OBFH_P_CX "%%ecx"
+#define OBFH_P_SCALE "4"
+#endif
+#define OBFH_P_MASK(shift, label_false, label_true)                                                                \
+    ({                                                                                                             \
+        ULONG_PTR __obfh_target;                                                                                   \
+        ULONG_PTR __obfh_target_zero = (ULONG_PTR) && label_false ^ (ULONG_PTR)__obfh_flow_key;                    \
+        ULONG_PTR __obfh_target_one = (ULONG_PTR) && label_true ^ (ULONG_PTR)__obfh_flow_key;                      \
+        ULONG_PTR __obfh_cookie_mask = 0 - (ULONG_PTR)((__obfh_cookie >> (shift)) & 1u);                           \
+        __obfh_asm__("mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD                                      \
+                     " %[one], %[target]; "                                                                        \
+                     "and" OBFH_P_WORD " %[flip], %[target]; mov" OBFH_P_WORD " %[target], " OBFH_P_CX             \
+                     "; "                                                                                          \
+                     "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX                \
+                     "; "                                                                                          \
+                     "cmpl %[tag], %%eax; cmove" OBFH_P_WORD " " OBFH_P_CX                                         \
+                     ", %[target]; "                                                                               \
+                     "xor" OBFH_P_WORD " %[key], %[target];"                                                       \
+                     : [target] "=&r"(__obfh_target)                                                               \
+                     : "a"(__obfh_flow_state),                                                                     \
+                       [tag] "m"(__obfh_flow_tag), [flip] "m"(__obfh_cookie_mask), [zero] "m"(__obfh_target_zero), \
+                       [one] "m"(__obfh_target_one), [key] "i"(__obfh_flow_key)                                    \
+                     : "ecx", "cc", "memory");                                                                     \
+        goto *(void *)__obfh_target;                                                                               \
     })
-
-#define OBFH_FLOW_INPUT_0()                                                        \
-    OBFH_FLOW_INPUT_ASM(                                                           \
-        "xorl %[flow_flip], %%eax; negl %%eax; andl %[flow_step], %%eax; jmp 7f; " \
-        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_base], %%eax;")
-
-#define OBFH_FLOW_INPUT_1()                                             \
-    OBFH_FLOW_INPUT_ASM(                                                \
-        "xorl %[flow_flip], %%eax; imull %[flow_step], %%eax; jmp 7f; " \
-        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; " \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_base], %%eax;")
-
-#define OBFH_FLOW_INPUT_2()                                                                \
-    OBFH_FLOW_INPUT_ASM(                                                                   \
-        "xorl %[flow_flip], %%eax; subl $1, %%eax; andl %[flow_step], %%eax; negl %%eax; " \
-        "jmp 7f; .byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_upper], %%eax;")
-
-#define OBFH_FLOW_INPUT_3()                                                                \
-    OBFH_FLOW_INPUT_ASM(                                                                   \
-        "xorl %[flow_flip], %%eax; testl %%eax, %%eax; jz 6f; movl %[flow_upper], %%eax; " \
-        "jmp 7f; .byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 6: movl %[flow_base], %%eax; 7:")
-
-#define OBFH_FLOW_INPUT_4()                                                                    \
-    OBFH_FLOW_INPUT_ASM(                                                                       \
-        "xorl %[flow_flip], %%eax; decl %%eax; notl %%eax; andl %[flow_step], %%eax; jmp 7f; " \
-        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "                        \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: addl %[flow_base], %%eax;")
-
-#define OBFH_FLOW_INPUT_5()                                                           \
-    OBFH_FLOW_INPUT_ASM(                                                              \
-        "xorl %[flow_flip], %%eax; btl $0, %%eax; movl %[flow_base], %%eax; jnc 7f; " \
-        "addl %[flow_step], %%eax; jmp 7f; .byte %c[flow_byte], %c[flow_extra]; "     \
-        ".long %c[flow_payload]; .fill %c[flow_gap], 1, %c[flow_byte]; 7:")
-
-#define OBFH_FLOW_INPUT_6()                                                                \
-    OBFH_FLOW_INPUT_ASM(                                                                   \
-        "xorl %[flow_flip], %%eax; testl %%eax, %%eax; jnz 6f; movl %[flow_base], %%eax; " \
-        "jmp 7f; .byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "            \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 6: movl %[flow_upper], %%eax; 7:")
-
-#define OBFH_FLOW_INPUT_7()                                                     \
-    OBFH_FLOW_INPUT_ASM(                                                        \
-        "xorl %[flow_flip], %%eax; negl %%eax; andl %[flow_step], %%eax; "      \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; jmp 7f; "         \
-        ".byte %c[flow_byte], %c[flow_extra]; .long %c[flow_payload]; "         \
-        ".fill %c[flow_gap], 1, %c[flow_byte]; 7: rorl %[flow_rotate], %%eax; " \
-        "xorl %[flow_key], %%eax; addl %[flow_base], %%eax;")
-
-#define OBFH_FLOW_TEST_ASM(code)                                                                                                \
-    ({                                                                                                                          \
-        __obfh_asm__(code                                                                                                       \
-                     : "+a"(__obfh_flow_state)                                                                                  \
-                     : [flow_true] "i"(__obfh_flow_true), [flow_false] "i"(__obfh_flow_false), [flow_bit] "i"(__obfh_flow_bit), \
-                       [flow_key] "i"(__obfh_flow_key), [flow_rotate] "i"(__obfh_flow_rotate)                                   \
-                     : "cc", "memory");                                                                                         \
+#define OBFH_P_TABLE(shift, label_false, label_true)                                            \
+    ({                                                                                          \
+        ULONG_PTR __obfh_targets[2] = {(ULONG_PTR) && label_false ^ (ULONG_PTR)__obfh_flow_key, \
+                                       (ULONG_PTR) && label_true ^ (ULONG_PTR)__obfh_flow_key}, \
+                  __obfh_target;                                                                \
+        __obfh_asm__(                                                                           \
+            "movl %[cookie], %%ecx; shrl %[offset], %%ecx; andl $1, %%ecx; "                    \
+            "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE                        \
+            "), %[target]; xorl $1, %%ecx; "                                                    \
+            "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE "), " OBFH_P_CX        \
+            "; "                                                                                \
+            "cmpl %[tag], %%eax; cmove" OBFH_P_WORD " " OBFH_P_CX                               \
+            ", %[target]; "                                                                     \
+            "xor" OBFH_P_WORD " %[key], %[target];"                                             \
+            : [target] "=&r"(__obfh_target)                                                     \
+            : "a"(__obfh_flow_state),                                                           \
+              [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [offset] "i"(shift),     \
+              [table] "r"(__obfh_targets), [key] "i"(__obfh_flow_key)                           \
+            : "ecx", "cc", "memory");                                                           \
+        goto *(void *)__obfh_target;                                                            \
     })
-
-#define OBFH_FLOW_TEST_0()                                                                \
-    OBFH_FLOW_TEST_ASM(                                                                   \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_true], %%eax; " \
-        "sete %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_1()                                                                 \
-    OBFH_FLOW_TEST_ASM(                                                                    \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_false], %%eax; " \
-        "setne %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_2()                                                                \
-    OBFH_FLOW_TEST_ASM(                                                                   \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; xorl %[flow_true], %%eax; " \
-        "subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
-
-#define OBFH_FLOW_TEST_3()                                                                \
-    OBFH_FLOW_TEST_ASM(                                                                   \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; testl %[flow_bit], %%eax; " \
-        "setnz %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_4()                                                                \
-    OBFH_FLOW_TEST_ASM(                                                                   \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; testl %[flow_bit], %%eax; " \
-        "setz %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_5()                                                                 \
-    OBFH_FLOW_TEST_ASM(                                                                    \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_false], %%eax; " \
-        "seta %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_6()                                                                 \
-    OBFH_FLOW_TEST_ASM(                                                                    \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; cmpl %[flow_false], %%eax; " \
-        "setb %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_7()                                                                \
-    OBFH_FLOW_TEST_ASM(                                                                   \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; subl %[flow_true], %%eax; " \
-        "negl %%eax; sbbl %%eax, %%eax; incl %%eax;")
-
-#define OBFH_FLOW_TEST_8()                                                                 \
-    OBFH_FLOW_TEST_ASM(                                                                    \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; xorl %[flow_false], %%eax; " \
-        "negl %%eax; sbbl %%eax, %%eax; negl %%eax;")
-
-#define OBFH_FLOW_TEST_9()                                                                \
-    OBFH_FLOW_TEST_ASM(                                                                   \
-        "xorl %[flow_key], %%eax; roll %[flow_rotate], %%eax; xorl %[flow_true], %%eax; " \
-        "cmpl $1, %%eax; setb %%al; movzbl %%al, %%eax;")
-
-#define OBFH_FLOW_TEST_BIT()                                          \
-    __builtin_choose_expr((__obfh_flow_true & __obfh_flow_bit) != 0u, \
-                          OBFH_FLOW_TEST_3(), OBFH_FLOW_TEST_4())
-
-#define OBFH_FLOW_TEST_ORDER()                                                              \
-    __builtin_choose_expr((unsigned int)__obfh_flow_true > (unsigned int)__obfh_flow_false, \
-                          OBFH_FLOW_TEST_5(), OBFH_FLOW_TEST_6())
-
-#define OBFH_FLOW_INPUT_SELECT_6()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 6u, \
-                          OBFH_FLOW_INPUT_6(), OBFH_FLOW_INPUT_7())
-
-#define OBFH_FLOW_INPUT_SELECT_5()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 5u, \
-                          OBFH_FLOW_INPUT_5(), OBFH_FLOW_INPUT_SELECT_6())
-
-#define OBFH_FLOW_INPUT_SELECT_4()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 4u, \
-                          OBFH_FLOW_INPUT_4(), OBFH_FLOW_INPUT_SELECT_5())
-
-#define OBFH_FLOW_INPUT_SELECT_3()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 3u, \
-                          OBFH_FLOW_INPUT_3(), OBFH_FLOW_INPUT_SELECT_4())
-
-#define OBFH_FLOW_INPUT_SELECT_2()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 2u, \
-                          OBFH_FLOW_INPUT_2(), OBFH_FLOW_INPUT_SELECT_3())
-
-#define OBFH_FLOW_INPUT_SELECT_1()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 1u, \
-                          OBFH_FLOW_INPUT_1(), OBFH_FLOW_INPUT_SELECT_2())
-
-#define OBFH_FLOW_INPUT_SELECT_0()                  \
-    __builtin_choose_expr(__obfh_flow_layout == 0u, \
-                          OBFH_FLOW_INPUT_0(), OBFH_FLOW_INPUT_SELECT_1())
-
-#define OBFH_FLOW_TEST_SELECT_6()                 \
-    __builtin_choose_expr(__obfh_flow_test == 6u, \
-                          OBFH_FLOW_TEST_8(), OBFH_FLOW_TEST_9())
-
-#define OBFH_FLOW_TEST_SELECT_5()                 \
-    __builtin_choose_expr(__obfh_flow_test == 5u, \
-                          OBFH_FLOW_TEST_7(), OBFH_FLOW_TEST_SELECT_6())
-
-#define OBFH_FLOW_TEST_SELECT_4()                 \
-    __builtin_choose_expr(__obfh_flow_test == 4u, \
-                          OBFH_FLOW_TEST_ORDER(), OBFH_FLOW_TEST_SELECT_5())
-
-#define OBFH_FLOW_TEST_SELECT_3()                 \
-    __builtin_choose_expr(__obfh_flow_test == 3u, \
-                          OBFH_FLOW_TEST_BIT(), OBFH_FLOW_TEST_SELECT_4())
-
-#define OBFH_FLOW_TEST_SELECT_2()                 \
-    __builtin_choose_expr(__obfh_flow_test == 2u, \
-                          OBFH_FLOW_TEST_2(), OBFH_FLOW_TEST_SELECT_3())
-
-#define OBFH_FLOW_TEST_SELECT_1()                 \
-    __builtin_choose_expr(__obfh_flow_test == 1u, \
-                          OBFH_FLOW_TEST_1(), OBFH_FLOW_TEST_SELECT_2())
-
-#define OBFH_FLOW_TEST_SELECT_0()                 \
-    __builtin_choose_expr(__obfh_flow_test == 0u, \
-                          OBFH_FLOW_TEST_0(), OBFH_FLOW_TEST_SELECT_1())
-
-// Carry the evaluated condition through selected asm layouts and a site-specific token.
-#define OBFH_FLOW_CONDITION(condition, site_value, ...) ({                                                                                                                                                                            \
-    __label__ __obfh_flow_resume;                                                                                                                                                                                                     \
-    enum { __obfh_flow_site = (site_value),                                                                                                                                                                                           \
-           __obfh_flow_hash = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u)),                                                                                                   \
-           __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u),                                                                                                                                                              \
-           __obfh_flow_test = (__obfh_flow_hash >> 8) % (CFLOW_V2 ? 8u : 4u),                                                                                                                                                         \
-           __obfh_flow_flip = (__obfh_flow_hash >> 16) & 1u,                                                                                                                                                                          \
-           __obfh_flow_key = OBFH_JUNK_WORD,                                                                                                                                                                                          \
-           __obfh_flow_rotate = RND(1, 31),                                                                                                                                                                                           \
-           __obfh_flow_base = OBFH_FLOW_BASE(__obfh_flow_site),                                                                                                                                                                       \
-           __obfh_flow_step = OBFH_FLOW_STEP(__obfh_flow_site),                                                                                                                                                                       \
-           __obfh_flow_raw_true = OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(__obfh_flow_base + (1u ^ __obfh_flow_flip) * __obfh_flow_step, __obfh_flow_site), __obfh_flow_site),                                                                \
-           __obfh_flow_raw_false = OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(__obfh_flow_base + __obfh_flow_flip * __obfh_flow_step, __obfh_flow_site), __obfh_flow_site),                                                                      \
-           __obfh_flow_true = (((unsigned int)__obfh_flow_raw_true ^ (unsigned int)__obfh_flow_key) << __obfh_flow_rotate) | (((unsigned int)__obfh_flow_raw_true ^ (unsigned int)__obfh_flow_key) >> (32u - __obfh_flow_rotate)),    \
-           __obfh_flow_false = (((unsigned int)__obfh_flow_raw_false ^ (unsigned int)__obfh_flow_key) << __obfh_flow_rotate) | (((unsigned int)__obfh_flow_raw_false ^ (unsigned int)__obfh_flow_key) >> (32u - __obfh_flow_rotate)), \
-           __obfh_flow_difference = __obfh_flow_true ^ __obfh_flow_false,                                                                                                                                                             \
-           __obfh_flow_bit = __obfh_flow_difference & (0u - __obfh_flow_difference) };                                                                                                                                                \
-    unsigned int __obfh_flow_state = !!(condition);                                                                                                                                                                                   \
-    OBFH_FLOW_INPUT_SELECT_0();                                                                                                                                                                                                       \
-    __VA_ARGS__;                                                                                                                                                                                                                      \
-    __obfh_flow_state = (unsigned int)obfh_flow_token((float)__obfh_flow_state, __obfh_flow_site);                                                                                                                                    \
-    OBFH_FLOW_TEST_SELECT_0();                                                                                                                                                                                                        \
-    ULONG_PTR __obfh_flow_resume_address = (ULONG_PTR) && __obfh_flow_resume;                                                                                                                                                         \
-    __obfh_flow_resume_address = obfh_uintptr_proxy(__obfh_flow_resume_address ^ (ULONG_PTR)(LONG)__obfh_flow_key) ^ (ULONG_PTR)(LONG)__obfh_flow_key;                                                                                \
-    goto *(void *)__obfh_flow_resume_address;                                                                                                                                                                                         \
-    __obfh_asm__(".fill %c0, 1, %c1;"                                                                                                                                                                                                 \
-                 :                                                                                                                                                                                                                    \
-                 : "i"(OBFH_JUNK_BYTE & 1u), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_WORD));                                                                                                                                               \
-__obfh_flow_resume:                                                                                                                                                                                                                   \
-    __obfh_flow_state;                                                                                                                                                                                                                \
-})
+#define OBFH_P_PERMUTE(s, p, instructions)                                                                      \
+    ({                                                                                                          \
+        __obfh_asm__(instructions                                                                               \
+                     : "+a"(__obfh_flow_state),                                                                 \
+                       "+d"(__obfh_flow_tag)                                                                    \
+                     : [key] "i"(__obfh_k##s##p), [mul] "i"(__obfh_m##s##p),                                    \
+                       [add] "i"(__obfh_a##s##p), [rot] "i"(__obfh_r##s##p), [negadd] "i"(0u - __obfh_a##s##p), \
+                       [invkey] "i"(~__obfh_k##s##p), [revrot] "i"(32u - __obfh_r##s##p)                        \
+                     : "cc", "memory");                                                                         \
+    })
+#define OBFH_P_STEP(s, p)                                                                                                 \
+    ({                                                                                                                    \
+        OBFH_P_BEFORE                                                                                                     \
+        __builtin_choose_expr(                                                                                            \
+            __obfh_style##s##p == 0,                                                                                      \
+            OBFH_P_PERMUTE(s, p,                                                                                          \
+                           "xorl %[key], %%eax; imull %[mul], %%eax; addl %[add], %%eax; roll %[rot], %%eax;"             \
+                           "xorl %[key], %%edx; imull %[mul], %%edx; subl %[negadd], %%edx; rorl %[revrot], %%edx;"),     \
+            __builtin_choose_expr(                                                                                        \
+                __obfh_style##s##p == 1,                                                                                  \
+                OBFH_P_PERMUTE(s, p,                                                                                      \
+                               "addl %[add], %%eax; roll %[rot], %%eax; xorl %[key], %%eax; imull %[mul], %%eax;"         \
+                               "subl %[negadd], %%edx; rorl %[revrot], %%edx; notl %%edx; xorl %[invkey], %%edx; imull "  \
+                               "%[mul], %%edx;"),                                                                         \
+                __builtin_choose_expr(                                                                                    \
+                    __obfh_style##s##p == 2,                                                                              \
+                    OBFH_P_PERMUTE(s, p,                                                                                  \
+                                   "imull %[mul], %%eax; xorl %[key], %%eax; rorl %[rot], %%eax; subl %[add], %%eax;"     \
+                                   "imull %[mul], %%edx; notl %%edx; xorl %[invkey], %%edx; roll %[revrot], %%edx; addl " \
+                                   "%[negadd], %%edx;"),                                                                  \
+                    OBFH_P_PERMUTE(                                                                                       \
+                        s, p,                                                                                             \
+                        "roll %[rot], %%eax; xorl %[key], %%eax; imull %[mul], %%eax; subl %[add], %%eax;"                \
+                        "rorl %[revrot], %%edx; xorl %[key], %%edx; imull %[mul], %%edx; addl %[negadd], %%edx;"))));     \
+        OBFH_P_TRACE(s, p);                                                                                               \
+    })
+#define OBFH_P_FINISH_ASM(instructions)           \
+    ({                                            \
+        __obfh_flow_result = __obfh_flow_state;   \
+        __obfh_asm__(instructions                 \
+                     : "+a"(__obfh_flow_result)   \
+                     : [tag] "m"(__obfh_flow_tag) \
+                     : "ecx", "cc", "memory");    \
+    })
+#define OBFH_P_EXIT_0() OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; addl $1, %%eax;")
+#define OBFH_P_EXIT_1() OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
+#define OBFH_P_EXIT_2() OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; movl $0, %%eax; movl $1, %%ecx; cmovel %%ecx, %%eax;")
+#define OBFH_P_EXIT_3() OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax;")
+#define OBFH_P_EXIT_4() \
+    OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; notl %%eax; andl $1, %%eax;")
+#define OBFH_P_EXIT_5() OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
+#define OBFH_P_EXIT_6() \
+    OBFH_P_FINISH_ASM(  \
+        "xorl %[tag], %%eax; movl %%eax, %%ecx; negl %%ecx; orl %%ecx, %%eax; shrl $31, %%eax; xorl $1, %%eax;")
+#define OBFH_P_EXIT_7() \
+    OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jz 9f; movl $0, %%eax; 9:")
+#define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6(), OBFH_P_EXIT_7())
+#define OBFH_P_EXIT_SELECT_5(style) \
+    __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5(), OBFH_P_EXIT_SELECT_6(style))
+#define OBFH_P_EXIT_SELECT_4(style) \
+    __builtin_choose_expr(((style)&7u) == 4u, OBFH_P_EXIT_4(), OBFH_P_EXIT_SELECT_5(style))
+#define OBFH_P_EXIT_SELECT_3(style) \
+    __builtin_choose_expr(((style)&7u) == 3u, OBFH_P_EXIT_3(), OBFH_P_EXIT_SELECT_4(style))
+#define OBFH_P_EXIT_SELECT_2(style) \
+    __builtin_choose_expr(((style)&7u) == 2u, OBFH_P_EXIT_2(), OBFH_P_EXIT_SELECT_3(style))
+#define OBFH_P_EXIT_SELECT_1(style) \
+    __builtin_choose_expr(((style)&7u) == 1u, OBFH_P_EXIT_1(), OBFH_P_EXIT_SELECT_2(style))
+#define OBFH_P_EXIT_SELECT_0(style) \
+    __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0(), OBFH_P_EXIT_SELECT_1(style))
+#define OBFH_P_FINISH(style) OBFH_P_EXIT_SELECT_0(style)
+#define OBFH_P_GRAPH_0(s, t, last)        \
+    ({                                    \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_MASK(s, a, b);             \
+    a:                                    \
+        OBFH_P_STEP(s, 0);                \
+        goto join;                        \
+    b:                                    \
+        OBFH_P_STEP(s, 1);                \
+    join:                                 \
+        OBFH_P_MASK(t, c, d);             \
+    c:                                    \
+        OBFH_P_STEP(t, 0);                \
+        goto done;                        \
+    d:                                    \
+        OBFH_P_STEP(t, 1);                \
+    done:                                 \
+        __obfh_flow_state;                \
+    })
+#define OBFH_P_GRAPH_1(s, t, last)        \
+    ({                                    \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_TABLE(s, a, b);            \
+    a:                                    \
+        OBFH_P_STEP(s, 0);                \
+        OBFH_P_TABLE(t, c, d);            \
+    b:                                    \
+        OBFH_P_STEP(s, 1);                \
+        OBFH_P_TABLE(t, c, d);            \
+    c:                                    \
+        OBFH_P_STEP(t, 0);                \
+        goto done;                        \
+    d:                                    \
+        OBFH_P_STEP(t, 1);                \
+    done:                                 \
+        __obfh_flow_state;                \
+    })
+#define OBFH_P_GRAPH_2(s, t, last)        \
+    ({                                    \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_MASK(s, a, b);             \
+    b:                                    \
+        OBFH_P_STEP(s, 1);                \
+        OBFH_P_MASK(t, c, d);             \
+    c:                                    \
+        OBFH_P_STEP(t, 0);                \
+        goto done;                        \
+    a:                                    \
+        OBFH_P_STEP(s, 0);                \
+        OBFH_P_MASK(t, c, d);             \
+    d:                                    \
+        OBFH_P_STEP(t, 1);                \
+    done:                                 \
+        __obfh_flow_state;                \
+    })
+#define OBFH_P_GRAPH_3(s, t, last)                                                           \
+    ({                                                                                       \
+        __label__ a, b, c, d, join, done;                                                    \
+        OBFH_P_TABLE(s, a, b);                                                               \
+    a:                                                                                       \
+        OBFH_P_STEP(s, 0);                                                                   \
+        OBFH_P_TABLE(t, c, d);                                                               \
+    d:                                                                                       \
+        OBFH_P_STEP(t, 1);                                                                   \
+        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit ^ 3u); }), ((void)0)); \
+        goto done;                                                                           \
+    b:                                                                                       \
+        OBFH_P_STEP(s, 1);                                                                   \
+        OBFH_P_TABLE(t, c, d);                                                               \
+    c:                                                                                       \
+        OBFH_P_STEP(t, 0);                                                                   \
+        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));      \
+    done:                                                                                    \
+        __obfh_flow_state;                                                                   \
+    })
+#define OBFH_P_GRAPH(f, s, t, last)                                 \
+    __builtin_choose_expr(                                          \
+        (f) == 0, OBFH_P_GRAPH_0(s, t, last),                       \
+        __builtin_choose_expr((f) == 1, OBFH_P_GRAPH_1(s, t, last), \
+                              __builtin_choose_expr((f) == 2, OBFH_P_GRAPH_2(s, t, last), OBFH_P_GRAPH_3(s, t, last))))
+#define OBFH_FLOW_CONDITION(condition, site_value, ...)                                                               \
+    ({                                                                                                                \
+        enum {                                                                                                        \
+            __obfh_flow_site = (site_value),                                                                          \
+            __obfh_flow_hash =                                                                                        \
+                OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u)), \
+            __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u),                                             \
+            __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu,                                                           \
+            __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u,                                                         \
+            __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u),                                            \
+            __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u),                   \
+            __obfh_flow_first = CFLOW_V2 ? (__obfh_flow_layout == 0 || __obfh_flow_layout == 2   ? 0                  \
+                                            : __obfh_flow_layout == 1 || __obfh_flow_layout == 4 ? 1                  \
+                                            : __obfh_flow_layout == 5 || __obfh_flow_layout == 6 ? 2                  \
+                                                                                                 : 3)                 \
+                                         : __obfh_flow_layout,                                                        \
+            __obfh_flow_second = __obfh_flow_layout == 0 || __obfh_flow_layout == 5   ? 1                             \
+                                 : __obfh_flow_layout == 1 || __obfh_flow_layout == 3 ? 0                             \
+                                 : __obfh_flow_layout == 2 || __obfh_flow_layout == 6 ? 3                             \
+                                                                                      : 2,                            \
+            __obfh_k00 = OBFH_MIX_A(__obfh_flow_hash ^ 2654435769u),                                                  \
+            __obfh_m00 = ((__obfh_k00 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a00 = OBFH_MIX_B(__obfh_k00 ^ 0x85ebca6bu),                                                        \
+            __obfh_r00 = ((__obfh_k00 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style00 = (__obfh_k00 >> 11) & 3u,                                                                 \
+            __obfh_k01 = OBFH_MIX_A(__obfh_flow_hash ^ 3532493122u),                                                  \
+            __obfh_m01 = ((__obfh_k01 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a01 = OBFH_MIX_B(__obfh_k01 ^ 0x85ebca6bu),                                                        \
+            __obfh_r01 = ((__obfh_k01 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style01 = (__obfh_k01 >> 11) & 3u,                                                                 \
+            __obfh_k10 = OBFH_MIX_A(__obfh_flow_hash ^ 2671344829u),                                                  \
+            __obfh_m10 = ((__obfh_k10 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a10 = OBFH_MIX_B(__obfh_k10 ^ 0x85ebca6bu),                                                        \
+            __obfh_r10 = ((__obfh_k10 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style10 = (__obfh_k10 >> 11) & 3u,                                                                 \
+            __obfh_k11 = OBFH_MIX_A(__obfh_flow_hash ^ 3549402182u),                                                  \
+            __obfh_m11 = ((__obfh_k11 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a11 = OBFH_MIX_B(__obfh_k11 ^ 0x85ebca6bu),                                                        \
+            __obfh_r11 = ((__obfh_k11 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style11 = (__obfh_k11 >> 11) & 3u,                                                                 \
+            __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u),                                                  \
+            __obfh_m20 = ((__obfh_k20 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu),                                                        \
+            __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style20 = (__obfh_k20 >> 11) & 3u,                                                                 \
+            __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u),                                                  \
+            __obfh_m21 = ((__obfh_k21 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu),                                                        \
+            __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style21 = (__obfh_k21 >> 11) & 3u,                                                                 \
+            __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u),                                                  \
+            __obfh_m30 = ((__obfh_k30 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu),                                                        \
+            __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style30 = (__obfh_k30 >> 11) & 3u,                                                                 \
+            __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u),                                                  \
+            __obfh_m31 = ((__obfh_k31 >> 17) & 65535u) | 1u,                                                          \
+            __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu),                                                        \
+            __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u,                                                             \
+            __obfh_style31 = (__obfh_k31 >> 11) & 3u                                                                  \
+        };                                                                                                            \
+        unsigned int __obfh_flow_state =                                                                              \
+            __builtin_choose_expr(__obfh_flow_hash & 1u, (condition) ? __obfh_true_tag : __obfh_false_tag,            \
+                                  !(condition) ? __obfh_false_tag : __obfh_true_tag);                                 \
+        unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result;                                           \
+        ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash;                 \
+        __obfh_asm__(                                                                                                 \
+            "jmp 7f; .byte %c[byte], %c[extra]; .long %c[payload]; .fill %c[gap],1,%c[byte]; 7:"                      \
+            : "+a"(                                                                                                   \
+                __obfh_flow_state)                                                                                    \
+            : [byte] "i"(OBFH_FLOW_OPCODE(OBFH_JUNK_BYTE & 7u)),                                                      \
+              [extra] "i"(OBFH_JUNK_BYTE), [payload] "i"(OBFH_JUNK_WORD), [gap] "i"(OBFH_JUNK_BYTE & 7u)              \
+            : "memory");                                                                                              \
+        __VA_ARGS__;                                                                                                  \
+        OBFH_P_GRAPH(__obfh_flow_first, 0, 1, !CFLOW_V2);                                                             \
+        __builtin_choose_expr(CFLOW_V2, ({ OBFH_P_GRAPH(__obfh_flow_second, 2, 3, 1); }), ((void)0));                 \
+        __builtin_choose_expr(CFLOW_V2 ? __obfh_flow_second != 3 : __obfh_flow_first != 3,                            \
+                              ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));                                     \
+        __obfh_flow_result;                                                                                           \
+    })
 
 // Each intercepted if inserts its selected template between condition transport stages.
 // if

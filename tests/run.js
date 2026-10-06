@@ -152,18 +152,21 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
     fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
-    const signature = 'double obfh_flow_token(float encoded, unsigned int site) OBFH_CODE_SECTION_ATTRIBUTE {';
-    const traced = source.replace(signature, signature + '\n    obfh_test_flow_visit(); obfh_test_flow_route((site >> 1) & 3u);')
+    const traced = source
         .replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);')
         .replace(/STACK_PROXY_FUNCTIONS;(\s*\\\r?\n\s*OBFH_FLOW_CONDITION)/, 'obfh_test_proxy_if_visit(); STACK_PROXY_FUNCTIONS;$1')
-        .replace('unsigned int __obfh_flow_state = !!(condition);', 'unsigned int __obfh_flow_state = !!(condition); obfh_test_transport_visit(__obfh_flow_layout, __obfh_flow_test, __obfh_flow_flip);');
+        .replace(/#define OBFH_P_FINISH\(style\)[\s\S]*?(?=\r?\n#define)/,
+            '#define OBFH_P_FINISH(style) ({ unsigned int __obfh_exit_before_state=__obfh_flow_state, __obfh_exit_before_tag=__obfh_flow_tag; OBFH_P_EXIT_SELECT_0(style); obfh_test_flow_exit((style)&7u,__obfh_exit_before_state,__obfh_exit_before_tag,__obfh_flow_result); })\n');
+    assert(source.includes('#define OBFH_P_TRACE'), 'local flow trace hooks missing');
     assert(traced !== source, 'flow trace injection missing');
     const header = path.join(traceRoot, 'include', 'obfus.h');
     fs.writeFileSync(header, traced);
     const file = path.join(traceRoot, 'tests', 'cflow.c');
     fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
     const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
-    await execute(await compile(compiler, directory, `${arch}-cflow-${mode}.exe`, file, flags), 'CFLOW_PASS');
+    for (const seed of [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF]) {
+        await execute(await compile(compiler, directory, `${arch}-cflow-${mode}-seed-${seed}.exe`, file, [...flags, `OBFH_BUILD_SEED=${seed}u`]), 'CFLOW_PASS');
+    }
     const ifMutant = traced.replace(/#define if\((?:cond|\.\.\.)\)[\s\S]*?(?=\r?\n\r?\n)/, '#define if(...) if (__VA_ARGS__)');
     assert(ifMutant !== traced, 'if bypass target missing');
     fs.writeFileSync(header, ifMutant);
@@ -180,10 +183,16 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const forResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-for-bypass.exe`, file, flags), []);
     assert(forResult.status === 1 && forResult.stderr.includes('cflow failure'), 'per-iteration for bypass was not detected');
 
-    const tokenMutant = traced.replace('unsigned int __obfh_flow_state = !!(condition);', 'unsigned int __obfh_flow_state = 0u; (void)!!(condition);');
+    const tokenMutant = traced.replace(/unsigned int __obfh_flow_state[\\\s]*=[\\\s]*__builtin_choose_expr\([\s\S]*?;/, 'unsigned int __obfh_flow_state = __obfh_false_tag; (void)(condition);');
+    assert(tokenMutant !== traced, 'encoded condition mutation target missing');
     fs.writeFileSync(header, tokenMutant);
     const tokenResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags), []);
     assert(tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'), 'discarded condition transport was not detected');
+    const stageMutant = traced.replace(/#define OBFH_P_PERMUTE\(s,\s*p,\s*instructions\)[\s\S]*?(?=\r?\n#define)/, '#define OBFH_P_PERMUTE(s,p,instructions) ((void)0)\n');
+    assert(stageMutant !== traced, 'stage mutation target missing');
+    fs.writeFileSync(header, stageMutant);
+    const stageResult = await run(await compile(compiler, directory, arch + '-cflow-' + mode + '-stage-bypass.exe', file, flags), []);
+    assert(stageResult.status === 1 && stageResult.stderr.includes('cflow failure'), 'skipped permutation was not detected');
 }
 
 async function main() {

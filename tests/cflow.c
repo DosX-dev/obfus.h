@@ -15,6 +15,46 @@ void obfh_test_transport_visit(unsigned int layout, unsigned int test, unsigned 
 void obfh_test_if_junk_visit(unsigned int route) { InterlockedIncrement(&if_junk_routes[route]); }
 void obfh_test_flow_visit(void) { InterlockedIncrement(&visits); }
 void obfh_test_flow_route(unsigned int route) { InterlockedIncrement(&routes[route]); }
+static volatile LONG stage_routes[8][4][2], stage_errors, exit_routes[8][2];
+void obfh_test_flow_exit(unsigned int style, unsigned int before_state, unsigned int before_tag, unsigned int after_state) {
+    if (style >= 8 || after_state > 1 || after_state != (unsigned int)(before_state == before_tag)) {
+        InterlockedIncrement(&stage_errors);
+        return;
+    }
+    InterlockedIncrement(&exit_routes[style][after_state]);
+}
+static unsigned int stage_reference(unsigned int v, unsigned int k, unsigned int m, unsigned int a, unsigned int r, unsigned int style) {
+    if (style == 0) {
+        v = (v ^ k) * m + a;
+        return (v << r) | (v >> (32u - r));
+    }
+    if (style == 1) {
+        v += a;
+        v = (v << r) | (v >> (32u - r));
+        return (v ^ k) * m;
+    }
+    if (style == 2) {
+        v = v * m ^ k;
+        return ((v >> r) | (v << (32u - r))) - a;
+    }
+    v = (v << r) | (v >> (32u - r));
+    return (v ^ k) * m - a;
+}
+void obfh_test_flow_stage(unsigned int layout, unsigned int stage, unsigned int branch,
+                          unsigned int before_state, unsigned int before_tag,
+                          unsigned int after_state, unsigned int after_tag,
+                          unsigned int key, unsigned int mul, unsigned int add,
+                          unsigned int rotate, unsigned int style) {
+    if (layout >= 8 || stage >= 4 || branch >= 2 || rotate == 0 || rotate >= 32 || !(mul & 1u) || style >= 4) {
+        InterlockedIncrement(&stage_errors);
+        return;
+    }
+    if (after_state != stage_reference(before_state, key, mul, add, rotate, style) ||
+        after_tag != stage_reference(before_tag, key, mul, add, rotate, style) ||
+        (before_state == before_tag) != (after_state == after_tag)) InterlockedIncrement(&stage_errors);
+    InterlockedIncrement(&stage_routes[layout][stage][branch]);
+}
+
 #define BODY            \
     int result = 0;     \
     if (a)              \
@@ -390,12 +430,7 @@ int main(void) {
     }
     count = 0;
     CHECK(while_effect(&count) == 3 && count == 4);
-    for (unsigned int site = 1; site <= 65535; ++site) {
-        unsigned int base = OBFH_FLOW_BASE(site), step = OBFH_FLOW_STEP(site);
-        double expected = OBFH_FLOW_FINAL(OBFH_FLOW_FIRST(base + step, site), site);
-        CHECK(obfh_flow_token((float)(base + step), site) == expected);
-        CHECK(obfh_flow_token((float)base, site) != expected);
-    }
+
 #ifdef OBFH_TEST_FLOW_TRACE
     LONG before_gate = visits;
     int gate_result = body_gate_only();
@@ -407,7 +442,17 @@ int main(void) {
         CHECK(transport_tests[variant] > 0);
     }
     CHECK(transport_flips[0] > 0 && transport_flips[1] > 0);
-    CHECK(visits > 131000);
+    CHECK(visits > 0);
+    CHECK(stage_errors == 0);
+    for (unsigned int kind = 0; kind < 8; ++kind) {
+        CHECK(exit_routes[kind][0] > 0);
+        CHECK(exit_routes[kind][1] > 0);
+    }
+    for (unsigned int layout = 0; layout < (CFLOW_V2 ? 8u : 4u); ++layout)
+        for (unsigned int stage = 0; stage < (CFLOW_V2 ? 4u : 2u); ++stage) {
+            CHECK(stage_routes[layout][stage][0] > 0);
+            CHECK(stage_routes[layout][stage][1] > 0);
+        }
     for (int route = 0; route < 4; ++route) CHECK(routes[route] > 0);
     LONG selected_if_sites = 0;
     for (int route = 0; route < 128; ++route) selected_if_sites += if_junk_routes[route];
