@@ -30,19 +30,11 @@ static int reference_recursive(int n) {
         }                                                                  \
     } while (0)
 #if OBFH_TEST_BRANCH_TRACE
-static volatile LONG branch_calls, kinds[3], variants[3], steps[7], invalid_steps;
-void obfh_test_vm_step(unsigned int state) {
-    if (state < 1 || state > 6) {
-        InterlockedIncrement(&invalid_steps);
-        return;
-    }
-    InterlockedIncrement(&steps[state]);
-}
-void obfh_test_vm_visit(int command, long double nonce, long double site, long double kind) {
-    if (command != OP__BRANCH) return;
-    InterlockedIncrement(&branch_calls);
-    InterlockedIncrement(&kinds[(unsigned int)kind]);
-    InterlockedIncrement(&variants[((unsigned int)nonce ^ (unsigned int)site ^ (unsigned int)kind) % 3u]);
+static volatile LONG branch_calls, steps[19], invalid_steps;
+void obfh_test_vm_enter(void){InterlockedIncrement(&branch_calls);}
+void obfh_test_vm_step(unsigned int op,unsigned int pc){
+    if(op<1||op>18||pc>=32)InterlockedIncrement(&invalid_steps);
+    else InterlockedIncrement(&steps[op]);
 }
 #endif
 static int virtual_chain(int a, double b, void *p, double q) {
@@ -61,17 +53,7 @@ static int virtual_recursive(int n) {
 }
 static int semantics(void) {
 #if VIRT && !NO_OBF
-    const unsigned int nonces[] = {1u, 0xfffffu, 0x100000u};
-    const unsigned int sites[] = {1u, 65535u};
-    for (int n = 0; n < 3; ++n)
-        for (int s = 0; s < 2; ++s)
-            for (unsigned int kind = 0; kind < 3; ++kind)
-                for (unsigned int truth = 0; truth < 2; ++truth) {
-                    unsigned int nonce = nonces[n], site = sites[s];
-                    unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
-                    unsigned int expected = (nonce * 8u + (truth ? 5u : 2u)) ^ mask;
-                    CHECK(obfh_vm_branch_program(truth, nonce, site, kind) == (long double)expected);
-                }
+    /* Instruction families and fault checks are covered by vm_kernel.c. */
 #endif
     int effects = 0, selected = 0;
     VM_IF(++effects == 1) { selected = 1; }
@@ -144,14 +126,14 @@ int main(void) {
     VM_ELSE_IF(0)
     selected = 2;
     VM_ELSE selected = 3;
-    CHECK(selected == 1 && branch_calls == 1 && kinds[0] == 1 && kinds[1] == 0 && kinds[2] == 0);
+    CHECK(selected == 1 && branch_calls == 1);
     LONG before = branch_calls;
     VM_IF(0)
     selected = 1;
     VM_ELSE_IF(0)
     selected = 2;
     VM_ELSE selected = 3;
-    CHECK(selected == 3 && branch_calls == before + 3 && kinds[1] == 1 && kinds[2] == 1);
+    CHECK(selected == 3 && branch_calls == before + 3);
 #endif
     CHECK(semantics() == 0);
     HANDLE threads[4];
@@ -167,8 +149,7 @@ int main(void) {
     }
 #if OBFH_TEST_BRANCH_TRACE
     CHECK(branch_calls > 10000 && invalid_steps == 0);
-    for (int i = 1; i <= 6; ++i) CHECK(steps[i] > 0);
-    for (int i = 0; i < 3; ++i) CHECK(kinds[i] > 0 && variants[i] > 0);
+    CHECK(steps[OBFH_V_TEST] > 0 && steps[OBFH_V_BOOLEAN] > 0 && steps[OBFH_V_RETURN] > 0);
 #endif
     puts("BRANCH_PASS");
     return 0;

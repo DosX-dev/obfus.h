@@ -2284,6 +2284,380 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
         __obfh_flow_result;                                                                                           \
     })
 
+#endif /* CFLOW helpers; kernel precedes keyword interception. */
+#if VIRT == 1
+typedef enum { SALT_NUM1 = RND(16, 48),
+               SALT_NUM2 = RND(16, 48) } VM_SALT;
+#endif
+/* Private VM kernel, emitted before keyword interception. */
+#if VIRT == 1
+typedef char OBFH_V_WORD_32[(sizeof(unsigned int) == 4 && CHAR_BIT == 8) ? 1 : -1];
+enum {
+    OBFH_V_LOAD_A = 1,
+    OBFH_V_LOAD_B,
+    OBFH_V_MOVE,
+    OBFH_V_SWAP,
+    OBFH_V_ADD,
+    OBFH_V_SUB,
+    OBFH_V_MUL,
+    OBFH_V_DIV,
+    OBFH_V_MOD,
+    OBFH_V_COMPARE,
+    OBFH_V_BOOLEAN,
+    OBFH_V_TEST,
+    OBFH_V_CADD,
+    OBFH_V_CXOR,
+    OBFH_V_CROL,
+    OBFH_V_JUMP,
+    OBFH_V_JFLAG,
+    OBFH_V_RETURN
+};
+enum {
+    OBFH_V_EQ = 1,
+    OBFH_V_LT = 2,
+    OBFH_V_GT = 4,
+    OBFH_V_UN = 8,
+    OBFH_V_TRUE = 16,
+    OBFH_V_CONTROL = 32
+};
+enum {
+    OBFH_VOP_ADD,
+    OBFH_VOP_SUB,
+    OBFH_VOP_MUL,
+    OBFH_VOP_DIV,
+    OBFH_VOP_MOD,
+    OBFH_VOP_EQ,
+    OBFH_VOP_NE,
+    OBFH_VOP_LT,
+    OBFH_VOP_GT,
+    OBFH_VOP_LE,
+    OBFH_VOP_GE,
+    OBFH_VOP_ID,
+    OBFH_VOP_TRUTH
+};
+typedef struct
+{
+    unsigned char bytes[sizeof(long double)];
+    unsigned int mask;
+} OBFH_V_REGISTER;
+typedef struct
+{
+    OBFH_V_REGISTER registers[4];
+    unsigned int controls[4];
+    unsigned int flags, flag_key, pc, steps, initialized, key, status, flags_ready;
+    long double result;
+} OBFH_V_CONTEXT;
+
+static unsigned int obfh_v_mix(unsigned int x) {
+    x ^= x >> 16;
+    x *= 2246822507u;
+    x ^= x >> 13;
+    return x;
+}
+/* Encodings are local to an execution; only decoded uint32 values enter ALU operations. */
+static unsigned int obfh_v_control_read(const OBFH_V_CONTEXT *c, unsigned int r) {
+    return c->controls[r] ^ obfh_v_mix(c->key ^ (r * 3266489917u));
+}
+static void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int value) {
+    c->controls[r] = value ^ obfh_v_mix(c->key ^ (r * 3266489917u));
+}
+static unsigned int obfh_v_flags(const OBFH_V_CONTEXT *c) {
+    return c->flags ^ c->flag_key;
+}
+static void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
+    c->flags = flags ^ c->flag_key;
+}
+static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
+    unsigned int m = obfh_v_mix(c->key ^ (r * 3266489917u) ^ c->steps);
+    const unsigned char *p = (const unsigned char *)&v;
+    c->registers[r].mask = m;
+    for (unsigned int i = 0; i < sizeof(v); ++i) {
+        m = obfh_v_mix(m + i + 1u);
+        c->registers[r].bytes[i] = p[i] ^ (unsigned char)m;
+    }
+    c->initialized |= 1u << r;
+}
+static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
+    long double v;
+    unsigned char *p = (unsigned char *)&v;
+    unsigned int m = c->registers[r].mask;
+    for (unsigned int i = 0; i < sizeof(v); ++i) {
+        m = obfh_v_mix(m + i + 1u);
+        p[i] = c->registers[r].bytes[i] ^ (unsigned char)m;
+    }
+    return v;
+}
+static void obfh_v_copy(OBFH_V_CONTEXT *c, unsigned int d, unsigned int a) {
+    /* Encoded copy preserves numeric object bytes without an FP operation. */
+    c->registers[d] = c->registers[a];
+    c->initialized |= 1u << d;
+}
+static void obfh_v_failure(OBFH_V_CONTEXT *c, unsigned int status) {
+    c->status = status;
+    ExitProcess(0xE0BF0000u | status);
+}
+static unsigned int obfh_v_decode(unsigned int word, unsigned int key, unsigned int pc) {
+    unsigned int rotate = (key % 31u) + 1u;
+    word ^= key + pc * 0x9e3779b9u;
+    return (word << rotate) | (word >> (32u - rotate));
+}
+static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
+    unsigned int multiplier = ((key >> 8) & 255u) | 1u, inverse = 1u;
+    inverse *= 2u - multiplier * inverse;
+    inverse *= 2u - multiplier * inverse;
+    inverse *= 2u - multiplier * inverse;
+    return (((word & 255u) - (key & 255u)) * inverse) & 255u;
+}
+
+static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE input_a,
+                                       OBFH_VM_VALUE input_b) OBFH_CODE_SECTION_ATTRIBUTE {
+#if NO_CFLOW != 1
+    enum {
+        __obfh_vm_dispatch_site = RND(1, 65535),
+        __obfh_vm_finish_site = RND(1, 65535)
+    };
+#endif
+    STACK_PROXY_FUNCTIONS;
+    OBFH_V_CONTEXT c;
+    c.pc = 0;
+    c.steps = 0;
+    c.initialized = 0;
+    c.key = key;
+    c.status = 0;
+    c.flags_ready = 0;
+    c.flag_key = obfh_v_mix(key ^ 0x85ebca6bu);
+    STACK_PROXY_FUNCTIONS;
+    obfh_v_set_flags(&c, 0);
+    for (unsigned int i = 0; i < 4; ++i)
+        obfh_v_control_write(&c, i, 0);
+    if (!program || !length || length > 32)
+        obfh_v_failure(&c, 1);
+    long double operands[2] = {obfh_vm_decode(input_a, SALT_NUM1), obfh_vm_decode(input_b, SALT_NUM2)};
+    STACK_PROXY_FUNCTIONS;
+    /* OBFH_VM_TRACE_ENTER */
+    while (c.steps < 128) {
+        if (c.pc >= length)
+            obfh_v_failure(&c, 2);
+        unsigned int at = c.pc++, word = obfh_v_decode(program[at], key, at);
+        unsigned int op = obfh_v_opcode(word, key), d = (word >> 8) & 3u, a = (word >> 10) & 3u, b = (word >> 12) & 3u, imm = word >> 14;
+        ++c.steps;
+        if (op < OBFH_V_LOAD_A || op > OBFH_V_RETURN)
+            obfh_v_failure(&c, 3);
+        if (op == OBFH_V_MOVE || op == OBFH_V_SWAP || (op >= OBFH_V_ADD && op <= OBFH_V_COMPARE) || op == OBFH_V_TEST ||
+            op == OBFH_V_RETURN)
+            if (!(c.initialized & (1u << a)))
+                obfh_v_failure(&c, 4);
+        if (op == OBFH_V_SWAP || (op >= OBFH_V_ADD && op <= OBFH_V_COMPARE))
+            if (!(c.initialized & (1u << b)))
+                obfh_v_failure(&c, 4);
+        if ((op == OBFH_V_JUMP || op == OBFH_V_JFLAG) && imm >= length)
+            obfh_v_failure(&c, 5);
+            /* OBFH_VM_TRACE_STEP */
+#if NO_CFLOW != 1
+        if (!OBFH_FLOW_CONDITION(op != 0u, __obfh_vm_dispatch_site))
+            obfh_v_failure(&c, 3);
+#endif
+        /* Both dispatchers had the same audit coverage; keep the simpler switch. */
+        switch (op) {
+            case OBFH_V_LOAD_A:
+                STACK_PROXY_FUNCTIONS;
+                goto load_a;
+            case OBFH_V_LOAD_B:
+                STACK_PROXY_FUNCTIONS;
+                goto load_b;
+            case OBFH_V_MOVE:
+                STACK_PROXY_FUNCTIONS;
+                goto move;
+            case OBFH_V_SWAP:
+                STACK_PROXY_FUNCTIONS;
+                goto swap;
+            case OBFH_V_ADD:
+                STACK_PROXY_FUNCTIONS;
+                goto add;
+            case OBFH_V_SUB:
+                STACK_PROXY_FUNCTIONS;
+                goto sub;
+            case OBFH_V_MUL:
+                STACK_PROXY_FUNCTIONS;
+                goto mul;
+            case OBFH_V_DIV:
+                STACK_PROXY_FUNCTIONS;
+                goto divide;
+            case OBFH_V_MOD:
+                STACK_PROXY_FUNCTIONS;
+                goto modulo;
+            case OBFH_V_COMPARE:
+                STACK_PROXY_FUNCTIONS;
+                goto compare;
+            case OBFH_V_BOOLEAN:
+                STACK_PROXY_FUNCTIONS;
+                goto boolean;
+            case OBFH_V_TEST:
+                STACK_PROXY_FUNCTIONS;
+                goto test;
+            case OBFH_V_CADD:
+                STACK_PROXY_FUNCTIONS;
+                goto cadd;
+            case OBFH_V_CXOR:
+                STACK_PROXY_FUNCTIONS;
+                goto cxor;
+            case OBFH_V_CROL:
+                STACK_PROXY_FUNCTIONS;
+                goto crol;
+            case OBFH_V_JUMP:
+                STACK_PROXY_FUNCTIONS;
+                goto jump;
+            case OBFH_V_JFLAG:
+                STACK_PROXY_FUNCTIONS;
+                goto jflag;
+            case OBFH_V_RETURN:
+                STACK_PROXY_FUNCTIONS;
+                goto finish;
+        }
+    invalid:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_failure(&c, 3);
+        continue;
+    load_a:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_write(&c, d, operands[0]);
+        continue;
+    load_b:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_write(&c, d, operands[1]);
+        continue;
+    move:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_copy(&c, d, a);
+        continue;
+    swap : {
+        STACK_PROXY_FUNCTIONS;
+        OBFH_V_REGISTER temporary = c.registers[a];
+        c.registers[a] = c.registers[b];
+        c.registers[b] = temporary;
+        continue;
+    }
+    add:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_write(&c, d, obfh_v_read(&c, a) + obfh_v_read(&c, b));
+        continue;
+    sub:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_write(&c, d, obfh_v_read(&c, a) - obfh_v_read(&c, b));
+        continue;
+    mul:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_write(&c, d, obfh_v_read(&c, a) * obfh_v_read(&c, b));
+        continue;
+    divide : {
+        STACK_PROXY_FUNCTIONS;
+        long double x = obfh_v_read(&c, a), y = obfh_v_read(&c, b);
+        obfh_v_write(&c, d, input_a.floating || y != 0 ? x / y : 0);
+        continue;
+    }
+    modulo : {
+        STACK_PROXY_FUNCTIONS;
+        int x = (int)obfh_v_read(&c, a), y = (int)obfh_v_read(&c, b);
+        obfh_v_write(&c, d, y != 0 && !(x == INT_MIN && y == -1) ? x % y : 0);
+        continue;
+    }
+    compare : {
+        STACK_PROXY_FUNCTIONS;
+        long double x = obfh_v_read(&c, a), y = obfh_v_read(&c, b);
+        obfh_v_set_flags(&c, x != x || y != y ? OBFH_V_UN : (x == y ? OBFH_V_EQ : (x < y ? OBFH_V_LT : OBFH_V_GT)));
+        c.flags_ready = 1;
+        continue;
+    }
+    boolean : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int f = obfh_v_flags(&c);
+        long double value;
+        if (imm > 6 || !c.flags_ready)
+            obfh_v_failure(&c, 6);
+        switch (imm) {
+            case 0:
+                STACK_PROXY_FUNCTIONS;
+                value = !!(f & OBFH_V_EQ);
+                break;
+            case 1:
+                STACK_PROXY_FUNCTIONS;
+                value = !(f & OBFH_V_EQ);
+                break;
+            case 2:
+                STACK_PROXY_FUNCTIONS;
+                value = !!(f & OBFH_V_LT);
+                break;
+            case 3:
+                STACK_PROXY_FUNCTIONS;
+                value = !!(f & OBFH_V_GT);
+                break;
+            case 4:
+                STACK_PROXY_FUNCTIONS;
+                value = !!(f & (OBFH_V_LT | OBFH_V_EQ));
+                break;
+            case 5:
+                STACK_PROXY_FUNCTIONS;
+                value = !!(f & (OBFH_V_GT | OBFH_V_EQ));
+                break;
+            default:
+                STACK_PROXY_FUNCTIONS;
+                value = !!(f & OBFH_V_TRUE);
+                break;
+        }
+        obfh_v_write(&c, d, value);
+        continue;
+    }
+    test:
+        STACK_PROXY_FUNCTIONS;
+        obfh_v_set_flags(&c, (obfh_v_flags(&c) & OBFH_V_CONTROL) | (obfh_v_read(&c, a) != 0 ? OBFH_V_TRUE : 0));
+        c.flags_ready = 1;
+        continue;
+    cadd : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int signed_imm = (imm & 0x20000u) ? imm | 0xfffc0000u : imm;
+        unsigned int value = obfh_v_control_read(&c, d) + signed_imm;
+        obfh_v_control_write(&c, d, value);
+        obfh_v_set_flags(&c, (obfh_v_flags(&c) & ~OBFH_V_CONTROL) | (value ? OBFH_V_CONTROL : 0));
+        c.flags_ready = 1;
+        continue;
+    }
+    cxor:
+        STACK_PROXY_FUNCTIONS;
+        c.controls[d] ^= imm;
+        continue;
+    crol : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int n = (imm % 31u) + 1u, value = obfh_v_control_read(&c, d);
+        obfh_v_control_write(&c, d, (value << n) | (value >> (32u - n)));
+        continue;
+    }
+    jump:
+        STACK_PROXY_FUNCTIONS;
+        c.pc = imm;
+        continue;
+    jflag : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int flag = d | (a << 2);
+        if (flag > 5 || !c.flags_ready)
+            obfh_v_failure(&c, 6);
+        if (obfh_v_flags(&c) & (1u << flag))
+            c.pc = imm;
+        continue;
+    }
+    finish:
+#if NO_CFLOW != 1
+        if (!OBFH_FLOW_CONDITION(c.initialized != 0, __obfh_vm_finish_site))
+            obfh_v_failure(&c, 4);
+#endif
+        c.result = obfh_v_read(&c, a);
+        return c.result;
+    }
+    obfh_v_failure(&c, 7);
+    return 0;
+}
+#endif
+
+#if NO_CFLOW != 1
 // Each intercepted if inserts its selected template between condition transport stages.
 // if
 #define if(...) if (({                                                                         \
@@ -2337,324 +2711,197 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 // =============================================================
 
 // =============================================================
-// Virtualization (global)
+// Virtualization (instruction programs)
 #if VIRT == 1
-typedef enum {
-    OP__ADD = RND(0, 900) * __COUNTER__ * 5,
-    OP__SUB = RND(1000, 1900) * __COUNTER__ * 5,
-    OP__MUL = RND(2000, 2900) * __COUNTER__ * 5,
-    OP__DIV = RND(3000, 3900) * __COUNTER__ * 5,
-    OP__MOD = RND(4000, 4900) * __COUNTER__ * 5,
-    OP__EQU = RND(5000, 5900) * __COUNTER__ * 5,
-    OP__NEQ = RND(6000, 6900) * __COUNTER__ * 5,
-    OP__GTR = RND(7000, 7900) * __COUNTER__ * 5,
-    OP__LSS = RND(8000, 8900) * __COUNTER__ * 5,
-    OP__LEQ = RND(9000, 9900) * __COUNTER__ * 5,
-    OP__GEQ = RND(10000, 10900) * __COUNTER__ * 5,
-    OP__NOP = RND(11000, 11900) * __COUNTER__ * 5,
-    OP__BRANCH = RND(12000, 12900) * __COUNTER__ * 5
-} CMD;
 
-typedef enum {
-    SALT_CMD = RND(100, 900),
-    SALT_NUM1 = RND(16, 48),
-    SALT_NUM2 = RND(16, 48)
-} VM_SALT;
-
-static int _salt = SALT_CMD;
-
-#define _VM_DEMUTATOR_KEY (__COUNTER__) / 5
-#define _VM_MUTATOR_KEY (__COUNTER__ - 1) / 5
-
-// Capture the paired counter once; unsigned arithmetic wraps modulo 2^64.
-#define _VM_ENCRYPT_INT(value) ({                                                                                                                                                                                               \
-    enum { __obfh_command_site = _VM_MUTATOR_KEY };                                                                                                                                                                             \
-    (long long)((((((unsigned long long)(value) ^ ((unsigned long long)(__obfh_command_site + SALT_CMD) * 0x9e3779b97f4a7c15ull)) * ((unsigned long long)SALT_CMD * 2u + 1u)) << ((__obfh_command_site % 63u) + 1u)) |          \
-                 ((((unsigned long long)(value) ^ ((unsigned long long)(__obfh_command_site + SALT_CMD) * 0x9e3779b97f4a7c15ull)) * ((unsigned long long)SALT_CMD * 2u + 1u)) >> (64u - ((__obfh_command_site % 63u) + 1u)))) ^ \
-                ((unsigned long long)(__obfh_command_site + 1u) * 0xd1b54a32d192ed03ull));                                                                                                                                      \
-})
-#define _ENC_OP__ADD _VM_ENCRYPT_INT(OP__ADD)
-#define _ENC_OP__SUB _VM_ENCRYPT_INT(OP__SUB)
-#define _ENC_OP__MUL _VM_ENCRYPT_INT(OP__MUL)
-#define _ENC_OP__DIV _VM_ENCRYPT_INT(OP__DIV)
-#define _ENC_OP__MOD _VM_ENCRYPT_INT(OP__MOD)
-#define _ENC_OP__EQU _VM_ENCRYPT_INT(OP__EQU)
-#define _ENC_OP__NEQ _VM_ENCRYPT_INT(OP__NEQ)
-#define _ENC_OP__GTR _VM_ENCRYPT_INT(OP__GTR)
-#define _ENC_OP__LSS _VM_ENCRYPT_INT(OP__LSS)
-#define _ENC_OP__LEQ _VM_ENCRYPT_INT(OP__LEQ)
-#define _ENC_OP__GEQ _VM_ENCRYPT_INT(OP__GEQ)
-#define _ENC_OP__NOP _VM_ENCRYPT_INT(OP__NOP)
-#define _ENC_OP__BRANCH _VM_ENCRYPT_INT(OP__BRANCH)
-
-// Keep nonce draws at the operand position to preserve counter expansion order.
-#define OBFH_VM_OPERAND(value, salt, floating) \
-    obfh_vm_encode(value, salt, floating | (RND(1, 2147483647u) << 1))
-
-#define VM_ADD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_SUB(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_MUL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_DIV(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_MOD(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MOD, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_EQU(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__EQU, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_NEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NEQ, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_LSS(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_GTR(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_LEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LEQ, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_GEQ(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GEQ, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)(num2), SALT_NUM2, 0u), RND(1, 500))
-#define VM_OBF_INT(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 0u), RND(1, 500), OBFH_VM_OPERAND((long double)RND(1, 99999999), SALT_NUM2, 0u), RND(1, 500)))
-
-#define VM_ADD_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__ADD, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
-#define VM_SUB_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__SUB, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
-#define VM_MUL_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__MUL, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
-#define VM_DIV_DBL(num1, num2) Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__DIV, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
-#define VM_LSS_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__LSS, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
-#define VM_GTR_DBL(num1, num2) (long)Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__GTR, OBFH_VM_OPERAND((double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((double)(num2), SALT_NUM2, 1u), RND(1, 500))
-#define VM_OBF_DBL(num1) (VM_MUL(RND(1, 999), 0) ? RND(1, 9999) : Obfh_VirtualMachine(_VM_DEMUTATOR_KEY, _ENC_OP__NOP, OBFH_VM_OPERAND((long double)(num1), SALT_NUM1, 1u), RND(1, 500), OBFH_VM_OPERAND((long double)RND(1, 99999999), SALT_NUM2, 0u), RND(1, 500)))
-
-// Each condition is evaluated once before entering the floating VM path.
-static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE;
-static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE;
-#define VM_IF(condition) if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!(condition), RND(1, 65535), _0))
-#define VM_ELSE_IF(condition) else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!(condition), RND(1, 65535), _1))
-#define VM_ELSE else if (obfh_vm_branch(_VM_DEMUTATOR_KEY, _ENC_OP__BRANCH, !!obfh_condition_true(), RND(1, 65535), _2))
-
-static long double Obfh_VirtualMachine(long double uni_key, long long command, OBFH_VM_VALUE encodedNum1, long double junk_2, OBFH_VM_VALUE encodedNum2, long double junk_3) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    long double num1, num2;
-    volatile long double obfhVmResult = 0;
-    BREAK_STACK_CFLOW;
-    goto firstFakePoint;
-
-    // Restore values
-restoreCommand:
-    BREAK_STACK_CFLOW;
-    unsigned long long site = (unsigned long long)uni_key;
-    unsigned int rotate = (unsigned int)(site % 63u) + 1u;
-    unsigned long long mixed = (unsigned long long)command ^ ((site + 1u) * 0xd1b54a32d192ed03ull);
-    mixed = (mixed >> rotate) | (mixed << (64u - rotate));
-    unsigned long long multiplier = (unsigned int)_salt * 2ull + 1ull;
-    unsigned long long inverse = 1ull;
-    // Six Newton steps recover all 64 bits of an odd multiplier's inverse.
-    inverse *= 2ull - multiplier * inverse;
-    inverse *= 2ull - multiplier * inverse;
-    inverse *= 2ull - multiplier * inverse;
-    inverse *= 2ull - multiplier * inverse;
-    inverse *= 2ull - multiplier * inverse;
-    inverse *= 2ull - multiplier * inverse;
-    command = (long long)((mixed * inverse) ^ ((site + (unsigned int)_salt) * 0x9e3779b97f4a7c15ull));
-    goto restoreNum2;
-
-restoreNum1:
-    BREAK_STACK_CFLOW;
-    num1 = obfh_vm_decode(encodedNum1, SALT_NUM1);
-    goto letsExecute;
-
-restoreNum2:
-    BREAK_STACK_CFLOW;
-    num2 = obfh_vm_decode(encodedNum2, SALT_NUM2);
-    goto restoreNum1;
-
-firstFakePoint:
-    BREAK_STACK_CFLOW;
-    goto secondFakePoint;
-
-letsExecute:
-
-    switch (command) {
-        case -1 * __LINE__:
-            goto restoreCommand;
-        case -2 * __LINE__:
-            goto firstFakePoint;
-        case -3 * __LINE__:
-            return _0 * ~_1 + junk_2;
-        case -4 * __LINE__:
-            goto restoreNum2;
-        case -5 * __LINE__:
-            goto restoreNum1;
-        case -6 * __LINE__:
-            __obfh_asm__(".byte 0xFF, 0x25;");  // fake JMP
-        case -7 * __LINE__:
-
-#if defined(__x86_64__) || defined(_M_X64)  // fake code, just for decompiler break
-            __obfh_asm__(
-                "mov %%rax, %%rbx;"
-                "xor %%rcx, %%rax;"
-                "shr $8, %%rdx;"
-                "shl $4, %%rax;"
-                "push %%rbx;"
-                "pop %%rbx;"
-                "inc %%rax;"
-                "dec %%rdx;"
-                :
-                :
-                : "rax",
-                  "rbx", "rcx", "rdx");
-#elif defined(__i386__) || defined(_M_IX86)
-            __obfh_asm__(
-                "mov %%ebx, %%eax;"
-                "add %%ecx, %%eax;"
-                "sub %%edx, %%ebx;"
-                "shl %%cl, %%ecx;"
-                "push %%ebx;"
-                "pop %%ebx;"
-                "sar %%cl, %%ecx;"
-                "or %%edx, %%eax;"
-                "dec %%edx;"
-                :
-                :
-                : "eax",
-                  "ebx", "ecx", "edx");
-#else
-#endif
-        case -8 * __LINE__:
-            BAD_JMP;
-
-        case OP__ADD:  // plus
-            obfhVmResult = obfh_vm_decode(obfh_vm_encode(num1 + num2, SALT_NUM1 + VM_MUL(junk_3, _0), 1), SALT_NUM1);
-            goto afterCalc;
-        case OP__SUB:  // minus
-            obfhVmResult = obfh_vm_decode(obfh_vm_encode(num1 - num2, SALT_NUM1 + VM_MUL(junk_3, _0), 1), SALT_NUM1);
-            goto afterCalc;
-        case OP__MUL:  // multiply
-            if (num1 == _0 || num2 == _0)
-                obfhVmResult = num1 * num2;
-            else
-                return num1 * num2;
-
-            goto afterCalc;
-        case OP__DIV:  // divide
-            if (encodedNum1.floating || num2 != _0)
-                obfhVmResult = num1 / num2;
-            else
-                obfhVmResult = VM_ADD(_0, _0);
-            goto afterCalc;
-        case OP__MOD:  // modulo
-            if ((int)num2 != 0 && !((int)num1 == INT_MIN && (int)num2 == -1))
-                obfhVmResult = (int)num1 % (int)num2;
-            else
-                obfhVmResult = _0;
-            goto afterCalc;
-        case OP__EQU:            // equal
-            if (num1 == num2) {  // 1 + 0 = 1
-                obfhVmResult = VM_ADD(_1, _0);
-            } else {
-                obfhVmResult = _0;
-            }
-            goto afterCalc;
-        case OP__NEQ:            // not equal
-            if (num1 != num2) {  // 1 + 0 = 1
-                obfhVmResult = VM_ADD(_0, _1) + VM_MUL(junk_2, _0);
-            } else {
-                obfhVmResult = VM_MUL(junk_3, _0);
-            }
-            goto afterCalc;
-        case OP__LSS:
-            obfhVmResult = num1 == num1 && num2 == num2 && num1 != num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
-            goto afterCalc;
-        case OP__GTR:
-            obfhVmResult = num1 == num1 && num2 == num2 && num1 != num2 && !(num1 + VM_MUL(junk_2, _0) < num2);
-            goto afterCalc;
-        case OP__LEQ:
-            obfhVmResult = num1 == num1 && num2 == num2 && !(num1 + VM_MUL(junk_2, _0) > num2);
-            goto afterCalc;
-        case OP__GEQ:
-            obfhVmResult = (num1 + VM_MUL(junk_2, _0) > num2) || (num1 == num2);
-            goto afterCalc;
-        case OP__BRANCH:
-            obfhVmResult = obfh_vm_branch_program(num1, (unsigned int)num2, (unsigned int)junk_2, (unsigned int)junk_3);
-            goto afterCalc;
-        case OP__NOP:
-            obfhVmResult = num1;
-            goto afterCalc;
-        default:
-            obfhVmResult = _0 * (uni_key * _3);
-            BAD_JMP;
+/* Each expression owns an immutable encoded instruction stream. */
+#define OBFH_V_INSTRUCTION(op, d, a, b, imm)                                                                                  \
+    (((((unsigned int)(op) * (((__obfh_vkey >> 8) & 255u) | 1u) + (__obfh_vkey & 255u)) & 255u)) | ((unsigned int)(d) << 8) | \
+     ((unsigned int)(a) << 10) | ((unsigned int)(b) << 12) | (((unsigned int)(imm)&0x3ffffu) << 14))
+#define OBFH_V_OPERATION_0(d, a, b)                                                                                                      \
+    OBFH_V_INSTRUCTION(__obfh_voperation < 5                                                                                             \
+                           ? OBFH_V_ADD + __obfh_voperation                                                                              \
+                           : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)), \
+                       d, a, b, 0)
+#define OBFH_V_OPERATION_1(d, a)                                                                                             \
+    OBFH_V_INSTRUCTION((__obfh_voperation >= 5 && __obfh_voperation != OBFH_VOP_ID) ? OBFH_V_BOOLEAN : OBFH_V_CXOR, d, a, 0, \
+                       __obfh_voperation == OBFH_VOP_TRUTH ? 6 : (__obfh_voperation >= 5 ? __obfh_voperation - 5 : 0))
+#define OBFH_V_ENCODE(word, pc)                                                                                                \
+    (((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u))))) ^ \
+     (__obfh_vkey + (unsigned int)(pc)*0x9e3779b9u))
+#define OBFH_V_PROGRAM_0                                                             \
+    (const unsigned int[]) {                                                         \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 0),     \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 2),   \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 3),              \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 4)  \
     }
-    BREAK_STACK_CFLOW;
-
-    long double result = uni_key;
-afterCalc:
-    BREAK_STACK_CFLOW;
-    goto saveValueToLocal;
-resetResult:
-    BREAK_STACK_CFLOW;
-    obfhVmResult = 0;
-    goto returnValue;
-saveValueToLocal:
-    BREAK_STACK_CFLOW;
-    result = obfhVmResult;
-    goto resetResult;
-
-returnValue:
-    BREAK_STACK_CFLOW;
-    return result;
-
-    __obfh_asm__(".byte 0xFF, 0xE0;");  // fake indirect JMP (EAX on x86, RAX on x64)
-
-secondFakePoint:
-    BREAK_STACK_CFLOW;
-    goto restoreCommand;
-}
-
-// A local encoded instruction pointer selects one of three decision programs.
-static long double obfh_vm_branch_program(long double condition, unsigned int nonce, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
-    unsigned int variant = (nonce ^ site ^ kind) % 3u;
-    volatile unsigned int pc = (variant + 1u) ^ mask;
-    volatile unsigned int token = _0;
-    for (;;) {
-        switch (pc ^ mask) {
-            case 1:
-                pc = (VM_GTR_DBL(condition, _0) ? 4u : 5u) ^ mask;
-                break;
-            case 2:
-                pc = (VM_EQU((long)condition, _0) ? 5u : 4u) ^ mask;
-                break;
-            case 3:
-                pc = (VM_EQU((long)VM_ADD_DBL(condition, nonce), nonce) ? 5u : 4u) ^ mask;
-                break;
-            case 4:
-                token = (unsigned int)VM_ADD(VM_MUL(nonce, _8), _5);
-                pc = 6u ^ mask;
-                break;
-            case 5:
-                token = (unsigned int)VM_ADD(VM_MUL(nonce, _8), _2);
-                pc = 6u ^ mask;
-                break;
-            case 6: {
-                // All token bits fit exactly in float, including on x86.
-                float converted = (float)obfh_int_proxy((int)token);
-                return (unsigned int)obfh_double_proxy((double)converted) ^ mask;
-            }
-            default:
-                BAD_JMP;
-                return _0;
-        }
+#define OBFH_V_PROGRAM_1                                                                   \
+    (const unsigned int[]) {                                                               \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 0),           \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 1),       \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 2), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 3),         \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 4),                    \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_va, __obfh_vc, 0, 0), 5), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_va, 0, 0), 6)        \
     }
-}
-
-static int obfh_vm_branch(long double key, long long command, float condition, unsigned int site, unsigned int kind) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    unsigned int low, high;
-    __obfh_asm__(".byte 0x0f, 0x31;"
-                 : "=a"(low), "=d"(high)
-                 :
-                 : "memory");
-    unsigned int nonce = ((low ^ high ^ site) & 0xfffffu) + 1u;
-    unsigned int mask = (nonce * 33u ^ site * 17u ^ kind * 257u) & 0xfffffu;
-    float converted = (float)obfh_double_proxy((double)condition);
-    long double response = Obfh_VirtualMachine(key, command, obfh_vm_encode((long double)converted, SALT_NUM1, 1),
-                                               site, obfh_vm_encode((long double)nonce, SALT_NUM2, 0), kind);
-    float expected = (float)((nonce * 8u + 5u) ^ mask);
-    long verified = VM_EQU((long)response, (long)obfh_double_proxy((double)expected));
-    return obfh_condition_proxy((float)site, (float)verified, nonce);
-}
-
+#define OBFH_V_PROGRAM_2                                                                                                                \
+    (const unsigned int[]) {                                                                                                            \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 0),                                                        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 1),                                                    \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 2),                                                      \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 8), 3),                                                             \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 4),                                                      \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 5), OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 11), 6), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 0, 0, 0, 3), 7),                                                              \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 8),                                                      \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 9),                                                                 \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 10),                                             \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 11)                                                    \
+    }
+#define OBFH_V_PROGRAM_3                                                             \
+    (const unsigned int[]) {                                                         \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 0),     \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 2),   \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 8), 3),          \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 4),   \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 5),              \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 6), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 0, 0, 0, 5), 7),           \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 8),   \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 9),              \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vd, 0, 0), 10) \
+    }
+#define OBFH_V_PROGRAM_4                                                                    \
+    (const unsigned int[]) {                                                                \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 4), 0),                      \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1),          \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2),                     \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3),        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 4),        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 5),        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 6),          \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 10), 7),                \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 8),  \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 9),                  \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 10), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 11), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 12)                  \
+    }
+#define OBFH_V_PROGRAM_5                                                                                                                \
+    (const unsigned int[]) {                                                                                                            \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 0),                                                        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 1),                                                    \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 2),                                              \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vb, 0, 0), 3),                                                      \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 8), 4),                                                             \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vb, __obfh_va), 5),                                                      \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vb), 6), OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 11), 7), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_vb, __obfh_va), 8),                                                      \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_vb), 9),                                                                 \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 10),                                             \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 11)                                                    \
+    }
+#define OBFH_V_PROGRAM_6                                                                   \
+    (const unsigned int[]) {                                                               \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 0),           \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 1),       \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 2), 2),                 \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 262143), 3),            \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 1, 1, 0, 3), 4),                \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 5), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 6),         \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 7),                    \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 8)        \
+    }
+#define OBFH_V_PROGRAM_7                                                                                                                  \
+    (const unsigned int[]) {                                                                                                              \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 0),                                                          \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 1),                                                      \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 2),                                                        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 3),                                                               \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 4),                                                \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7), 5), OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 9), 6), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 7),                                                \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 1, 0, 0, 57), 8),                                                               \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 9),                                                        \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 10),                                                                  \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vc, 0, 0), 11),                                                       \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 15), 12),                                                             \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_va, __obfh_vc, 0, 0), 13),                                               \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_va, 0, 0), 14),                                                     \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 15)                                                      \
+    }
+#define OBFH_V_PROGRAM                                                                \
+    __builtin_choose_expr(                                                            \
+        __obfh_vvariant == 0, OBFH_V_PROGRAM_0,                                       \
+        __builtin_choose_expr(                                                        \
+            __obfh_vvariant == 1, OBFH_V_PROGRAM_1,                                   \
+            __builtin_choose_expr(                                                    \
+                __obfh_vvariant == 2, OBFH_V_PROGRAM_2,                               \
+                __builtin_choose_expr(                                                \
+                    __obfh_vvariant == 3, OBFH_V_PROGRAM_3,                           \
+                    __builtin_choose_expr(                                            \
+                        __obfh_vvariant == 4, OBFH_V_PROGRAM_4,                       \
+                        __builtin_choose_expr(__obfh_vvariant == 5, OBFH_V_PROGRAM_5, \
+                                              __builtin_choose_expr(__obfh_vvariant == 6, OBFH_V_PROGRAM_6, OBFH_V_PROGRAM_7)))))))
+#define OBFH_VM_EXEC(executor, operation, value_a, value_b, floating)                                                                     \
+    ({                                                                                                                                    \
+        enum {                                                                                                                            \
+            __obfh_vsite = __COUNTER__,                                                                                                   \
+            __obfh_voperation = (operation),                                                                                              \
+            __obfh_vkey = OBFH_MIX_A(OBFH_JUNK_WORD ^ __obfh_vsite ^ (unsigned int)OBFH_BUILD_SEED),                                      \
+            __obfh_vvariant = RND(0, 7),                                                                                                  \
+            __obfh_va = __obfh_vkey & 3u,                                                                                                 \
+            __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,                                                                \
+            __obfh_vc = (__obfh_va + 2u) & 3u,                                                                                            \
+            __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u                                                                 \
+        };                                                                                                                                \
+        const unsigned int *__obfh_vprogram = OBFH_V_PROGRAM;                                                                             \
+        enum {                                                                                                                            \
+            __obfh_vlength =                                                                                                              \
+                __obfh_vvariant == 0                                                                                                      \
+                    ? 5                                                                                                                   \
+                    : (__obfh_vvariant == 1                                                                                               \
+                           ? 7                                                                                                            \
+                           : (__obfh_vvariant == 2                                                                                        \
+                                  ? 12                                                                                                    \
+                                  : (__obfh_vvariant == 3                                                                                 \
+                                         ? 11                                                                                             \
+                                         : (__obfh_vvariant == 4 ? 13 : (__obfh_vvariant == 5 ? 12 : (__obfh_vvariant == 6 ? 9 : 16)))))) \
+        };                                                                                                                                \
+        executor(__obfh_vprogram, __obfh_vlength, __obfh_vkey, OBFH_VM_OPERAND(value_a, SALT_NUM1, floating),                             \
+                 OBFH_VM_OPERAND(value_b, SALT_NUM2, floating));                                                                          \
+    })
+#define OBFH_VM_OPERAND(value, salt, floating) obfh_vm_encode(value, salt, (floating) | (RND(1, 2147483647u) << 1))
+#define VM_ADD(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_ADD, (long double)(num1), (long double)(num2), 0u)
+#define VM_SUB(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_SUB, (long double)(num1), (long double)(num2), 0u)
+#define VM_MUL(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_MUL, (long double)(num1), (long double)(num2), 0u)
+#define VM_DIV(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_DIV, (long double)(num1), (long double)(num2), 0u)
+#define VM_MOD(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_MOD, (long double)(num1), (long double)(num2), 0u)
+#define VM_EQU(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_EQ, (long double)(num1), (long double)(num2), 0u)
+#define VM_NEQ(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_NE, (long double)(num1), (long double)(num2), 0u)
+#define VM_LSS(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_LT, (long double)(num1), (long double)(num2), 0u)
+#define VM_GTR(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_GT, (long double)(num1), (long double)(num2), 0u)
+#define VM_LEQ(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_LE, (long double)(num1), (long double)(num2), 0u)
+#define VM_GEQ(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_GE, (long double)(num1), (long double)(num2), 0u)
+#define VM_ADD_DBL(num1, num2) OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_ADD, (double)(num1), (double)(num2), 1u)
+#define VM_SUB_DBL(num1, num2) OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_SUB, (double)(num1), (double)(num2), 1u)
+#define VM_MUL_DBL(num1, num2) OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_MUL, (double)(num1), (double)(num2), 1u)
+#define VM_DIV_DBL(num1, num2) OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_DIV, (double)(num1), (double)(num2), 1u)
+#define VM_LSS_DBL(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_LT, (double)(num1), (double)(num2), 1u)
+#define VM_GTR_DBL(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_GT, (double)(num1), (double)(num2), 1u)
+#define VM_OBF_INT(num1) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_ID, (long double)(num1), (long double)0, 0u)
+#define VM_OBF_DBL(num1) OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_ID, (long double)(num1), (long double)0, 1u)
+#define VM_IF(condition) if ((int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_TRUTH, (long double)!!(condition), (long double)0, 1u))
+#define VM_ELSE_IF(condition) \
+    else if ((int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_TRUTH, (long double)!!(condition), (long double)0, 1u))
+#define VM_ELSE else if ((int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_TRUTH, (long double)!!obfh_condition_true(), (long double)0, 1u))
 #endif
 // =============================================================
-
 // Caller-owned storage keeps the mask valid and avoids shared-buffer races.
 static char *getCharMask(int count, char *mask, size_t capacity) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;

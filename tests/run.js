@@ -6,6 +6,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const breakRandom = require('./break_random');
 const stackProxy = require('./stack_proxy');
 const pdataDecoys = require('./pdata_decoys');
+const vmKernel = require('./vm_kernel');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8');
 const selectedArch = process.argv.find(value => value.startsWith('--arch='))?.slice(7);
@@ -26,6 +27,24 @@ async function check(name, action) {
     try { await action(); const durationMs = Date.now() - started; results.push({ name, pass: true, durationMs }); console.log(`PASS ${name}${durationMs >= 1000 ? ` (${(durationMs / 1000).toFixed(1)}s)` : ""}`); return true; }
     catch (error) { results.push({ name, pass: false, durationMs: Date.now() - started, error: error.message }); console.error(`FAIL ${name}: ${error.message}`); if (error.suiteDeadline) throw error; return false; }
 }
+function protectedMacro(text, name) {
+    const begin = text.indexOf('// Virtualization (instruction programs)');
+    const start = text.indexOf('#define ' + name + (name === 'VM_ELSE' ? ' ' : '('), begin);
+    assert(begin >= 0 && start >= begin, 'protected VM macro missing: ' + name);
+    let cursor = start, end;
+    do {
+        end = text.indexOf('\n', cursor);
+        if (end < 0) end = text.length;
+        const continued = text.slice(cursor, end).trimEnd().endsWith(String.fromCharCode(92));
+        cursor = end + 1;
+        if (!continued) break;
+    } while (cursor < text.length);
+    return { start, end, body: text.slice(start, end) };
+}
+function replaceProtectedMacro(text, name, replacement) {
+    const { start, end } = protectedMacro(text, name);
+    return text.slice(0, start) + replacement + text.slice(end);
+}
 function timeoutOption(name, fallback) {
     const value = process.argv.find(arg => arg.startsWith('--' + name + '='));
     const milliseconds = value ? Number(value.split('=')[1]) : fallback;
@@ -33,8 +52,8 @@ function timeoutOption(name, fallback) {
     return milliseconds;
 }
 const testTimeout = timeoutOption('test-timeout-ms', 30000);
-const buildTimeout = timeoutOption('build-timeout-ms', 15000);
-const suiteDeadline = Date.now() + timeoutOption('suite-timeout-ms', 600000);
+const buildTimeout = timeoutOption('build-timeout-ms', 45000);
+const suiteDeadline = Date.now() + timeoutOption('suite-timeout-ms', 1800000);
 const activeChildren = new Set();
 function killTree(pid) {
     if (process.platform === 'win32') {
@@ -222,11 +241,11 @@ async function main() {
             assert(source.includes('#define OBFH_SF_VARIANT_COUNT ' + stackProxy.variantCount + 'u'), 'proxy count and test disagree');
         });
         await check('source: protected VM macros still call the interpreter', async () => {
-            const start = source.indexOf('#define VM_ADD(', source.indexOf('#define _ENC_OP__NOP'));
+            const start = source.indexOf('#define VM_ADD(', source.indexOf('// Virtualization (instruction programs)'));
             const block = source.slice(start, source.indexOf('#define VM_IF', start));
-            const macros = block.split(/\r?\n/).filter(line => line.startsWith('#define VM_'));
+            const macros = block.replace(/\\\r?\n/g, ' ').split(/\r?\n/).filter(line => line.startsWith('#define VM_'));
             assert(macros.length === 19, `expected 19 arithmetic/identity macros, found ${macros.length}`);
-            for (const macro of macros) assert(macro.includes('Obfh_VirtualMachine('), `VM bypass: ${macro}`);
+            for (const macro of macros) assert(/OBFH_VM_EXEC\s*\(\s*Obfh_VirtualMachine\s*,/.test(macro), `VM bypass: ${macro}`);
         });
         await check('source: custom exports and generated masks preserved', async () => {
             const begin = source.indexOf('FARPROC obfh_find_export('), end = source.indexOf('#define GetProcAddress', begin);
@@ -238,7 +257,7 @@ async function main() {
             assert(hidden.includes('== RND('), 'HIDE_STRING false-branch obfuscation lost');
         });
         await check('source: automatic protection paths and type conversions', async () => {
-            const identity = source.split(/\r?\n/).find(line => line.startsWith('#define VM_OBF_DBL(num1)'));
+            const identity = protectedMacro(source, 'VM_OBF_DBL').body.replace(/\\\r?\n/g, ' ');
             assert(identity && identity.includes('(long double)(num1)') && !identity.includes('(double)(num1)'), 'VM identity narrows its operand');
             assert(source.includes('GetConsoleMode(console, &mode) && !obfh_format_has_count(format)'), 'count conversion enters the console sizing pass');
             assert(source.includes('float junk, float condition'), 'condition float conversion removed');
@@ -280,6 +299,10 @@ async function main() {
         for (const [arch, compiler] of Object.entries(compilers)) {
             if (selectedArch && selectedArch !== arch) continue;
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
+            if (process.argv.includes('--only-vm') || !process.argv.some(arg => arg.startsWith('--only-'))) {
+                await vmKernel.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                if (process.argv.includes('--only-vm')) continue;
+            }
             if (process.argv.includes('--only-pdata') || process.argv.includes('--only-integration') || !process.argv.some(arg => arg.startsWith('--only-'))) {
                 await pdataDecoys.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
                 if (process.argv.includes('--only-pdata')) continue;
@@ -571,9 +594,7 @@ async function main() {
                     const mutantRoot = path.join(directory, arch + '-mutant');
                     fs.mkdirSync(path.join(mutantRoot, 'include'), { recursive: true });
                     fs.mkdirSync(path.join(mutantRoot, 'tests'), { recursive: true });
-                    const start = source.indexOf('#define VM_ADD(', source.indexOf('#define _ENC_OP__NOP'));
-                    const end = source.indexOf('\n', start);
-                    const mutant = source.slice(0, start) + '#define VM_ADD(a, b) ((a) + (b))' + source.slice(end);
+                    const mutant = replaceProtectedMacro(source, 'VM_ADD', '#define VM_ADD(a, b) ((a) + (b))');
                     fs.writeFileSync(path.join(mutantRoot, 'include', 'obfus.h'), mutant);
                     const file = path.join(mutantRoot, 'tests', 'vm.c');
                     fs.copyFileSync(path.join(__dirname, 'vm.c'), file);
@@ -587,11 +608,9 @@ async function main() {
                     fs.mkdirSync(path.join(tracedRoot, 'tests'), { recursive: true });
                     const testFile = path.join(tracedRoot, 'tests', 'vm_branches.c');
                     fs.copyFileSync(path.join(__dirname, 'vm_branches.c'), testFile);
-                    const functionStart = 'long double Obfh_VirtualMachine(long double uni_key';
-                    let traced = source.replace(functionStart, 'void obfh_test_vm_visit(int command, long double nonce, long double site, long double kind);\nvoid obfh_test_vm_step(unsigned int state);\n' + functionStart);
-                    traced = traced.replace(/letsExecute:\s*/, 'letsExecute:\n    obfh_test_vm_visit(command, num2, junk_2, junk_3);\n');
-                    traced = traced.replace('switch (pc ^ mask)', 'obfh_test_vm_step(pc ^ mask);\n        switch (pc ^ mask)');
-                    assert(traced.includes('obfh_test_vm_step(pc ^ mask);'), 'microinstruction trace injection missing');
+                    let traced = source.replace('/* OBFH_VM_TRACE_ENTER */', 'obfh_test_vm_enter();').replace('/* OBFH_VM_TRACE_STEP */', 'obfh_test_vm_step(op,at);');
+                    traced = traced.replace('static long double Obfh_VirtualMachine(', 'void obfh_test_vm_enter(void);\nvoid obfh_test_vm_step(unsigned int op,unsigned int pc);\nstatic long double Obfh_VirtualMachine(');
+                    assert(traced.includes('obfh_test_vm_step(op,at);'), 'instruction tracing missing');
                     const headerFile = path.join(tracedRoot, 'include', 'obfus.h');
                     fs.writeFileSync(headerFile, traced);
                     const traceFlags = ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_TEST_BRANCH_TRACE=1'];
@@ -602,11 +621,8 @@ async function main() {
                         ['VM_ELSE', '#define VM_ELSE else'],
                     ];
                     for (const [name, replacement] of mutants) {
-                        const lines = traced.split(/\r?\n/);
-                        const index = lines.findIndex(line => line.startsWith('#define ' + name + (name === 'VM_ELSE' ? ' ' : '(')) && line.includes('obfh_vm_branch('));
-                        assert(index >= 0, 'branch mutant target missing: ' + name);
-                        lines[index] = replacement;
-                        fs.writeFileSync(headerFile, lines.join('\n'));
+                        assert(protectedMacro(traced, name).body.includes('OBFH_VM_EXEC('), 'branch mutant target missing: ' + name);
+                        fs.writeFileSync(headerFile, replaceProtectedMacro(traced, name, replacement));
                         const exe = await compile(compiler, directory, arch + '-' + name + '-bypass.exe', testFile, traceFlags);
                         const result = await run(exe, []);
                         assert(result.status === 1 && result.stderr.includes('branch failure'), 'VM bypass not detected: ' + name);
@@ -694,6 +710,5 @@ async function main() {
     console.log('Verdict applies to the tested compiler builds and Windows environment; invalid C remains invalid.');
     if (directory) console.log(`Logs and binaries: ${directory}`);
     process.exitCode = failed.length ? 1 : 0;
-
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

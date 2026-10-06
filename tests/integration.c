@@ -67,9 +67,9 @@ static int export_boundaries(void) {
 
 #if VIRT && !NO_OBF
 static volatile LONG vm_calls;
-static long double observed_vm(long double key, long long command, OBFH_VM_VALUE a, long double junk_a, OBFH_VM_VALUE b, long double junk_b) {
+static long double observed_vm(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE a, OBFH_VM_VALUE b) {
     InterlockedIncrement(&vm_calls);
-    return (Obfh_VirtualMachine)(key, command, a, junk_a, b, junk_b);
+    return (Obfh_VirtualMachine)(program, length, key, a, b);
 }
 #define Obfh_VirtualMachine(...) observed_vm(__VA_ARGS__)
 #endif

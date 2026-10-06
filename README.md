@@ -94,7 +94,7 @@ printf(hidden_message);
 ## 👺 Virtualization
 This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `VIRT` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
 
-VM macros vary their internal representation throughout the program, making protected calculations harder to recognize and trace. Use the existing macros with `VIRT` enabled; no extra initialization is required.
+The VM interprets internal instruction programs with its own registers and flags. Program layouts and value representations vary throughout the application. Use the existing macros with `VIRT` enabled; no extra initialization is required.
 
 > [!WARNING]
 > Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed

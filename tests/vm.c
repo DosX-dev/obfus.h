@@ -5,34 +5,81 @@
 #include <windows.h>
 
 #include "../include/obfus.h"
-#define CHECK(x)                                               \
-    do {                                                       \
-        if (!(x)) {                                            \
-            fprintf(stderr, "VM failure line %d\n", __LINE__); \
-            return 1;                                          \
-        }                                                      \
+#define CHECK(x)                                                                                                                           \
+    do                                                                                                                                     \
+    {                                                                                                                                      \
+        if (!(x))                                                                                                                          \
+        {                                                                                                                                  \
+            fprintf(stderr, "VM failure line %d\n", __LINE__);                                                                             \
+            return 1;                                                                                                                      \
+        }                                                                                                                                  \
     } while (0)
 #if VIRT && !NO_OBF
 static volatile LONG calls;
-static long double counted_vm(long double key, long long cmd, OBFH_VM_VALUE a, long double ja, OBFH_VM_VALUE b, long double jb) {
+static long double counted_vm(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE a, OBFH_VM_VALUE b)
+{
     InterlockedIncrement(&calls);
-    return (Obfh_VirtualMachine)(key, cmd, a, ja, b, jb);
+    return (Obfh_VirtualMachine)(program, length, key, a, b);
 }
 #define Obfh_VirtualMachine(...) counted_vm(__VA_ARGS__)
-#define ROUTE(expr)            \
-    do {                       \
-        LONG before = calls;   \
-        (void)(expr);          \
-        CHECK(calls > before); \
+#define ROUTE(expr)                                                                                                                        \
+    do                                                                                                                                     \
+    {                                                                                                                                      \
+        LONG before = calls;                                                                                                               \
+        (void)(expr);                                                                                                                      \
+        CHECK(calls > before);                                                                                                             \
     } while (0)
 #else
 #define ROUTE(expr) ((void)(expr))
 #endif
-static int stress(void) {
+static int contract(void)
+{
+#if VIRT && !NO_OBF
+    typedef long integer_result;
+    typedef long double floating_result;
+#else
+    typedef int integer_result;
+    typedef double floating_result;
+#endif
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_ADD(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_SUB(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_MUL(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_DIV(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_MOD(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_EQU(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_NEQ(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_LSS(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_GTR(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_LEQ(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_GEQ(1, 1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_ADD_DBL(1.0, 1.0)), floating_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_SUB_DBL(1.0, 1.0)), floating_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_MUL_DBL(1.0, 1.0)), floating_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_DIV_DBL(1.0, 1.0)), floating_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_LSS_DBL(1.0, 1.0)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_GTR_DBL(1.0, 1.0)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_OBF_INT(1)), integer_result));
+    CHECK(__builtin_types_compatible_p(__typeof__(VM_OBF_DBL(1.0L)), long double));
+    int a = 0, b = 0;
+    CHECK(VM_ADD(++a, ++b) == 2 && a == 1 && b == 1);
+    a = 0;
+    b = 0;
+    CHECK(VM_ADD_DBL(++a, ++b) == 2 && a == 1 && b == 1);
+#if VIRT && !NO_OBF
+    CHECK(VM_DIV(7, 0) == 0);
+    CHECK(VM_MOD(7, 0) == 0 && VM_MOD(INT_MIN, -1) == 0);
+    CHECK(VM_ADD(1.75L, 2.5L) == 4 && VM_DIV(7.5L, 2.5L) == 3 && VM_MOD(7.5L, 2.5L) == 1);
+    CHECK(VM_OBF_INT(-1.75L) == -1);
+#endif
+    return 0;
+}
+static int stress(void)
+{
 #if VIRT && !NO_OBF
     OBFH_VM_VALUE previous = obfh_vm_encode(-1337.25L, SALT_NUM1, 1u | (1u << 1));
     CHECK(previous.floating == 1);
-    for (unsigned int nonce = 2; nonce < 34; ++nonce) {
+    for (unsigned int nonce = 2; nonce < 34; ++nonce)
+    {
         OBFH_VM_VALUE current = obfh_vm_encode(-1337.25L, SALT_NUM1, 1u | (nonce << 1));
         CHECK(current.floating == 1 && current.nonce != previous.nonce);
         CHECK(obfh_vm_decode(current, SALT_NUM1) == -1337.25L);
@@ -41,19 +88,17 @@ static int stress(void) {
     }
     OBFH_VM_VALUE integer_packet = obfh_vm_encode(1337.0L, SALT_NUM2, 0u | (17u << 1));
     CHECK(integer_packet.floating == 0 && obfh_vm_decode(integer_packet, SALT_NUM2) == 1337.0L);
-    enum { command_site = _VM_DEMUTATOR_KEY };
-    long long encoded_command = _ENC_OP__NOP;
-    CHECK(encoded_command / ~(int)SALT_CMD + command_site != OP__NOP);
-    CHECK((Obfh_VirtualMachine)(command_site, encoded_command, previous, 1,
-                                integer_packet, 2) == -1337.25L);
+    CHECK(VM_OBF_DBL(-1337.25L) == -1337.25L);
 #endif
     volatile long double precise = 1000000000.0L;
     precise += 1.0L / 1073741824.0L;
-    if (sizeof(long double) > sizeof(double)) CHECK(precise != (long double)(double)precise);
+    if (sizeof(long double) > sizeof(double))
+        CHECK(precise != (long double)(double)precise);
     CHECK(VM_OBF_DBL(precise) == precise);
     CHECK(VM_OBF_DBL(INT_MIN) == (long double)INT_MIN);
     unsigned int seed = 0x12345678u;
-    for (int i = 0; i < 3000; ++i) {
+    for (int i = 0; i < 3000; ++i)
+    {
         seed = seed * 1664525u + 1013904223u;
         int a = (int)(seed % 2001) - 1000;
         seed = seed * 1664525u + 1013904223u;
@@ -62,7 +107,8 @@ static int stress(void) {
         CHECK(VM_SUB(a, b) == a - b);
         CHECK(VM_MUL(a, b) == a * b);
         // Integer division has the same truncation contract as C.
-        if (b) {
+        if (b)
+        {
             CHECK(VM_DIV(a, b) == a / b);
             CHECK(VM_MOD(a, b) == a % b);
         }
@@ -76,7 +122,8 @@ static int stress(void) {
         CHECK(VM_ADD_DBL(x, y) == x + y);
         CHECK(VM_SUB_DBL(x, y) == x - y);
         CHECK(VM_MUL_DBL(x, y) == x * y);
-        if (y) {
+        if (y)
+        {
             long double difference = VM_DIV_DBL(x, y) - x / y;
             CHECK(difference > -1e-10 && difference < 1e-10);
         }
@@ -108,24 +155,46 @@ static int stress(void) {
     CHECK(VM_ADD(INT_MIN, 0) == INT_MIN && VM_SUB(INT_MAX, 0) == INT_MAX);
     CHECK(VM_MOD(INT_MIN, 3) == INT_MIN % 3);
     int visits = 0;
-    VM_IF(VM_EQU(3, 3)) { visits++; }
-    VM_ELSE { visits += 10; }
-    VM_IF(VM_EQU(3, 4)) { visits += 10; }
-    VM_ELSE_IF(VM_EQU(4, 4)) { visits++; }
-    VM_ELSE { visits += 10; }
+    VM_IF(VM_EQU(3, 3))
+    {
+        visits++;
+    }
+    VM_ELSE
+    {
+        visits += 10;
+    }
+    VM_IF(VM_EQU(3, 4))
+    {
+        visits += 10;
+    }
+    VM_ELSE_IF(VM_EQU(4, 4))
+    {
+        visits++;
+    }
+    VM_ELSE
+    {
+        visits += 10;
+    }
     CHECK(visits == 2);
     return 0;
 }
-static DWORD WINAPI worker(void *p) { return stress(); }
-int main(void) {
+static DWORD WINAPI worker(void *p)
+{
+    return stress();
+}
+int main(void)
+{
+    CHECK(contract() == 0);
     CHECK(stress() == 0);
     HANDLE threads[4];
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i)
+    {
         threads[i] = CreateThread(NULL, 0, worker, NULL, 0, NULL);
         CHECK(threads[i]);
     }
     CHECK(WaitForMultipleObjects(4, threads, TRUE, 60000) == WAIT_OBJECT_0);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i)
+    {
         DWORD status;
         CHECK(GetExitCodeThread(threads[i], &status) && status == 0);
         CHECK(CloseHandle(threads[i]));
