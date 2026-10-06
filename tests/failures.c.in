@@ -3,6 +3,7 @@
 #include <windows.h>
 #define ANTIDEBUG_V2 1
 #define BREAK_STACK_CFLOW
+#define PHANTOM_NOP ((void)0)
 static int mode, duplicates, creates, waits, exits, targets, workers, suspends, resumes, contexts;
 static DWORD(WINAPI *pending)(void *);
 static void *pending_argument;

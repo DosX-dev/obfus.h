@@ -7,8 +7,8 @@
 #undef printf
 #undef puts
 
-/* Execute each skipped leaf in isolation to validate instruction encodings and
-   scratch-stack restoration. Production guards never enter these bodies. */
+/* Execute skipped leaf and framed bodies in isolation to validate instruction
+   encodings and stack restoration. Production guards never enter these bodies. */
 typedef unsigned (*NativeLeaf)(unsigned, unsigned);
 #if defined(__x86_64__)
 #define LEAF_ADDRESS "leaq 1f(%%rip), %0; jmp 9f; 1:"
@@ -48,14 +48,35 @@ CARRIER(leaf_i, OBFH_SF_LEAF_I)
 CARRIER(leaf_j, OBFH_SF_LEAF_J)
 CARRIER(leaf_k, OBFH_SF_LEAF_K)
 CARRIER(leaf_l, OBFH_SF_LEAF_L)
+CARRIER(frame_a, OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_EPILOGUE)
+CARRIER(frame_b, OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE_ALT)
+CARRIER(frame_c, OBFH_SF_FRAME_ALT("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
+CARRIER(frame_d, OBFH_SF_FRAME_ALT("sf_frame_d") OBFH_SF_BODY_D OBFH_SF_EPILOGUE_ALT)
+CARRIER(link_chain,
+        OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "0") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_CALL_AT("3f", "1") OBFH_SF_EPILOGUE_ALT
+        "3:" OBFH_SF_FRAME_ALT("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
+CARRIER(link_shared,
+        OBFH_SF_FRAME_ALT("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "0") OBFH_SF_CALL_AT("3f", "1") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_CALL_AT("3f", "2") OBFH_SF_EPILOGUE
+        "3:" OBFH_SF_FRAME("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE_ALT)
+CARRIER(link_tail,
+        OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "3") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME_ALT("sf_frame_b") OBFH_SF_BODY_B "leave; jmp 3f;"
+        "3:" OBFH_SF_FRAME("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
+CARRIER(link_gate,
+        OBFH_SF_FRAME("sf_frame_a") OBFH_SF_ARGS OBFH_SF_CALL_AT("2f", "4") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE)
 
 int main(void) {
     NativeLeaf functions[] = {leaf_a(), leaf_b(), leaf_c(), leaf_d(), leaf_e(), leaf_f(),
-                              leaf_g(), leaf_h(), leaf_i(), leaf_j(), leaf_k(), leaf_l()};
+                              leaf_g(), leaf_h(), leaf_i(), leaf_j(), leaf_k(), leaf_l(),
+                              frame_a(), frame_b(), frame_c(), frame_d(),
+                              link_chain(), link_shared(), link_tail(), link_gate()};
     volatile unsigned canaries[4] = {0xabcdef01u, 0x12345678u, 0xfedcba98u, 0x98765432u};
     volatile unsigned digest = 0;
     unsigned state = 1;
-    for (unsigned i = 0; i < 12; ++i) {
+    for (unsigned i = 0; i < sizeof(functions) / sizeof(functions[0]); ++i) {
         for (unsigned j = 0; j < 2048; ++j) {
             uintptr_t before, after;
             state = state * 1664525u + 1013904223u;

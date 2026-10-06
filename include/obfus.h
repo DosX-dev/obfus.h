@@ -65,6 +65,7 @@
 #define HIDE_STRING(str) str
 #define BREAK_STACK_CFLOW ((void)0)
 #define STACK_PROXY_FUNCTIONS ((void)0)
+#define PHANTOM_NOP ((void)0)
 #define ANTI_DEBUG 0
 #endif
 
@@ -302,6 +303,17 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 
 #define __obfh_asm__(...) __asm__ __volatile(__VA_ARGS__)
 
+// Compile-time byte variation only: no runtime branch, register or flag changes.
+#define OBFH_PHANTOM_DRAW(site) \
+    OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u))
+#define PHANTOM_NOP                                                       \
+    ({                                                                    \
+        enum { __obfh_phantom_site = __LINE__ };                          \
+        __obfh_asm__(".fill %c0, 1, 0x90;"                                \
+                     :                                                    \
+                     : "i"(OBFH_PHANTOM_DRAW(__obfh_phantom_site) & 1u)); \
+    })
+
 // Static PE unwind-backed decoys. TCC alone supplies the RVA relocations.
 // Its function-table range begins after the carrier's 11-byte prologue;
 // an independent native entry there matches its PUSH_RBP / SET_FPREG info.
@@ -331,15 +343,16 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 #define OBFH_PD_BODY_13 "movl %[loops], %%edx; 1: roll %[rotate], %%eax; xorl %[key], %%eax; decl %%edx; jnz 1b;"
 #define OBFH_PD_BODY_14 "movl %%eax, %%edx; shll $5, %%eax; shrl $3, %%edx; xorl %%edx, %%eax; addl %[key], %%eax;"
 #define OBFH_PD_BODY_15 "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; xorl %[key], %%eax; addl %[key2], %%eax;"
-#define OBFH_PD_ASM(body)                                                                 \
-    __obfh_asm__(                                                                         \
-        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame]; "       \
-        "movl %%ecx, %%eax; movl %%eax, -%c[slot](%%rbp); " body                          \
-        ".byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;"                       \
-        :                                                                                 \
-        : [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot),                       \
-          [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), [mul] "i"(__obfh_pd_mul), \
-          [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops)                    \
+#define OBFH_PD_ASM(body)                                                                       \
+    __obfh_asm__(                                                                               \
+        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame]; "             \
+        "movl %%ecx, %%eax; movl %%eax, -%c[slot](%%rbp); " body                                \
+        ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;" \
+        :                                                                                       \
+        : [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot),                             \
+          [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), [mul] "i"(__obfh_pd_mul),       \
+          [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops),                         \
+          [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u)                                  \
         : "rax", "rcx", "rdx", "cc", "memory")
 #define OBFH_PD_DEFINE(site)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            \
     static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used));                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        \
@@ -1137,7 +1150,7 @@ OBFH_PD_DEFINE(127);
 // Frames and calling conventions follow Windows TCC x86/x64. Numeric labels
 // stay inside each ASM expansion; no insertion refers to another call site.
 #define OBFH_SF_INPUTS                                                                                                                                                                                                                                                                                                                           \
-    [sf_salt] "i"(RND(1, 32767)), [sf_rotate] "i"(RND(1, 31)),                                                                                                                                                                                                                                                                                   \
+    [sf_phantom] "i"(OBFH_PHANTOM_DRAW(__LINE__)), [sf_salt] "i"(RND(1, 32767)), [sf_rotate] "i"(RND(1, 31)),                                                                                                                                                                                                                                    \
         [sf_frame_a] "i"(RND(2, 12) * 16u), [sf_frame_b] "i"(RND(2, 12) * 16u), [sf_frame_c] "i"(RND(2, 12) * 16u),                                                                                                                                                                                                                              \
         [sf_arg_a] "i"(RND(1, 65535)), [sf_arg_b] "i"(RND(1, 65535)),                                                                                                                                                                                                                                                                            \
         [sf_key_a] "i"(OBFH_JUNK_WORD), [sf_key_b] "i"(OBFH_JUNK_WORD), [sf_factor] "i"(RND(1, 32767) * 2u + 1u),                                                                                                                                                                                                                                \
@@ -1153,30 +1166,84 @@ OBFH_PD_DEFINE(127);
                                                       : __obfh_sf_shift == 3   ? 0xe8                                                                                                                                                                                                                                                            \
                                                                                : 0xf8)
 
+// All choices below assemble only inside skipped native functions. No new
+// RND draws or live-path instructions; existing captured entropy selects forms.
+#define OBFH_SF_BYTES(bit, flip, size, value) \
+    ".fill (((%c[sf_phantom] >> " bit ") & 1) ^ " flip "), " size ", " value ";"
+#define OBFH_SF_WORD(bit, flip, value) OBFH_SF_BYTES(bit, flip, "4", value)
+// Optional edges exist only in skipped bodies. x64 call sequence is 23 bytes;
+// x86 uses explicit imm32 pushes so its sequence is always 18 bytes.
+#define OBFH_SF_LINK_BYTES(channel, size, value) \
+    ".fill (((%c[sf_phantom] ^ %c[sf_key_a]) >> (12 + 3 * " channel ")) & 1), " size ", " value ";"
+#define OBFH_SF_LINK_GATE(span, channel) \
+    OBFH_SF_LINK_BYTES(channel, "2", "0xc085 ^ ((((%c[sf_phantom] ^ %c[sf_key_a]) >> (14 + 3 * " channel ")) & 1) << 12)") \
+    OBFH_SF_LINK_BYTES(channel, "1", "0x74 | (((%c[sf_phantom] ^ %c[sf_key_a]) >> (13 + 3 * " channel ")) & 1)") \
+    OBFH_SF_LINK_BYTES(channel, "1", span)
 #if defined(__x86_64__)
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
-#define OBFH_SF_FRAME(size) "pushq %%rbp; movq %%rsp, %%rbp; subq $%c[" size "], %%rsp;"
-#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp; movq %%rsp, %%rbp; leaq -%c[" size "](%%rsp), %%rsp;"
-#define OBFH_SF_EPILOGUE_ALT "movq %%rbp, %%rsp; popq %%rbp; ret;"
-#define OBFH_SF_ARGS "movl %%ecx, %%eax;"
-#define OBFH_SF_CALL(target) "subq $32, %%rsp; movl $%c[sf_arg_a], %%ecx; movl $%c[sf_arg_b], %%edx; call " target "; addq $32, %%rsp;"
+#define OBFH_SF_FRAME_HEAD(size) \
+    "pushq %%rbp;" OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xe58948") OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x242c8d48")
+#define OBFH_SF_FRAME(size)                                                                                                                     \
+    OBFH_SF_FRAME_HEAD(size)                                                                                                                    \
+    OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8148") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
+        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24a48d48") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]")
+#define OBFH_SF_FRAME_ALT(size)                                                                                                                                \
+    "pushq %%rbp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8148") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
+        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24a48d48") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 4, 0x24ac8d48; .long %c[" size "];"
+#define OBFH_SF_EPILOGUE_ALT                 \
+    OBFH_SF_BYTES("7", "0", "3", "0xec8948") \
+    OBFH_SF_BYTES("7", "1", "4", "0x00658d48") "popq %%rbp; ret;"
+#define OBFH_SF_EPILOGUE                 \
+    OBFH_SF_BYTES("6", "0", "1", "0xc9") \
+    OBFH_SF_BYTES("6", "1", "4", "0x5dec8948") "ret;"
+#define OBFH_SF_ARGS                       \
+    OBFH_SF_BYTES("9", "0", "2", "0xc889") \
+    OBFH_SF_BYTES("9", "1", "3", "0x00418d")
+#define OBFH_SF_CALL_ARGS                                                                 \
+    OBFH_SF_BYTES("10", "0", "1", "0xb9")                                                 \
+    OBFH_SF_WORD("10", "0", "%c[sf_arg_a]")                                               \
+        OBFH_SF_BYTES("10", "0", "1", "0xba") OBFH_SF_WORD("10", "0", "%c[sf_arg_b]")     \
+            OBFH_SF_BYTES("10", "1", "1", "0xba") OBFH_SF_WORD("10", "1", "%c[sf_arg_b]") \
+                OBFH_SF_BYTES("10", "1", "1", "0xb9") OBFH_SF_WORD("10", "1", "%c[sf_arg_a]")
+#define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
+#define OBFH_SF_LOCAL                                                                              \
+    OBFH_SF_BYTES("8", "0", "2", "0x4589")                                                         \
+    OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_a]")                                                \
+        OBFH_SF_BYTES("8", "0", "2", "0x5589") OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_b]")     \
+            OBFH_SF_BYTES("8", "1", "2", "0x5589") OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_b]") \
+                OBFH_SF_BYTES("8", "1", "2", "0x4589") OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_a]")
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
-#define OBFH_SF_FRAME(size) "pushl %%ebp; movl %%esp, %%ebp; subl $%c[" size "], %%esp; nop;"
-#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp; movl %%esp, %%ebp; leal -%c[" size "](%%esp), %%esp;"
-#define OBFH_SF_EPILOGUE_ALT "movl %%ebp, %%esp; popl %%ebp; ret;"
-#define OBFH_SF_ARGS "movl 12(%%ebp), %%edx; movl 8(%%ebp), %%eax;"
-#define OBFH_SF_CALL(target) "pushl $%c[sf_arg_b]; pushl $%c[sf_arg_a]; call " target "; addl $8, %%esp;"
+#define OBFH_SF_FRAME_HEAD(size) \
+    "pushl %%ebp;" OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xe589") OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x242c8d")
+#define OBFH_SF_FRAME(size)                                                                                                                   \
+    OBFH_SF_FRAME_HEAD(size)                                                                                                                  \
+    OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec81") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
+        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24a48d") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]")
+#define OBFH_SF_FRAME_ALT(size)                                                                                                                              \
+    "pushl %%ebp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec81") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
+        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24a48d") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 3, 0x24ac8d; .long %c[" size "];"
+#define OBFH_SF_EPILOGUE_ALT               \
+    OBFH_SF_BYTES("7", "0", "2", "0xec89") \
+    OBFH_SF_BYTES("7", "1", "3", "0x00658d") "popl %%ebp; ret;"
+#define OBFH_SF_EPILOGUE                 \
+    OBFH_SF_BYTES("6", "0", "1", "0xc9") \
+    OBFH_SF_BYTES("6", "1", "3", "0x5dec89") "ret;"
+#define OBFH_SF_ARGS                         \
+    OBFH_SF_BYTES("9", "0", "3", "0x0c558b") \
+    OBFH_SF_BYTES("9", "0", "3", "0x08458b") \
+        OBFH_SF_BYTES("9", "1", "3", "0x08458b") OBFH_SF_BYTES("9", "1", "3", "0x0c558b")
+#define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("18", channel) ".byte 0x68; .long %c[sf_arg_b]; .byte 0x68; .long %c[sf_arg_a]; call " target "; addl $8, %%esp;"
+#define OBFH_SF_LOCAL                                                                              \
+    OBFH_SF_BYTES("8", "0", "2", "0x4589")                                                         \
+    OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_a]")                                                \
+        OBFH_SF_BYTES("8", "0", "2", "0x5589") OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_b]")     \
+            OBFH_SF_BYTES("8", "1", "2", "0x5589") OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_b]") \
+                OBFH_SF_BYTES("8", "1", "2", "0x4589") OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_a]")
 #endif
-#define OBFH_SF_EPILOGUE "leave; ret;"
+#define OBFH_SF_CALL(target) OBFH_SF_CALL_AT(target, "0")
 #define OBFH_SF_PADDING ".fill %c[sf_pad], 1, 0x90;"
 #define OBFH_SF_GAP ".fill %c[sf_pad_b], 1, 0x90; .byte %c[sf_noise_a], %c[sf_noise_b];"
-#define OBFH_SF_LOCAL "movl %%eax, -%c[sf_local_a](%%ebp); movl %%edx, -%c[sf_local_b](%%ebp);"
-// Use pointer-width addressing in fake x64 bodies as well as their prologues.
-#if defined(__x86_64__)
-#undef OBFH_SF_LOCAL
-#define OBFH_SF_LOCAL "movl %%eax, -%c[sf_local_a](%%rbp); movl %%edx, -%c[sf_local_b](%%rbp);"
-#endif
 #define OBFH_SF_BODY_A OBFH_SF_ARGS "xorl $%c[sf_key_a], %%eax; imull $%c[sf_factor], %%eax; addl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_B OBFH_SF_ARGS "addl $%c[sf_key_b], %%eax; roll $%c[sf_rotate], %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_C OBFH_SF_ARGS "leal (%%eax, %%eax, 2), %%eax; xorl %%eax, %%edx; addl $%c[sf_key_a], %%eax;" OBFH_SF_LOCAL
@@ -1219,96 +1286,189 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_GUARD_13 "movl %%eax, %%ecx; movl %%eax, %%edx; addl $%c[sf_key_a], %%eax; imull %%eax, %%eax; imull %%ecx, %%ecx; subl %%ecx, %%eax; imull $%c[sf_key_a], %%edx; addl %%edx, %%edx; subl %%edx, %%eax; movl $%c[sf_key_a], %%edx; imull %%edx, %%edx; cmpl %%edx, %%eax; je 9f;"
 #define OBFH_SF_GUARD_14 "movl %%eax, %%edx; roll $16, %%eax; roll $16, %%eax; cmpl %%edx, %%eax; je 9f;"
 
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body
-#define OBFH_SF_ENTRY(label, frame, body) label ": " OBFH_SF_FRAME(frame) body
-#define OBFH_SF_LAYOUT_0(a, b, c)                                               \
-    OBFH_SF_CALL("1f")                                                          \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                            \
-        OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE \
-            OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 1b;"
-#define OBFH_SF_LAYOUT_1(a, b, c)                                                                              \
-    OBFH_SF_CALL("1f")                                                                                         \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                                                           \
-        OBFH_SF_ENTRY("1", "sf_frame_a", a) "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2f") "4:" OBFH_SF_EPILOGUE \
-            OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_2(a, b, c)                                                                  \
-    OBFH_SF_CALL("1f")                                                                             \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                                               \
-        OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE \
-            OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE                \
-                OBFH_SF_ENTRY("3", "sf_frame_c", c) "leave; jmp 1b;"
-#define OBFH_SF_LAYOUT_3(a, b, c)                                                                                                               \
-    OBFH_SF_CALL("1f")                                                                                                                          \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING                                                                                                            \
-        OBFH_SF_ENTRY("1", "sf_frame_a", a) "testl $1, %%eax; jnz 4f;" OBFH_SF_CALL("2f") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
-            OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE                                                             \
-                OBFH_SF_ENTRY("3", "sf_frame_c", c) "leave; jmp 1b;"
-#define OBFH_SF_LAYOUT_4(a, b, c)                                                                                                                                   \
-    OBFH_SF_CALL("1f")                                                                                                                                              \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) \
-    OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2b") "4:" OBFH_SF_EPILOGUE
-
+#define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body ".fill ((%c[sf_phantom] >> " label ") & 1), 1, 0x90;"
+#define OBFH_SF_ENTRY(label, frame, body) label ": " OBFH_SF_FRAME(frame) body ".fill ((%c[sf_phantom] >> " label ") & 1), 1, 0x90;"
+// Physical order, finite link graphs, and shared/tail continuations vary.
+#define OBFH_SF_LAYOUT_0(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "1") \
+    OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_1(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
+    "leave; jmp 2f;" \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_2(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_CALL_AT("3b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3b", "3") \
+    OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_3(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    "leave; jmp 3f;" \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
+    "testl %%eax, %%eax; jz 4f;" \
+    OBFH_SF_CALL_AT("2b", "1") \
+    "jmp 5f; 4:" \
+    OBFH_SF_CALL_AT("3b", "2") \
+    "5:" \
+    OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_4(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3f", "1") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE
 #define OBFH_SF_LAYOUT_5(a, b, c) \
-    OBFH_SF_CALL("1f")            \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
-
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "1") \
+    OBFH_SF_CALL_AT("3b", "2") \
+    OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_6(a, b, c) \
-    OBFH_SF_CALL("1f")            \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) "leave; jmp 2f;" OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
-
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    "leave; jmp 3f;" \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    "leave; jmp 3f;" \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE
 #define OBFH_SF_LAYOUT_7(a, b, c) \
-    OBFH_SF_CALL("1f")            \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL("1b") "4:" OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
-
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3b", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "2") \
+    OBFH_SF_CALL_AT("3b", "3") \
+    OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_8(a, b, c) \
-    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("1f") "jmp 5f; 4:" OBFH_SF_CALL("2f") "5:" OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) OBFH_SF_EPILOGUE
-
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("3b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3b", "3") \
+    OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_9(a, b, c) \
-    OBFH_SF_CALL("1f")            \
-    OBFH_SF_EPILOGUE OBFH_SF_PADDING OBFH_SF_ENTRY("1", "sf_frame_a", a) OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("2", "sf_frame_b", b) "testl $1, %%eax; jnz 4f;" OBFH_SF_CALL("1b") "4:" OBFH_SF_CALL("3f") OBFH_SF_EPILOGUE OBFH_SF_ENTRY("3", "sf_frame_c", c) "leave; jmp 2b;"
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    "testl %%eax, %%eax; jz 4f;" \
+    OBFH_SF_CALL_AT("3b", "1") \
+    "4:" \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    "leave; jmp 2b;"
 
 #define OBFH_SF_LAYOUT_10(a, b, c, d)       \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_CALL_AT("3b", "1")                      \
     OBFH_SF_EPILOGUE_ALT                    \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL("2b")                      \
+    OBFH_SF_CALL_AT("2b", "2")                      \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_11(a, b, c, d)       \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_CALL_AT("3f", "1")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
-    OBFH_SF_CALL("2b")                      \
-    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_CALL_AT("2b", "2")                      \
+    OBFH_SF_CALL_AT("3f", "3")                      \
     OBFH_SF_EPILOGUE_ALT                    \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_12(a, b, c, d)       \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL("2f")                      \
-    OBFH_SF_CALL("8f")                      \
+    OBFH_SF_CALL_AT("2f", "1")                      \
+    OBFH_SF_CALL_AT("8f", "2")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_CALL_AT("3f", "3")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
@@ -1318,15 +1478,15 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_13(a, b, c, d)       \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL("2f")                      \
+    OBFH_SF_CALL_AT("2f", "1")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_CALL_AT("3f", "2")                      \
     OBFH_SF_EPILOGUE_ALT                    \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
@@ -1335,148 +1495,148 @@ OBFH_PD_DEFINE(127);
             OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_14(a, b, c, d)       \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("8", "sf_frame_d", d)     \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "1")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
     OBFH_SF_EPILOGUE_ALT                    \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL("2f")                      \
+    OBFH_SF_CALL_AT("2f", "2")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL("3b")                      \
-    OBFH_SF_CALL("8b")                      \
+    OBFH_SF_CALL_AT("3b", "3")                      \
+    OBFH_SF_CALL_AT("8b", "4")                      \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_15(a, b, c, d)                                                                      \
-    OBFH_SF_CALL("1f")                                                                                     \
+    OBFH_SF_CALL_AT("1f", "0")                                                                                     \
     OBFH_SF_EPILOGUE                                                                                       \
     OBFH_SF_GAP                                                                                            \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a)                                                                \
-    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2f") "jmp 5f; 4:" OBFH_SF_CALL("8f") "5:" OBFH_SF_EPILOGUE_ALT \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("8f", "2") "5:" OBFH_SF_EPILOGUE_ALT \
         OBFH_SF_GAP                                                                                        \
             OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                            \
-                OBFH_SF_CALL("3f")                                                                         \
+                OBFH_SF_CALL_AT("3f", "3")                                                                         \
                     OBFH_SF_EPILOGUE                                                                       \
                         OBFH_SF_GAP                                                                        \
                             OBFH_SF_ENTRY("8", "sf_frame_d", d)                                            \
-                                OBFH_SF_CALL("3f")                                                         \
+                                OBFH_SF_CALL_AT("3f", "4")                                                         \
                                     OBFH_SF_EPILOGUE                                                       \
                                         OBFH_SF_GAP                                                        \
                                             OBFH_SF_ENTRY("3", "sf_frame_c", c)                            \
                                                 OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_16(a, b, c, d)                                       \
-    OBFH_SF_CALL("1f")                                                      \
+    OBFH_SF_CALL_AT("1f", "0")                                                      \
     OBFH_SF_EPILOGUE                                                        \
     OBFH_SF_GAP                                                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)                                     \
-    OBFH_SF_CALL("2f")                                                      \
+    OBFH_SF_CALL_AT("2f", "1")                                                      \
     OBFH_SF_EPILOGUE                                                        \
     OBFH_SF_GAP                                                             \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)                                     \
-    "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL("2b") "4:" OBFH_SF_CALL("3f") \
+    "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL_AT("2b", "2") "4:" OBFH_SF_CALL_AT("3f", "3") \
         OBFH_SF_EPILOGUE                                                    \
             OBFH_SF_GAP                                                     \
                 OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c)                     \
                     OBFH_SF_EPILOGUE_ALT
 
 #define OBFH_SF_LAYOUT_17(a, b, c, d)                                                                    \
-    OBFH_SF_CALL("1f")                                                                                   \
+    OBFH_SF_CALL_AT("1f", "0")                                                                                   \
     OBFH_SF_EPILOGUE                                                                                     \
     OBFH_SF_GAP                                                                                          \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                  \
-    "cmpl %%edx, %%eax; jb 4f;" OBFH_SF_CALL("2f") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+    "cmpl %%edx, %%eax; jb 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "2") "5:" OBFH_SF_EPILOGUE \
         OBFH_SF_GAP                                                                                      \
             OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP                             \
                 OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c)                                                  \
-                    OBFH_SF_CALL("1b")                                                                   \
+                    OBFH_SF_CALL_AT("1b", "3")                                                                   \
                         OBFH_SF_EPILOGUE_ALT
 
 #define OBFH_SF_LAYOUT_18(a, b, c, d)       \
-    OBFH_SF_CALL("3f")                      \
+    OBFH_SF_CALL_AT("3f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL("1b")                      \
+    OBFH_SF_CALL_AT("1b", "1")                      \
     OBFH_SF_EPILOGUE_ALT                    \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_CALL("2b")                      \
+    OBFH_SF_CALL_AT("2b", "2")                      \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_19(a, b, c, d)                                                                  \
-    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("1f") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("1f", "0") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "1") "5:" OBFH_SF_EPILOGUE \
         OBFH_SF_GAP                                                                                    \
             OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                        \
-                OBFH_SF_CALL("2f")                                                                     \
+                OBFH_SF_CALL_AT("2f", "2")                                                                     \
                     OBFH_SF_EPILOGUE                                                                   \
                         OBFH_SF_GAP                                                                    \
                             OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b)                                    \
     OBFH_SF_EPILOGUE_ALT                                                                               \
     OBFH_SF_GAP                                                                                        \
     OBFH_SF_ENTRY("3", "sf_frame_c", c)                                                                \
-    OBFH_SF_CALL("2b")                                                                                 \
+    OBFH_SF_CALL_AT("2b", "3")                                                                                 \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_20(a, b, c, d)                                                                  \
-    OBFH_SF_CALL("1f")                                                                                 \
+    OBFH_SF_CALL_AT("1f", "0")                                                                                 \
     OBFH_SF_EPILOGUE                                                                                   \
     OBFH_SF_GAP                                                                                        \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                                \
-    OBFH_SF_CALL("8f")                                                                                 \
+    OBFH_SF_CALL_AT("8f", "1")                                                                                 \
     OBFH_SF_EPILOGUE                                                                                   \
     OBFH_SF_GAP                                                                                        \
     OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d)                                                            \
-    OBFH_SF_CALL("3f")                                                                                 \
+    OBFH_SF_CALL_AT("3f", "2")                                                                                 \
     OBFH_SF_EPILOGUE_ALT                                                                               \
     OBFH_SF_GAP                                                                                        \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                \
-    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL("2b") "jmp 5f; 4:" OBFH_SF_CALL("3f") "5:" OBFH_SF_EPILOGUE \
+    "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "3") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "4") "5:" OBFH_SF_EPILOGUE \
         OBFH_SF_GAP                                                                                    \
             OBFH_SF_ENTRY("3", "sf_frame_c", c)                                                        \
-                OBFH_SF_CALL("1b")                                                                     \
+                OBFH_SF_CALL_AT("1b", "5")                                                                     \
                     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_21(a, b, c, d)       \
-    OBFH_SF_CALL("1f")                      \
+    OBFH_SF_CALL_AT("1f", "0")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d) \
-    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_CALL_AT("3b", "1")                      \
     OBFH_SF_EPILOGUE_ALT                    \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL("8b")                      \
+    OBFH_SF_CALL_AT("8b", "2")                      \
     OBFH_SF_EPILOGUE                        \
     OBFH_SF_GAP                             \
     OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL("2b")                      \
-    OBFH_SF_CALL("3b")                      \
+    OBFH_SF_CALL_AT("2b", "3")                      \
+    OBFH_SF_CALL_AT("3b", "4")                      \
     OBFH_SF_EPILOGUE
 
 // Skipped native helpers: register-only and scratch-stack forms share no RBP frame.
 // Their arithmetic/opcodes vary per expansion; all stack edits follow the live guard.
 #if defined(__x86_64__)
-#define OBFH_SF_LEAF_ARGS "movl %%ecx, %%eax;"
+#define OBFH_SF_LEAF_ARGS OBFH_SF_ARGS ".fill (%c[sf_phantom] & 1), 1, 0x90;"
 #define OBFH_SF_LEAF_ENTER "subq $%c[sf_leaf_frame], %%rsp;"
 #define OBFH_SF_LEAF_STORE "movl %%eax, %c[sf_leaf_slot](%%rsp);"
 #define OBFH_SF_LEAF_LOAD "movl %c[sf_leaf_slot](%%rsp), %%ecx;"
 #define OBFH_SF_LEAF_EXIT "addq $%c[sf_leaf_frame], %%rsp; ret;"
 #else
-#define OBFH_SF_LEAF_ARGS "movl 4(%%esp), %%eax; movl 8(%%esp), %%edx;"
+#define OBFH_SF_LEAF_ARGS "movl 4(%%esp), %%eax; movl 8(%%esp), %%edx; .fill (%c[sf_phantom] & 1), 1, 0x90;"
 #define OBFH_SF_LEAF_ENTER "subl $%c[sf_leaf_frame], %%esp;"
 #define OBFH_SF_LEAF_STORE "movl %%eax, %c[sf_leaf_slot](%%esp);"
 #define OBFH_SF_LEAF_LOAD "movl %c[sf_leaf_slot](%%esp), %%ecx;"
@@ -1501,50 +1661,50 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LEAF_L OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_ALU_A "jmp 7f; 6:" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
 #define OBFH_SF_LAYOUT_22(a, b, c, d)   \
-    OBFH_SF_CALL("1f")                  \
+    OBFH_SF_CALL_AT("1f", "0")                  \
     OBFH_SF_EPILOGUE OBFH_SF_GAP        \
         OBFH_SF_LEAF_ENTRY("2", c)      \
     OBFH_SF_GAP                         \
     OBFH_SF_ENTRY("1", "sf_frame_a", a) \
-    OBFH_SF_CALL("2b")                  \
+    OBFH_SF_CALL_AT("2b", "1")                  \
     OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_23(a, b, c, d) \
-    OBFH_SF_CALL("1f")                \
+    OBFH_SF_CALL_AT("1f", "0")                \
     OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP  \
         OBFH_SF_LEAF_ENTRY("1", c)    \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("2", d)
 #define OBFH_SF_LAYOUT_24(a, b, c, d)                                                                                  \
-    OBFH_SF_CALL("1f")                                                                                                 \
+    OBFH_SF_CALL_AT("1f", "0")                                                                                                 \
     OBFH_SF_EPILOGUE OBFH_SF_GAP                                                                                       \
-        OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) OBFH_SF_CALL("3f") OBFH_SF_CALL("2f") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) OBFH_SF_CALL_AT("3f", "1") OBFH_SF_CALL_AT("2f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
             OBFH_SF_LEAF_ENTRY("2", c)                                                                                 \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d)
 #define OBFH_SF_LAYOUT_25(a, b, c, d)   \
-    OBFH_SF_CALL("1f")                  \
+    OBFH_SF_CALL_AT("1f", "0")                  \
     OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP    \
         OBFH_SF_LEAF_ENTRY("3", d)      \
     OBFH_SF_GAP                         \
     OBFH_SF_ENTRY("1", "sf_frame_a", a) \
-    OBFH_SF_CALL("2f")                  \
+    OBFH_SF_CALL_AT("2f", "1")                  \
     OBFH_SF_EPILOGUE OBFH_SF_GAP        \
-        OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) OBFH_SF_CALL("3b") OBFH_SF_EPILOGUE_ALT
+        OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) OBFH_SF_CALL_AT("3b", "2") OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_26(a, b, c, d)                                                     \
-    OBFH_SF_CALL("1f")                                                                    \
+    OBFH_SF_CALL_AT("1f", "0")                                                                    \
     OBFH_SF_EPILOGUE OBFH_SF_GAP                                                          \
         OBFH_SF_LEAF_ENTRY("2", c)                                                        \
     OBFH_SF_GAP                                                                           \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a)                                               \
-    "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL("2b") "4:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+    "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "4:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("3", d)
 #define OBFH_SF_LAYOUT_27(a, b, c, d)      \
-    OBFH_SF_CALL("2f")                     \
+    OBFH_SF_CALL_AT("2f", "0")                     \
     OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP       \
         OBFH_SF_LEAF_ENTRY("1", c)         \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d) \
     OBFH_SF_GAP                            \
     OBFH_SF_ENTRY("2", "sf_frame_b", b)    \
-    OBFH_SF_CALL("1b")                     \
-    OBFH_SF_CALL("3b")                     \
+    OBFH_SF_CALL_AT("1b", "1")                     \
+    OBFH_SF_CALL_AT("3b", "2")                     \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_ASM(guard, layout) \
@@ -1718,12 +1878,14 @@ OBFH_PD_DEFINE(127);
 
 static void obfh_junk_func_args(int z, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     __obfh_asm__("nop;");
     return;
 }
 
 static void obfh_junk_func() OBFH_DATA_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     __obfh_asm__("nop;");
     return;
 }
@@ -1761,6 +1923,7 @@ static void *malloc_proxy(size_t size) {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     char name[] = {_m, _a, _l, _l, _o, _c, _0};
+    PHANTOM_NOP;
     void *result = ((void *(*)(size_t))obfh_crt_resolve(name))(size);
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
@@ -1771,12 +1934,14 @@ static float rndValueToProxy = RND(0, 10);
 
 static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     RET_BY_VAR(value);
 }
 
 // Preserve pointer and SIZE_T width on both Windows targets.
 static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     RET_BY_VAR(value);
 }
 
@@ -1784,6 +1949,7 @@ static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_CODE_SECTION_ATTRIBUTE
 
 static double obfh_double_proxy(double value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     RET_BY_VAR(value);
 }
 
@@ -1792,6 +1958,7 @@ static float obfh_condition_true();
 // Hidden string access
 static char *obfh_process_hidden_string(char *string, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
 
     if (!obfh_condition_true() || _0) {
         BAD_JMP;
@@ -1804,11 +1971,13 @@ static char *obfh_process_hidden_string(char *string, ...) OBFH_CODE_SECTION_ATT
 
 static float obfh_condition_true() OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return _1 && TRUE;
 }
 
 static int obfh_condition_proxy(float junk, float condition, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     RET_BY_VAR(condition);
 }
 
@@ -1830,6 +1999,7 @@ static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     unsigned int low, high;
     static volatile LONG rdtscpAvailable = -1;
     LONG supported = rdtscpAvailable;
+    PHANTOM_NOP;
     if (supported < 0) {
         unsigned int leaf, b, c, d;
         __obfh_asm__("cpuid;"
@@ -1882,6 +2052,7 @@ static FARPROC obfh_crt_cached(const char *name) {
             if (!byte) return (FARPROC)obfh_uintptr_proxy(entry->address ^ SALT_SHIFT);
         }
     }
+    PHANTOM_NOP;
     return NULL;
 }
 
@@ -1890,6 +2061,7 @@ static void obfh_crt_publish(const char *name, FARPROC function) {
     if (!function || obfh_crt_cached(name)) return;
     unsigned int length = 0;
     while (name[length] && length < 31) ++length;
+    PHANTOM_NOP;
     if (name[length]) return;
     for (unsigned int slot = 0; slot < 32; ++slot) {
         OBFH_CRT_ENTRY *entry = &obfh_crt_entries[slot];
@@ -1920,6 +2092,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int fl
     encoded.floating = floating & 1u;
     unsigned int state = encoded.nonce ^ ((unsigned int)key * 2246822519u) ^ 0x9e3779b9u;
     size_t offset = encoded.nonce % sizeof(value);
+    PHANTOM_NOP;
     for (size_t i = 0; i < sizeof(value); ++i) {
         state ^= state << 13;
         state ^= state >> 17;
@@ -1938,6 +2111,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     unsigned char *bytes = (unsigned char *)&value;
     unsigned int state = encoded.nonce ^ ((unsigned int)key * 2246822519u) ^ 0x9e3779b9u;
     size_t offset = encoded.nonce % sizeof(value);
+    PHANTOM_NOP;
     for (size_t i = 0; i < sizeof(value); ++i) {
         state ^= state << 13;
         state ^= state >> 17;
@@ -2351,26 +2525,32 @@ typedef struct
 static unsigned int obfh_v_mix(unsigned int x) {
     x ^= x >> 16;
     x *= 2246822507u;
+    PHANTOM_NOP;
     x ^= x >> 13;
     return x;
 }
 /* Encodings are local to an execution; only decoded uint32 values enter ALU operations. */
 static unsigned int obfh_v_control_read(const OBFH_V_CONTEXT *c, unsigned int r) {
+    PHANTOM_NOP;
     return c->controls[r] ^ obfh_v_mix(c->key ^ (r * 3266489917u));
 }
 static void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int value) {
     c->controls[r] = value ^ obfh_v_mix(c->key ^ (r * 3266489917u));
+    PHANTOM_NOP;
 }
 static unsigned int obfh_v_flags(const OBFH_V_CONTEXT *c) {
+    PHANTOM_NOP;
     return c->flags ^ c->flag_key;
 }
 static void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
     c->flags = flags ^ c->flag_key;
+    PHANTOM_NOP;
 }
 static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
     unsigned int m = obfh_v_mix(c->key ^ (r * 3266489917u) ^ c->steps);
     const unsigned char *p = (const unsigned char *)&v;
     c->registers[r].mask = m;
+    PHANTOM_NOP;
     for (unsigned int i = 0; i < sizeof(v); ++i) {
         m = obfh_v_mix(m + i + 1u);
         c->registers[r].bytes[i] = p[i] ^ (unsigned char)m;
@@ -2381,6 +2561,7 @@ static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     long double v;
     unsigned char *p = (unsigned char *)&v;
     unsigned int m = c->registers[r].mask;
+    PHANTOM_NOP;
     for (unsigned int i = 0; i < sizeof(v); ++i) {
         m = obfh_v_mix(m + i + 1u);
         p[i] = c->registers[r].bytes[i] ^ (unsigned char)m;
@@ -2390,20 +2571,24 @@ static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
 static void obfh_v_copy(OBFH_V_CONTEXT *c, unsigned int d, unsigned int a) {
     /* Encoded copy preserves numeric object bytes without an FP operation. */
     c->registers[d] = c->registers[a];
+    PHANTOM_NOP;
     c->initialized |= 1u << d;
 }
 static void obfh_v_failure(OBFH_V_CONTEXT *c, unsigned int status) {
     c->status = status;
+    PHANTOM_NOP;
     ExitProcess(0xE0BF0000u | status);
 }
 static unsigned int obfh_v_decode(unsigned int word, unsigned int key, unsigned int pc) {
     unsigned int rotate = (key % 31u) + 1u;
     word ^= key + pc * 0x9e3779b9u;
+    PHANTOM_NOP;
     return (word << rotate) | (word >> (32u - rotate));
 }
 static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
     unsigned int multiplier = ((key >> 8) & 255u) | 1u, inverse = 1u;
     inverse *= 2u - multiplier * inverse;
+    PHANTOM_NOP;
     inverse *= 2u - multiplier * inverse;
     inverse *= 2u - multiplier * inverse;
     return (((word & 255u) - (key & 255u)) * inverse) & 255u;
@@ -2434,6 +2619,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         obfh_v_failure(&c, 1);
     long double operands[2] = {obfh_vm_decode(input_a, SALT_NUM1), obfh_vm_decode(input_b, SALT_NUM2)};
     STACK_PROXY_FUNCTIONS;
+    PHANTOM_NOP;
     /* OBFH_VM_TRACE_ENTER */
     while (c.steps < 128) {
         if (c.pc >= length)
@@ -2902,12 +3088,14 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
 #define VM_ELSE else if ((int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_TRUTH, (long double)!!obfh_condition_true(), (long double)0, 1u))
 #endif
 // =============================================================
+
 // Caller-owned storage keeps the mask valid and avoids shared-buffer races.
 static char *getCharMask(int count, char *mask, size_t capacity) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     if (!mask || !capacity || count < 0 || (size_t)count > (capacity - 1) / 2) return NULL;
     int i = (((_1 * _5) - _4) + _1) - _2;
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     char *ptr = mask;
     for (i = _0; i < count; ++i) {
         *ptr++ = '%';
@@ -2923,6 +3111,7 @@ static char *getCharMask(int count, char *mask, size_t capacity) OBFH_CODE_SECTI
 static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
+    PHANTOM_NOP;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
 #define WriteConsoleA(...) WriteConsoleA_proxy(__VA_ARGS__)
@@ -2931,6 +3120,7 @@ static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWO
 static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
+    PHANTOM_NOP;
     return GetStdHandle(obfh_int_proxy(nStdHandle));
 }
 #define GetStdHandle(...) GetStdHandle_proxy(__VA_ARGS__)
@@ -2938,6 +3128,7 @@ static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
 static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     FAKE_CPUID;
+    PHANTOM_NOP;
     return GetModuleHandleA(lpModuleName);
 }
 #define GetModuleHandleA(...) GetModuleHandleA_proxy(__VA_ARGS__)
@@ -2945,6 +3136,7 @@ static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATT
 // strcmp
 static int strcmp_custom(const char *str1, const char *str2) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     while (*str1 != '\0' || *str2 != '\0') {
         NOP_FLOOD;
         if ((obfh_int_proxy((unsigned char)*str1) < obfh_int_proxy((unsigned char)*str2)) && obfh_int_proxy(_1)) {
@@ -2969,6 +3161,7 @@ static size_t strlen_custom(const char *str) OBFH_CODE_SECTION_ATTRIBUTE {
         str += obfh_int_proxy(_2 - _1);
     }
     FAKE_CPUID;
+    PHANTOM_NOP;
     return obfh_uintptr_proxy(length + (RND(0, 1000) * _0));
 }
 #define strlen(...) strlen_custom(__VA_ARGS__)
@@ -2980,6 +3173,7 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
 static const char *obfh_find_zero(const void *buffer, size_t count) {
     BREAK_STACK_CFLOW;
     const char *bytes = buffer;
+    PHANTOM_NOP;
     for (size_t i = _0; i < count; ++i)
         if (bytes[i] == _0) return bytes + i;
     BREAK_STACK_CFLOW;
@@ -2987,6 +3181,7 @@ static const char *obfh_find_zero(const void *buffer, size_t count) {
 }
 // Check an RVA range against the loaded image size.
 static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
+    PHANTOM_NOP;
     return rva <= size && length <= (size_t)(size - rva);
 }
 // GetProcAddress: custom PE export lookup, including ordinals and forwarders.
@@ -3016,6 +3211,7 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
     WORD *ordinals = (WORD *)(base + table->AddressOfNameOrdinals);
     DWORD *functions = (DWORD *)(base + table->AddressOfFunctions);
     DWORD index = table->NumberOfFunctions;
+    PHANTOM_NOP;
     if ((ULONG_PTR)lpProcName <= 0xffff) {
         DWORD ordinal = (DWORD)(ULONG_PTR)lpProcName;
         if (ordinal < table->Base || ordinal - table->Base >= table->NumberOfFunctions) return NULL;
@@ -3069,6 +3265,7 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
 }
 static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_CODE_SECTION_ATTRIBUTE {
     FARPROC result = obfh_find_export(hModule, lpProcName, 0);
+    PHANTOM_NOP;
     BREAK_STACK_CFLOW;
     return result;
 }
@@ -3077,6 +3274,7 @@ static FARPROC GetProcAddress_custom(HMODULE hModule, LPCSTR lpProcName) OBFH_CO
 // LoadLibraryA: dynamic loader resolution and proxy chain.
 static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     switch (_0) {
         case 1:
             __obfh_asm__(".byte 0x74;");
@@ -3123,31 +3321,37 @@ static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE 
 
 static HMODULE LoadLibraryA_1(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return LoadLibraryA_0((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_2(LPCSTR lpLibFileName) {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return LoadLibraryA_1((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_3(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return LoadLibraryA_2((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_4(LPCSTR lpLibFileName) {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return LoadLibraryA_3((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_5(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return LoadLibraryA_4((LPCSTR)lpLibFileName);
 }
 
 static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return LoadLibraryA_5((LPCSTR)lpLibFileName);
 }
 #define LoadLibraryA(...) LoadLibraryA_proxy(__VA_ARGS__)
@@ -3162,6 +3366,7 @@ static DWORD WINAPI obfh_ad_register_worker(void *argument) {
     HANDLE thread = (HANDLE)argument;
     DWORD detected = 0;
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     if (SuspendThread(thread) != (DWORD)-1) {
         CONTEXT context = {0};
         context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
@@ -3182,6 +3387,7 @@ static int obfh_ad_register_probe(void) {
     if (!DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
                          &target, 0, FALSE, DUPLICATE_SAME_ACCESS)) return 0;
     HANDLE worker = CreateThread(NULL, 0, obfh_ad_register_worker, target, 0, NULL);
+    PHANTOM_NOP;
     if (!worker) {
         CloseHandle(target);
         return 0;
@@ -3201,6 +3407,7 @@ static int obfh_ad_process_probe(void) {
     HMODULE kernel = GetModuleHandleA(HIDE_STRING("kernel32"));
     BREAK_STACK_CFLOW;
     ObfhDebuggerCheck check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, HIDE_STRING("IsDebuggerPresent")) : NULL;
+    PHANTOM_NOP;
     if (check) return check() != FALSE;
     // A resolver failure must not silently disable the base check.
     ULONG_PTR peb;
@@ -3217,6 +3424,7 @@ static int obfh_ad_process_probe(void) {
 static int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     int detected = obfh_ad_process_probe();
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
 #if ANTIDEBUG_V2 == 1
     if (!detected) detected = obfh_ad_register_probe();
 #endif
@@ -3227,6 +3435,7 @@ static int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
 // instructions come from the shared pool and reside on its skipped paths.
 static void obfh_ad_sink_a(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     volatile unsigned int state = initial | 1u;
+    PHANTOM_NOP;
     for (;;) {
         BREAK_STACK_CFLOW;
         unsigned int next = state ^ RND(1, 2147483646);
@@ -3236,6 +3445,7 @@ static void obfh_ad_sink_a(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
 
 static void obfh_ad_sink_b(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     volatile unsigned int state = initial;
+    PHANTOM_NOP;
     for (;;) {
         state = state * (RND(1, 32767) * 2u + 1u) + RND(1, 65535);
         BREAK_STACK_CFLOW;
@@ -3246,6 +3456,7 @@ static void obfh_ad_sink_b(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
 static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECTION_ATTRIBUTE {
     typedef void (*ObfhResponse)(unsigned int);
     ObfhResponse volatile response = (route & 1u) ? obfh_ad_sink_a : obfh_ad_sink_b;
+    PHANTOM_NOP;
     BREAK_STACK_CFLOW;
     response(nonce ^ RND(1, 2147483646));
 }
@@ -3266,6 +3477,7 @@ static char *getStdLibName_proxy(char *name, size_t capacity) {
     BREAK_STACK_CFLOW;
     if (!name || capacity < sizeof("msvcrt")) return NULL;
     const char *hidden = HIDE_STRING("msvcrt");
+    PHANTOM_NOP;
     for (int i = _0; i < sizeof("msvcrt"); ++i) name[i] = hidden[i];
     FAKE_CPUID;
     return name;
@@ -3279,6 +3491,7 @@ static FARPROC obfh_crt_resolve(const char *name) {
     static PVOID volatile cachedModule;
     HMODULE module = (HMODULE)InterlockedCompareExchangePointer(&cachedModule, NULL, NULL);
     char moduleName[11];
+    PHANTOM_NOP;
     if (!module) {
         HMODULE loaded = LoadLibraryA_proxy(getStdLibName_proxy(moduleName, sizeof moduleName));
         if (!loaded) return NULL;
@@ -3297,6 +3510,7 @@ static FARPROC obfh_crt_resolve(const char *name) {
 // A count conversion writes to user memory and must not run in a sizing pass.
 static int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     for (const char *cursor = format; *cursor; ++cursor) {
         if (*cursor != '%') continue;
         ++cursor;
@@ -3330,6 +3544,7 @@ static int printf_custom(int junk, const char *format, ...) {
     char functionName[] = {_v, _p, _r, _i, _n, _t, _f, _0};
     int result;
     DWORD mode;
+    PHANTOM_NOP;
     if (GetConsoleMode(console, &mode) && !obfh_format_has_count(format)) {
         char countName[] = {'_', _v, _s, _c, _p, _r, _i, _n, _t, _f, _0};
         va_list countArgs;
@@ -3370,6 +3585,7 @@ static char *getScanfName_proxy(char *name) {
     name[1] = _c;
     name[2] = _a;
     name[3] = _n;
+    PHANTOM_NOP;
     name[4] = _f;
     name[5] = _0;
 #if CFLOW_V2
@@ -3396,6 +3612,7 @@ static char *getSprintfName_proxy(char *name) {
     name[2] = _r;
     name[3] = _i;
     name[4] = _n;
+    PHANTOM_NOP;
     name[5] = _t;
     name[6] = _f;
     name[7] = _0;
@@ -3414,6 +3631,7 @@ static char *getFcloseName_proxy(char *name) {
     name[1] = _c;
     name[2] = _l;
     name[3] = _o;
+    PHANTOM_NOP;
     name[4] = _s;
     name[5] = _e;
     name[6] = _0;
@@ -3432,6 +3650,7 @@ static char *getFopenName_proxy(char *name) {
     name[1] = _o;
     name[2] = _p;
     name[3] = _e;
+    PHANTOM_NOP;
     name[4] = _n;
     name[5] = _0;
 #if CFLOW_V2
@@ -3449,6 +3668,7 @@ static char *getFreadName_proxy(char *name) {
     name[1] = _r;
     name[2] = _e;
     name[3] = _a;
+    PHANTOM_NOP;
     name[4] = _d;
     name[5] = _0;
 #if CFLOW_V2
@@ -3466,6 +3686,7 @@ static char *getFwriteName_proxy(char *name) {
     name[1] = _w;
     name[2] = _r;
     name[3] = _i;
+    PHANTOM_NOP;
     name[4] = _t;
     name[5] = _e;
     name[6] = _0;
@@ -3483,6 +3704,7 @@ static char *getExitName_proxy(char *name) {
     name[0] = _e;
     name[1] = _x;
     name[2] = _i;
+    PHANTOM_NOP;
     name[3] = _t;
     name[4] = _0;
 #if CFLOW_V2
@@ -3500,6 +3722,7 @@ static char *getStrcpyName_proxy(char *name) {
     name[1] = _t;
     name[2] = _r;
     name[3] = _c;
+    PHANTOM_NOP;
     name[4] = _p;
     name[5] = _y;
     name[6] = _0;
@@ -3518,6 +3741,7 @@ static char *getStrtokName_proxy(char *name) {
     name[1] = _t;
     name[2] = _r;
     name[3] = _t;
+    PHANTOM_NOP;
     name[4] = _o;
     name[5] = _k;
     name[6] = _0;
@@ -3533,6 +3757,7 @@ static void *memset_proxy(void *ptr, int value, size_t num) {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     void *result = ((void *(*)(void *, int, size_t))obfh_crt_resolve(HIDE_STRING("memset")))(ptr, value * _1, num);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3546,6 +3771,7 @@ static char *getMemcpyName_proxy(char *name) {
     name[1] = _e;
     name[2] = _m;
     name[3] = _c;
+    PHANTOM_NOP;
     name[4] = _p;
     name[5] = _y;
     name[6] = _0;
@@ -3564,6 +3790,7 @@ static char *getStrchrName_proxy(char *name) {
     name[1] = _t;
     name[2] = _r;
     name[3] = _c;
+    PHANTOM_NOP;
     name[4] = _h;
     name[5] = _r;
     name[6] = _0;
@@ -3583,6 +3810,7 @@ static char *getStrrchrName_proxy(char *name) {
     name[2] = _r;
     name[3] = _r;
     name[4] = _c;
+    PHANTOM_NOP;
     name[5] = _h;
     name[6] = _r;
     name[7] = _0;
@@ -3600,6 +3828,7 @@ static char *getRandName_proxy(char *name) {
     name[0] = _r;
     name[1] = _a;
     name[2] = _n;
+    PHANTOM_NOP;
     name[3] = _d;
     name[4] = _0;
 #if CFLOW_V2
@@ -3618,6 +3847,7 @@ static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     name[2] = _a;
     name[3] = _l;
     name[4] = _l;
+    PHANTOM_NOP;
     name[5] = _o;
     name[6] = _c;
     name[7] = _0;
@@ -3632,6 +3862,7 @@ static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     void *result = ((void *(*)(size_t, size_t))obfh_crt_resolve(HIDE_STRING("calloc")))(nmemb, size);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3642,6 +3873,7 @@ static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     char name[32];
+    PHANTOM_NOP;
     void *result = ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
@@ -3652,6 +3884,7 @@ static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     char *result = ((char *(*)(char *))obfh_crt_resolve(HIDE_STRING("gets")))(s);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3662,6 +3895,7 @@ static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_
     BREAK_STACK_CFLOW;
     va_list args;
     va_start(args, format);
+    PHANTOM_NOP;
     int result = vsnprintf(str, size, format, args);
     va_end(args);
     STACK_PROXY_FUNCTIONS;
@@ -3673,6 +3907,7 @@ static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     int result = ((int (*)(char *, const char *, va_list))obfh_crt_resolve(HIDE_STRING("vsprintf")))(str, format, args);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3683,6 +3918,7 @@ static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list a
     BREAK_STACK_CFLOW;
     // Keep TCC's formatting adapter: it need not be an msvcrt export.
     int result = vsnprintf(str, size, format, args);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3692,6 +3928,7 @@ static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     char *result = ((char *(*)(const char *))obfh_crt_resolve(HIDE_STRING("getenv")))(name);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3701,6 +3938,7 @@ static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     int result = ((int (*)(const char *))obfh_crt_resolve(HIDE_STRING("system")))(command);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3709,6 +3947,7 @@ static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
 static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     ((void (*)(void))obfh_crt_resolve(HIDE_STRING("abort")))();
 }
 #define abort() abort_proxy()
@@ -3717,6 +3956,7 @@ static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     int result = ((int (*)(void (*)(void)))obfh_crt_resolve(HIDE_STRING("atexit")))(func);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3726,6 +3966,7 @@ static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     char *result = ((char *(*)(char *, int))obfh_crt_resolve(HIDE_STRING("_getcwd")))(buf, (int)size);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3735,6 +3976,7 @@ static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     int result = ((int (*)(int))obfh_crt_resolve(HIDE_STRING("tolower")))(c);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3744,6 +3986,7 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
     BREAK_STACK_CFLOW;
     int result = ((int (*)(int))obfh_crt_resolve(HIDE_STRING("toupper")))(c);
+    PHANTOM_NOP;
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -3858,6 +4101,7 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 
 static int obfh_abs_proxy(int value) {
     BREAK_STACK_CFLOW;
+    PHANTOM_NOP;
     return value < (int)FALSE ? -value : value;
 }
 #define abs(x) obfh_abs_proxy(x)
@@ -3933,6 +4177,7 @@ static int obfh_abs_proxy(int value) {
 #define erf(x) erf(_MUTATE_MATH(x))
 
 __declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_CODE_SECTION_ATTRIBUTE {
+    PHANTOM_NOP;
     return HIDE_STRING("Moo");
 }
 

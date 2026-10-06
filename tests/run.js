@@ -350,7 +350,7 @@ async function main() {
                     assert(junkCode(fs.readFileSync(repeat), stackProxy.count).every((code, i) => code.equals(first[i])), 'fixed-seed proxy bytes are not reproducible');
                     fs.writeFileSync(path.join(directory, `${arch}-stack-proxy-distribution.json`), JSON.stringify(proxyHistograms, null, 2));
                 });
-                for (const seed of [1, 2]) await check(`${arch}/stack proxies/native leaf instructions + scratch stack/seed ${seed}`, async () => {
+                for (const seed of [1, 2]) await check(`${arch}/stack proxies/native leaf/frame/link instructions + scratch stack/seed ${seed}`, async () => {
                     await execute(await compile(compiler, directory, `${arch}-stack-proxy-native-${seed}.exe`, path.join(root, 'tests', 'stack_proxy_native.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'STACK_PROXY_NATIVE_PASS');
                 });
                 if (process.argv.includes('--only-stack-proxy')) continue;
