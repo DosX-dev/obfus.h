@@ -354,6 +354,10 @@ async function main() {
         fs.writeFileSync(failureFile, fs.readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8')
             .replace('/* REGISTER_PROBES */', '#if ANTIDEBUG_V2 == 1\n' + setup).replace('/* PROCESS_PROBE */', processProbe));
         for (const [arch, compiler] of Object.entries(compilers)) {
+            for (const seed of [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF]) {
+                if (selectedArch && selectedArch !== arch) continue;
+                await check(`${arch}/local API names + buffer guards/seed ${seed}`, async () => await execute(await compile(compiler, directory, `${arch}-api-names-${seed}.exe`, path.join(__dirname, "api_names.c"), [`OBFH_BUILD_SEED=${seed}u`], ["-luser32", "-lgdi32", "-ladvapi32"]), "NAMES_PASS"));
+            }
             if (selectedArch && selectedArch !== arch) continue;
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
             await check(`${arch}/IntelliSense interface and real compiler isolation`, async () => {
@@ -363,7 +367,7 @@ async function main() {
                 const expanded = await run(compiler, ['-w', '-E', '-D__INTELLISENSE__=1', '-U__TINYC__', snapshotFile(file)]);
                 assert(!expanded.stdout.includes('__obfh_sf_variant') && !expanded.stdout.includes('Obfh_VirtualMachine'), 'editor still instantiates heavy protection');
             });
-            await check(`${arch}/RND equivalence to original formula/all seeds`, async () => {
+            await check(`${arch}/RND formula, ranges and counter capture/all seeds`, async () => {
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await execute(await compile(compiler, directory, `${arch}-random-constants-${seed}.exe`, path.join(__dirname, 'random_constants.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'RANDOM_CONSTANTS_PASS');
             });
@@ -705,6 +709,8 @@ async function main() {
                 for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['numeric', 'NUMERIC_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
                     await check(`${label}/${file}`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-${file}.exe`, path.join(__dirname, file + '.c'), flags, ['-luser32', '-lgdi32']), marker));
                 }
+                if (!flags.includes("NO_OBF=1"))
+                    await check(`${label}/per-site API cache isolation + concurrent first use`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-api-site-cache.exe`, path.join(__dirname, "api_site_cache.c"), flags, ["-luser32", "-lgdi32"]), "SITE_CACHE_PASS"));
                 await check(`${label}/GUI cache + ABI + callback reentry`, async () => {
                     const exe = await compile(compiler, directory, `${arch}-${config}-gui-calls.exe`, path.join(__dirname, 'gui_calls.c'), flags, ['-luser32', '-lgdi32']);
                     await execute(exe, 'GUI_CALLS_PASS');

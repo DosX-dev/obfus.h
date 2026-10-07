@@ -32,6 +32,9 @@ static int native_metrics(int n) { return GetSystemMetrics(n); }
 static int native_caps(HDC d, int n) { return GetDeviceCaps(d, n); }
 static BOOL native_move(HWND h, HWND a, int x, int y, int cx, int cy, UINT f) { return SetWindowPos(h, a, x, y, cx, cy, f); }
 #include "../include/obfus.h"
+#if NO_OBF != 1
+static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
+#endif
 #define CHECK(x)                                                \
     do {                                                        \
         if (!(x)) {                                             \
@@ -71,7 +74,7 @@ int main(int argc, char **argv) {
 #if NO_OBF != 1
     if (argc > 1 && argv[1][0] == 'x') {
         const unsigned char bad[] = {1};
-        obfh_gui_cold(2, OBFH_GUI_COUNT, bad, 1);
+        obfh_gui_cold(2, NULL, 0, bad, 1);
         return 99;
     }
 #endif
@@ -96,719 +99,784 @@ int main(int argc, char **argv) {
     ULONG_PTR encoded, decoded;
     unsigned int rotate;
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_AppendMenuA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_AppendMenuA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 0, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[0], 0, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(0);
         decoded = encoded - OBFH_GUI_BIAS(0);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(0);
         CHECK(decoded == (ULONG_PTR)native_export(user, "AppendMenuA"));
-        CHECK(obfh_gui_slots[0].ready);
+        CHECK(test_gui_slots[0].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_AppendMenuW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_AppendMenuW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 1, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[1], 1, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(1);
         decoded = encoded - OBFH_GUI_BIAS(1);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(1);
         CHECK(decoded == (ULONG_PTR)native_export(user, "AppendMenuW"));
-        CHECK(obfh_gui_slots[1].ready);
+        CHECK(test_gui_slots[1].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CheckMenuItem;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CheckMenuItem(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 2, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[2], 2, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(2);
         decoded = encoded - OBFH_GUI_BIAS(2);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(2);
         CHECK(decoded == (ULONG_PTR)native_export(user, "CheckMenuItem"));
-        CHECK(obfh_gui_slots[2].ready);
+        CHECK(test_gui_slots[2].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CloseClipboard;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CloseClipboard(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 3, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[3], 3, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(3);
         decoded = encoded - OBFH_GUI_BIAS(3);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(3);
         CHECK(decoded == (ULONG_PTR)native_export(user, "CloseClipboard"));
-        CHECK(obfh_gui_slots[3].ready);
+        CHECK(test_gui_slots[3].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateMenu;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateMenu(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 4, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[4], 4, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(4);
         decoded = encoded - OBFH_GUI_BIAS(4);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(4);
         CHECK(decoded == (ULONG_PTR)native_export(user, "CreateMenu"));
-        CHECK(obfh_gui_slots[4].ready);
+        CHECK(test_gui_slots[4].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreatePopupMenu;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreatePopupMenu(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 5, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[5], 5, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(5);
         decoded = encoded - OBFH_GUI_BIAS(5);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(5);
         CHECK(decoded == (ULONG_PTR)native_export(user, "CreatePopupMenu"));
-        CHECK(obfh_gui_slots[5].ready);
+        CHECK(test_gui_slots[5].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateWindowExA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateWindowExA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 6, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[6], 6, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(6);
         decoded = encoded - OBFH_GUI_BIAS(6);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(6);
         CHECK(decoded == (ULONG_PTR)native_export(user, "CreateWindowExA"));
-        CHECK(obfh_gui_slots[6].ready);
+        CHECK(test_gui_slots[6].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateWindowExW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateWindowExW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 7, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[7], 7, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(7);
         decoded = encoded - OBFH_GUI_BIAS(7);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(7);
         CHECK(decoded == (ULONG_PTR)native_export(user, "CreateWindowExW"));
-        CHECK(obfh_gui_slots[7].ready);
+        CHECK(test_gui_slots[7].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_DefWindowProcA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_DefWindowProcA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 8, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[8], 8, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(8);
         decoded = encoded - OBFH_GUI_BIAS(8);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(8);
         CHECK(decoded == (ULONG_PTR)native_export(user, "DefWindowProcA"));
-        CHECK(obfh_gui_slots[8].ready);
+        CHECK(test_gui_slots[8].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_DefWindowProcW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_DefWindowProcW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 9, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[9], 9, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(9);
         decoded = encoded - OBFH_GUI_BIAS(9);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(9);
         CHECK(decoded == (ULONG_PTR)native_export(user, "DefWindowProcW"));
-        CHECK(obfh_gui_slots[9].ready);
+        CHECK(test_gui_slots[9].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_DestroyWindow;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_DestroyWindow(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 10, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[10], 10, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(10);
         decoded = encoded - OBFH_GUI_BIAS(10);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(10);
         CHECK(decoded == (ULONG_PTR)native_export(user, "DestroyWindow"));
-        CHECK(obfh_gui_slots[10].ready);
+        CHECK(test_gui_slots[10].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_DispatchMessageA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_DispatchMessageA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 11, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[11], 11, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(11);
         decoded = encoded - OBFH_GUI_BIAS(11);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(11);
         CHECK(decoded == (ULONG_PTR)native_export(user, "DispatchMessageA"));
-        CHECK(obfh_gui_slots[11].ready);
+        CHECK(test_gui_slots[11].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_DispatchMessageW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_DispatchMessageW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 12, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[12], 12, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(12);
         decoded = encoded - OBFH_GUI_BIAS(12);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(12);
         CHECK(decoded == (ULONG_PTR)native_export(user, "DispatchMessageW"));
-        CHECK(obfh_gui_slots[12].ready);
+        CHECK(test_gui_slots[12].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_EmptyClipboard;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_EmptyClipboard(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 13, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[13], 13, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(13);
         decoded = encoded - OBFH_GUI_BIAS(13);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(13);
         CHECK(decoded == (ULONG_PTR)native_export(user, "EmptyClipboard"));
-        CHECK(obfh_gui_slots[13].ready);
+        CHECK(test_gui_slots[13].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetClientRect;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetClientRect(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 14, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[14], 14, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(14);
         decoded = encoded - OBFH_GUI_BIAS(14);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(14);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetClientRect"));
-        CHECK(obfh_gui_slots[14].ready);
+        CHECK(test_gui_slots[14].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetDC;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetDC(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 15, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[15], 15, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(15);
         decoded = encoded - OBFH_GUI_BIAS(15);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(15);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetDC"));
-        CHECK(obfh_gui_slots[15].ready);
+        CHECK(test_gui_slots[15].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetDlgItem;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetDlgItem(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 16, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[16], 16, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(16);
         decoded = encoded - OBFH_GUI_BIAS(16);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(16);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetDlgItem"));
-        CHECK(obfh_gui_slots[16].ready);
+        CHECK(test_gui_slots[16].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetKeyState;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetKeyState(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 17, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[17], 17, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(17);
         decoded = encoded - OBFH_GUI_BIAS(17);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(17);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetKeyState"));
-        CHECK(obfh_gui_slots[17].ready);
+        CHECK(test_gui_slots[17].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetMenu;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetMenu(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 18, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[18], 18, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(18);
         decoded = encoded - OBFH_GUI_BIAS(18);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(18);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetMenu"));
-        CHECK(obfh_gui_slots[18].ready);
+        CHECK(test_gui_slots[18].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetMessageA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetMessageA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 19, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[19], 19, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(19);
         decoded = encoded - OBFH_GUI_BIAS(19);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(19);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetMessageA"));
-        CHECK(obfh_gui_slots[19].ready);
+        CHECK(test_gui_slots[19].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetMessageW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetMessageW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 20, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[20], 20, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(20);
         decoded = encoded - OBFH_GUI_BIAS(20);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(20);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetMessageW"));
-        CHECK(obfh_gui_slots[20].ready);
+        CHECK(test_gui_slots[20].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetSysColor;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetSysColor(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 21, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[21], 21, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(21);
         decoded = encoded - OBFH_GUI_BIAS(21);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(21);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetSysColor"));
-        CHECK(obfh_gui_slots[21].ready);
+        CHECK(test_gui_slots[21].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetSysColorBrush;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetSysColorBrush(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 22, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[22], 22, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(22);
         decoded = encoded - OBFH_GUI_BIAS(22);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(22);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetSysColorBrush"));
-        CHECK(obfh_gui_slots[22].ready);
+        CHECK(test_gui_slots[22].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetSystemMetrics;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetSystemMetrics(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 23, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[23], 23, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(23);
         decoded = encoded - OBFH_GUI_BIAS(23);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(23);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetSystemMetrics"));
-        CHECK(obfh_gui_slots[23].ready);
+        CHECK(test_gui_slots[23].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetWindowRect;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetWindowRect(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 24, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[24], 24, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(24);
         decoded = encoded - OBFH_GUI_BIAS(24);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(24);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetWindowRect"));
-        CHECK(obfh_gui_slots[24].ready);
+        CHECK(test_gui_slots[24].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetWindowTextA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetWindowTextA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 25, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[25], 25, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(25);
         decoded = encoded - OBFH_GUI_BIAS(25);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(25);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetWindowTextA"));
-        CHECK(obfh_gui_slots[25].ready);
+        CHECK(test_gui_slots[25].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetWindowTextW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetWindowTextW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 26, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[26], 26, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(26);
         decoded = encoded - OBFH_GUI_BIAS(26);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(26);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetWindowTextW"));
-        CHECK(obfh_gui_slots[26].ready);
+        CHECK(test_gui_slots[26].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetWindowTextLengthA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetWindowTextLengthA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 27, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[27], 27, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(27);
         decoded = encoded - OBFH_GUI_BIAS(27);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(27);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetWindowTextLengthA"));
-        CHECK(obfh_gui_slots[27].ready);
+        CHECK(test_gui_slots[27].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetWindowTextLengthW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetWindowTextLengthW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 28, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[28], 28, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(28);
         decoded = encoded - OBFH_GUI_BIAS(28);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(28);
         CHECK(decoded == (ULONG_PTR)native_export(user, "GetWindowTextLengthW"));
-        CHECK(obfh_gui_slots[28].ready);
+        CHECK(test_gui_slots[28].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_IsDialogMessageA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_IsDialogMessageA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 29, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[29], 29, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(29);
         decoded = encoded - OBFH_GUI_BIAS(29);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(29);
         CHECK(decoded == (ULONG_PTR)native_export(user, "IsDialogMessageA"));
-        CHECK(obfh_gui_slots[29].ready);
+        CHECK(test_gui_slots[29].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_IsDialogMessageW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_IsDialogMessageW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 30, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[30], 30, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(30);
         decoded = encoded - OBFH_GUI_BIAS(30);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(30);
         CHECK(decoded == (ULONG_PTR)native_export(user, "IsDialogMessageW"));
-        CHECK(obfh_gui_slots[30].ready);
+        CHECK(test_gui_slots[30].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_LoadCursorA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_LoadCursorA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 31, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[31], 31, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(31);
         decoded = encoded - OBFH_GUI_BIAS(31);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(31);
         CHECK(decoded == (ULONG_PTR)native_export(user, "LoadCursorA"));
-        CHECK(obfh_gui_slots[31].ready);
+        CHECK(test_gui_slots[31].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_LoadCursorW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_LoadCursorW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 32, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[32], 32, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(32);
         decoded = encoded - OBFH_GUI_BIAS(32);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(32);
         CHECK(decoded == (ULONG_PTR)native_export(user, "LoadCursorW"));
-        CHECK(obfh_gui_slots[32].ready);
+        CHECK(test_gui_slots[32].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_LoadIconA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_LoadIconA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 33, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[33], 33, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(33);
         decoded = encoded - OBFH_GUI_BIAS(33);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(33);
         CHECK(decoded == (ULONG_PTR)native_export(user, "LoadIconA"));
-        CHECK(obfh_gui_slots[33].ready);
+        CHECK(test_gui_slots[33].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_LoadIconW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_LoadIconW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 34, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[34], 34, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(34);
         decoded = encoded - OBFH_GUI_BIAS(34);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(34);
         CHECK(decoded == (ULONG_PTR)native_export(user, "LoadIconW"));
-        CHECK(obfh_gui_slots[34].ready);
+        CHECK(test_gui_slots[34].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_MessageBeep;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_MessageBeep(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 35, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[35], 35, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(35);
         decoded = encoded - OBFH_GUI_BIAS(35);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(35);
         CHECK(decoded == (ULONG_PTR)native_export(user, "MessageBeep"));
-        CHECK(obfh_gui_slots[35].ready);
+        CHECK(test_gui_slots[35].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_MessageBoxA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_MessageBoxA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 36, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[36], 36, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(36);
         decoded = encoded - OBFH_GUI_BIAS(36);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(36);
         CHECK(decoded == (ULONG_PTR)native_export(user, "MessageBoxA"));
-        CHECK(obfh_gui_slots[36].ready);
+        CHECK(test_gui_slots[36].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_MessageBoxW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_MessageBoxW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 37, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[37], 37, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(37);
         decoded = encoded - OBFH_GUI_BIAS(37);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(37);
         CHECK(decoded == (ULONG_PTR)native_export(user, "MessageBoxW"));
-        CHECK(obfh_gui_slots[37].ready);
+        CHECK(test_gui_slots[37].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_MoveWindow;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_MoveWindow(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 38, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[38], 38, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(38);
         decoded = encoded - OBFH_GUI_BIAS(38);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(38);
         CHECK(decoded == (ULONG_PTR)native_export(user, "MoveWindow"));
-        CHECK(obfh_gui_slots[38].ready);
+        CHECK(test_gui_slots[38].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_OpenClipboard;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_OpenClipboard(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 39, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[39], 39, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(39);
         decoded = encoded - OBFH_GUI_BIAS(39);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(39);
         CHECK(decoded == (ULONG_PTR)native_export(user, "OpenClipboard"));
-        CHECK(obfh_gui_slots[39].ready);
+        CHECK(test_gui_slots[39].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_PostQuitMessage;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_PostQuitMessage(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 40, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[40], 40, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(40);
         decoded = encoded - OBFH_GUI_BIAS(40);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(40);
         CHECK(decoded == (ULONG_PTR)native_export(user, "PostQuitMessage"));
-        CHECK(obfh_gui_slots[40].ready);
+        CHECK(test_gui_slots[40].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_RegisterClassExA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_RegisterClassExA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 41, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[41], 41, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(41);
         decoded = encoded - OBFH_GUI_BIAS(41);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(41);
         CHECK(decoded == (ULONG_PTR)native_export(user, "RegisterClassExA"));
-        CHECK(obfh_gui_slots[41].ready);
+        CHECK(test_gui_slots[41].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_RegisterClassExW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_RegisterClassExW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 42, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[42], 42, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(42);
         decoded = encoded - OBFH_GUI_BIAS(42);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(42);
         CHECK(decoded == (ULONG_PTR)native_export(user, "RegisterClassExW"));
-        CHECK(obfh_gui_slots[42].ready);
+        CHECK(test_gui_slots[42].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_ReleaseDC;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_ReleaseDC(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 43, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[43], 43, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(43);
         decoded = encoded - OBFH_GUI_BIAS(43);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(43);
         CHECK(decoded == (ULONG_PTR)native_export(user, "ReleaseDC"));
-        CHECK(obfh_gui_slots[43].ready);
+        CHECK(test_gui_slots[43].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SendMessageA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SendMessageA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 44, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[44], 44, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(44);
         decoded = encoded - OBFH_GUI_BIAS(44);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(44);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SendMessageA"));
-        CHECK(obfh_gui_slots[44].ready);
+        CHECK(test_gui_slots[44].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SendMessageW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SendMessageW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 45, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[45], 45, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(45);
         decoded = encoded - OBFH_GUI_BIAS(45);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(45);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SendMessageW"));
-        CHECK(obfh_gui_slots[45].ready);
+        CHECK(test_gui_slots[45].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetClipboardData;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetClipboardData(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 46, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[46], 46, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(46);
         decoded = encoded - OBFH_GUI_BIAS(46);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(46);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SetClipboardData"));
-        CHECK(obfh_gui_slots[46].ready);
+        CHECK(test_gui_slots[46].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetFocus;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetFocus(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 47, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[47], 47, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(47);
         decoded = encoded - OBFH_GUI_BIAS(47);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(47);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SetFocus"));
-        CHECK(obfh_gui_slots[47].ready);
+        CHECK(test_gui_slots[47].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetWindowPos;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetWindowPos(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 48, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[48], 48, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(48);
         decoded = encoded - OBFH_GUI_BIAS(48);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(48);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SetWindowPos"));
-        CHECK(obfh_gui_slots[48].ready);
+        CHECK(test_gui_slots[48].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetWindowTextA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetWindowTextA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 49, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[49], 49, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(49);
         decoded = encoded - OBFH_GUI_BIAS(49);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(49);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SetWindowTextA"));
-        CHECK(obfh_gui_slots[49].ready);
+        CHECK(test_gui_slots[49].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetWindowTextW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetWindowTextW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 50, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[50], 50, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(50);
         decoded = encoded - OBFH_GUI_BIAS(50);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(50);
         CHECK(decoded == (ULONG_PTR)native_export(user, "SetWindowTextW"));
-        CHECK(obfh_gui_slots[50].ready);
+        CHECK(test_gui_slots[50].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_ShowWindow;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_ShowWindow(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 51, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[51], 51, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(51);
         decoded = encoded - OBFH_GUI_BIAS(51);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(51);
         CHECK(decoded == (ULONG_PTR)native_export(user, "ShowWindow"));
-        CHECK(obfh_gui_slots[51].ready);
+        CHECK(test_gui_slots[51].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_TranslateMessage;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_TranslateMessage(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 52, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[52], 52, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(52);
         decoded = encoded - OBFH_GUI_BIAS(52);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(52);
         CHECK(decoded == (ULONG_PTR)native_export(user, "TranslateMessage"));
-        CHECK(obfh_gui_slots[52].ready);
+        CHECK(test_gui_slots[52].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_UnregisterClassA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_UnregisterClassA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 53, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[53], 53, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(53);
         decoded = encoded - OBFH_GUI_BIAS(53);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(53);
         CHECK(decoded == (ULONG_PTR)native_export(user, "UnregisterClassA"));
-        CHECK(obfh_gui_slots[53].ready);
+        CHECK(test_gui_slots[53].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_UnregisterClassW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_UnregisterClassW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 54, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[54], 54, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(54);
         decoded = encoded - OBFH_GUI_BIAS(54);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(54);
         CHECK(decoded == (ULONG_PTR)native_export(user, "UnregisterClassW"));
-        CHECK(obfh_gui_slots[54].ready);
+        CHECK(test_gui_slots[54].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_UpdateWindow;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_UpdateWindow(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(0, 55, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(0, &test_gui_slots[55], 55, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(55);
         decoded = encoded - OBFH_GUI_BIAS(55);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(55);
         CHECK(decoded == (ULONG_PTR)native_export(user, "UpdateWindow"));
-        CHECK(obfh_gui_slots[55].ready);
+        CHECK(test_gui_slots[55].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateFontA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateFontA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 56, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[56], 56, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(56);
         decoded = encoded - OBFH_GUI_BIAS(56);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(56);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "CreateFontA"));
-        CHECK(obfh_gui_slots[56].ready);
+        CHECK(test_gui_slots[56].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateFontW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateFontW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 57, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[57], 57, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(57);
         decoded = encoded - OBFH_GUI_BIAS(57);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(57);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "CreateFontW"));
-        CHECK(obfh_gui_slots[57].ready);
+        CHECK(test_gui_slots[57].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateFontIndirectA;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateFontIndirectA(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 58, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[58], 58, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(58);
         decoded = encoded - OBFH_GUI_BIAS(58);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(58);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "CreateFontIndirectA"));
-        CHECK(obfh_gui_slots[58].ready);
+        CHECK(test_gui_slots[58].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_CreateFontIndirectW;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_CreateFontIndirectW(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 59, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[59], 59, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(59);
         decoded = encoded - OBFH_GUI_BIAS(59);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(59);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "CreateFontIndirectW"));
-        CHECK(obfh_gui_slots[59].ready);
+        CHECK(test_gui_slots[59].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_DeleteObject;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_DeleteObject(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 60, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[60], 60, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(60);
         decoded = encoded - OBFH_GUI_BIAS(60);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(60);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "DeleteObject"));
-        CHECK(obfh_gui_slots[60].ready);
+        CHECK(test_gui_slots[60].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_GetDeviceCaps;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_GetDeviceCaps(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 61, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[61], 61, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(61);
         decoded = encoded - OBFH_GUI_BIAS(61);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(61);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "GetDeviceCaps"));
-        CHECK(obfh_gui_slots[61].ready);
+        CHECK(test_gui_slots[61].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SelectObject;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SelectObject(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 62, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[62], 62, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(62);
         decoded = encoded - OBFH_GUI_BIAS(62);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(62);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "SelectObject"));
-        CHECK(obfh_gui_slots[62].ready);
+        CHECK(test_gui_slots[62].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetBkColor;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetBkColor(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 63, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[63], 63, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(63);
         decoded = encoded - OBFH_GUI_BIAS(63);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(63);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "SetBkColor"));
-        CHECK(obfh_gui_slots[63].ready);
+        CHECK(test_gui_slots[63].ready);
     }
     {
-        const unsigned char bytes[] = OBFH_GUI_NAME_SetTextColor;
+        unsigned char bytes[64];
+        size_t length = OBFH_GUI_NAME_SetTextColor(bytes);
         SetLastError(0x12345678u);
-        encoded = obfh_gui_cold(1, 64, bytes, sizeof bytes);
+        encoded = obfh_gui_cold(1, &test_gui_slots[64], 64, bytes, length);
         CHECK(GetLastError() == 0x12345678u);
         rotate = OBFH_GUI_ROTATE(64);
         decoded = encoded - OBFH_GUI_BIAS(64);
         decoded = ((decoded >> rotate) | (decoded << (sizeof(ULONG_PTR) * 8 - rotate))) ^ OBFH_GUI_KEY(64);
         CHECK(decoded == (ULONG_PTR)native_export(gdi, "SetTextColor"));
-        CHECK(obfh_gui_slots[64].ready);
+        CHECK(test_gui_slots[64].ready);
     }
 #endif
     // Exercise all four decode layouts across independently selected call sites.

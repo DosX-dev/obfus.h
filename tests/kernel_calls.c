@@ -35,6 +35,9 @@ static LPSTR native_command(void) { return GetCommandLineA(); }
 static BOOL native_console(HANDLE h, DWORD *m) { return GetConsoleMode(h, m); }
 static BOOL native_write(HANDLE h, DWORD *n) { return WriteConsoleA(h, "x", 1, n, NULL); }
 #include "../include/obfus.h"
+#if NO_OBF != 1
+static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
+#endif
 #undef if
 #undef else
 #undef for
@@ -49,9 +52,10 @@ static BOOL native_write(HANDLE h, DWORD *n) { return WriteConsoleA(h, "x", 1, n
     } while (0)
 #define ADDRESS(index, api)                                                                    \
     do {                                                                                       \
-        const unsigned char name[] = OBFH_GUI_NAME_##api;                                      \
+        unsigned char name[64];                                                                \
+        size_t length = OBFH_GUI_NAME_##api(name);                                             \
         SetLastError(0x12345678u);                                                             \
-        ULONG_PTR value = obfh_gui_cold(2, index, name, sizeof name);                          \
+        ULONG_PTR value = obfh_gui_cold(2, &test_gui_slots[index], index, name, length);       \
         CHECK(GetLastError() == 0x12345678u);                                                  \
         unsigned r = OBFH_GUI_ROTATE(index);                                                   \
         value -= OBFH_GUI_BIAS(index);                                                         \

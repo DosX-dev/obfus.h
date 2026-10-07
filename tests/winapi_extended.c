@@ -31,6 +31,9 @@ static DWORD native_pid(void) { return GetCurrentProcessId(); }
 static HANDLE native_process(void) { return GetCurrentProcess(); }
 static HANDLE native_thread(void) { return GetCurrentThread(); }
 #include "../include/obfus.h"
+#if NO_OBF != 1
+static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
+#endif
 #undef if
 #undef else
 #undef for
@@ -55,16 +58,17 @@ static HANDLE native_thread(void) { return GetCurrentThread(); }
             return 1;                                                \
         }                                                            \
     } while (0)
-#define ADDRESS(module_id, api)                                                                            \
-    do {                                                                                                   \
-        const unsigned char bytes[] = OBFH_GUI_NAME_##api;                                                 \
-        SetLastError(0x12345678u);                                                                         \
-        ULONG_PTR value = obfh_gui_cold(module_id, OBFH_GUI_ID_##api, bytes, sizeof bytes);                \
-        CHECK(GetLastError() == 0x12345678u);                                                              \
-        unsigned r = OBFH_GUI_ROTATE(OBFH_GUI_ID_##api);                                                   \
-        value -= OBFH_GUI_BIAS(OBFH_GUI_ID_##api);                                                         \
-        value = ((value >> r) | (value << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(OBFH_GUI_ID_##api); \
-        CHECK(value == (ULONG_PTR)native_export(modules[module_id], #api));                                \
+#define ADDRESS(module_id, api)                                                                                           \
+    do {                                                                                                                  \
+        unsigned char bytes[64];                                                                                          \
+        size_t length = OBFH_GUI_NAME_##api(bytes);                                                                       \
+        SetLastError(0x12345678u);                                                                                        \
+        ULONG_PTR value = obfh_gui_cold(module_id, &test_gui_slots[OBFH_GUI_ID_##api], OBFH_GUI_ID_##api, bytes, length); \
+        CHECK(GetLastError() == 0x12345678u);                                                                             \
+        unsigned r = OBFH_GUI_ROTATE(OBFH_GUI_ID_##api);                                                                  \
+        value -= OBFH_GUI_BIAS(OBFH_GUI_ID_##api);                                                                        \
+        value = ((value >> r) | (value << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(OBFH_GUI_ID_##api);                \
+        CHECK(value == (ULONG_PTR)native_export(modules[module_id], #api));                                               \
     } while (0)
 int main(void) {
 #if NO_OBF == 1
