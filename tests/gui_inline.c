@@ -14,6 +14,19 @@
 #define break OBFH_GUI_FORBIDDEN_BREAK
 int main(void) {
     unsigned int fail = 0;
+#ifdef UNICODE
+    fail |= !__builtin_types_compatible_p(__typeof__(&CreateFile), __typeof__(&CreateFileW));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetModuleHandle), __typeof__(&GetModuleHandleW));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetStartupInfo), __typeof__(&GetStartupInfoW));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetModuleFileName), __typeof__(&GetModuleFileNameW));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetTempPath), __typeof__(&GetTempPathW));
+#else
+    fail |= !__builtin_types_compatible_p(__typeof__(&CreateFile), __typeof__(&CreateFileA));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetModuleHandle), __typeof__(&GetModuleHandleA));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetStartupInfo), __typeof__(&GetStartupInfoA));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetModuleFileName), __typeof__(&GetModuleFileNameA));
+    fail |= !__builtin_types_compatible_p(__typeof__(&GetTempPath), __typeof__(&GetTempPathA));
+#endif
     fail |= !__builtin_types_compatible_p(__typeof__(SendMessageW(NULL, 0, 0, 0)), LRESULT);
     fail |= !__builtin_types_compatible_p(__typeof__(CreateWindowExA(0, "x", "x", 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL)), HWND);
     fail |= !__builtin_types_compatible_p(__typeof__(SetClipboardData(0, NULL)), HANDLE);

@@ -19,6 +19,7 @@ int main(void) {
     if (VM_ADD(next(), 2) != 3 || value != 1) return 1;
     if (memcmp_custom("abc", "abc", 3) || strcmp_custom("abc", "abc")) return 2;
     if (strlen_custom(HIDE_STRING("editor")) != 6) return 3;
+    if (VM_NOT(0) != 0xffffffffu || VM_SHL(1, 31) != 0x80000000u || VM_SHR(-1, 31) != 1u) return 4;
     BREAK_STACK_CFLOW;
     STACK_PROXY_FUNCTIONS;
     PHANTOM_NOP;

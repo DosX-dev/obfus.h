@@ -38,6 +38,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
 
     await check(`${arch}/VM ISA mutations: missing instruction, flags and virtual jump`, async () => {
         const mutants = [
+            ['bitwise', traced.replace('obfh_v_write(&c, d, x ^ y);', 'obfh_v_write(&c, d, x | y);')],
             ['load', traced.replace('/* OBFH_VM_TRACE_STEP */', '')
                 .replace('study_step(op, at);', 'study_step(op, at); if (op == OBFH_V_LOAD_B) continue;')],
             ['flags', traced.replace('unsigned int f = obfh_v_flags(&c);', 'unsigned int f = 0;')],

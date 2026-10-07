@@ -111,6 +111,12 @@ Enable `VIRT` and use the VM macros to protect sensitive calculations. No extra 
 | **`VM_MUL`**     | *long*         |`*` | Multiplies two numbers                                                     | `VM_MUL(5, 3)` = **`15`**            |
 | **`VM_DIV`**     | *long*         |`/` | Divides two numbers                                                        | `VM_DIV(6, 3)` = **`2`**             |
 | **`VM_MOD`**     | *long*         |`%` | Calculates the modulus of two numbers                                      | `VM_MOD(5, 3)` = **`2`**             |
+| **`VM_AND`**     | *unsigned int* |`&` | Bitwise AND                                                                | `VM_AND(6, 3)` = **`2`**             |
+| **`VM_OR`**      | *unsigned int* |`\|`| Bitwise OR                                                                 | `VM_OR(6, 3)` = **`7`**              |
+| **`VM_XOR`**     | *unsigned int* |`^` | Bitwise XOR                                                                | `VM_XOR(6, 3)` = **`5`**             |
+| **`VM_NOT`**     | *unsigned int* |`~` | Bitwise NOT                                                                | `VM_NOT(0)` = **`0xFFFFFFFFu`**      |
+| **`VM_SHL`**     | *unsigned int* |`<<`| Logical left shift                                                         | `VM_SHL(1, 3)` = **`8`**             |
+| **`VM_SHR`**     | *unsigned int* |`>>`| Logical right shift                                                        | `VM_SHR(8, 3)` = **`1`**             |
 | **`VM_EQU`**     | *BOOL*         |`==`| Checks if two numbers are equal                                            | `VM_EQU(5, 5)` = **`true`**          |
 | **`VM_NEQ`**     | *BOOL*         |`!=`| Checks if two numbers are not equal                                        | `VM_NEQ(5, 3)` = **`true`**          |
 | **`VM_LSS`**     | *BOOL*         |`<` | Checks if the first number is less than the second number                  | `VM_LSS(3, 5)` = **`true`**          |

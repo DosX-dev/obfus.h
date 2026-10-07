@@ -27,6 +27,7 @@ static FARPROC native_export(HMODULE module, const char *symbol) {
     }
     return NULL;
 }
+static DWORD native_thread_id(void) { return GetCurrentThreadId(); }
 static DWORD native_error(void) { return GetLastError(); }
 static int native_muldiv(int a, int b, int c) { return MulDiv(a, b, c); }
 static HMODULE native_module(const char *n) { return GetModuleHandleA(n); }
@@ -59,6 +60,12 @@ static BOOL native_write(HANDLE h, DWORD *n) { return WriteConsoleA(h, "x", 1, n
     } while (0)
 int main(int argc, char **argv) {
     if (argc > 1 && argv[1][0] == 'x') ExitProcess(23);
+    DWORD thread = native_thread_id();
+    SetLastError(0x13572468u);
+    CHECK(GetCurrentThreadId() == thread);
+    CHECK(native_error() == 0x13572468u);
+    CHECK(GetCurrentThreadId() == thread);
+    CHECK(native_error() == 0x13572468u);
     // The first protected LastError call itself resolves lazily and preserves TLS.
     SetLastError(0xA5B61234u);
     CHECK(GetLastError() == 0xA5B61234u);
@@ -68,6 +75,7 @@ int main(int argc, char **argv) {
 #if NO_OBF != 1
     HMODULE kernel = native_module("kernel32.dll");
     CHECK(kernel);
+    ADDRESS(136, GetCurrentThreadId);
     ADDRESS(65, ExitProcess);
     ADDRESS(66, GetLastError);
     ADDRESS(67, FreeLibrary);

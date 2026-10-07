@@ -717,6 +717,10 @@ async function main() {
                     const exe = await compile(compiler, directory, `${arch}-${config}-api-calls.exe`, path.join(__dirname, 'api_calls.c'), flags, ['-luser32', '-lgdi32', '-ladvapi32']);
                     await execute(exe, 'API_CALLS_PASS');
                 });
+                await check(`${label}/extended WinAPI exports + calls`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-winapi-extended.exe`, path.join(__dirname, 'winapi_extended.c'), flags, ['-luser32', '-lgdi32']);
+                    await execute(exe, 'WINAPI_EXTENDED_PASS');
+                });
                 await check(`${label}/CRT proxy calls + atexit + input`, async () => {
                     const exe = await compile(compiler, directory, `${arch}-${config}-crt-proxies.exe`, path.join(__dirname, 'crt_proxies.c'), flags);
                     await execute(exe, 'CRT_ATEXIT_PASS');

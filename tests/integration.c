@@ -136,6 +136,14 @@ static int exercise(int report) {
         CHECK(VM_EQU(42, 42) && VM_NEQ(4, 5));
         CHECK(GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA") == reference_export(GetModuleHandleA("kernel32.dll"), "LoadLibraryA"));
         CHECK(GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetCurrentProcess"));
+#if NO_OBF != 1
+        HMODULE error_module = GetModuleHandleA("kernel32.dll");
+        SetLastError(0x13572468u);
+        CHECK(GetProcAddress(error_module, "GetCurrentProcess"));
+        CHECK(GetLastError() == 0x13572468u);
+        CHECK(GetProcAddress(error_module, "obfh_nonexistent") == NULL);
+        CHECK(GetLastError() == ERROR_PROC_NOT_FOUND);
+#endif
         CHECK(GetProcAddress(GetModuleHandleA("kernel32.dll"), "obfh_nonexistent") == NULL);
 #if !NO_OBF
         CHECK(GetProcAddress(NULL, "anything") == NULL);
