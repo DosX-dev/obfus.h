@@ -172,6 +172,12 @@
 #define VM_GTR_DBL(a, b) ((long)((double)(a) > (double)(b)))
 #define VM_OBF_INT(value) ((long)(value))
 #define VM_OBF_DBL(value) ((long double)(value))
+#define VM_AND(a, b) ((unsigned int)(a) & (unsigned int)(b))
+#define VM_OR(a, b) ((unsigned int)(a) | (unsigned int)(b))
+#define VM_XOR(a, b) ((unsigned int)(a) ^ (unsigned int)(b))
+#define VM_NOT(a) (~(unsigned int)(a))
+#define VM_SHL(a, b) ((unsigned int)(a) << ((unsigned int)(b)&31u))
+#define VM_SHR(a, b) ((unsigned int)(a) >> ((unsigned int)(b)&31u))
 #define VM_IF(condition) if (condition)
 #define VM_ELSE_IF(condition) else if (condition)
 #define VM_ELSE else
@@ -194,6 +200,12 @@
 #define VM_DIV_DBL(num1, num2) ((num1) / (num2))
 #define VM_LSS_DBL(num1, num2) ((num1) < (num2))
 #define VM_GTR_DBL(num1, num2) ((num1) > (num2))
+#define VM_AND(a, b) ((unsigned int)(a) & (unsigned int)(b))
+#define VM_OR(a, b) ((unsigned int)(a) | (unsigned int)(b))
+#define VM_XOR(a, b) ((unsigned int)(a) ^ (unsigned int)(b))
+#define VM_NOT(a) (~(unsigned int)(a))
+#define VM_SHL(a, b) ((unsigned int)(a) << ((unsigned int)(b)&31u))
+#define VM_SHR(a, b) ((unsigned int)(a) >> ((unsigned int)(b)&31u))
 #define VM_IF(condition) if (condition)
 #define VM_ELSE_IF(condition) else if (condition)
 #define VM_ELSE else
@@ -326,7 +338,7 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 #define STACK_STRING(str) ((char[]){str})
 
 #define HIDE_STRING(str) \
-    (OBFH_HIDE_JUNK(), (_0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), (float)__s_rdtsc(RND(0, 255)) != 0.1) : (char *)(ULONG_PTR)((float)__s_rdtsc(RND(0, 255)) == RND(0, 255))))
+    (OBFH_HIDE_JUNK, (_0 < RND(1, 255) ? obfh_process_hidden_string(STACK_STRING("\0" str "\0"), (float)__s_rdtsc(RND(0, 255)) != 0.1) : (char *)(ULONG_PTR)((float)__s_rdtsc(RND(0, 255)) == RND(0, 255))))
 
 typedef enum {
     SALT_SHIFT = RND(0xBAD, 0xBEEF)
@@ -956,7 +968,7 @@ OBFH_PD_DEFINE(127);
 })
 
 // Keep the string compound literal in caller scope and emit exactly one template.
-#define OBFH_HIDE_JUNK() OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_SINGLE)
+#define OBFH_HIDE_JUNK OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_SINGLE)
 
 // Template pool; only the selected ASM branch is emitted.
 #define OBFH_CFLOW_TEMPLATE_0 \
@@ -2975,7 +2987,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 // Instruction starts and their following bytes belong only to skipped regions.
 #define OBFH_FLOW_OPCODE(kind) \
     ((((kind)&4u ? 0xF3660FFFu : 0xE9E8898Bu) >> (((kind)&3u) * 8u)) & 255u)
-#define OBFH_FLOW_DEAD_BYTES()                                                              \
+#define OBFH_FLOW_DEAD_BYTES                                                                \
     ({                                                                                      \
         enum { __obfh_dead_kind = OBFH_JUNK_BYTE & 7u };                                    \
         __obfh_asm__(".byte %c0, %c1, %c2, %c3; .long %c4; .fill %c5, 1, %c6;"              \
@@ -2986,7 +2998,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     })
 
 // A native false guard runs only on the original else path; no loop or switch wrapper.
-#define OBFH_FLOW_ELSE_GUARD()                                                         \
+#define OBFH_FLOW_ELSE_GUARD                                                           \
     (({                                                                                \
         enum { __obfh_else_kind = OBFH_JUNK_BYTE & 7u,                                 \
                __obfh_else_gap = OBFH_JUNK_BYTE & 3u };                                \
@@ -3111,31 +3123,31 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
                      : [tag] "m"(__obfh_flow_tag) \
                      : "ecx", "cc", "memory");    \
     })
-#define OBFH_P_EXIT_0() OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; addl $1, %%eax;")
-#define OBFH_P_EXIT_1() OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
-#define OBFH_P_EXIT_2() OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; movl $0, %%eax; movl $1, %%ecx; cmovel %%ecx, %%eax;")
-#define OBFH_P_EXIT_3() OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax;")
-#define OBFH_P_EXIT_4() \
+#define OBFH_P_EXIT_0 OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; addl $1, %%eax;")
+#define OBFH_P_EXIT_1 OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
+#define OBFH_P_EXIT_2 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; movl $0, %%eax; movl $1, %%ecx; cmovel %%ecx, %%eax;")
+#define OBFH_P_EXIT_3 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax;")
+#define OBFH_P_EXIT_4 \
     OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; notl %%eax; andl $1, %%eax;")
-#define OBFH_P_EXIT_5() OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
-#define OBFH_P_EXIT_6() \
-    OBFH_P_FINISH_ASM(  \
+#define OBFH_P_EXIT_5 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
+#define OBFH_P_EXIT_6  \
+    OBFH_P_FINISH_ASM( \
         "xorl %[tag], %%eax; movl %%eax, %%ecx; negl %%ecx; orl %%ecx, %%eax; shrl $31, %%eax; xorl $1, %%eax;")
-#define OBFH_P_EXIT_7() \
+#define OBFH_P_EXIT_7 \
     OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jz 9f; movl $0, %%eax; 9:")
-#define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6(), OBFH_P_EXIT_7())
+#define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6, OBFH_P_EXIT_7)
 #define OBFH_P_EXIT_SELECT_5(style) \
-    __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5(), OBFH_P_EXIT_SELECT_6(style))
+    __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5, OBFH_P_EXIT_SELECT_6(style))
 #define OBFH_P_EXIT_SELECT_4(style) \
-    __builtin_choose_expr(((style)&7u) == 4u, OBFH_P_EXIT_4(), OBFH_P_EXIT_SELECT_5(style))
+    __builtin_choose_expr(((style)&7u) == 4u, OBFH_P_EXIT_4, OBFH_P_EXIT_SELECT_5(style))
 #define OBFH_P_EXIT_SELECT_3(style) \
-    __builtin_choose_expr(((style)&7u) == 3u, OBFH_P_EXIT_3(), OBFH_P_EXIT_SELECT_4(style))
+    __builtin_choose_expr(((style)&7u) == 3u, OBFH_P_EXIT_3, OBFH_P_EXIT_SELECT_4(style))
 #define OBFH_P_EXIT_SELECT_2(style) \
-    __builtin_choose_expr(((style)&7u) == 2u, OBFH_P_EXIT_2(), OBFH_P_EXIT_SELECT_3(style))
+    __builtin_choose_expr(((style)&7u) == 2u, OBFH_P_EXIT_2, OBFH_P_EXIT_SELECT_3(style))
 #define OBFH_P_EXIT_SELECT_1(style) \
-    __builtin_choose_expr(((style)&7u) == 1u, OBFH_P_EXIT_1(), OBFH_P_EXIT_SELECT_2(style))
+    __builtin_choose_expr(((style)&7u) == 1u, OBFH_P_EXIT_1, OBFH_P_EXIT_SELECT_2(style))
 #define OBFH_P_EXIT_SELECT_0(style) \
-    __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0(), OBFH_P_EXIT_SELECT_1(style))
+    __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0, OBFH_P_EXIT_SELECT_1(style))
 #define OBFH_P_FINISH(style) OBFH_P_EXIT_SELECT_0(style)
 // Graph families: sequential diamonds, split selectors, crossed paths, split exits.
 #define OBFH_P_GRAPH_0(s, t, last)        \
@@ -3331,6 +3343,12 @@ enum {
     OBFH_V_CROL,
     OBFH_V_JUMP,
     OBFH_V_JFLAG,
+    OBFH_V_BAND,
+    OBFH_V_BOR,
+    OBFH_V_BXOR,
+    OBFH_V_BNOT,
+    OBFH_V_BSHL,
+    OBFH_V_BSHR,
     OBFH_V_RETURN
 };
 enum {
@@ -3354,7 +3372,13 @@ enum {
     OBFH_VOP_LE,
     OBFH_VOP_GE,
     OBFH_VOP_ID,
-    OBFH_VOP_TRUTH
+    OBFH_VOP_TRUTH,
+    OBFH_VOP_BAND,
+    OBFH_VOP_BOR,
+    OBFH_VOP_BXOR,
+    OBFH_VOP_BNOT,
+    OBFH_VOP_BSHL,
+    OBFH_VOP_BSHR
 };
 typedef struct
 {
@@ -3467,6 +3491,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
     long double operands[2] = {obfh_vm_decode(input_a, SALT_NUM1), obfh_vm_decode(input_b, SALT_NUM2)};
     STACK_PROXY_FUNCTIONS;
     PHANTOM_NOP;
+    BREAK_STACK_CFLOW;
     /* OBFH_VM_TRACE_ENTER */
     while (c.steps < 128) {
         if (c.pc >= length)
@@ -3477,10 +3502,11 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         if (op < OBFH_V_LOAD_A || op > OBFH_V_RETURN)
             obfh_v_failure(&c, 3);
         if (op == OBFH_V_MOVE || op == OBFH_V_SWAP || (op >= OBFH_V_ADD && op <= OBFH_V_COMPARE) || op == OBFH_V_TEST ||
-            op == OBFH_V_RETURN)
+            op == OBFH_V_RETURN || (op >= OBFH_V_BAND && op <= OBFH_V_BSHR))
             if (!(c.initialized & (1u << a)))
                 obfh_v_failure(&c, 4);
-        if (op == OBFH_V_SWAP || (op >= OBFH_V_ADD && op <= OBFH_V_COMPARE))
+        if (op == OBFH_V_SWAP || (op >= OBFH_V_ADD && op <= OBFH_V_COMPARE) ||
+            (op >= OBFH_V_BAND && op <= OBFH_V_BSHR && op != OBFH_V_BNOT))
             if (!(c.initialized & (1u << b)))
                 obfh_v_failure(&c, 4);
         if ((op == OBFH_V_JUMP || op == OBFH_V_JFLAG) && imm >= length)
@@ -3543,26 +3569,48 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
             case OBFH_V_JFLAG:
                 STACK_PROXY_FUNCTIONS;
                 goto jflag;
+            case OBFH_V_BAND:
+                STACK_PROXY_FUNCTIONS;
+                goto bit_and;
+            case OBFH_V_BOR:
+                STACK_PROXY_FUNCTIONS;
+                goto bit_or;
+            case OBFH_V_BXOR:
+                STACK_PROXY_FUNCTIONS;
+                goto bit_xor;
+            case OBFH_V_BNOT:
+                STACK_PROXY_FUNCTIONS;
+                goto bit_not;
+            case OBFH_V_BSHL:
+                STACK_PROXY_FUNCTIONS;
+                goto bit_shl;
+            case OBFH_V_BSHR:
+                STACK_PROXY_FUNCTIONS;
+                goto bit_shr;
             case OBFH_V_RETURN:
                 STACK_PROXY_FUNCTIONS;
                 goto finish;
         }
-    invalid:
+    invalid : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_failure(&c, 3);
         continue;
-    load_a:
+    }
+    load_a : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_write(&c, d, operands[0]);
         continue;
-    load_b:
+    }
+    load_b : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_write(&c, d, operands[1]);
         continue;
-    move:
+    }
+    move : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_copy(&c, d, a);
         continue;
+    }
     swap : {
         STACK_PROXY_FUNCTIONS;
         OBFH_V_REGISTER temporary = c.registers[a];
@@ -3570,18 +3618,21 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         c.registers[b] = temporary;
         continue;
     }
-    add:
+    add : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_write(&c, d, obfh_v_read(&c, a) + obfh_v_read(&c, b));
         continue;
-    sub:
+    }
+    sub : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_write(&c, d, obfh_v_read(&c, a) - obfh_v_read(&c, b));
         continue;
-    mul:
+    }
+    mul : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_write(&c, d, obfh_v_read(&c, a) * obfh_v_read(&c, b));
         continue;
+    }
     divide : {
         STACK_PROXY_FUNCTIONS;
         long double x = obfh_v_read(&c, a), y = obfh_v_read(&c, b);
@@ -3592,6 +3643,42 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         STACK_PROXY_FUNCTIONS;
         int x = (int)obfh_v_read(&c, a), y = (int)obfh_v_read(&c, b);
         obfh_v_write(&c, d, y != 0 && !(x == INT_MIN && y == -1) ? x % y : 0);
+        continue;
+    }
+    bit_and : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int x = (unsigned int)obfh_v_read(&c, a), y = (unsigned int)obfh_v_read(&c, b);
+        obfh_v_write(&c, d, x & y);
+        continue;
+    }
+    bit_or : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int x = (unsigned int)obfh_v_read(&c, a), y = (unsigned int)obfh_v_read(&c, b);
+        obfh_v_write(&c, d, x | y);
+        continue;
+    }
+    bit_xor : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int x = (unsigned int)obfh_v_read(&c, a), y = (unsigned int)obfh_v_read(&c, b);
+        obfh_v_write(&c, d, x ^ y);
+        continue;
+    }
+    bit_not : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int x = (unsigned int)obfh_v_read(&c, a);
+        obfh_v_write(&c, d, ~x);
+        continue;
+    }
+    bit_shl : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int x = (unsigned int)obfh_v_read(&c, a), y = (unsigned int)obfh_v_read(&c, b);
+        obfh_v_write(&c, d, x << (y & 31u));
+        continue;
+    }
+    bit_shr : {
+        STACK_PROXY_FUNCTIONS;
+        unsigned int x = (unsigned int)obfh_v_read(&c, a), y = (unsigned int)obfh_v_read(&c, b);
+        obfh_v_write(&c, d, x >> (y & 31u));
         continue;
     }
     compare : {
@@ -3608,6 +3695,10 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         if (imm > 6 || !c.flags_ready)
             obfh_v_failure(&c, 6);
         switch (imm) {
+#if NO_CFLOW != 1
+            case (-1 * RND(0xBAD, 0xBEEF)):
+                OBFH_FLOW_DEAD_BYTES;
+#endif
             case 0:
                 STACK_PROXY_FUNCTIONS;
                 value = !!(f & OBFH_V_EQ);
@@ -3640,11 +3731,12 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         obfh_v_write(&c, d, value);
         continue;
     }
-    test:
+    test : {
         STACK_PROXY_FUNCTIONS;
         obfh_v_set_flags(&c, (obfh_v_flags(&c) & OBFH_V_CONTROL) | (obfh_v_read(&c, a) != 0 ? OBFH_V_TRUE : 0));
         c.flags_ready = 1;
         continue;
+    }
     cadd : {
         STACK_PROXY_FUNCTIONS;
         unsigned int signed_imm = (imm & 0x20000u) ? imm | 0xfffc0000u : imm;
@@ -3654,20 +3746,22 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         c.flags_ready = 1;
         continue;
     }
-    cxor:
+    cxor : {
         STACK_PROXY_FUNCTIONS;
         c.controls[d] ^= imm;
         continue;
+    }
     crol : {
         STACK_PROXY_FUNCTIONS;
         unsigned int n = (imm % 31u) + 1u, value = obfh_v_control_read(&c, d);
         obfh_v_control_write(&c, d, (value << n) | (value >> (32u - n)));
         continue;
     }
-    jump:
+    jump : {
         STACK_PROXY_FUNCTIONS;
         c.pc = imm;
         continue;
+    }
     jflag : {
         STACK_PROXY_FUNCTIONS;
         unsigned int flag = d | (a << 2);
@@ -4640,11 +4734,11 @@ typedef struct {
     PVOID volatile encoded;
     LONG volatile ready;
 } OBFH_GUI_SLOT;
-static OBFH_GUI_SLOT obfh_gui_slots[136];
+#define OBFH_GUI_COUNT 275
+static OBFH_GUI_SLOT obfh_gui_slots[OBFH_GUI_COUNT];
 static PVOID volatile obfh_gui_modules[4];
 static HMODULE LoadLibraryA_proxy(LPCSTR name);
 static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
-#define OBFH_GUI_COUNT 136
 #define OBFH_GUI_DRAW(index, salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)(index) ^ (unsigned int)OBFH_BUILD_SEED ^ (salt)))
 #if defined(__x86_64__)
 #define OBFH_GUI_WIDTH "q"
@@ -4713,15 +4807,15 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
                     }))
 
 // Keep if separate from its parentheses during macro rescan to avoid another CFLOW layer.
-#define else                          \
-    else if OBFH_FLOW_ELSE_GUARD () { \
-    }                                 \
+#define else                       \
+    else if OBFH_FLOW_ELSE_GUARD { \
+    }                              \
     else
 
 #define OBFUS_CONDITION_BLOCK(...) OBFH_FLOW_CONDITION((__VA_ARGS__), RND(1, 65535))
 
 // Keep the native break outside the expression so it retains its original target.
-#define OBFH_FLOW_BREAK_GUARD()                 \
+#define OBFH_FLOW_BREAK_GUARD                   \
     (({                                         \
         if (OBFUS_CONDITION_BLOCK(RND(1, 255))) \
             BREAK_STACK_CFLOW;                  \
@@ -4729,10 +4823,10 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
     }))
 
 // A matched conditional consumes the caller's semicolon and preserves dangling else.
-#define break                   \
-    if OBFH_FLOW_BREAK_GUARD () \
-        break;                  \
-    else                        \
+#define break                \
+    if OBFH_FLOW_BREAK_GUARD \
+        break;               \
+    else                     \
         (void)0
 
 #define switch(...)                                                                                                  \
@@ -4746,10 +4840,10 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
 #define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))
 
 // Protect every iteration and retain randomized bytes in the never-taken arm.
-#define for(...)                    \
-    for (__VA_ARGS__)               \
-        if (0) {                    \
-            OBFH_FLOW_DEAD_BYTES(); \
+#define for(...)                  \
+    for (__VA_ARGS__)             \
+        if (0) {                  \
+            OBFH_FLOW_DEAD_BYTES; \
         } else
 
 #endif
@@ -4765,13 +4859,12 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
 #define OBFH_V_INSTRUCTION(op, d, a, b, imm)                                                                                  \
     (((((unsigned int)(op) * (((__obfh_vkey >> 8) & 255u) | 1u) + (__obfh_vkey & 255u)) & 255u)) | ((unsigned int)(d) << 8) | \
      ((unsigned int)(a) << 10) | ((unsigned int)(b) << 12) | (((unsigned int)(imm)&0x3ffffu) << 14))
-#define OBFH_V_OPERATION_0(d, a, b)                                                                                                      \
-    OBFH_V_INSTRUCTION(__obfh_voperation < 5                                                                                             \
-                           ? OBFH_V_ADD + __obfh_voperation                                                                              \
-                           : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)), \
+#define OBFH_V_OPERATION_0(d, a, b)                                                                                                                                                                                                               \
+    OBFH_V_INSTRUCTION(__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation                                                                              \
+                                                                                                                                    : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)), \
                        d, a, b, 0)
-#define OBFH_V_OPERATION_1(d, a)                                                                                             \
-    OBFH_V_INSTRUCTION((__obfh_voperation >= 5 && __obfh_voperation != OBFH_VOP_ID) ? OBFH_V_BOOLEAN : OBFH_V_CXOR, d, a, 0, \
+#define OBFH_V_OPERATION_1(d, a)                                                                                                                            \
+    OBFH_V_INSTRUCTION(((__obfh_voperation >= 5 && __obfh_voperation < 11) || __obfh_voperation == OBFH_VOP_TRUTH) ? OBFH_V_BOOLEAN : OBFH_V_CXOR, d, a, 0, \
                        __obfh_voperation == OBFH_VOP_TRUTH ? 6 : (__obfh_voperation >= 5 ? __obfh_voperation - 5 : 0))
 #define OBFH_V_ENCODE(word, pc)                                                                                                \
     (((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u))))) ^ \
@@ -4924,6 +5017,13 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
                  OBFH_VM_OPERAND(value_b, SALT_NUM2, floating));                                                                          \
     })
 #define OBFH_VM_OPERAND(value, salt, floating) obfh_vm_encode(value, salt, (floating) | (RND(1, 2147483647u) << 1))
+// Bitwise operations use uint32 bit patterns; shift counts wrap modulo 32.
+#define VM_AND(a, b) (unsigned int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_BAND, (long double)(unsigned int)(a), (long double)(unsigned int)(b), 0u)
+#define VM_OR(a, b) (unsigned int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_BOR, (long double)(unsigned int)(a), (long double)(unsigned int)(b), 0u)
+#define VM_XOR(a, b) (unsigned int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_BXOR, (long double)(unsigned int)(a), (long double)(unsigned int)(b), 0u)
+#define VM_NOT(value) (unsigned int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_BNOT, (long double)(unsigned int)(value), (long double)0, 0u)
+#define VM_SHL(a, b) (unsigned int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_BSHL, (long double)(unsigned int)(a), (long double)(unsigned int)(b), 0u)
+#define VM_SHR(a, b) (unsigned int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_BSHR, (long double)(unsigned int)(a), (long double)(unsigned int)(b), 0u)
 #define VM_ADD(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_ADD, (long double)(num1), (long double)(num2), 0u)
 #define VM_SUB(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_SUB, (long double)(num1), (long double)(num2), 0u)
 #define VM_MUL(num1, num2) (long)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_MUL, (long double)(num1), (long double)(num2), 0u)
@@ -5180,22 +5280,26 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
     }
     return (FARPROC)(base + rva);
 }
-#define GetProcAddress_custom(...) ({                                                                                                      \
-    __label__ __obfh_getprocaddress_done;                                                                                                  \
-    struct {                                                                                                                               \
-        HMODULE hModule;                                                                                                                   \
-        LPCSTR lpProcName;                                                                                                                 \
-    } __obfh_getprocaddress_args = {__VA_ARGS__};                                                                                          \
-    FARPROC __obfh_getprocaddress_output;                                                                                                  \
-    FARPROC __obfh_getprocaddress_result = obfh_find_export(__obfh_getprocaddress_args.hModule, __obfh_getprocaddress_args.lpProcName, 0); \
-    PHANTOM_NOP;                                                                                                                           \
-    BREAK_STACK_CFLOW;                                                                                                                     \
-    {                                                                                                                                      \
-        __obfh_getprocaddress_output = (__obfh_getprocaddress_result);                                                                     \
-        goto __obfh_getprocaddress_done;                                                                                                   \
-    }                                                                                                                                      \
-__obfh_getprocaddress_done:                                                                                                                \
-    __obfh_getprocaddress_output;                                                                                                          \
+#define GetProcAddress_custom(...) ({                                                                                                                         \
+    __label__ __obfh_getprocaddress_done;                                                                                                                     \
+    struct {                                                                                                                                                  \
+        HMODULE hModule;                                                                                                                                      \
+        LPCSTR lpProcName;                                                                                                                                    \
+    } __obfh_getprocaddress_args = {__VA_ARGS__};                                                                                                             \
+    DWORD __obfh_getprocaddress_error = GetLastError();                                                                                                       \
+    FARPROC __obfh_getprocaddress_output;                                                                                                                     \
+    FARPROC __obfh_getprocaddress_result = obfh_find_export(__obfh_getprocaddress_args.hModule, __obfh_getprocaddress_args.lpProcName, 0);                    \
+    SetLastError(__obfh_getprocaddress_result ? __obfh_getprocaddress_error                                                                                   \
+                                              : (__obfh_getprocaddress_args.hModule && __obfh_getprocaddress_args.lpProcName ? ERROR_PROC_NOT_FOUND           \
+                                                                                                                             : __obfh_getprocaddress_error)); \
+    PHANTOM_NOP;                                                                                                                                              \
+    BREAK_STACK_CFLOW;                                                                                                                                        \
+    {                                                                                                                                                         \
+        __obfh_getprocaddress_output = (__obfh_getprocaddress_result);                                                                                        \
+        goto __obfh_getprocaddress_done;                                                                                                                      \
+    }                                                                                                                                                         \
+__obfh_getprocaddress_done:                                                                                                                                   \
+    __obfh_getprocaddress_output;                                                                                                                             \
 })
 #define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
@@ -6173,7 +6277,7 @@ static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
         (__obfh_resolved_name[5] = _0, __obfh_resolved_name[4] = _t, __obfh_resolved_name[3] = _r, __obfh_resolved_name[2] = _o, __obfh_resolved_name[1] = _b, __obfh_resolved_name[0] = _a));
     ((void (*)(void))obfh_crt_resolve(__obfh_resolved_name))();
 }
-#define abort() abort_proxy()
+#define abort(...) abort_proxy(__VA_ARGS__)
 
 static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
     STACK_PROXY_FUNCTIONS;
@@ -6236,30 +6340,8 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 // ============================================================================
 
 // getch, _getch
-#define _getch() obfh_int_proxy(_getch() * TRUE)
-#define getch() obfh_int_proxy(getch() + FALSE)
-
-#define Sleep(x) Sleep(obfh_int_proxy((_8 - (_4 * obfh_int_proxy(_2))) + x * TRUE))
-
-#define GetParent(hWnd) \
-    GetParent(OBFH_PTR(HWND, hWnd))
-
-#define SetConsoleTextAttribute(hConsoleOutput, wAttributes) \
-    SetConsoleTextAttribute(OBFH_PTR(HANDLE, hConsoleOutput), obfh_int_proxy(wAttributes))
-
-#define GetDesktopWindow() \
-    OBFH_PTR(HWND, GetDesktopWindow())
-
-#define CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile) \
-    OBFH_WINAPI(CreateFile)                                                                                                                    \
-    (OBFH_PTR(LPCTSTR, lpFileName), obfh_int_proxy(dwDesiredAccess), obfh_int_proxy(dwShareMode), OBFH_PTR(LPSECURITY_ATTRIBUTES, lpSecurityAttributes), obfh_int_proxy(dwCreationDisposition), obfh_int_proxy(dwFlagsAndAttributes), OBFH_PTR(HANDLE, hTemplateFile))
-
-#define GetModuleHandle(lpModuleName) \
-    OBFH_WINAPI(GetModuleHandle)      \
-    (OBFH_PTR(LPCTSTR, lpModuleName))
-
-#define GetCurrentProcess() \
-    OBFH_PTR(HANDLE, GetCurrentProcess())
+#define _getch(...) obfh_int_proxy(_getch(__VA_ARGS__) * TRUE)
+#define getch(...) obfh_int_proxy(getch(__VA_ARGS__) + FALSE)
 
 #ifdef UNICODE
 #define OBFH_WINAPI(name) name##W
@@ -6267,23 +6349,17 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #define OBFH_WINAPI(name) name##A
 #endif
 
-#define GetStartupInfo(lpStartupInfo) \
-    OBFH_WINAPI(GetStartupInfo)       \
-    (OBFH_PTR(LPSTARTUPINFO, lpStartupInfo))
-
-#define GetModuleFileName(hModule, lpFilename, nSize) \
-    OBFH_WINAPI(GetModuleFileName)                    \
-    (OBFH_PTR(HMODULE, hModule), OBFH_PTR(LPTSTR, lpFilename), obfh_int_proxy(nSize))
-
-#define HeapCreate(flOptions, dwInitialSize, dwMaximumSize) \
-    HeapCreate(obfh_int_proxy(flOptions), obfh_uintptr_proxy((ULONG_PTR)(dwInitialSize)), obfh_uintptr_proxy((ULONG_PTR)(dwMaximumSize)))
-
-#define GetTempPath(nBufferLength, lpBuffer) \
-    OBFH_WINAPI(GetTempPath)                 \
-    (obfh_int_proxy(nBufferLength), OBFH_PTR(LPTSTR, lpBuffer))
-
-#define GetCurrentThreadId() \
-    GetCurrentThreadId()
+// Object aliases preserve calls, parenthesized names and function addresses.
+#undef CreateFile
+#define CreateFile OBFH_WINAPI(CreateFile)
+#undef GetModuleHandle
+#define GetModuleHandle OBFH_WINAPI(GetModuleHandle)
+#undef GetStartupInfo
+#define GetStartupInfo OBFH_WINAPI(GetStartupInfo)
+#undef GetModuleFileName
+#define GetModuleFileName OBFH_WINAPI(GetModuleFileName)
+#undef GetTempPath
+#define GetTempPath OBFH_WINAPI(GetTempPath)
 
 #define memmove(...) memmove_custom(__VA_ARGS__)
 
@@ -6336,461 +6412,795 @@ __obfh_gui_decode:                                                              
 #define OBFH_API_CALL(module, name, ...) \
     OBFH_GUI_CALL(OBFH_GUI_ID_##name, module, OBFH_GUI_NAME_##name, __typeof__(&name), __VA_ARGS__)
 
+#define OBFH_GUI_ID_GetCurrentThreadId 136
+#define OBFH_GUI_NAME_GetCurrentThreadId \
+    { ('G' ^ OBFH_GUI_NAME_KEY(136)), ('e' ^ OBFH_GUI_NAME_KEY(136)), ('t' ^ OBFH_GUI_NAME_KEY(136)), ('C' ^ OBFH_GUI_NAME_KEY(136)), ('u' ^ OBFH_GUI_NAME_KEY(136)), ('r' ^ OBFH_GUI_NAME_KEY(136)), ('r' ^ OBFH_GUI_NAME_KEY(136)), ('e' ^ OBFH_GUI_NAME_KEY(136)), ('n' ^ OBFH_GUI_NAME_KEY(136)), ('t' ^ OBFH_GUI_NAME_KEY(136)), ('T' ^ OBFH_GUI_NAME_KEY(136)), ('h' ^ OBFH_GUI_NAME_KEY(136)), ('r' ^ OBFH_GUI_NAME_KEY(136)), ('e' ^ OBFH_GUI_NAME_KEY(136)), ('a' ^ OBFH_GUI_NAME_KEY(136)), ('d' ^ OBFH_GUI_NAME_KEY(136)), ('I' ^ OBFH_GUI_NAME_KEY(136)), ('d' ^ OBFH_GUI_NAME_KEY(136)), ('\0' ^ OBFH_GUI_NAME_KEY(136)) }
+#define GetCurrentThreadId(...) OBFH_API_CALL(2, GetCurrentThreadId, __VA_ARGS__)
+
+// Additional process, file, window, text and resource APIs.
+#if defined(__TINYC__)
+WINBASEAPI int WINAPI MultiByteToWideChar(UINT codepage, DWORD flags, LPCSTR input, int input_length, LPWSTR output, int output_length);
+WINBASEAPI int WINAPI WideCharToMultiByte(UINT codepage, DWORD flags, LPCWSTR input, int input_length, LPSTR output, int output_length, LPCSTR fallback, LPBOOL used_fallback);
+#endif
+#define OBFH_GUI_ID_GetCurrentProcess 137
+#define OBFH_GUI_NAME_GetCurrentProcess \
+    { ('G' ^ OBFH_GUI_NAME_KEY(137)), ('e' ^ OBFH_GUI_NAME_KEY(137)), ('t' ^ OBFH_GUI_NAME_KEY(137)), ('C' ^ OBFH_GUI_NAME_KEY(137)), ('u' ^ OBFH_GUI_NAME_KEY(137)), ('r' ^ OBFH_GUI_NAME_KEY(137)), ('r' ^ OBFH_GUI_NAME_KEY(137)), ('e' ^ OBFH_GUI_NAME_KEY(137)), ('n' ^ OBFH_GUI_NAME_KEY(137)), ('t' ^ OBFH_GUI_NAME_KEY(137)), ('P' ^ OBFH_GUI_NAME_KEY(137)), ('r' ^ OBFH_GUI_NAME_KEY(137)), ('o' ^ OBFH_GUI_NAME_KEY(137)), ('c' ^ OBFH_GUI_NAME_KEY(137)), ('e' ^ OBFH_GUI_NAME_KEY(137)), ('s' ^ OBFH_GUI_NAME_KEY(137)), ('s' ^ OBFH_GUI_NAME_KEY(137)), ('\0' ^ OBFH_GUI_NAME_KEY(137)) }
+#undef GetCurrentProcess
+#define GetCurrentProcess(...) OBFH_API_CALL(2, GetCurrentProcess, __VA_ARGS__)
+
+#define OBFH_GUI_ID_Sleep 138
+#define OBFH_GUI_NAME_Sleep \
+    { ('S' ^ OBFH_GUI_NAME_KEY(138)), ('l' ^ OBFH_GUI_NAME_KEY(138)), ('e' ^ OBFH_GUI_NAME_KEY(138)), ('e' ^ OBFH_GUI_NAME_KEY(138)), ('p' ^ OBFH_GUI_NAME_KEY(138)), ('\0' ^ OBFH_GUI_NAME_KEY(138)) }
+#undef Sleep
+#define Sleep(...) OBFH_API_CALL(2, Sleep, __VA_ARGS__)
+
+#define OBFH_GUI_ID_HeapCreate 139
+#define OBFH_GUI_NAME_HeapCreate \
+    { ('H' ^ OBFH_GUI_NAME_KEY(139)), ('e' ^ OBFH_GUI_NAME_KEY(139)), ('a' ^ OBFH_GUI_NAME_KEY(139)), ('p' ^ OBFH_GUI_NAME_KEY(139)), ('C' ^ OBFH_GUI_NAME_KEY(139)), ('r' ^ OBFH_GUI_NAME_KEY(139)), ('e' ^ OBFH_GUI_NAME_KEY(139)), ('a' ^ OBFH_GUI_NAME_KEY(139)), ('t' ^ OBFH_GUI_NAME_KEY(139)), ('e' ^ OBFH_GUI_NAME_KEY(139)), ('\0' ^ OBFH_GUI_NAME_KEY(139)) }
+#undef HeapCreate
+#define HeapCreate(...) OBFH_API_CALL(2, HeapCreate, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetConsoleTextAttribute 140
+#define OBFH_GUI_NAME_SetConsoleTextAttribute \
+    { ('S' ^ OBFH_GUI_NAME_KEY(140)), ('e' ^ OBFH_GUI_NAME_KEY(140)), ('t' ^ OBFH_GUI_NAME_KEY(140)), ('C' ^ OBFH_GUI_NAME_KEY(140)), ('o' ^ OBFH_GUI_NAME_KEY(140)), ('n' ^ OBFH_GUI_NAME_KEY(140)), ('s' ^ OBFH_GUI_NAME_KEY(140)), ('o' ^ OBFH_GUI_NAME_KEY(140)), ('l' ^ OBFH_GUI_NAME_KEY(140)), ('e' ^ OBFH_GUI_NAME_KEY(140)), ('T' ^ OBFH_GUI_NAME_KEY(140)), ('e' ^ OBFH_GUI_NAME_KEY(140)), ('x' ^ OBFH_GUI_NAME_KEY(140)), ('t' ^ OBFH_GUI_NAME_KEY(140)), ('A' ^ OBFH_GUI_NAME_KEY(140)), ('t' ^ OBFH_GUI_NAME_KEY(140)), ('t' ^ OBFH_GUI_NAME_KEY(140)), ('r' ^ OBFH_GUI_NAME_KEY(140)), ('i' ^ OBFH_GUI_NAME_KEY(140)), ('b' ^ OBFH_GUI_NAME_KEY(140)), ('u' ^ OBFH_GUI_NAME_KEY(140)), ('t' ^ OBFH_GUI_NAME_KEY(140)), ('e' ^ OBFH_GUI_NAME_KEY(140)), ('\0' ^ OBFH_GUI_NAME_KEY(140)) }
+#undef SetConsoleTextAttribute
+#define SetConsoleTextAttribute(...) OBFH_API_CALL(2, SetConsoleTextAttribute, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetCurrentProcessId 141
+#define OBFH_GUI_NAME_GetCurrentProcessId \
+    { ('G' ^ OBFH_GUI_NAME_KEY(141)), ('e' ^ OBFH_GUI_NAME_KEY(141)), ('t' ^ OBFH_GUI_NAME_KEY(141)), ('C' ^ OBFH_GUI_NAME_KEY(141)), ('u' ^ OBFH_GUI_NAME_KEY(141)), ('r' ^ OBFH_GUI_NAME_KEY(141)), ('r' ^ OBFH_GUI_NAME_KEY(141)), ('e' ^ OBFH_GUI_NAME_KEY(141)), ('n' ^ OBFH_GUI_NAME_KEY(141)), ('t' ^ OBFH_GUI_NAME_KEY(141)), ('P' ^ OBFH_GUI_NAME_KEY(141)), ('r' ^ OBFH_GUI_NAME_KEY(141)), ('o' ^ OBFH_GUI_NAME_KEY(141)), ('c' ^ OBFH_GUI_NAME_KEY(141)), ('e' ^ OBFH_GUI_NAME_KEY(141)), ('s' ^ OBFH_GUI_NAME_KEY(141)), ('s' ^ OBFH_GUI_NAME_KEY(141)), ('I' ^ OBFH_GUI_NAME_KEY(141)), ('d' ^ OBFH_GUI_NAME_KEY(141)), ('\0' ^ OBFH_GUI_NAME_KEY(141)) }
+#undef GetCurrentProcessId
+#define GetCurrentProcessId(...) OBFH_API_CALL(2, GetCurrentProcessId, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetCurrentThread 142
+#define OBFH_GUI_NAME_GetCurrentThread \
+    { ('G' ^ OBFH_GUI_NAME_KEY(142)), ('e' ^ OBFH_GUI_NAME_KEY(142)), ('t' ^ OBFH_GUI_NAME_KEY(142)), ('C' ^ OBFH_GUI_NAME_KEY(142)), ('u' ^ OBFH_GUI_NAME_KEY(142)), ('r' ^ OBFH_GUI_NAME_KEY(142)), ('r' ^ OBFH_GUI_NAME_KEY(142)), ('e' ^ OBFH_GUI_NAME_KEY(142)), ('n' ^ OBFH_GUI_NAME_KEY(142)), ('t' ^ OBFH_GUI_NAME_KEY(142)), ('T' ^ OBFH_GUI_NAME_KEY(142)), ('h' ^ OBFH_GUI_NAME_KEY(142)), ('r' ^ OBFH_GUI_NAME_KEY(142)), ('e' ^ OBFH_GUI_NAME_KEY(142)), ('a' ^ OBFH_GUI_NAME_KEY(142)), ('d' ^ OBFH_GUI_NAME_KEY(142)), ('\0' ^ OBFH_GUI_NAME_KEY(142)) }
+#undef GetCurrentThread
+#define GetCurrentThread(...) OBFH_API_CALL(2, GetCurrentThread, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetExitCodeThread 143
+#define OBFH_GUI_NAME_GetExitCodeThread \
+    { ('G' ^ OBFH_GUI_NAME_KEY(143)), ('e' ^ OBFH_GUI_NAME_KEY(143)), ('t' ^ OBFH_GUI_NAME_KEY(143)), ('E' ^ OBFH_GUI_NAME_KEY(143)), ('x' ^ OBFH_GUI_NAME_KEY(143)), ('i' ^ OBFH_GUI_NAME_KEY(143)), ('t' ^ OBFH_GUI_NAME_KEY(143)), ('C' ^ OBFH_GUI_NAME_KEY(143)), ('o' ^ OBFH_GUI_NAME_KEY(143)), ('d' ^ OBFH_GUI_NAME_KEY(143)), ('e' ^ OBFH_GUI_NAME_KEY(143)), ('T' ^ OBFH_GUI_NAME_KEY(143)), ('h' ^ OBFH_GUI_NAME_KEY(143)), ('r' ^ OBFH_GUI_NAME_KEY(143)), ('e' ^ OBFH_GUI_NAME_KEY(143)), ('a' ^ OBFH_GUI_NAME_KEY(143)), ('d' ^ OBFH_GUI_NAME_KEY(143)), ('\0' ^ OBFH_GUI_NAME_KEY(143)) }
+#undef GetExitCodeThread
+#define GetExitCodeThread(...) OBFH_API_CALL(2, GetExitCodeThread, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DuplicateHandle 144
+#define OBFH_GUI_NAME_DuplicateHandle \
+    { ('D' ^ OBFH_GUI_NAME_KEY(144)), ('u' ^ OBFH_GUI_NAME_KEY(144)), ('p' ^ OBFH_GUI_NAME_KEY(144)), ('l' ^ OBFH_GUI_NAME_KEY(144)), ('i' ^ OBFH_GUI_NAME_KEY(144)), ('c' ^ OBFH_GUI_NAME_KEY(144)), ('a' ^ OBFH_GUI_NAME_KEY(144)), ('t' ^ OBFH_GUI_NAME_KEY(144)), ('e' ^ OBFH_GUI_NAME_KEY(144)), ('H' ^ OBFH_GUI_NAME_KEY(144)), ('a' ^ OBFH_GUI_NAME_KEY(144)), ('n' ^ OBFH_GUI_NAME_KEY(144)), ('d' ^ OBFH_GUI_NAME_KEY(144)), ('l' ^ OBFH_GUI_NAME_KEY(144)), ('e' ^ OBFH_GUI_NAME_KEY(144)), ('\0' ^ OBFH_GUI_NAME_KEY(144)) }
+#undef DuplicateHandle
+#define DuplicateHandle(...) OBFH_API_CALL(2, DuplicateHandle, __VA_ARGS__)
+
+#define OBFH_GUI_ID_QueryPerformanceCounter 145
+#define OBFH_GUI_NAME_QueryPerformanceCounter \
+    { ('Q' ^ OBFH_GUI_NAME_KEY(145)), ('u' ^ OBFH_GUI_NAME_KEY(145)), ('e' ^ OBFH_GUI_NAME_KEY(145)), ('r' ^ OBFH_GUI_NAME_KEY(145)), ('y' ^ OBFH_GUI_NAME_KEY(145)), ('P' ^ OBFH_GUI_NAME_KEY(145)), ('e' ^ OBFH_GUI_NAME_KEY(145)), ('r' ^ OBFH_GUI_NAME_KEY(145)), ('f' ^ OBFH_GUI_NAME_KEY(145)), ('o' ^ OBFH_GUI_NAME_KEY(145)), ('r' ^ OBFH_GUI_NAME_KEY(145)), ('m' ^ OBFH_GUI_NAME_KEY(145)), ('a' ^ OBFH_GUI_NAME_KEY(145)), ('n' ^ OBFH_GUI_NAME_KEY(145)), ('c' ^ OBFH_GUI_NAME_KEY(145)), ('e' ^ OBFH_GUI_NAME_KEY(145)), ('C' ^ OBFH_GUI_NAME_KEY(145)), ('o' ^ OBFH_GUI_NAME_KEY(145)), ('u' ^ OBFH_GUI_NAME_KEY(145)), ('n' ^ OBFH_GUI_NAME_KEY(145)), ('t' ^ OBFH_GUI_NAME_KEY(145)), ('e' ^ OBFH_GUI_NAME_KEY(145)), ('r' ^ OBFH_GUI_NAME_KEY(145)), ('\0' ^ OBFH_GUI_NAME_KEY(145)) }
+#undef QueryPerformanceCounter
+#define QueryPerformanceCounter(...) OBFH_API_CALL(2, QueryPerformanceCounter, __VA_ARGS__)
+
+#define OBFH_GUI_ID_QueryPerformanceFrequency 146
+#define OBFH_GUI_NAME_QueryPerformanceFrequency \
+    { ('Q' ^ OBFH_GUI_NAME_KEY(146)), ('u' ^ OBFH_GUI_NAME_KEY(146)), ('e' ^ OBFH_GUI_NAME_KEY(146)), ('r' ^ OBFH_GUI_NAME_KEY(146)), ('y' ^ OBFH_GUI_NAME_KEY(146)), ('P' ^ OBFH_GUI_NAME_KEY(146)), ('e' ^ OBFH_GUI_NAME_KEY(146)), ('r' ^ OBFH_GUI_NAME_KEY(146)), ('f' ^ OBFH_GUI_NAME_KEY(146)), ('o' ^ OBFH_GUI_NAME_KEY(146)), ('r' ^ OBFH_GUI_NAME_KEY(146)), ('m' ^ OBFH_GUI_NAME_KEY(146)), ('a' ^ OBFH_GUI_NAME_KEY(146)), ('n' ^ OBFH_GUI_NAME_KEY(146)), ('c' ^ OBFH_GUI_NAME_KEY(146)), ('e' ^ OBFH_GUI_NAME_KEY(146)), ('F' ^ OBFH_GUI_NAME_KEY(146)), ('r' ^ OBFH_GUI_NAME_KEY(146)), ('e' ^ OBFH_GUI_NAME_KEY(146)), ('q' ^ OBFH_GUI_NAME_KEY(146)), ('u' ^ OBFH_GUI_NAME_KEY(146)), ('e' ^ OBFH_GUI_NAME_KEY(146)), ('n' ^ OBFH_GUI_NAME_KEY(146)), ('c' ^ OBFH_GUI_NAME_KEY(146)), ('y' ^ OBFH_GUI_NAME_KEY(146)), ('\0' ^ OBFH_GUI_NAME_KEY(146)) }
+#undef QueryPerformanceFrequency
+#define QueryPerformanceFrequency(...) OBFH_API_CALL(2, QueryPerformanceFrequency, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetTickCount 147
+#define OBFH_GUI_NAME_GetTickCount \
+    { ('G' ^ OBFH_GUI_NAME_KEY(147)), ('e' ^ OBFH_GUI_NAME_KEY(147)), ('t' ^ OBFH_GUI_NAME_KEY(147)), ('T' ^ OBFH_GUI_NAME_KEY(147)), ('i' ^ OBFH_GUI_NAME_KEY(147)), ('c' ^ OBFH_GUI_NAME_KEY(147)), ('k' ^ OBFH_GUI_NAME_KEY(147)), ('C' ^ OBFH_GUI_NAME_KEY(147)), ('o' ^ OBFH_GUI_NAME_KEY(147)), ('u' ^ OBFH_GUI_NAME_KEY(147)), ('n' ^ OBFH_GUI_NAME_KEY(147)), ('t' ^ OBFH_GUI_NAME_KEY(147)), ('\0' ^ OBFH_GUI_NAME_KEY(147)) }
+#undef GetTickCount
+#define GetTickCount(...) OBFH_API_CALL(2, GetTickCount, __VA_ARGS__)
+
+// Older TCC platform headers omit this declaration.
+#if defined(__TINYC__)
+WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
+#endif
+#define OBFH_GUI_ID_GetTickCount64 148
+#define OBFH_GUI_NAME_GetTickCount64 \
+    { ('G' ^ OBFH_GUI_NAME_KEY(148)), ('e' ^ OBFH_GUI_NAME_KEY(148)), ('t' ^ OBFH_GUI_NAME_KEY(148)), ('T' ^ OBFH_GUI_NAME_KEY(148)), ('i' ^ OBFH_GUI_NAME_KEY(148)), ('c' ^ OBFH_GUI_NAME_KEY(148)), ('k' ^ OBFH_GUI_NAME_KEY(148)), ('C' ^ OBFH_GUI_NAME_KEY(148)), ('o' ^ OBFH_GUI_NAME_KEY(148)), ('u' ^ OBFH_GUI_NAME_KEY(148)), ('n' ^ OBFH_GUI_NAME_KEY(148)), ('t' ^ OBFH_GUI_NAME_KEY(148)), ('6' ^ OBFH_GUI_NAME_KEY(148)), ('4' ^ OBFH_GUI_NAME_KEY(148)), ('\0' ^ OBFH_GUI_NAME_KEY(148)) }
+#undef GetTickCount64
+#define GetTickCount64(...) OBFH_API_CALL(2, GetTickCount64, __VA_ARGS__)
+
+#define OBFH_GUI_ID_MultiByteToWideChar 149
+#define OBFH_GUI_NAME_MultiByteToWideChar \
+    { ('M' ^ OBFH_GUI_NAME_KEY(149)), ('u' ^ OBFH_GUI_NAME_KEY(149)), ('l' ^ OBFH_GUI_NAME_KEY(149)), ('t' ^ OBFH_GUI_NAME_KEY(149)), ('i' ^ OBFH_GUI_NAME_KEY(149)), ('B' ^ OBFH_GUI_NAME_KEY(149)), ('y' ^ OBFH_GUI_NAME_KEY(149)), ('t' ^ OBFH_GUI_NAME_KEY(149)), ('e' ^ OBFH_GUI_NAME_KEY(149)), ('T' ^ OBFH_GUI_NAME_KEY(149)), ('o' ^ OBFH_GUI_NAME_KEY(149)), ('W' ^ OBFH_GUI_NAME_KEY(149)), ('i' ^ OBFH_GUI_NAME_KEY(149)), ('d' ^ OBFH_GUI_NAME_KEY(149)), ('e' ^ OBFH_GUI_NAME_KEY(149)), ('C' ^ OBFH_GUI_NAME_KEY(149)), ('h' ^ OBFH_GUI_NAME_KEY(149)), ('a' ^ OBFH_GUI_NAME_KEY(149)), ('r' ^ OBFH_GUI_NAME_KEY(149)), ('\0' ^ OBFH_GUI_NAME_KEY(149)) }
+#undef MultiByteToWideChar
+#define MultiByteToWideChar(...) OBFH_API_CALL(2, MultiByteToWideChar, __VA_ARGS__)
+
+#define OBFH_GUI_ID_WideCharToMultiByte 150
+#define OBFH_GUI_NAME_WideCharToMultiByte \
+    { ('W' ^ OBFH_GUI_NAME_KEY(150)), ('i' ^ OBFH_GUI_NAME_KEY(150)), ('d' ^ OBFH_GUI_NAME_KEY(150)), ('e' ^ OBFH_GUI_NAME_KEY(150)), ('C' ^ OBFH_GUI_NAME_KEY(150)), ('h' ^ OBFH_GUI_NAME_KEY(150)), ('a' ^ OBFH_GUI_NAME_KEY(150)), ('r' ^ OBFH_GUI_NAME_KEY(150)), ('T' ^ OBFH_GUI_NAME_KEY(150)), ('o' ^ OBFH_GUI_NAME_KEY(150)), ('M' ^ OBFH_GUI_NAME_KEY(150)), ('u' ^ OBFH_GUI_NAME_KEY(150)), ('l' ^ OBFH_GUI_NAME_KEY(150)), ('t' ^ OBFH_GUI_NAME_KEY(150)), ('i' ^ OBFH_GUI_NAME_KEY(150)), ('B' ^ OBFH_GUI_NAME_KEY(150)), ('y' ^ OBFH_GUI_NAME_KEY(150)), ('t' ^ OBFH_GUI_NAME_KEY(150)), ('e' ^ OBFH_GUI_NAME_KEY(150)), ('\0' ^ OBFH_GUI_NAME_KEY(150)) }
+#undef WideCharToMultiByte
+#define WideCharToMultiByte(...) OBFH_API_CALL(2, WideCharToMultiByte, __VA_ARGS__)
+
+#define OBFH_GUI_ID_LoadResource 151
+#define OBFH_GUI_NAME_LoadResource \
+    { ('L' ^ OBFH_GUI_NAME_KEY(151)), ('o' ^ OBFH_GUI_NAME_KEY(151)), ('a' ^ OBFH_GUI_NAME_KEY(151)), ('d' ^ OBFH_GUI_NAME_KEY(151)), ('R' ^ OBFH_GUI_NAME_KEY(151)), ('e' ^ OBFH_GUI_NAME_KEY(151)), ('s' ^ OBFH_GUI_NAME_KEY(151)), ('o' ^ OBFH_GUI_NAME_KEY(151)), ('u' ^ OBFH_GUI_NAME_KEY(151)), ('r' ^ OBFH_GUI_NAME_KEY(151)), ('c' ^ OBFH_GUI_NAME_KEY(151)), ('e' ^ OBFH_GUI_NAME_KEY(151)), ('\0' ^ OBFH_GUI_NAME_KEY(151)) }
+#undef LoadResource
+#define LoadResource(...) OBFH_API_CALL(2, LoadResource, __VA_ARGS__)
+
+#define OBFH_GUI_ID_LockResource 152
+#define OBFH_GUI_NAME_LockResource \
+    { ('L' ^ OBFH_GUI_NAME_KEY(152)), ('o' ^ OBFH_GUI_NAME_KEY(152)), ('c' ^ OBFH_GUI_NAME_KEY(152)), ('k' ^ OBFH_GUI_NAME_KEY(152)), ('R' ^ OBFH_GUI_NAME_KEY(152)), ('e' ^ OBFH_GUI_NAME_KEY(152)), ('s' ^ OBFH_GUI_NAME_KEY(152)), ('o' ^ OBFH_GUI_NAME_KEY(152)), ('u' ^ OBFH_GUI_NAME_KEY(152)), ('r' ^ OBFH_GUI_NAME_KEY(152)), ('c' ^ OBFH_GUI_NAME_KEY(152)), ('e' ^ OBFH_GUI_NAME_KEY(152)), ('\0' ^ OBFH_GUI_NAME_KEY(152)) }
+#undef LockResource
+#define LockResource(...) OBFH_API_CALL(2, LockResource, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SizeofResource 153
+#define OBFH_GUI_NAME_SizeofResource \
+    { ('S' ^ OBFH_GUI_NAME_KEY(153)), ('i' ^ OBFH_GUI_NAME_KEY(153)), ('z' ^ OBFH_GUI_NAME_KEY(153)), ('e' ^ OBFH_GUI_NAME_KEY(153)), ('o' ^ OBFH_GUI_NAME_KEY(153)), ('f' ^ OBFH_GUI_NAME_KEY(153)), ('R' ^ OBFH_GUI_NAME_KEY(153)), ('e' ^ OBFH_GUI_NAME_KEY(153)), ('s' ^ OBFH_GUI_NAME_KEY(153)), ('o' ^ OBFH_GUI_NAME_KEY(153)), ('u' ^ OBFH_GUI_NAME_KEY(153)), ('r' ^ OBFH_GUI_NAME_KEY(153)), ('c' ^ OBFH_GUI_NAME_KEY(153)), ('e' ^ OBFH_GUI_NAME_KEY(153)), ('\0' ^ OBFH_GUI_NAME_KEY(153)) }
+#undef SizeofResource
+#define SizeofResource(...) OBFH_API_CALL(2, SizeofResource, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindClose 154
+#define OBFH_GUI_NAME_FindClose \
+    { ('F' ^ OBFH_GUI_NAME_KEY(154)), ('i' ^ OBFH_GUI_NAME_KEY(154)), ('n' ^ OBFH_GUI_NAME_KEY(154)), ('d' ^ OBFH_GUI_NAME_KEY(154)), ('C' ^ OBFH_GUI_NAME_KEY(154)), ('l' ^ OBFH_GUI_NAME_KEY(154)), ('o' ^ OBFH_GUI_NAME_KEY(154)), ('s' ^ OBFH_GUI_NAME_KEY(154)), ('e' ^ OBFH_GUI_NAME_KEY(154)), ('\0' ^ OBFH_GUI_NAME_KEY(154)) }
+#undef FindClose
+#define FindClose(...) OBFH_API_CALL(2, FindClose, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetDesktopWindow 155
+#define OBFH_GUI_NAME_GetDesktopWindow \
+    { ('G' ^ OBFH_GUI_NAME_KEY(155)), ('e' ^ OBFH_GUI_NAME_KEY(155)), ('t' ^ OBFH_GUI_NAME_KEY(155)), ('D' ^ OBFH_GUI_NAME_KEY(155)), ('e' ^ OBFH_GUI_NAME_KEY(155)), ('s' ^ OBFH_GUI_NAME_KEY(155)), ('k' ^ OBFH_GUI_NAME_KEY(155)), ('t' ^ OBFH_GUI_NAME_KEY(155)), ('o' ^ OBFH_GUI_NAME_KEY(155)), ('p' ^ OBFH_GUI_NAME_KEY(155)), ('W' ^ OBFH_GUI_NAME_KEY(155)), ('i' ^ OBFH_GUI_NAME_KEY(155)), ('n' ^ OBFH_GUI_NAME_KEY(155)), ('d' ^ OBFH_GUI_NAME_KEY(155)), ('o' ^ OBFH_GUI_NAME_KEY(155)), ('w' ^ OBFH_GUI_NAME_KEY(155)), ('\0' ^ OBFH_GUI_NAME_KEY(155)) }
+#undef GetDesktopWindow
+#define GetDesktopWindow(...) OBFH_API_CALL(0, GetDesktopWindow, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetParent 156
+#define OBFH_GUI_NAME_GetParent \
+    { ('G' ^ OBFH_GUI_NAME_KEY(156)), ('e' ^ OBFH_GUI_NAME_KEY(156)), ('t' ^ OBFH_GUI_NAME_KEY(156)), ('P' ^ OBFH_GUI_NAME_KEY(156)), ('a' ^ OBFH_GUI_NAME_KEY(156)), ('r' ^ OBFH_GUI_NAME_KEY(156)), ('e' ^ OBFH_GUI_NAME_KEY(156)), ('n' ^ OBFH_GUI_NAME_KEY(156)), ('t' ^ OBFH_GUI_NAME_KEY(156)), ('\0' ^ OBFH_GUI_NAME_KEY(156)) }
+#undef GetParent
+#define GetParent(...) OBFH_API_CALL(0, GetParent, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetTimer 157
+#define OBFH_GUI_NAME_SetTimer \
+    { ('S' ^ OBFH_GUI_NAME_KEY(157)), ('e' ^ OBFH_GUI_NAME_KEY(157)), ('t' ^ OBFH_GUI_NAME_KEY(157)), ('T' ^ OBFH_GUI_NAME_KEY(157)), ('i' ^ OBFH_GUI_NAME_KEY(157)), ('m' ^ OBFH_GUI_NAME_KEY(157)), ('e' ^ OBFH_GUI_NAME_KEY(157)), ('r' ^ OBFH_GUI_NAME_KEY(157)), ('\0' ^ OBFH_GUI_NAME_KEY(157)) }
+#undef SetTimer
+#define SetTimer(...) OBFH_API_CALL(0, SetTimer, __VA_ARGS__)
+
+#define OBFH_GUI_ID_KillTimer 158
+#define OBFH_GUI_NAME_KillTimer \
+    { ('K' ^ OBFH_GUI_NAME_KEY(158)), ('i' ^ OBFH_GUI_NAME_KEY(158)), ('l' ^ OBFH_GUI_NAME_KEY(158)), ('l' ^ OBFH_GUI_NAME_KEY(158)), ('T' ^ OBFH_GUI_NAME_KEY(158)), ('i' ^ OBFH_GUI_NAME_KEY(158)), ('m' ^ OBFH_GUI_NAME_KEY(158)), ('e' ^ OBFH_GUI_NAME_KEY(158)), ('r' ^ OBFH_GUI_NAME_KEY(158)), ('\0' ^ OBFH_GUI_NAME_KEY(158)) }
+#undef KillTimer
+#define KillTimer(...) OBFH_API_CALL(0, KillTimer, __VA_ARGS__)
+
+#define OBFH_GUI_ID_EnableWindow 159
+#define OBFH_GUI_NAME_EnableWindow \
+    { ('E' ^ OBFH_GUI_NAME_KEY(159)), ('n' ^ OBFH_GUI_NAME_KEY(159)), ('a' ^ OBFH_GUI_NAME_KEY(159)), ('b' ^ OBFH_GUI_NAME_KEY(159)), ('l' ^ OBFH_GUI_NAME_KEY(159)), ('e' ^ OBFH_GUI_NAME_KEY(159)), ('W' ^ OBFH_GUI_NAME_KEY(159)), ('i' ^ OBFH_GUI_NAME_KEY(159)), ('n' ^ OBFH_GUI_NAME_KEY(159)), ('d' ^ OBFH_GUI_NAME_KEY(159)), ('o' ^ OBFH_GUI_NAME_KEY(159)), ('w' ^ OBFH_GUI_NAME_KEY(159)), ('\0' ^ OBFH_GUI_NAME_KEY(159)) }
+#undef EnableWindow
+#define EnableWindow(...) OBFH_API_CALL(0, EnableWindow, __VA_ARGS__)
+
+#define OBFH_GUI_ID_IsWindow 160
+#define OBFH_GUI_NAME_IsWindow \
+    { ('I' ^ OBFH_GUI_NAME_KEY(160)), ('s' ^ OBFH_GUI_NAME_KEY(160)), ('W' ^ OBFH_GUI_NAME_KEY(160)), ('i' ^ OBFH_GUI_NAME_KEY(160)), ('n' ^ OBFH_GUI_NAME_KEY(160)), ('d' ^ OBFH_GUI_NAME_KEY(160)), ('o' ^ OBFH_GUI_NAME_KEY(160)), ('w' ^ OBFH_GUI_NAME_KEY(160)), ('\0' ^ OBFH_GUI_NAME_KEY(160)) }
+#undef IsWindow
+#define IsWindow(...) OBFH_API_CALL(0, IsWindow, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileAttributesA 161
+#define OBFH_GUI_NAME_GetFileAttributesA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(161)), ('e' ^ OBFH_GUI_NAME_KEY(161)), ('t' ^ OBFH_GUI_NAME_KEY(161)), ('F' ^ OBFH_GUI_NAME_KEY(161)), ('i' ^ OBFH_GUI_NAME_KEY(161)), ('l' ^ OBFH_GUI_NAME_KEY(161)), ('e' ^ OBFH_GUI_NAME_KEY(161)), ('A' ^ OBFH_GUI_NAME_KEY(161)), ('t' ^ OBFH_GUI_NAME_KEY(161)), ('t' ^ OBFH_GUI_NAME_KEY(161)), ('r' ^ OBFH_GUI_NAME_KEY(161)), ('i' ^ OBFH_GUI_NAME_KEY(161)), ('b' ^ OBFH_GUI_NAME_KEY(161)), ('u' ^ OBFH_GUI_NAME_KEY(161)), ('t' ^ OBFH_GUI_NAME_KEY(161)), ('e' ^ OBFH_GUI_NAME_KEY(161)), ('s' ^ OBFH_GUI_NAME_KEY(161)), ('A' ^ OBFH_GUI_NAME_KEY(161)), ('\0' ^ OBFH_GUI_NAME_KEY(161)) }
+#undef GetFileAttributesA
+#define GetFileAttributesA(...) OBFH_API_CALL(2, GetFileAttributesA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileAttributesW 162
+#define OBFH_GUI_NAME_GetFileAttributesW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(162)), ('e' ^ OBFH_GUI_NAME_KEY(162)), ('t' ^ OBFH_GUI_NAME_KEY(162)), ('F' ^ OBFH_GUI_NAME_KEY(162)), ('i' ^ OBFH_GUI_NAME_KEY(162)), ('l' ^ OBFH_GUI_NAME_KEY(162)), ('e' ^ OBFH_GUI_NAME_KEY(162)), ('A' ^ OBFH_GUI_NAME_KEY(162)), ('t' ^ OBFH_GUI_NAME_KEY(162)), ('t' ^ OBFH_GUI_NAME_KEY(162)), ('r' ^ OBFH_GUI_NAME_KEY(162)), ('i' ^ OBFH_GUI_NAME_KEY(162)), ('b' ^ OBFH_GUI_NAME_KEY(162)), ('u' ^ OBFH_GUI_NAME_KEY(162)), ('t' ^ OBFH_GUI_NAME_KEY(162)), ('e' ^ OBFH_GUI_NAME_KEY(162)), ('s' ^ OBFH_GUI_NAME_KEY(162)), ('W' ^ OBFH_GUI_NAME_KEY(162)), ('\0' ^ OBFH_GUI_NAME_KEY(162)) }
+#undef GetFileAttributesW
+#define GetFileAttributesW(...) OBFH_API_CALL(2, GetFileAttributesW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindFirstFileA 163
+#define OBFH_GUI_NAME_FindFirstFileA \
+    { ('F' ^ OBFH_GUI_NAME_KEY(163)), ('i' ^ OBFH_GUI_NAME_KEY(163)), ('n' ^ OBFH_GUI_NAME_KEY(163)), ('d' ^ OBFH_GUI_NAME_KEY(163)), ('F' ^ OBFH_GUI_NAME_KEY(163)), ('i' ^ OBFH_GUI_NAME_KEY(163)), ('r' ^ OBFH_GUI_NAME_KEY(163)), ('s' ^ OBFH_GUI_NAME_KEY(163)), ('t' ^ OBFH_GUI_NAME_KEY(163)), ('F' ^ OBFH_GUI_NAME_KEY(163)), ('i' ^ OBFH_GUI_NAME_KEY(163)), ('l' ^ OBFH_GUI_NAME_KEY(163)), ('e' ^ OBFH_GUI_NAME_KEY(163)), ('A' ^ OBFH_GUI_NAME_KEY(163)), ('\0' ^ OBFH_GUI_NAME_KEY(163)) }
+#undef FindFirstFileA
+#define FindFirstFileA(...) OBFH_API_CALL(2, FindFirstFileA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindFirstFileW 164
+#define OBFH_GUI_NAME_FindFirstFileW \
+    { ('F' ^ OBFH_GUI_NAME_KEY(164)), ('i' ^ OBFH_GUI_NAME_KEY(164)), ('n' ^ OBFH_GUI_NAME_KEY(164)), ('d' ^ OBFH_GUI_NAME_KEY(164)), ('F' ^ OBFH_GUI_NAME_KEY(164)), ('i' ^ OBFH_GUI_NAME_KEY(164)), ('r' ^ OBFH_GUI_NAME_KEY(164)), ('s' ^ OBFH_GUI_NAME_KEY(164)), ('t' ^ OBFH_GUI_NAME_KEY(164)), ('F' ^ OBFH_GUI_NAME_KEY(164)), ('i' ^ OBFH_GUI_NAME_KEY(164)), ('l' ^ OBFH_GUI_NAME_KEY(164)), ('e' ^ OBFH_GUI_NAME_KEY(164)), ('W' ^ OBFH_GUI_NAME_KEY(164)), ('\0' ^ OBFH_GUI_NAME_KEY(164)) }
+#undef FindFirstFileW
+#define FindFirstFileW(...) OBFH_API_CALL(2, FindFirstFileW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindNextFileA 165
+#define OBFH_GUI_NAME_FindNextFileA \
+    { ('F' ^ OBFH_GUI_NAME_KEY(165)), ('i' ^ OBFH_GUI_NAME_KEY(165)), ('n' ^ OBFH_GUI_NAME_KEY(165)), ('d' ^ OBFH_GUI_NAME_KEY(165)), ('N' ^ OBFH_GUI_NAME_KEY(165)), ('e' ^ OBFH_GUI_NAME_KEY(165)), ('x' ^ OBFH_GUI_NAME_KEY(165)), ('t' ^ OBFH_GUI_NAME_KEY(165)), ('F' ^ OBFH_GUI_NAME_KEY(165)), ('i' ^ OBFH_GUI_NAME_KEY(165)), ('l' ^ OBFH_GUI_NAME_KEY(165)), ('e' ^ OBFH_GUI_NAME_KEY(165)), ('A' ^ OBFH_GUI_NAME_KEY(165)), ('\0' ^ OBFH_GUI_NAME_KEY(165)) }
+#undef FindNextFileA
+#define FindNextFileA(...) OBFH_API_CALL(2, FindNextFileA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindNextFileW 166
+#define OBFH_GUI_NAME_FindNextFileW \
+    { ('F' ^ OBFH_GUI_NAME_KEY(166)), ('i' ^ OBFH_GUI_NAME_KEY(166)), ('n' ^ OBFH_GUI_NAME_KEY(166)), ('d' ^ OBFH_GUI_NAME_KEY(166)), ('N' ^ OBFH_GUI_NAME_KEY(166)), ('e' ^ OBFH_GUI_NAME_KEY(166)), ('x' ^ OBFH_GUI_NAME_KEY(166)), ('t' ^ OBFH_GUI_NAME_KEY(166)), ('F' ^ OBFH_GUI_NAME_KEY(166)), ('i' ^ OBFH_GUI_NAME_KEY(166)), ('l' ^ OBFH_GUI_NAME_KEY(166)), ('e' ^ OBFH_GUI_NAME_KEY(166)), ('W' ^ OBFH_GUI_NAME_KEY(166)), ('\0' ^ OBFH_GUI_NAME_KEY(166)) }
+#undef FindNextFileW
+#define FindNextFileW(...) OBFH_API_CALL(2, FindNextFileW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DeleteFileA 167
+#define OBFH_GUI_NAME_DeleteFileA \
+    { ('D' ^ OBFH_GUI_NAME_KEY(167)), ('e' ^ OBFH_GUI_NAME_KEY(167)), ('l' ^ OBFH_GUI_NAME_KEY(167)), ('e' ^ OBFH_GUI_NAME_KEY(167)), ('t' ^ OBFH_GUI_NAME_KEY(167)), ('e' ^ OBFH_GUI_NAME_KEY(167)), ('F' ^ OBFH_GUI_NAME_KEY(167)), ('i' ^ OBFH_GUI_NAME_KEY(167)), ('l' ^ OBFH_GUI_NAME_KEY(167)), ('e' ^ OBFH_GUI_NAME_KEY(167)), ('A' ^ OBFH_GUI_NAME_KEY(167)), ('\0' ^ OBFH_GUI_NAME_KEY(167)) }
+#undef DeleteFileA
+#define DeleteFileA(...) OBFH_API_CALL(2, DeleteFileA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DeleteFileW 168
+#define OBFH_GUI_NAME_DeleteFileW \
+    { ('D' ^ OBFH_GUI_NAME_KEY(168)), ('e' ^ OBFH_GUI_NAME_KEY(168)), ('l' ^ OBFH_GUI_NAME_KEY(168)), ('e' ^ OBFH_GUI_NAME_KEY(168)), ('t' ^ OBFH_GUI_NAME_KEY(168)), ('e' ^ OBFH_GUI_NAME_KEY(168)), ('F' ^ OBFH_GUI_NAME_KEY(168)), ('i' ^ OBFH_GUI_NAME_KEY(168)), ('l' ^ OBFH_GUI_NAME_KEY(168)), ('e' ^ OBFH_GUI_NAME_KEY(168)), ('W' ^ OBFH_GUI_NAME_KEY(168)), ('\0' ^ OBFH_GUI_NAME_KEY(168)) }
+#undef DeleteFileW
+#define DeleteFileW(...) OBFH_API_CALL(2, DeleteFileW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CopyFileA 169
+#define OBFH_GUI_NAME_CopyFileA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(169)), ('o' ^ OBFH_GUI_NAME_KEY(169)), ('p' ^ OBFH_GUI_NAME_KEY(169)), ('y' ^ OBFH_GUI_NAME_KEY(169)), ('F' ^ OBFH_GUI_NAME_KEY(169)), ('i' ^ OBFH_GUI_NAME_KEY(169)), ('l' ^ OBFH_GUI_NAME_KEY(169)), ('e' ^ OBFH_GUI_NAME_KEY(169)), ('A' ^ OBFH_GUI_NAME_KEY(169)), ('\0' ^ OBFH_GUI_NAME_KEY(169)) }
+#undef CopyFileA
+#define CopyFileA(...) OBFH_API_CALL(2, CopyFileA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CopyFileW 170
+#define OBFH_GUI_NAME_CopyFileW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(170)), ('o' ^ OBFH_GUI_NAME_KEY(170)), ('p' ^ OBFH_GUI_NAME_KEY(170)), ('y' ^ OBFH_GUI_NAME_KEY(170)), ('F' ^ OBFH_GUI_NAME_KEY(170)), ('i' ^ OBFH_GUI_NAME_KEY(170)), ('l' ^ OBFH_GUI_NAME_KEY(170)), ('e' ^ OBFH_GUI_NAME_KEY(170)), ('W' ^ OBFH_GUI_NAME_KEY(170)), ('\0' ^ OBFH_GUI_NAME_KEY(170)) }
+#undef CopyFileW
+#define CopyFileW(...) OBFH_API_CALL(2, CopyFileW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_MoveFileExA 171
+#define OBFH_GUI_NAME_MoveFileExA \
+    { ('M' ^ OBFH_GUI_NAME_KEY(171)), ('o' ^ OBFH_GUI_NAME_KEY(171)), ('v' ^ OBFH_GUI_NAME_KEY(171)), ('e' ^ OBFH_GUI_NAME_KEY(171)), ('F' ^ OBFH_GUI_NAME_KEY(171)), ('i' ^ OBFH_GUI_NAME_KEY(171)), ('l' ^ OBFH_GUI_NAME_KEY(171)), ('e' ^ OBFH_GUI_NAME_KEY(171)), ('E' ^ OBFH_GUI_NAME_KEY(171)), ('x' ^ OBFH_GUI_NAME_KEY(171)), ('A' ^ OBFH_GUI_NAME_KEY(171)), ('\0' ^ OBFH_GUI_NAME_KEY(171)) }
+#undef MoveFileExA
+#define MoveFileExA(...) OBFH_API_CALL(2, MoveFileExA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_MoveFileExW 172
+#define OBFH_GUI_NAME_MoveFileExW \
+    { ('M' ^ OBFH_GUI_NAME_KEY(172)), ('o' ^ OBFH_GUI_NAME_KEY(172)), ('v' ^ OBFH_GUI_NAME_KEY(172)), ('e' ^ OBFH_GUI_NAME_KEY(172)), ('F' ^ OBFH_GUI_NAME_KEY(172)), ('i' ^ OBFH_GUI_NAME_KEY(172)), ('l' ^ OBFH_GUI_NAME_KEY(172)), ('e' ^ OBFH_GUI_NAME_KEY(172)), ('E' ^ OBFH_GUI_NAME_KEY(172)), ('x' ^ OBFH_GUI_NAME_KEY(172)), ('W' ^ OBFH_GUI_NAME_KEY(172)), ('\0' ^ OBFH_GUI_NAME_KEY(172)) }
+#undef MoveFileExW
+#define MoveFileExW(...) OBFH_API_CALL(2, MoveFileExW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FormatMessageA 173
+#define OBFH_GUI_NAME_FormatMessageA \
+    { ('F' ^ OBFH_GUI_NAME_KEY(173)), ('o' ^ OBFH_GUI_NAME_KEY(173)), ('r' ^ OBFH_GUI_NAME_KEY(173)), ('m' ^ OBFH_GUI_NAME_KEY(173)), ('a' ^ OBFH_GUI_NAME_KEY(173)), ('t' ^ OBFH_GUI_NAME_KEY(173)), ('M' ^ OBFH_GUI_NAME_KEY(173)), ('e' ^ OBFH_GUI_NAME_KEY(173)), ('s' ^ OBFH_GUI_NAME_KEY(173)), ('s' ^ OBFH_GUI_NAME_KEY(173)), ('a' ^ OBFH_GUI_NAME_KEY(173)), ('g' ^ OBFH_GUI_NAME_KEY(173)), ('e' ^ OBFH_GUI_NAME_KEY(173)), ('A' ^ OBFH_GUI_NAME_KEY(173)), ('\0' ^ OBFH_GUI_NAME_KEY(173)) }
+#undef FormatMessageA
+#define FormatMessageA(...) OBFH_API_CALL(2, FormatMessageA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FormatMessageW 174
+#define OBFH_GUI_NAME_FormatMessageW \
+    { ('F' ^ OBFH_GUI_NAME_KEY(174)), ('o' ^ OBFH_GUI_NAME_KEY(174)), ('r' ^ OBFH_GUI_NAME_KEY(174)), ('m' ^ OBFH_GUI_NAME_KEY(174)), ('a' ^ OBFH_GUI_NAME_KEY(174)), ('t' ^ OBFH_GUI_NAME_KEY(174)), ('M' ^ OBFH_GUI_NAME_KEY(174)), ('e' ^ OBFH_GUI_NAME_KEY(174)), ('s' ^ OBFH_GUI_NAME_KEY(174)), ('s' ^ OBFH_GUI_NAME_KEY(174)), ('a' ^ OBFH_GUI_NAME_KEY(174)), ('g' ^ OBFH_GUI_NAME_KEY(174)), ('e' ^ OBFH_GUI_NAME_KEY(174)), ('W' ^ OBFH_GUI_NAME_KEY(174)), ('\0' ^ OBFH_GUI_NAME_KEY(174)) }
+#undef FormatMessageW
+#define FormatMessageW(...) OBFH_API_CALL(2, FormatMessageW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindResourceA 175
+#define OBFH_GUI_NAME_FindResourceA \
+    { ('F' ^ OBFH_GUI_NAME_KEY(175)), ('i' ^ OBFH_GUI_NAME_KEY(175)), ('n' ^ OBFH_GUI_NAME_KEY(175)), ('d' ^ OBFH_GUI_NAME_KEY(175)), ('R' ^ OBFH_GUI_NAME_KEY(175)), ('e' ^ OBFH_GUI_NAME_KEY(175)), ('s' ^ OBFH_GUI_NAME_KEY(175)), ('o' ^ OBFH_GUI_NAME_KEY(175)), ('u' ^ OBFH_GUI_NAME_KEY(175)), ('r' ^ OBFH_GUI_NAME_KEY(175)), ('c' ^ OBFH_GUI_NAME_KEY(175)), ('e' ^ OBFH_GUI_NAME_KEY(175)), ('A' ^ OBFH_GUI_NAME_KEY(175)), ('\0' ^ OBFH_GUI_NAME_KEY(175)) }
+#undef FindResourceA
+#define FindResourceA(...) OBFH_API_CALL(2, FindResourceA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindResourceW 176
+#define OBFH_GUI_NAME_FindResourceW \
+    { ('F' ^ OBFH_GUI_NAME_KEY(176)), ('i' ^ OBFH_GUI_NAME_KEY(176)), ('n' ^ OBFH_GUI_NAME_KEY(176)), ('d' ^ OBFH_GUI_NAME_KEY(176)), ('R' ^ OBFH_GUI_NAME_KEY(176)), ('e' ^ OBFH_GUI_NAME_KEY(176)), ('s' ^ OBFH_GUI_NAME_KEY(176)), ('o' ^ OBFH_GUI_NAME_KEY(176)), ('u' ^ OBFH_GUI_NAME_KEY(176)), ('r' ^ OBFH_GUI_NAME_KEY(176)), ('c' ^ OBFH_GUI_NAME_KEY(176)), ('e' ^ OBFH_GUI_NAME_KEY(176)), ('W' ^ OBFH_GUI_NAME_KEY(176)), ('\0' ^ OBFH_GUI_NAME_KEY(176)) }
+#undef FindResourceW
+#define FindResourceW(...) OBFH_API_CALL(2, FindResourceW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_PostMessageA 177
+#define OBFH_GUI_NAME_PostMessageA \
+    { ('P' ^ OBFH_GUI_NAME_KEY(177)), ('o' ^ OBFH_GUI_NAME_KEY(177)), ('s' ^ OBFH_GUI_NAME_KEY(177)), ('t' ^ OBFH_GUI_NAME_KEY(177)), ('M' ^ OBFH_GUI_NAME_KEY(177)), ('e' ^ OBFH_GUI_NAME_KEY(177)), ('s' ^ OBFH_GUI_NAME_KEY(177)), ('s' ^ OBFH_GUI_NAME_KEY(177)), ('a' ^ OBFH_GUI_NAME_KEY(177)), ('g' ^ OBFH_GUI_NAME_KEY(177)), ('e' ^ OBFH_GUI_NAME_KEY(177)), ('A' ^ OBFH_GUI_NAME_KEY(177)), ('\0' ^ OBFH_GUI_NAME_KEY(177)) }
+#undef PostMessageA
+#define PostMessageA(...) OBFH_API_CALL(0, PostMessageA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_PostMessageW 178
+#define OBFH_GUI_NAME_PostMessageW \
+    { ('P' ^ OBFH_GUI_NAME_KEY(178)), ('o' ^ OBFH_GUI_NAME_KEY(178)), ('s' ^ OBFH_GUI_NAME_KEY(178)), ('t' ^ OBFH_GUI_NAME_KEY(178)), ('M' ^ OBFH_GUI_NAME_KEY(178)), ('e' ^ OBFH_GUI_NAME_KEY(178)), ('s' ^ OBFH_GUI_NAME_KEY(178)), ('s' ^ OBFH_GUI_NAME_KEY(178)), ('a' ^ OBFH_GUI_NAME_KEY(178)), ('g' ^ OBFH_GUI_NAME_KEY(178)), ('e' ^ OBFH_GUI_NAME_KEY(178)), ('W' ^ OBFH_GUI_NAME_KEY(178)), ('\0' ^ OBFH_GUI_NAME_KEY(178)) }
+#undef PostMessageW
+#define PostMessageW(...) OBFH_API_CALL(0, PostMessageW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetWindowLongA 179
+#define OBFH_GUI_NAME_GetWindowLongA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(179)), ('e' ^ OBFH_GUI_NAME_KEY(179)), ('t' ^ OBFH_GUI_NAME_KEY(179)), ('W' ^ OBFH_GUI_NAME_KEY(179)), ('i' ^ OBFH_GUI_NAME_KEY(179)), ('n' ^ OBFH_GUI_NAME_KEY(179)), ('d' ^ OBFH_GUI_NAME_KEY(179)), ('o' ^ OBFH_GUI_NAME_KEY(179)), ('w' ^ OBFH_GUI_NAME_KEY(179)), ('L' ^ OBFH_GUI_NAME_KEY(179)), ('o' ^ OBFH_GUI_NAME_KEY(179)), ('n' ^ OBFH_GUI_NAME_KEY(179)), ('g' ^ OBFH_GUI_NAME_KEY(179)), ('A' ^ OBFH_GUI_NAME_KEY(179)), ('\0' ^ OBFH_GUI_NAME_KEY(179)) }
+#undef GetWindowLongA
+#define GetWindowLongA(...) OBFH_API_CALL(0, GetWindowLongA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetWindowLongW 180
+#define OBFH_GUI_NAME_GetWindowLongW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(180)), ('e' ^ OBFH_GUI_NAME_KEY(180)), ('t' ^ OBFH_GUI_NAME_KEY(180)), ('W' ^ OBFH_GUI_NAME_KEY(180)), ('i' ^ OBFH_GUI_NAME_KEY(180)), ('n' ^ OBFH_GUI_NAME_KEY(180)), ('d' ^ OBFH_GUI_NAME_KEY(180)), ('o' ^ OBFH_GUI_NAME_KEY(180)), ('w' ^ OBFH_GUI_NAME_KEY(180)), ('L' ^ OBFH_GUI_NAME_KEY(180)), ('o' ^ OBFH_GUI_NAME_KEY(180)), ('n' ^ OBFH_GUI_NAME_KEY(180)), ('g' ^ OBFH_GUI_NAME_KEY(180)), ('W' ^ OBFH_GUI_NAME_KEY(180)), ('\0' ^ OBFH_GUI_NAME_KEY(180)) }
+#undef GetWindowLongW
+#define GetWindowLongW(...) OBFH_API_CALL(0, GetWindowLongW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetWindowLongA 181
+#define OBFH_GUI_NAME_SetWindowLongA \
+    { ('S' ^ OBFH_GUI_NAME_KEY(181)), ('e' ^ OBFH_GUI_NAME_KEY(181)), ('t' ^ OBFH_GUI_NAME_KEY(181)), ('W' ^ OBFH_GUI_NAME_KEY(181)), ('i' ^ OBFH_GUI_NAME_KEY(181)), ('n' ^ OBFH_GUI_NAME_KEY(181)), ('d' ^ OBFH_GUI_NAME_KEY(181)), ('o' ^ OBFH_GUI_NAME_KEY(181)), ('w' ^ OBFH_GUI_NAME_KEY(181)), ('L' ^ OBFH_GUI_NAME_KEY(181)), ('o' ^ OBFH_GUI_NAME_KEY(181)), ('n' ^ OBFH_GUI_NAME_KEY(181)), ('g' ^ OBFH_GUI_NAME_KEY(181)), ('A' ^ OBFH_GUI_NAME_KEY(181)), ('\0' ^ OBFH_GUI_NAME_KEY(181)) }
+#undef SetWindowLongA
+#define SetWindowLongA(...) OBFH_API_CALL(0, SetWindowLongA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetWindowLongW 182
+#define OBFH_GUI_NAME_SetWindowLongW \
+    { ('S' ^ OBFH_GUI_NAME_KEY(182)), ('e' ^ OBFH_GUI_NAME_KEY(182)), ('t' ^ OBFH_GUI_NAME_KEY(182)), ('W' ^ OBFH_GUI_NAME_KEY(182)), ('i' ^ OBFH_GUI_NAME_KEY(182)), ('n' ^ OBFH_GUI_NAME_KEY(182)), ('d' ^ OBFH_GUI_NAME_KEY(182)), ('o' ^ OBFH_GUI_NAME_KEY(182)), ('w' ^ OBFH_GUI_NAME_KEY(182)), ('L' ^ OBFH_GUI_NAME_KEY(182)), ('o' ^ OBFH_GUI_NAME_KEY(182)), ('n' ^ OBFH_GUI_NAME_KEY(182)), ('g' ^ OBFH_GUI_NAME_KEY(182)), ('W' ^ OBFH_GUI_NAME_KEY(182)), ('\0' ^ OBFH_GUI_NAME_KEY(182)) }
+#undef SetWindowLongW
+#define SetWindowLongW(...) OBFH_API_CALL(0, SetWindowLongW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_LoadStringA 183
+#define OBFH_GUI_NAME_LoadStringA \
+    { ('L' ^ OBFH_GUI_NAME_KEY(183)), ('o' ^ OBFH_GUI_NAME_KEY(183)), ('a' ^ OBFH_GUI_NAME_KEY(183)), ('d' ^ OBFH_GUI_NAME_KEY(183)), ('S' ^ OBFH_GUI_NAME_KEY(183)), ('t' ^ OBFH_GUI_NAME_KEY(183)), ('r' ^ OBFH_GUI_NAME_KEY(183)), ('i' ^ OBFH_GUI_NAME_KEY(183)), ('n' ^ OBFH_GUI_NAME_KEY(183)), ('g' ^ OBFH_GUI_NAME_KEY(183)), ('A' ^ OBFH_GUI_NAME_KEY(183)), ('\0' ^ OBFH_GUI_NAME_KEY(183)) }
+#undef LoadStringA
+#define LoadStringA(...) OBFH_API_CALL(0, LoadStringA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_LoadStringW 184
+#define OBFH_GUI_NAME_LoadStringW \
+    { ('L' ^ OBFH_GUI_NAME_KEY(184)), ('o' ^ OBFH_GUI_NAME_KEY(184)), ('a' ^ OBFH_GUI_NAME_KEY(184)), ('d' ^ OBFH_GUI_NAME_KEY(184)), ('S' ^ OBFH_GUI_NAME_KEY(184)), ('t' ^ OBFH_GUI_NAME_KEY(184)), ('r' ^ OBFH_GUI_NAME_KEY(184)), ('i' ^ OBFH_GUI_NAME_KEY(184)), ('n' ^ OBFH_GUI_NAME_KEY(184)), ('g' ^ OBFH_GUI_NAME_KEY(184)), ('W' ^ OBFH_GUI_NAME_KEY(184)), ('\0' ^ OBFH_GUI_NAME_KEY(184)) }
+#undef LoadStringW
+#define LoadStringW(...) OBFH_API_CALL(0, LoadStringW, __VA_ARGS__)
+
+#if defined(__x86_64__)
+#define OBFH_GUI_ID_GetWindowLongPtrA 185
+#define OBFH_GUI_NAME_GetWindowLongPtrA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(185)), ('e' ^ OBFH_GUI_NAME_KEY(185)), ('t' ^ OBFH_GUI_NAME_KEY(185)), ('W' ^ OBFH_GUI_NAME_KEY(185)), ('i' ^ OBFH_GUI_NAME_KEY(185)), ('n' ^ OBFH_GUI_NAME_KEY(185)), ('d' ^ OBFH_GUI_NAME_KEY(185)), ('o' ^ OBFH_GUI_NAME_KEY(185)), ('w' ^ OBFH_GUI_NAME_KEY(185)), ('L' ^ OBFH_GUI_NAME_KEY(185)), ('o' ^ OBFH_GUI_NAME_KEY(185)), ('n' ^ OBFH_GUI_NAME_KEY(185)), ('g' ^ OBFH_GUI_NAME_KEY(185)), ('P' ^ OBFH_GUI_NAME_KEY(185)), ('t' ^ OBFH_GUI_NAME_KEY(185)), ('r' ^ OBFH_GUI_NAME_KEY(185)), ('A' ^ OBFH_GUI_NAME_KEY(185)), ('\0' ^ OBFH_GUI_NAME_KEY(185)) }
+#undef GetWindowLongPtrA
+#define GetWindowLongPtrA(...) OBFH_API_CALL(0, GetWindowLongPtrA, __VA_ARGS__)
+#endif
+
+#if defined(__x86_64__)
+#define OBFH_GUI_ID_GetWindowLongPtrW 186
+#define OBFH_GUI_NAME_GetWindowLongPtrW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(186)), ('e' ^ OBFH_GUI_NAME_KEY(186)), ('t' ^ OBFH_GUI_NAME_KEY(186)), ('W' ^ OBFH_GUI_NAME_KEY(186)), ('i' ^ OBFH_GUI_NAME_KEY(186)), ('n' ^ OBFH_GUI_NAME_KEY(186)), ('d' ^ OBFH_GUI_NAME_KEY(186)), ('o' ^ OBFH_GUI_NAME_KEY(186)), ('w' ^ OBFH_GUI_NAME_KEY(186)), ('L' ^ OBFH_GUI_NAME_KEY(186)), ('o' ^ OBFH_GUI_NAME_KEY(186)), ('n' ^ OBFH_GUI_NAME_KEY(186)), ('g' ^ OBFH_GUI_NAME_KEY(186)), ('P' ^ OBFH_GUI_NAME_KEY(186)), ('t' ^ OBFH_GUI_NAME_KEY(186)), ('r' ^ OBFH_GUI_NAME_KEY(186)), ('W' ^ OBFH_GUI_NAME_KEY(186)), ('\0' ^ OBFH_GUI_NAME_KEY(186)) }
+#undef GetWindowLongPtrW
+#define GetWindowLongPtrW(...) OBFH_API_CALL(0, GetWindowLongPtrW, __VA_ARGS__)
+#endif
+
+#if defined(__x86_64__)
+#define OBFH_GUI_ID_SetWindowLongPtrA 187
+#define OBFH_GUI_NAME_SetWindowLongPtrA \
+    { ('S' ^ OBFH_GUI_NAME_KEY(187)), ('e' ^ OBFH_GUI_NAME_KEY(187)), ('t' ^ OBFH_GUI_NAME_KEY(187)), ('W' ^ OBFH_GUI_NAME_KEY(187)), ('i' ^ OBFH_GUI_NAME_KEY(187)), ('n' ^ OBFH_GUI_NAME_KEY(187)), ('d' ^ OBFH_GUI_NAME_KEY(187)), ('o' ^ OBFH_GUI_NAME_KEY(187)), ('w' ^ OBFH_GUI_NAME_KEY(187)), ('L' ^ OBFH_GUI_NAME_KEY(187)), ('o' ^ OBFH_GUI_NAME_KEY(187)), ('n' ^ OBFH_GUI_NAME_KEY(187)), ('g' ^ OBFH_GUI_NAME_KEY(187)), ('P' ^ OBFH_GUI_NAME_KEY(187)), ('t' ^ OBFH_GUI_NAME_KEY(187)), ('r' ^ OBFH_GUI_NAME_KEY(187)), ('A' ^ OBFH_GUI_NAME_KEY(187)), ('\0' ^ OBFH_GUI_NAME_KEY(187)) }
+#undef SetWindowLongPtrA
+#define SetWindowLongPtrA(...) OBFH_API_CALL(0, SetWindowLongPtrA, __VA_ARGS__)
+#endif
+
+#if defined(__x86_64__)
+#define OBFH_GUI_ID_SetWindowLongPtrW 188
+#define OBFH_GUI_NAME_SetWindowLongPtrW \
+    { ('S' ^ OBFH_GUI_NAME_KEY(188)), ('e' ^ OBFH_GUI_NAME_KEY(188)), ('t' ^ OBFH_GUI_NAME_KEY(188)), ('W' ^ OBFH_GUI_NAME_KEY(188)), ('i' ^ OBFH_GUI_NAME_KEY(188)), ('n' ^ OBFH_GUI_NAME_KEY(188)), ('d' ^ OBFH_GUI_NAME_KEY(188)), ('o' ^ OBFH_GUI_NAME_KEY(188)), ('w' ^ OBFH_GUI_NAME_KEY(188)), ('L' ^ OBFH_GUI_NAME_KEY(188)), ('o' ^ OBFH_GUI_NAME_KEY(188)), ('n' ^ OBFH_GUI_NAME_KEY(188)), ('g' ^ OBFH_GUI_NAME_KEY(188)), ('P' ^ OBFH_GUI_NAME_KEY(188)), ('t' ^ OBFH_GUI_NAME_KEY(188)), ('r' ^ OBFH_GUI_NAME_KEY(188)), ('W' ^ OBFH_GUI_NAME_KEY(188)), ('\0' ^ OBFH_GUI_NAME_KEY(188)) }
+#undef SetWindowLongPtrW
+#define SetWindowLongPtrW(...) OBFH_API_CALL(0, SetWindowLongPtrW, __VA_ARGS__)
+#endif
+
 #define OBFH_GUI_ID_AppendMenuA 0
 #define OBFH_GUI_NAME_AppendMenuA \
-    { (65u ^ OBFH_GUI_NAME_KEY(0)), (112u ^ OBFH_GUI_NAME_KEY(0)), (112u ^ OBFH_GUI_NAME_KEY(0)), (101u ^ OBFH_GUI_NAME_KEY(0)), (110u ^ OBFH_GUI_NAME_KEY(0)), (100u ^ OBFH_GUI_NAME_KEY(0)), (77u ^ OBFH_GUI_NAME_KEY(0)), (101u ^ OBFH_GUI_NAME_KEY(0)), (110u ^ OBFH_GUI_NAME_KEY(0)), (117u ^ OBFH_GUI_NAME_KEY(0)), (65u ^ OBFH_GUI_NAME_KEY(0)), (0u ^ OBFH_GUI_NAME_KEY(0)) }
+    { ('A' ^ OBFH_GUI_NAME_KEY(0)), ('p' ^ OBFH_GUI_NAME_KEY(0)), ('p' ^ OBFH_GUI_NAME_KEY(0)), ('e' ^ OBFH_GUI_NAME_KEY(0)), ('n' ^ OBFH_GUI_NAME_KEY(0)), ('d' ^ OBFH_GUI_NAME_KEY(0)), ('M' ^ OBFH_GUI_NAME_KEY(0)), ('e' ^ OBFH_GUI_NAME_KEY(0)), ('n' ^ OBFH_GUI_NAME_KEY(0)), ('u' ^ OBFH_GUI_NAME_KEY(0)), ('A' ^ OBFH_GUI_NAME_KEY(0)), ('\0' ^ OBFH_GUI_NAME_KEY(0)) }
 #define AppendMenuA(...) OBFH_API_CALL(0, AppendMenuA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_AppendMenuW 1
 #define OBFH_GUI_NAME_AppendMenuW \
-    { (65u ^ OBFH_GUI_NAME_KEY(1)), (112u ^ OBFH_GUI_NAME_KEY(1)), (112u ^ OBFH_GUI_NAME_KEY(1)), (101u ^ OBFH_GUI_NAME_KEY(1)), (110u ^ OBFH_GUI_NAME_KEY(1)), (100u ^ OBFH_GUI_NAME_KEY(1)), (77u ^ OBFH_GUI_NAME_KEY(1)), (101u ^ OBFH_GUI_NAME_KEY(1)), (110u ^ OBFH_GUI_NAME_KEY(1)), (117u ^ OBFH_GUI_NAME_KEY(1)), (87u ^ OBFH_GUI_NAME_KEY(1)), (0u ^ OBFH_GUI_NAME_KEY(1)) }
+    { ('A' ^ OBFH_GUI_NAME_KEY(1)), ('p' ^ OBFH_GUI_NAME_KEY(1)), ('p' ^ OBFH_GUI_NAME_KEY(1)), ('e' ^ OBFH_GUI_NAME_KEY(1)), ('n' ^ OBFH_GUI_NAME_KEY(1)), ('d' ^ OBFH_GUI_NAME_KEY(1)), ('M' ^ OBFH_GUI_NAME_KEY(1)), ('e' ^ OBFH_GUI_NAME_KEY(1)), ('n' ^ OBFH_GUI_NAME_KEY(1)), ('u' ^ OBFH_GUI_NAME_KEY(1)), ('W' ^ OBFH_GUI_NAME_KEY(1)), ('\0' ^ OBFH_GUI_NAME_KEY(1)) }
 #define AppendMenuW(...) OBFH_API_CALL(0, AppendMenuW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CheckMenuItem 2
 #define OBFH_GUI_NAME_CheckMenuItem \
-    { (67u ^ OBFH_GUI_NAME_KEY(2)), (104u ^ OBFH_GUI_NAME_KEY(2)), (101u ^ OBFH_GUI_NAME_KEY(2)), (99u ^ OBFH_GUI_NAME_KEY(2)), (107u ^ OBFH_GUI_NAME_KEY(2)), (77u ^ OBFH_GUI_NAME_KEY(2)), (101u ^ OBFH_GUI_NAME_KEY(2)), (110u ^ OBFH_GUI_NAME_KEY(2)), (117u ^ OBFH_GUI_NAME_KEY(2)), (73u ^ OBFH_GUI_NAME_KEY(2)), (116u ^ OBFH_GUI_NAME_KEY(2)), (101u ^ OBFH_GUI_NAME_KEY(2)), (109u ^ OBFH_GUI_NAME_KEY(2)), (0u ^ OBFH_GUI_NAME_KEY(2)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(2)), ('h' ^ OBFH_GUI_NAME_KEY(2)), ('e' ^ OBFH_GUI_NAME_KEY(2)), ('c' ^ OBFH_GUI_NAME_KEY(2)), ('k' ^ OBFH_GUI_NAME_KEY(2)), ('M' ^ OBFH_GUI_NAME_KEY(2)), ('e' ^ OBFH_GUI_NAME_KEY(2)), ('n' ^ OBFH_GUI_NAME_KEY(2)), ('u' ^ OBFH_GUI_NAME_KEY(2)), ('I' ^ OBFH_GUI_NAME_KEY(2)), ('t' ^ OBFH_GUI_NAME_KEY(2)), ('e' ^ OBFH_GUI_NAME_KEY(2)), ('m' ^ OBFH_GUI_NAME_KEY(2)), ('\0' ^ OBFH_GUI_NAME_KEY(2)) }
 #define CheckMenuItem(...) OBFH_API_CALL(0, CheckMenuItem, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CloseClipboard 3
 #define OBFH_GUI_NAME_CloseClipboard \
-    { (67u ^ OBFH_GUI_NAME_KEY(3)), (108u ^ OBFH_GUI_NAME_KEY(3)), (111u ^ OBFH_GUI_NAME_KEY(3)), (115u ^ OBFH_GUI_NAME_KEY(3)), (101u ^ OBFH_GUI_NAME_KEY(3)), (67u ^ OBFH_GUI_NAME_KEY(3)), (108u ^ OBFH_GUI_NAME_KEY(3)), (105u ^ OBFH_GUI_NAME_KEY(3)), (112u ^ OBFH_GUI_NAME_KEY(3)), (98u ^ OBFH_GUI_NAME_KEY(3)), (111u ^ OBFH_GUI_NAME_KEY(3)), (97u ^ OBFH_GUI_NAME_KEY(3)), (114u ^ OBFH_GUI_NAME_KEY(3)), (100u ^ OBFH_GUI_NAME_KEY(3)), (0u ^ OBFH_GUI_NAME_KEY(3)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(3)), ('l' ^ OBFH_GUI_NAME_KEY(3)), ('o' ^ OBFH_GUI_NAME_KEY(3)), ('s' ^ OBFH_GUI_NAME_KEY(3)), ('e' ^ OBFH_GUI_NAME_KEY(3)), ('C' ^ OBFH_GUI_NAME_KEY(3)), ('l' ^ OBFH_GUI_NAME_KEY(3)), ('i' ^ OBFH_GUI_NAME_KEY(3)), ('p' ^ OBFH_GUI_NAME_KEY(3)), ('b' ^ OBFH_GUI_NAME_KEY(3)), ('o' ^ OBFH_GUI_NAME_KEY(3)), ('a' ^ OBFH_GUI_NAME_KEY(3)), ('r' ^ OBFH_GUI_NAME_KEY(3)), ('d' ^ OBFH_GUI_NAME_KEY(3)), ('\0' ^ OBFH_GUI_NAME_KEY(3)) }
 #define CloseClipboard(...) OBFH_API_CALL(0, CloseClipboard, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateMenu 4
 #define OBFH_GUI_NAME_CreateMenu \
-    { (67u ^ OBFH_GUI_NAME_KEY(4)), (114u ^ OBFH_GUI_NAME_KEY(4)), (101u ^ OBFH_GUI_NAME_KEY(4)), (97u ^ OBFH_GUI_NAME_KEY(4)), (116u ^ OBFH_GUI_NAME_KEY(4)), (101u ^ OBFH_GUI_NAME_KEY(4)), (77u ^ OBFH_GUI_NAME_KEY(4)), (101u ^ OBFH_GUI_NAME_KEY(4)), (110u ^ OBFH_GUI_NAME_KEY(4)), (117u ^ OBFH_GUI_NAME_KEY(4)), (0u ^ OBFH_GUI_NAME_KEY(4)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(4)), ('r' ^ OBFH_GUI_NAME_KEY(4)), ('e' ^ OBFH_GUI_NAME_KEY(4)), ('a' ^ OBFH_GUI_NAME_KEY(4)), ('t' ^ OBFH_GUI_NAME_KEY(4)), ('e' ^ OBFH_GUI_NAME_KEY(4)), ('M' ^ OBFH_GUI_NAME_KEY(4)), ('e' ^ OBFH_GUI_NAME_KEY(4)), ('n' ^ OBFH_GUI_NAME_KEY(4)), ('u' ^ OBFH_GUI_NAME_KEY(4)), ('\0' ^ OBFH_GUI_NAME_KEY(4)) }
 #define CreateMenu(...) OBFH_API_CALL(0, CreateMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreatePopupMenu 5
 #define OBFH_GUI_NAME_CreatePopupMenu \
-    { (67u ^ OBFH_GUI_NAME_KEY(5)), (114u ^ OBFH_GUI_NAME_KEY(5)), (101u ^ OBFH_GUI_NAME_KEY(5)), (97u ^ OBFH_GUI_NAME_KEY(5)), (116u ^ OBFH_GUI_NAME_KEY(5)), (101u ^ OBFH_GUI_NAME_KEY(5)), (80u ^ OBFH_GUI_NAME_KEY(5)), (111u ^ OBFH_GUI_NAME_KEY(5)), (112u ^ OBFH_GUI_NAME_KEY(5)), (117u ^ OBFH_GUI_NAME_KEY(5)), (112u ^ OBFH_GUI_NAME_KEY(5)), (77u ^ OBFH_GUI_NAME_KEY(5)), (101u ^ OBFH_GUI_NAME_KEY(5)), (110u ^ OBFH_GUI_NAME_KEY(5)), (117u ^ OBFH_GUI_NAME_KEY(5)), (0u ^ OBFH_GUI_NAME_KEY(5)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(5)), ('r' ^ OBFH_GUI_NAME_KEY(5)), ('e' ^ OBFH_GUI_NAME_KEY(5)), ('a' ^ OBFH_GUI_NAME_KEY(5)), ('t' ^ OBFH_GUI_NAME_KEY(5)), ('e' ^ OBFH_GUI_NAME_KEY(5)), ('P' ^ OBFH_GUI_NAME_KEY(5)), ('o' ^ OBFH_GUI_NAME_KEY(5)), ('p' ^ OBFH_GUI_NAME_KEY(5)), ('u' ^ OBFH_GUI_NAME_KEY(5)), ('p' ^ OBFH_GUI_NAME_KEY(5)), ('M' ^ OBFH_GUI_NAME_KEY(5)), ('e' ^ OBFH_GUI_NAME_KEY(5)), ('n' ^ OBFH_GUI_NAME_KEY(5)), ('u' ^ OBFH_GUI_NAME_KEY(5)), ('\0' ^ OBFH_GUI_NAME_KEY(5)) }
 #define CreatePopupMenu(...) OBFH_API_CALL(0, CreatePopupMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateWindowExA 6
 #define OBFH_GUI_NAME_CreateWindowExA \
-    { (67u ^ OBFH_GUI_NAME_KEY(6)), (114u ^ OBFH_GUI_NAME_KEY(6)), (101u ^ OBFH_GUI_NAME_KEY(6)), (97u ^ OBFH_GUI_NAME_KEY(6)), (116u ^ OBFH_GUI_NAME_KEY(6)), (101u ^ OBFH_GUI_NAME_KEY(6)), (87u ^ OBFH_GUI_NAME_KEY(6)), (105u ^ OBFH_GUI_NAME_KEY(6)), (110u ^ OBFH_GUI_NAME_KEY(6)), (100u ^ OBFH_GUI_NAME_KEY(6)), (111u ^ OBFH_GUI_NAME_KEY(6)), (119u ^ OBFH_GUI_NAME_KEY(6)), (69u ^ OBFH_GUI_NAME_KEY(6)), (120u ^ OBFH_GUI_NAME_KEY(6)), (65u ^ OBFH_GUI_NAME_KEY(6)), (0u ^ OBFH_GUI_NAME_KEY(6)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(6)), ('r' ^ OBFH_GUI_NAME_KEY(6)), ('e' ^ OBFH_GUI_NAME_KEY(6)), ('a' ^ OBFH_GUI_NAME_KEY(6)), ('t' ^ OBFH_GUI_NAME_KEY(6)), ('e' ^ OBFH_GUI_NAME_KEY(6)), ('W' ^ OBFH_GUI_NAME_KEY(6)), ('i' ^ OBFH_GUI_NAME_KEY(6)), ('n' ^ OBFH_GUI_NAME_KEY(6)), ('d' ^ OBFH_GUI_NAME_KEY(6)), ('o' ^ OBFH_GUI_NAME_KEY(6)), ('w' ^ OBFH_GUI_NAME_KEY(6)), ('E' ^ OBFH_GUI_NAME_KEY(6)), ('x' ^ OBFH_GUI_NAME_KEY(6)), ('A' ^ OBFH_GUI_NAME_KEY(6)), ('\0' ^ OBFH_GUI_NAME_KEY(6)) }
 #define CreateWindowExA(...) OBFH_API_CALL(0, CreateWindowExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateWindowExW 7
 #define OBFH_GUI_NAME_CreateWindowExW \
-    { (67u ^ OBFH_GUI_NAME_KEY(7)), (114u ^ OBFH_GUI_NAME_KEY(7)), (101u ^ OBFH_GUI_NAME_KEY(7)), (97u ^ OBFH_GUI_NAME_KEY(7)), (116u ^ OBFH_GUI_NAME_KEY(7)), (101u ^ OBFH_GUI_NAME_KEY(7)), (87u ^ OBFH_GUI_NAME_KEY(7)), (105u ^ OBFH_GUI_NAME_KEY(7)), (110u ^ OBFH_GUI_NAME_KEY(7)), (100u ^ OBFH_GUI_NAME_KEY(7)), (111u ^ OBFH_GUI_NAME_KEY(7)), (119u ^ OBFH_GUI_NAME_KEY(7)), (69u ^ OBFH_GUI_NAME_KEY(7)), (120u ^ OBFH_GUI_NAME_KEY(7)), (87u ^ OBFH_GUI_NAME_KEY(7)), (0u ^ OBFH_GUI_NAME_KEY(7)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(7)), ('r' ^ OBFH_GUI_NAME_KEY(7)), ('e' ^ OBFH_GUI_NAME_KEY(7)), ('a' ^ OBFH_GUI_NAME_KEY(7)), ('t' ^ OBFH_GUI_NAME_KEY(7)), ('e' ^ OBFH_GUI_NAME_KEY(7)), ('W' ^ OBFH_GUI_NAME_KEY(7)), ('i' ^ OBFH_GUI_NAME_KEY(7)), ('n' ^ OBFH_GUI_NAME_KEY(7)), ('d' ^ OBFH_GUI_NAME_KEY(7)), ('o' ^ OBFH_GUI_NAME_KEY(7)), ('w' ^ OBFH_GUI_NAME_KEY(7)), ('E' ^ OBFH_GUI_NAME_KEY(7)), ('x' ^ OBFH_GUI_NAME_KEY(7)), ('W' ^ OBFH_GUI_NAME_KEY(7)), ('\0' ^ OBFH_GUI_NAME_KEY(7)) }
 #define CreateWindowExW(...) OBFH_API_CALL(0, CreateWindowExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DefWindowProcA 8
 #define OBFH_GUI_NAME_DefWindowProcA \
-    { (68u ^ OBFH_GUI_NAME_KEY(8)), (101u ^ OBFH_GUI_NAME_KEY(8)), (102u ^ OBFH_GUI_NAME_KEY(8)), (87u ^ OBFH_GUI_NAME_KEY(8)), (105u ^ OBFH_GUI_NAME_KEY(8)), (110u ^ OBFH_GUI_NAME_KEY(8)), (100u ^ OBFH_GUI_NAME_KEY(8)), (111u ^ OBFH_GUI_NAME_KEY(8)), (119u ^ OBFH_GUI_NAME_KEY(8)), (80u ^ OBFH_GUI_NAME_KEY(8)), (114u ^ OBFH_GUI_NAME_KEY(8)), (111u ^ OBFH_GUI_NAME_KEY(8)), (99u ^ OBFH_GUI_NAME_KEY(8)), (65u ^ OBFH_GUI_NAME_KEY(8)), (0u ^ OBFH_GUI_NAME_KEY(8)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(8)), ('e' ^ OBFH_GUI_NAME_KEY(8)), ('f' ^ OBFH_GUI_NAME_KEY(8)), ('W' ^ OBFH_GUI_NAME_KEY(8)), ('i' ^ OBFH_GUI_NAME_KEY(8)), ('n' ^ OBFH_GUI_NAME_KEY(8)), ('d' ^ OBFH_GUI_NAME_KEY(8)), ('o' ^ OBFH_GUI_NAME_KEY(8)), ('w' ^ OBFH_GUI_NAME_KEY(8)), ('P' ^ OBFH_GUI_NAME_KEY(8)), ('r' ^ OBFH_GUI_NAME_KEY(8)), ('o' ^ OBFH_GUI_NAME_KEY(8)), ('c' ^ OBFH_GUI_NAME_KEY(8)), ('A' ^ OBFH_GUI_NAME_KEY(8)), ('\0' ^ OBFH_GUI_NAME_KEY(8)) }
 #define DefWindowProcA(...) OBFH_API_CALL(0, DefWindowProcA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DefWindowProcW 9
 #define OBFH_GUI_NAME_DefWindowProcW \
-    { (68u ^ OBFH_GUI_NAME_KEY(9)), (101u ^ OBFH_GUI_NAME_KEY(9)), (102u ^ OBFH_GUI_NAME_KEY(9)), (87u ^ OBFH_GUI_NAME_KEY(9)), (105u ^ OBFH_GUI_NAME_KEY(9)), (110u ^ OBFH_GUI_NAME_KEY(9)), (100u ^ OBFH_GUI_NAME_KEY(9)), (111u ^ OBFH_GUI_NAME_KEY(9)), (119u ^ OBFH_GUI_NAME_KEY(9)), (80u ^ OBFH_GUI_NAME_KEY(9)), (114u ^ OBFH_GUI_NAME_KEY(9)), (111u ^ OBFH_GUI_NAME_KEY(9)), (99u ^ OBFH_GUI_NAME_KEY(9)), (87u ^ OBFH_GUI_NAME_KEY(9)), (0u ^ OBFH_GUI_NAME_KEY(9)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(9)), ('e' ^ OBFH_GUI_NAME_KEY(9)), ('f' ^ OBFH_GUI_NAME_KEY(9)), ('W' ^ OBFH_GUI_NAME_KEY(9)), ('i' ^ OBFH_GUI_NAME_KEY(9)), ('n' ^ OBFH_GUI_NAME_KEY(9)), ('d' ^ OBFH_GUI_NAME_KEY(9)), ('o' ^ OBFH_GUI_NAME_KEY(9)), ('w' ^ OBFH_GUI_NAME_KEY(9)), ('P' ^ OBFH_GUI_NAME_KEY(9)), ('r' ^ OBFH_GUI_NAME_KEY(9)), ('o' ^ OBFH_GUI_NAME_KEY(9)), ('c' ^ OBFH_GUI_NAME_KEY(9)), ('W' ^ OBFH_GUI_NAME_KEY(9)), ('\0' ^ OBFH_GUI_NAME_KEY(9)) }
 #define DefWindowProcW(...) OBFH_API_CALL(0, DefWindowProcW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DestroyWindow 10
 #define OBFH_GUI_NAME_DestroyWindow \
-    { (68u ^ OBFH_GUI_NAME_KEY(10)), (101u ^ OBFH_GUI_NAME_KEY(10)), (115u ^ OBFH_GUI_NAME_KEY(10)), (116u ^ OBFH_GUI_NAME_KEY(10)), (114u ^ OBFH_GUI_NAME_KEY(10)), (111u ^ OBFH_GUI_NAME_KEY(10)), (121u ^ OBFH_GUI_NAME_KEY(10)), (87u ^ OBFH_GUI_NAME_KEY(10)), (105u ^ OBFH_GUI_NAME_KEY(10)), (110u ^ OBFH_GUI_NAME_KEY(10)), (100u ^ OBFH_GUI_NAME_KEY(10)), (111u ^ OBFH_GUI_NAME_KEY(10)), (119u ^ OBFH_GUI_NAME_KEY(10)), (0u ^ OBFH_GUI_NAME_KEY(10)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(10)), ('e' ^ OBFH_GUI_NAME_KEY(10)), ('s' ^ OBFH_GUI_NAME_KEY(10)), ('t' ^ OBFH_GUI_NAME_KEY(10)), ('r' ^ OBFH_GUI_NAME_KEY(10)), ('o' ^ OBFH_GUI_NAME_KEY(10)), ('y' ^ OBFH_GUI_NAME_KEY(10)), ('W' ^ OBFH_GUI_NAME_KEY(10)), ('i' ^ OBFH_GUI_NAME_KEY(10)), ('n' ^ OBFH_GUI_NAME_KEY(10)), ('d' ^ OBFH_GUI_NAME_KEY(10)), ('o' ^ OBFH_GUI_NAME_KEY(10)), ('w' ^ OBFH_GUI_NAME_KEY(10)), ('\0' ^ OBFH_GUI_NAME_KEY(10)) }
 #define DestroyWindow(...) OBFH_API_CALL(0, DestroyWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DispatchMessageA 11
 #define OBFH_GUI_NAME_DispatchMessageA \
-    { (68u ^ OBFH_GUI_NAME_KEY(11)), (105u ^ OBFH_GUI_NAME_KEY(11)), (115u ^ OBFH_GUI_NAME_KEY(11)), (112u ^ OBFH_GUI_NAME_KEY(11)), (97u ^ OBFH_GUI_NAME_KEY(11)), (116u ^ OBFH_GUI_NAME_KEY(11)), (99u ^ OBFH_GUI_NAME_KEY(11)), (104u ^ OBFH_GUI_NAME_KEY(11)), (77u ^ OBFH_GUI_NAME_KEY(11)), (101u ^ OBFH_GUI_NAME_KEY(11)), (115u ^ OBFH_GUI_NAME_KEY(11)), (115u ^ OBFH_GUI_NAME_KEY(11)), (97u ^ OBFH_GUI_NAME_KEY(11)), (103u ^ OBFH_GUI_NAME_KEY(11)), (101u ^ OBFH_GUI_NAME_KEY(11)), (65u ^ OBFH_GUI_NAME_KEY(11)), (0u ^ OBFH_GUI_NAME_KEY(11)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(11)), ('i' ^ OBFH_GUI_NAME_KEY(11)), ('s' ^ OBFH_GUI_NAME_KEY(11)), ('p' ^ OBFH_GUI_NAME_KEY(11)), ('a' ^ OBFH_GUI_NAME_KEY(11)), ('t' ^ OBFH_GUI_NAME_KEY(11)), ('c' ^ OBFH_GUI_NAME_KEY(11)), ('h' ^ OBFH_GUI_NAME_KEY(11)), ('M' ^ OBFH_GUI_NAME_KEY(11)), ('e' ^ OBFH_GUI_NAME_KEY(11)), ('s' ^ OBFH_GUI_NAME_KEY(11)), ('s' ^ OBFH_GUI_NAME_KEY(11)), ('a' ^ OBFH_GUI_NAME_KEY(11)), ('g' ^ OBFH_GUI_NAME_KEY(11)), ('e' ^ OBFH_GUI_NAME_KEY(11)), ('A' ^ OBFH_GUI_NAME_KEY(11)), ('\0' ^ OBFH_GUI_NAME_KEY(11)) }
 #define DispatchMessageA(...) OBFH_API_CALL(0, DispatchMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DispatchMessageW 12
 #define OBFH_GUI_NAME_DispatchMessageW \
-    { (68u ^ OBFH_GUI_NAME_KEY(12)), (105u ^ OBFH_GUI_NAME_KEY(12)), (115u ^ OBFH_GUI_NAME_KEY(12)), (112u ^ OBFH_GUI_NAME_KEY(12)), (97u ^ OBFH_GUI_NAME_KEY(12)), (116u ^ OBFH_GUI_NAME_KEY(12)), (99u ^ OBFH_GUI_NAME_KEY(12)), (104u ^ OBFH_GUI_NAME_KEY(12)), (77u ^ OBFH_GUI_NAME_KEY(12)), (101u ^ OBFH_GUI_NAME_KEY(12)), (115u ^ OBFH_GUI_NAME_KEY(12)), (115u ^ OBFH_GUI_NAME_KEY(12)), (97u ^ OBFH_GUI_NAME_KEY(12)), (103u ^ OBFH_GUI_NAME_KEY(12)), (101u ^ OBFH_GUI_NAME_KEY(12)), (87u ^ OBFH_GUI_NAME_KEY(12)), (0u ^ OBFH_GUI_NAME_KEY(12)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(12)), ('i' ^ OBFH_GUI_NAME_KEY(12)), ('s' ^ OBFH_GUI_NAME_KEY(12)), ('p' ^ OBFH_GUI_NAME_KEY(12)), ('a' ^ OBFH_GUI_NAME_KEY(12)), ('t' ^ OBFH_GUI_NAME_KEY(12)), ('c' ^ OBFH_GUI_NAME_KEY(12)), ('h' ^ OBFH_GUI_NAME_KEY(12)), ('M' ^ OBFH_GUI_NAME_KEY(12)), ('e' ^ OBFH_GUI_NAME_KEY(12)), ('s' ^ OBFH_GUI_NAME_KEY(12)), ('s' ^ OBFH_GUI_NAME_KEY(12)), ('a' ^ OBFH_GUI_NAME_KEY(12)), ('g' ^ OBFH_GUI_NAME_KEY(12)), ('e' ^ OBFH_GUI_NAME_KEY(12)), ('W' ^ OBFH_GUI_NAME_KEY(12)), ('\0' ^ OBFH_GUI_NAME_KEY(12)) }
 #define DispatchMessageW(...) OBFH_API_CALL(0, DispatchMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EmptyClipboard 13
 #define OBFH_GUI_NAME_EmptyClipboard \
-    { (69u ^ OBFH_GUI_NAME_KEY(13)), (109u ^ OBFH_GUI_NAME_KEY(13)), (112u ^ OBFH_GUI_NAME_KEY(13)), (116u ^ OBFH_GUI_NAME_KEY(13)), (121u ^ OBFH_GUI_NAME_KEY(13)), (67u ^ OBFH_GUI_NAME_KEY(13)), (108u ^ OBFH_GUI_NAME_KEY(13)), (105u ^ OBFH_GUI_NAME_KEY(13)), (112u ^ OBFH_GUI_NAME_KEY(13)), (98u ^ OBFH_GUI_NAME_KEY(13)), (111u ^ OBFH_GUI_NAME_KEY(13)), (97u ^ OBFH_GUI_NAME_KEY(13)), (114u ^ OBFH_GUI_NAME_KEY(13)), (100u ^ OBFH_GUI_NAME_KEY(13)), (0u ^ OBFH_GUI_NAME_KEY(13)) }
+    { ('E' ^ OBFH_GUI_NAME_KEY(13)), ('m' ^ OBFH_GUI_NAME_KEY(13)), ('p' ^ OBFH_GUI_NAME_KEY(13)), ('t' ^ OBFH_GUI_NAME_KEY(13)), ('y' ^ OBFH_GUI_NAME_KEY(13)), ('C' ^ OBFH_GUI_NAME_KEY(13)), ('l' ^ OBFH_GUI_NAME_KEY(13)), ('i' ^ OBFH_GUI_NAME_KEY(13)), ('p' ^ OBFH_GUI_NAME_KEY(13)), ('b' ^ OBFH_GUI_NAME_KEY(13)), ('o' ^ OBFH_GUI_NAME_KEY(13)), ('a' ^ OBFH_GUI_NAME_KEY(13)), ('r' ^ OBFH_GUI_NAME_KEY(13)), ('d' ^ OBFH_GUI_NAME_KEY(13)), ('\0' ^ OBFH_GUI_NAME_KEY(13)) }
 #define EmptyClipboard(...) OBFH_API_CALL(0, EmptyClipboard, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetClientRect 14
 #define OBFH_GUI_NAME_GetClientRect \
-    { (71u ^ OBFH_GUI_NAME_KEY(14)), (101u ^ OBFH_GUI_NAME_KEY(14)), (116u ^ OBFH_GUI_NAME_KEY(14)), (67u ^ OBFH_GUI_NAME_KEY(14)), (108u ^ OBFH_GUI_NAME_KEY(14)), (105u ^ OBFH_GUI_NAME_KEY(14)), (101u ^ OBFH_GUI_NAME_KEY(14)), (110u ^ OBFH_GUI_NAME_KEY(14)), (116u ^ OBFH_GUI_NAME_KEY(14)), (82u ^ OBFH_GUI_NAME_KEY(14)), (101u ^ OBFH_GUI_NAME_KEY(14)), (99u ^ OBFH_GUI_NAME_KEY(14)), (116u ^ OBFH_GUI_NAME_KEY(14)), (0u ^ OBFH_GUI_NAME_KEY(14)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(14)), ('e' ^ OBFH_GUI_NAME_KEY(14)), ('t' ^ OBFH_GUI_NAME_KEY(14)), ('C' ^ OBFH_GUI_NAME_KEY(14)), ('l' ^ OBFH_GUI_NAME_KEY(14)), ('i' ^ OBFH_GUI_NAME_KEY(14)), ('e' ^ OBFH_GUI_NAME_KEY(14)), ('n' ^ OBFH_GUI_NAME_KEY(14)), ('t' ^ OBFH_GUI_NAME_KEY(14)), ('R' ^ OBFH_GUI_NAME_KEY(14)), ('e' ^ OBFH_GUI_NAME_KEY(14)), ('c' ^ OBFH_GUI_NAME_KEY(14)), ('t' ^ OBFH_GUI_NAME_KEY(14)), ('\0' ^ OBFH_GUI_NAME_KEY(14)) }
 #define GetClientRect(...) OBFH_API_CALL(0, GetClientRect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDC 15
 #define OBFH_GUI_NAME_GetDC \
-    { (71u ^ OBFH_GUI_NAME_KEY(15)), (101u ^ OBFH_GUI_NAME_KEY(15)), (116u ^ OBFH_GUI_NAME_KEY(15)), (68u ^ OBFH_GUI_NAME_KEY(15)), (67u ^ OBFH_GUI_NAME_KEY(15)), (0u ^ OBFH_GUI_NAME_KEY(15)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(15)), ('e' ^ OBFH_GUI_NAME_KEY(15)), ('t' ^ OBFH_GUI_NAME_KEY(15)), ('D' ^ OBFH_GUI_NAME_KEY(15)), ('C' ^ OBFH_GUI_NAME_KEY(15)), ('\0' ^ OBFH_GUI_NAME_KEY(15)) }
 #define GetDC(...) OBFH_API_CALL(0, GetDC, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDlgItem 16
 #define OBFH_GUI_NAME_GetDlgItem \
-    { (71u ^ OBFH_GUI_NAME_KEY(16)), (101u ^ OBFH_GUI_NAME_KEY(16)), (116u ^ OBFH_GUI_NAME_KEY(16)), (68u ^ OBFH_GUI_NAME_KEY(16)), (108u ^ OBFH_GUI_NAME_KEY(16)), (103u ^ OBFH_GUI_NAME_KEY(16)), (73u ^ OBFH_GUI_NAME_KEY(16)), (116u ^ OBFH_GUI_NAME_KEY(16)), (101u ^ OBFH_GUI_NAME_KEY(16)), (109u ^ OBFH_GUI_NAME_KEY(16)), (0u ^ OBFH_GUI_NAME_KEY(16)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(16)), ('e' ^ OBFH_GUI_NAME_KEY(16)), ('t' ^ OBFH_GUI_NAME_KEY(16)), ('D' ^ OBFH_GUI_NAME_KEY(16)), ('l' ^ OBFH_GUI_NAME_KEY(16)), ('g' ^ OBFH_GUI_NAME_KEY(16)), ('I' ^ OBFH_GUI_NAME_KEY(16)), ('t' ^ OBFH_GUI_NAME_KEY(16)), ('e' ^ OBFH_GUI_NAME_KEY(16)), ('m' ^ OBFH_GUI_NAME_KEY(16)), ('\0' ^ OBFH_GUI_NAME_KEY(16)) }
 #define GetDlgItem(...) OBFH_API_CALL(0, GetDlgItem, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetKeyState 17
 #define OBFH_GUI_NAME_GetKeyState \
-    { (71u ^ OBFH_GUI_NAME_KEY(17)), (101u ^ OBFH_GUI_NAME_KEY(17)), (116u ^ OBFH_GUI_NAME_KEY(17)), (75u ^ OBFH_GUI_NAME_KEY(17)), (101u ^ OBFH_GUI_NAME_KEY(17)), (121u ^ OBFH_GUI_NAME_KEY(17)), (83u ^ OBFH_GUI_NAME_KEY(17)), (116u ^ OBFH_GUI_NAME_KEY(17)), (97u ^ OBFH_GUI_NAME_KEY(17)), (116u ^ OBFH_GUI_NAME_KEY(17)), (101u ^ OBFH_GUI_NAME_KEY(17)), (0u ^ OBFH_GUI_NAME_KEY(17)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(17)), ('e' ^ OBFH_GUI_NAME_KEY(17)), ('t' ^ OBFH_GUI_NAME_KEY(17)), ('K' ^ OBFH_GUI_NAME_KEY(17)), ('e' ^ OBFH_GUI_NAME_KEY(17)), ('y' ^ OBFH_GUI_NAME_KEY(17)), ('S' ^ OBFH_GUI_NAME_KEY(17)), ('t' ^ OBFH_GUI_NAME_KEY(17)), ('a' ^ OBFH_GUI_NAME_KEY(17)), ('t' ^ OBFH_GUI_NAME_KEY(17)), ('e' ^ OBFH_GUI_NAME_KEY(17)), ('\0' ^ OBFH_GUI_NAME_KEY(17)) }
 #define GetKeyState(...) OBFH_API_CALL(0, GetKeyState, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetMenu 18
 #define OBFH_GUI_NAME_GetMenu \
-    { (71u ^ OBFH_GUI_NAME_KEY(18)), (101u ^ OBFH_GUI_NAME_KEY(18)), (116u ^ OBFH_GUI_NAME_KEY(18)), (77u ^ OBFH_GUI_NAME_KEY(18)), (101u ^ OBFH_GUI_NAME_KEY(18)), (110u ^ OBFH_GUI_NAME_KEY(18)), (117u ^ OBFH_GUI_NAME_KEY(18)), (0u ^ OBFH_GUI_NAME_KEY(18)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(18)), ('e' ^ OBFH_GUI_NAME_KEY(18)), ('t' ^ OBFH_GUI_NAME_KEY(18)), ('M' ^ OBFH_GUI_NAME_KEY(18)), ('e' ^ OBFH_GUI_NAME_KEY(18)), ('n' ^ OBFH_GUI_NAME_KEY(18)), ('u' ^ OBFH_GUI_NAME_KEY(18)), ('\0' ^ OBFH_GUI_NAME_KEY(18)) }
 #define GetMenu(...) OBFH_API_CALL(0, GetMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetMessageA 19
 #define OBFH_GUI_NAME_GetMessageA \
-    { (71u ^ OBFH_GUI_NAME_KEY(19)), (101u ^ OBFH_GUI_NAME_KEY(19)), (116u ^ OBFH_GUI_NAME_KEY(19)), (77u ^ OBFH_GUI_NAME_KEY(19)), (101u ^ OBFH_GUI_NAME_KEY(19)), (115u ^ OBFH_GUI_NAME_KEY(19)), (115u ^ OBFH_GUI_NAME_KEY(19)), (97u ^ OBFH_GUI_NAME_KEY(19)), (103u ^ OBFH_GUI_NAME_KEY(19)), (101u ^ OBFH_GUI_NAME_KEY(19)), (65u ^ OBFH_GUI_NAME_KEY(19)), (0u ^ OBFH_GUI_NAME_KEY(19)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(19)), ('e' ^ OBFH_GUI_NAME_KEY(19)), ('t' ^ OBFH_GUI_NAME_KEY(19)), ('M' ^ OBFH_GUI_NAME_KEY(19)), ('e' ^ OBFH_GUI_NAME_KEY(19)), ('s' ^ OBFH_GUI_NAME_KEY(19)), ('s' ^ OBFH_GUI_NAME_KEY(19)), ('a' ^ OBFH_GUI_NAME_KEY(19)), ('g' ^ OBFH_GUI_NAME_KEY(19)), ('e' ^ OBFH_GUI_NAME_KEY(19)), ('A' ^ OBFH_GUI_NAME_KEY(19)), ('\0' ^ OBFH_GUI_NAME_KEY(19)) }
 #define GetMessageA(...) OBFH_API_CALL(0, GetMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetMessageW 20
 #define OBFH_GUI_NAME_GetMessageW \
-    { (71u ^ OBFH_GUI_NAME_KEY(20)), (101u ^ OBFH_GUI_NAME_KEY(20)), (116u ^ OBFH_GUI_NAME_KEY(20)), (77u ^ OBFH_GUI_NAME_KEY(20)), (101u ^ OBFH_GUI_NAME_KEY(20)), (115u ^ OBFH_GUI_NAME_KEY(20)), (115u ^ OBFH_GUI_NAME_KEY(20)), (97u ^ OBFH_GUI_NAME_KEY(20)), (103u ^ OBFH_GUI_NAME_KEY(20)), (101u ^ OBFH_GUI_NAME_KEY(20)), (87u ^ OBFH_GUI_NAME_KEY(20)), (0u ^ OBFH_GUI_NAME_KEY(20)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(20)), ('e' ^ OBFH_GUI_NAME_KEY(20)), ('t' ^ OBFH_GUI_NAME_KEY(20)), ('M' ^ OBFH_GUI_NAME_KEY(20)), ('e' ^ OBFH_GUI_NAME_KEY(20)), ('s' ^ OBFH_GUI_NAME_KEY(20)), ('s' ^ OBFH_GUI_NAME_KEY(20)), ('a' ^ OBFH_GUI_NAME_KEY(20)), ('g' ^ OBFH_GUI_NAME_KEY(20)), ('e' ^ OBFH_GUI_NAME_KEY(20)), ('W' ^ OBFH_GUI_NAME_KEY(20)), ('\0' ^ OBFH_GUI_NAME_KEY(20)) }
 #define GetMessageW(...) OBFH_API_CALL(0, GetMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSysColor 21
 #define OBFH_GUI_NAME_GetSysColor \
-    { (71u ^ OBFH_GUI_NAME_KEY(21)), (101u ^ OBFH_GUI_NAME_KEY(21)), (116u ^ OBFH_GUI_NAME_KEY(21)), (83u ^ OBFH_GUI_NAME_KEY(21)), (121u ^ OBFH_GUI_NAME_KEY(21)), (115u ^ OBFH_GUI_NAME_KEY(21)), (67u ^ OBFH_GUI_NAME_KEY(21)), (111u ^ OBFH_GUI_NAME_KEY(21)), (108u ^ OBFH_GUI_NAME_KEY(21)), (111u ^ OBFH_GUI_NAME_KEY(21)), (114u ^ OBFH_GUI_NAME_KEY(21)), (0u ^ OBFH_GUI_NAME_KEY(21)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(21)), ('e' ^ OBFH_GUI_NAME_KEY(21)), ('t' ^ OBFH_GUI_NAME_KEY(21)), ('S' ^ OBFH_GUI_NAME_KEY(21)), ('y' ^ OBFH_GUI_NAME_KEY(21)), ('s' ^ OBFH_GUI_NAME_KEY(21)), ('C' ^ OBFH_GUI_NAME_KEY(21)), ('o' ^ OBFH_GUI_NAME_KEY(21)), ('l' ^ OBFH_GUI_NAME_KEY(21)), ('o' ^ OBFH_GUI_NAME_KEY(21)), ('r' ^ OBFH_GUI_NAME_KEY(21)), ('\0' ^ OBFH_GUI_NAME_KEY(21)) }
 #define GetSysColor(...) OBFH_API_CALL(0, GetSysColor, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSysColorBrush 22
 #define OBFH_GUI_NAME_GetSysColorBrush \
-    { (71u ^ OBFH_GUI_NAME_KEY(22)), (101u ^ OBFH_GUI_NAME_KEY(22)), (116u ^ OBFH_GUI_NAME_KEY(22)), (83u ^ OBFH_GUI_NAME_KEY(22)), (121u ^ OBFH_GUI_NAME_KEY(22)), (115u ^ OBFH_GUI_NAME_KEY(22)), (67u ^ OBFH_GUI_NAME_KEY(22)), (111u ^ OBFH_GUI_NAME_KEY(22)), (108u ^ OBFH_GUI_NAME_KEY(22)), (111u ^ OBFH_GUI_NAME_KEY(22)), (114u ^ OBFH_GUI_NAME_KEY(22)), (66u ^ OBFH_GUI_NAME_KEY(22)), (114u ^ OBFH_GUI_NAME_KEY(22)), (117u ^ OBFH_GUI_NAME_KEY(22)), (115u ^ OBFH_GUI_NAME_KEY(22)), (104u ^ OBFH_GUI_NAME_KEY(22)), (0u ^ OBFH_GUI_NAME_KEY(22)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(22)), ('e' ^ OBFH_GUI_NAME_KEY(22)), ('t' ^ OBFH_GUI_NAME_KEY(22)), ('S' ^ OBFH_GUI_NAME_KEY(22)), ('y' ^ OBFH_GUI_NAME_KEY(22)), ('s' ^ OBFH_GUI_NAME_KEY(22)), ('C' ^ OBFH_GUI_NAME_KEY(22)), ('o' ^ OBFH_GUI_NAME_KEY(22)), ('l' ^ OBFH_GUI_NAME_KEY(22)), ('o' ^ OBFH_GUI_NAME_KEY(22)), ('r' ^ OBFH_GUI_NAME_KEY(22)), ('B' ^ OBFH_GUI_NAME_KEY(22)), ('r' ^ OBFH_GUI_NAME_KEY(22)), ('u' ^ OBFH_GUI_NAME_KEY(22)), ('s' ^ OBFH_GUI_NAME_KEY(22)), ('h' ^ OBFH_GUI_NAME_KEY(22)), ('\0' ^ OBFH_GUI_NAME_KEY(22)) }
 #define GetSysColorBrush(...) OBFH_API_CALL(0, GetSysColorBrush, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSystemMetrics 23
 #define OBFH_GUI_NAME_GetSystemMetrics \
-    { (71u ^ OBFH_GUI_NAME_KEY(23)), (101u ^ OBFH_GUI_NAME_KEY(23)), (116u ^ OBFH_GUI_NAME_KEY(23)), (83u ^ OBFH_GUI_NAME_KEY(23)), (121u ^ OBFH_GUI_NAME_KEY(23)), (115u ^ OBFH_GUI_NAME_KEY(23)), (116u ^ OBFH_GUI_NAME_KEY(23)), (101u ^ OBFH_GUI_NAME_KEY(23)), (109u ^ OBFH_GUI_NAME_KEY(23)), (77u ^ OBFH_GUI_NAME_KEY(23)), (101u ^ OBFH_GUI_NAME_KEY(23)), (116u ^ OBFH_GUI_NAME_KEY(23)), (114u ^ OBFH_GUI_NAME_KEY(23)), (105u ^ OBFH_GUI_NAME_KEY(23)), (99u ^ OBFH_GUI_NAME_KEY(23)), (115u ^ OBFH_GUI_NAME_KEY(23)), (0u ^ OBFH_GUI_NAME_KEY(23)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(23)), ('e' ^ OBFH_GUI_NAME_KEY(23)), ('t' ^ OBFH_GUI_NAME_KEY(23)), ('S' ^ OBFH_GUI_NAME_KEY(23)), ('y' ^ OBFH_GUI_NAME_KEY(23)), ('s' ^ OBFH_GUI_NAME_KEY(23)), ('t' ^ OBFH_GUI_NAME_KEY(23)), ('e' ^ OBFH_GUI_NAME_KEY(23)), ('m' ^ OBFH_GUI_NAME_KEY(23)), ('M' ^ OBFH_GUI_NAME_KEY(23)), ('e' ^ OBFH_GUI_NAME_KEY(23)), ('t' ^ OBFH_GUI_NAME_KEY(23)), ('r' ^ OBFH_GUI_NAME_KEY(23)), ('i' ^ OBFH_GUI_NAME_KEY(23)), ('c' ^ OBFH_GUI_NAME_KEY(23)), ('s' ^ OBFH_GUI_NAME_KEY(23)), ('\0' ^ OBFH_GUI_NAME_KEY(23)) }
 #define GetSystemMetrics(...) OBFH_API_CALL(0, GetSystemMetrics, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowRect 24
 #define OBFH_GUI_NAME_GetWindowRect \
-    { (71u ^ OBFH_GUI_NAME_KEY(24)), (101u ^ OBFH_GUI_NAME_KEY(24)), (116u ^ OBFH_GUI_NAME_KEY(24)), (87u ^ OBFH_GUI_NAME_KEY(24)), (105u ^ OBFH_GUI_NAME_KEY(24)), (110u ^ OBFH_GUI_NAME_KEY(24)), (100u ^ OBFH_GUI_NAME_KEY(24)), (111u ^ OBFH_GUI_NAME_KEY(24)), (119u ^ OBFH_GUI_NAME_KEY(24)), (82u ^ OBFH_GUI_NAME_KEY(24)), (101u ^ OBFH_GUI_NAME_KEY(24)), (99u ^ OBFH_GUI_NAME_KEY(24)), (116u ^ OBFH_GUI_NAME_KEY(24)), (0u ^ OBFH_GUI_NAME_KEY(24)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(24)), ('e' ^ OBFH_GUI_NAME_KEY(24)), ('t' ^ OBFH_GUI_NAME_KEY(24)), ('W' ^ OBFH_GUI_NAME_KEY(24)), ('i' ^ OBFH_GUI_NAME_KEY(24)), ('n' ^ OBFH_GUI_NAME_KEY(24)), ('d' ^ OBFH_GUI_NAME_KEY(24)), ('o' ^ OBFH_GUI_NAME_KEY(24)), ('w' ^ OBFH_GUI_NAME_KEY(24)), ('R' ^ OBFH_GUI_NAME_KEY(24)), ('e' ^ OBFH_GUI_NAME_KEY(24)), ('c' ^ OBFH_GUI_NAME_KEY(24)), ('t' ^ OBFH_GUI_NAME_KEY(24)), ('\0' ^ OBFH_GUI_NAME_KEY(24)) }
 #define GetWindowRect(...) OBFH_API_CALL(0, GetWindowRect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextA 25
 #define OBFH_GUI_NAME_GetWindowTextA \
-    { (71u ^ OBFH_GUI_NAME_KEY(25)), (101u ^ OBFH_GUI_NAME_KEY(25)), (116u ^ OBFH_GUI_NAME_KEY(25)), (87u ^ OBFH_GUI_NAME_KEY(25)), (105u ^ OBFH_GUI_NAME_KEY(25)), (110u ^ OBFH_GUI_NAME_KEY(25)), (100u ^ OBFH_GUI_NAME_KEY(25)), (111u ^ OBFH_GUI_NAME_KEY(25)), (119u ^ OBFH_GUI_NAME_KEY(25)), (84u ^ OBFH_GUI_NAME_KEY(25)), (101u ^ OBFH_GUI_NAME_KEY(25)), (120u ^ OBFH_GUI_NAME_KEY(25)), (116u ^ OBFH_GUI_NAME_KEY(25)), (65u ^ OBFH_GUI_NAME_KEY(25)), (0u ^ OBFH_GUI_NAME_KEY(25)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(25)), ('e' ^ OBFH_GUI_NAME_KEY(25)), ('t' ^ OBFH_GUI_NAME_KEY(25)), ('W' ^ OBFH_GUI_NAME_KEY(25)), ('i' ^ OBFH_GUI_NAME_KEY(25)), ('n' ^ OBFH_GUI_NAME_KEY(25)), ('d' ^ OBFH_GUI_NAME_KEY(25)), ('o' ^ OBFH_GUI_NAME_KEY(25)), ('w' ^ OBFH_GUI_NAME_KEY(25)), ('T' ^ OBFH_GUI_NAME_KEY(25)), ('e' ^ OBFH_GUI_NAME_KEY(25)), ('x' ^ OBFH_GUI_NAME_KEY(25)), ('t' ^ OBFH_GUI_NAME_KEY(25)), ('A' ^ OBFH_GUI_NAME_KEY(25)), ('\0' ^ OBFH_GUI_NAME_KEY(25)) }
 #define GetWindowTextA(...) OBFH_API_CALL(0, GetWindowTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextW 26
 #define OBFH_GUI_NAME_GetWindowTextW \
-    { (71u ^ OBFH_GUI_NAME_KEY(26)), (101u ^ OBFH_GUI_NAME_KEY(26)), (116u ^ OBFH_GUI_NAME_KEY(26)), (87u ^ OBFH_GUI_NAME_KEY(26)), (105u ^ OBFH_GUI_NAME_KEY(26)), (110u ^ OBFH_GUI_NAME_KEY(26)), (100u ^ OBFH_GUI_NAME_KEY(26)), (111u ^ OBFH_GUI_NAME_KEY(26)), (119u ^ OBFH_GUI_NAME_KEY(26)), (84u ^ OBFH_GUI_NAME_KEY(26)), (101u ^ OBFH_GUI_NAME_KEY(26)), (120u ^ OBFH_GUI_NAME_KEY(26)), (116u ^ OBFH_GUI_NAME_KEY(26)), (87u ^ OBFH_GUI_NAME_KEY(26)), (0u ^ OBFH_GUI_NAME_KEY(26)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(26)), ('e' ^ OBFH_GUI_NAME_KEY(26)), ('t' ^ OBFH_GUI_NAME_KEY(26)), ('W' ^ OBFH_GUI_NAME_KEY(26)), ('i' ^ OBFH_GUI_NAME_KEY(26)), ('n' ^ OBFH_GUI_NAME_KEY(26)), ('d' ^ OBFH_GUI_NAME_KEY(26)), ('o' ^ OBFH_GUI_NAME_KEY(26)), ('w' ^ OBFH_GUI_NAME_KEY(26)), ('T' ^ OBFH_GUI_NAME_KEY(26)), ('e' ^ OBFH_GUI_NAME_KEY(26)), ('x' ^ OBFH_GUI_NAME_KEY(26)), ('t' ^ OBFH_GUI_NAME_KEY(26)), ('W' ^ OBFH_GUI_NAME_KEY(26)), ('\0' ^ OBFH_GUI_NAME_KEY(26)) }
 #define GetWindowTextW(...) OBFH_API_CALL(0, GetWindowTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextLengthA 27
 #define OBFH_GUI_NAME_GetWindowTextLengthA \
-    { (71u ^ OBFH_GUI_NAME_KEY(27)), (101u ^ OBFH_GUI_NAME_KEY(27)), (116u ^ OBFH_GUI_NAME_KEY(27)), (87u ^ OBFH_GUI_NAME_KEY(27)), (105u ^ OBFH_GUI_NAME_KEY(27)), (110u ^ OBFH_GUI_NAME_KEY(27)), (100u ^ OBFH_GUI_NAME_KEY(27)), (111u ^ OBFH_GUI_NAME_KEY(27)), (119u ^ OBFH_GUI_NAME_KEY(27)), (84u ^ OBFH_GUI_NAME_KEY(27)), (101u ^ OBFH_GUI_NAME_KEY(27)), (120u ^ OBFH_GUI_NAME_KEY(27)), (116u ^ OBFH_GUI_NAME_KEY(27)), (76u ^ OBFH_GUI_NAME_KEY(27)), (101u ^ OBFH_GUI_NAME_KEY(27)), (110u ^ OBFH_GUI_NAME_KEY(27)), (103u ^ OBFH_GUI_NAME_KEY(27)), (116u ^ OBFH_GUI_NAME_KEY(27)), (104u ^ OBFH_GUI_NAME_KEY(27)), (65u ^ OBFH_GUI_NAME_KEY(27)), (0u ^ OBFH_GUI_NAME_KEY(27)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(27)), ('e' ^ OBFH_GUI_NAME_KEY(27)), ('t' ^ OBFH_GUI_NAME_KEY(27)), ('W' ^ OBFH_GUI_NAME_KEY(27)), ('i' ^ OBFH_GUI_NAME_KEY(27)), ('n' ^ OBFH_GUI_NAME_KEY(27)), ('d' ^ OBFH_GUI_NAME_KEY(27)), ('o' ^ OBFH_GUI_NAME_KEY(27)), ('w' ^ OBFH_GUI_NAME_KEY(27)), ('T' ^ OBFH_GUI_NAME_KEY(27)), ('e' ^ OBFH_GUI_NAME_KEY(27)), ('x' ^ OBFH_GUI_NAME_KEY(27)), ('t' ^ OBFH_GUI_NAME_KEY(27)), ('L' ^ OBFH_GUI_NAME_KEY(27)), ('e' ^ OBFH_GUI_NAME_KEY(27)), ('n' ^ OBFH_GUI_NAME_KEY(27)), ('g' ^ OBFH_GUI_NAME_KEY(27)), ('t' ^ OBFH_GUI_NAME_KEY(27)), ('h' ^ OBFH_GUI_NAME_KEY(27)), ('A' ^ OBFH_GUI_NAME_KEY(27)), ('\0' ^ OBFH_GUI_NAME_KEY(27)) }
 #define GetWindowTextLengthA(...) OBFH_API_CALL(0, GetWindowTextLengthA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextLengthW 28
 #define OBFH_GUI_NAME_GetWindowTextLengthW \
-    { (71u ^ OBFH_GUI_NAME_KEY(28)), (101u ^ OBFH_GUI_NAME_KEY(28)), (116u ^ OBFH_GUI_NAME_KEY(28)), (87u ^ OBFH_GUI_NAME_KEY(28)), (105u ^ OBFH_GUI_NAME_KEY(28)), (110u ^ OBFH_GUI_NAME_KEY(28)), (100u ^ OBFH_GUI_NAME_KEY(28)), (111u ^ OBFH_GUI_NAME_KEY(28)), (119u ^ OBFH_GUI_NAME_KEY(28)), (84u ^ OBFH_GUI_NAME_KEY(28)), (101u ^ OBFH_GUI_NAME_KEY(28)), (120u ^ OBFH_GUI_NAME_KEY(28)), (116u ^ OBFH_GUI_NAME_KEY(28)), (76u ^ OBFH_GUI_NAME_KEY(28)), (101u ^ OBFH_GUI_NAME_KEY(28)), (110u ^ OBFH_GUI_NAME_KEY(28)), (103u ^ OBFH_GUI_NAME_KEY(28)), (116u ^ OBFH_GUI_NAME_KEY(28)), (104u ^ OBFH_GUI_NAME_KEY(28)), (87u ^ OBFH_GUI_NAME_KEY(28)), (0u ^ OBFH_GUI_NAME_KEY(28)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(28)), ('e' ^ OBFH_GUI_NAME_KEY(28)), ('t' ^ OBFH_GUI_NAME_KEY(28)), ('W' ^ OBFH_GUI_NAME_KEY(28)), ('i' ^ OBFH_GUI_NAME_KEY(28)), ('n' ^ OBFH_GUI_NAME_KEY(28)), ('d' ^ OBFH_GUI_NAME_KEY(28)), ('o' ^ OBFH_GUI_NAME_KEY(28)), ('w' ^ OBFH_GUI_NAME_KEY(28)), ('T' ^ OBFH_GUI_NAME_KEY(28)), ('e' ^ OBFH_GUI_NAME_KEY(28)), ('x' ^ OBFH_GUI_NAME_KEY(28)), ('t' ^ OBFH_GUI_NAME_KEY(28)), ('L' ^ OBFH_GUI_NAME_KEY(28)), ('e' ^ OBFH_GUI_NAME_KEY(28)), ('n' ^ OBFH_GUI_NAME_KEY(28)), ('g' ^ OBFH_GUI_NAME_KEY(28)), ('t' ^ OBFH_GUI_NAME_KEY(28)), ('h' ^ OBFH_GUI_NAME_KEY(28)), ('W' ^ OBFH_GUI_NAME_KEY(28)), ('\0' ^ OBFH_GUI_NAME_KEY(28)) }
 #define GetWindowTextLengthW(...) OBFH_API_CALL(0, GetWindowTextLengthW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_IsDialogMessageA 29
 #define OBFH_GUI_NAME_IsDialogMessageA \
-    { (73u ^ OBFH_GUI_NAME_KEY(29)), (115u ^ OBFH_GUI_NAME_KEY(29)), (68u ^ OBFH_GUI_NAME_KEY(29)), (105u ^ OBFH_GUI_NAME_KEY(29)), (97u ^ OBFH_GUI_NAME_KEY(29)), (108u ^ OBFH_GUI_NAME_KEY(29)), (111u ^ OBFH_GUI_NAME_KEY(29)), (103u ^ OBFH_GUI_NAME_KEY(29)), (77u ^ OBFH_GUI_NAME_KEY(29)), (101u ^ OBFH_GUI_NAME_KEY(29)), (115u ^ OBFH_GUI_NAME_KEY(29)), (115u ^ OBFH_GUI_NAME_KEY(29)), (97u ^ OBFH_GUI_NAME_KEY(29)), (103u ^ OBFH_GUI_NAME_KEY(29)), (101u ^ OBFH_GUI_NAME_KEY(29)), (65u ^ OBFH_GUI_NAME_KEY(29)), (0u ^ OBFH_GUI_NAME_KEY(29)) }
+    { ('I' ^ OBFH_GUI_NAME_KEY(29)), ('s' ^ OBFH_GUI_NAME_KEY(29)), ('D' ^ OBFH_GUI_NAME_KEY(29)), ('i' ^ OBFH_GUI_NAME_KEY(29)), ('a' ^ OBFH_GUI_NAME_KEY(29)), ('l' ^ OBFH_GUI_NAME_KEY(29)), ('o' ^ OBFH_GUI_NAME_KEY(29)), ('g' ^ OBFH_GUI_NAME_KEY(29)), ('M' ^ OBFH_GUI_NAME_KEY(29)), ('e' ^ OBFH_GUI_NAME_KEY(29)), ('s' ^ OBFH_GUI_NAME_KEY(29)), ('s' ^ OBFH_GUI_NAME_KEY(29)), ('a' ^ OBFH_GUI_NAME_KEY(29)), ('g' ^ OBFH_GUI_NAME_KEY(29)), ('e' ^ OBFH_GUI_NAME_KEY(29)), ('A' ^ OBFH_GUI_NAME_KEY(29)), ('\0' ^ OBFH_GUI_NAME_KEY(29)) }
 #define IsDialogMessageA(...) OBFH_API_CALL(0, IsDialogMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_IsDialogMessageW 30
 #define OBFH_GUI_NAME_IsDialogMessageW \
-    { (73u ^ OBFH_GUI_NAME_KEY(30)), (115u ^ OBFH_GUI_NAME_KEY(30)), (68u ^ OBFH_GUI_NAME_KEY(30)), (105u ^ OBFH_GUI_NAME_KEY(30)), (97u ^ OBFH_GUI_NAME_KEY(30)), (108u ^ OBFH_GUI_NAME_KEY(30)), (111u ^ OBFH_GUI_NAME_KEY(30)), (103u ^ OBFH_GUI_NAME_KEY(30)), (77u ^ OBFH_GUI_NAME_KEY(30)), (101u ^ OBFH_GUI_NAME_KEY(30)), (115u ^ OBFH_GUI_NAME_KEY(30)), (115u ^ OBFH_GUI_NAME_KEY(30)), (97u ^ OBFH_GUI_NAME_KEY(30)), (103u ^ OBFH_GUI_NAME_KEY(30)), (101u ^ OBFH_GUI_NAME_KEY(30)), (87u ^ OBFH_GUI_NAME_KEY(30)), (0u ^ OBFH_GUI_NAME_KEY(30)) }
+    { ('I' ^ OBFH_GUI_NAME_KEY(30)), ('s' ^ OBFH_GUI_NAME_KEY(30)), ('D' ^ OBFH_GUI_NAME_KEY(30)), ('i' ^ OBFH_GUI_NAME_KEY(30)), ('a' ^ OBFH_GUI_NAME_KEY(30)), ('l' ^ OBFH_GUI_NAME_KEY(30)), ('o' ^ OBFH_GUI_NAME_KEY(30)), ('g' ^ OBFH_GUI_NAME_KEY(30)), ('M' ^ OBFH_GUI_NAME_KEY(30)), ('e' ^ OBFH_GUI_NAME_KEY(30)), ('s' ^ OBFH_GUI_NAME_KEY(30)), ('s' ^ OBFH_GUI_NAME_KEY(30)), ('a' ^ OBFH_GUI_NAME_KEY(30)), ('g' ^ OBFH_GUI_NAME_KEY(30)), ('e' ^ OBFH_GUI_NAME_KEY(30)), ('W' ^ OBFH_GUI_NAME_KEY(30)), ('\0' ^ OBFH_GUI_NAME_KEY(30)) }
 #define IsDialogMessageW(...) OBFH_API_CALL(0, IsDialogMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadCursorA 31
 #define OBFH_GUI_NAME_LoadCursorA \
-    { (76u ^ OBFH_GUI_NAME_KEY(31)), (111u ^ OBFH_GUI_NAME_KEY(31)), (97u ^ OBFH_GUI_NAME_KEY(31)), (100u ^ OBFH_GUI_NAME_KEY(31)), (67u ^ OBFH_GUI_NAME_KEY(31)), (117u ^ OBFH_GUI_NAME_KEY(31)), (114u ^ OBFH_GUI_NAME_KEY(31)), (115u ^ OBFH_GUI_NAME_KEY(31)), (111u ^ OBFH_GUI_NAME_KEY(31)), (114u ^ OBFH_GUI_NAME_KEY(31)), (65u ^ OBFH_GUI_NAME_KEY(31)), (0u ^ OBFH_GUI_NAME_KEY(31)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(31)), ('o' ^ OBFH_GUI_NAME_KEY(31)), ('a' ^ OBFH_GUI_NAME_KEY(31)), ('d' ^ OBFH_GUI_NAME_KEY(31)), ('C' ^ OBFH_GUI_NAME_KEY(31)), ('u' ^ OBFH_GUI_NAME_KEY(31)), ('r' ^ OBFH_GUI_NAME_KEY(31)), ('s' ^ OBFH_GUI_NAME_KEY(31)), ('o' ^ OBFH_GUI_NAME_KEY(31)), ('r' ^ OBFH_GUI_NAME_KEY(31)), ('A' ^ OBFH_GUI_NAME_KEY(31)), ('\0' ^ OBFH_GUI_NAME_KEY(31)) }
 #define LoadCursorA(...) OBFH_API_CALL(0, LoadCursorA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadCursorW 32
 #define OBFH_GUI_NAME_LoadCursorW \
-    { (76u ^ OBFH_GUI_NAME_KEY(32)), (111u ^ OBFH_GUI_NAME_KEY(32)), (97u ^ OBFH_GUI_NAME_KEY(32)), (100u ^ OBFH_GUI_NAME_KEY(32)), (67u ^ OBFH_GUI_NAME_KEY(32)), (117u ^ OBFH_GUI_NAME_KEY(32)), (114u ^ OBFH_GUI_NAME_KEY(32)), (115u ^ OBFH_GUI_NAME_KEY(32)), (111u ^ OBFH_GUI_NAME_KEY(32)), (114u ^ OBFH_GUI_NAME_KEY(32)), (87u ^ OBFH_GUI_NAME_KEY(32)), (0u ^ OBFH_GUI_NAME_KEY(32)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(32)), ('o' ^ OBFH_GUI_NAME_KEY(32)), ('a' ^ OBFH_GUI_NAME_KEY(32)), ('d' ^ OBFH_GUI_NAME_KEY(32)), ('C' ^ OBFH_GUI_NAME_KEY(32)), ('u' ^ OBFH_GUI_NAME_KEY(32)), ('r' ^ OBFH_GUI_NAME_KEY(32)), ('s' ^ OBFH_GUI_NAME_KEY(32)), ('o' ^ OBFH_GUI_NAME_KEY(32)), ('r' ^ OBFH_GUI_NAME_KEY(32)), ('W' ^ OBFH_GUI_NAME_KEY(32)), ('\0' ^ OBFH_GUI_NAME_KEY(32)) }
 #define LoadCursorW(...) OBFH_API_CALL(0, LoadCursorW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadIconA 33
 #define OBFH_GUI_NAME_LoadIconA \
-    { (76u ^ OBFH_GUI_NAME_KEY(33)), (111u ^ OBFH_GUI_NAME_KEY(33)), (97u ^ OBFH_GUI_NAME_KEY(33)), (100u ^ OBFH_GUI_NAME_KEY(33)), (73u ^ OBFH_GUI_NAME_KEY(33)), (99u ^ OBFH_GUI_NAME_KEY(33)), (111u ^ OBFH_GUI_NAME_KEY(33)), (110u ^ OBFH_GUI_NAME_KEY(33)), (65u ^ OBFH_GUI_NAME_KEY(33)), (0u ^ OBFH_GUI_NAME_KEY(33)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(33)), ('o' ^ OBFH_GUI_NAME_KEY(33)), ('a' ^ OBFH_GUI_NAME_KEY(33)), ('d' ^ OBFH_GUI_NAME_KEY(33)), ('I' ^ OBFH_GUI_NAME_KEY(33)), ('c' ^ OBFH_GUI_NAME_KEY(33)), ('o' ^ OBFH_GUI_NAME_KEY(33)), ('n' ^ OBFH_GUI_NAME_KEY(33)), ('A' ^ OBFH_GUI_NAME_KEY(33)), ('\0' ^ OBFH_GUI_NAME_KEY(33)) }
 #define LoadIconA(...) OBFH_API_CALL(0, LoadIconA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadIconW 34
 #define OBFH_GUI_NAME_LoadIconW \
-    { (76u ^ OBFH_GUI_NAME_KEY(34)), (111u ^ OBFH_GUI_NAME_KEY(34)), (97u ^ OBFH_GUI_NAME_KEY(34)), (100u ^ OBFH_GUI_NAME_KEY(34)), (73u ^ OBFH_GUI_NAME_KEY(34)), (99u ^ OBFH_GUI_NAME_KEY(34)), (111u ^ OBFH_GUI_NAME_KEY(34)), (110u ^ OBFH_GUI_NAME_KEY(34)), (87u ^ OBFH_GUI_NAME_KEY(34)), (0u ^ OBFH_GUI_NAME_KEY(34)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(34)), ('o' ^ OBFH_GUI_NAME_KEY(34)), ('a' ^ OBFH_GUI_NAME_KEY(34)), ('d' ^ OBFH_GUI_NAME_KEY(34)), ('I' ^ OBFH_GUI_NAME_KEY(34)), ('c' ^ OBFH_GUI_NAME_KEY(34)), ('o' ^ OBFH_GUI_NAME_KEY(34)), ('n' ^ OBFH_GUI_NAME_KEY(34)), ('W' ^ OBFH_GUI_NAME_KEY(34)), ('\0' ^ OBFH_GUI_NAME_KEY(34)) }
 #define LoadIconW(...) OBFH_API_CALL(0, LoadIconW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MessageBeep 35
 #define OBFH_GUI_NAME_MessageBeep \
-    { (77u ^ OBFH_GUI_NAME_KEY(35)), (101u ^ OBFH_GUI_NAME_KEY(35)), (115u ^ OBFH_GUI_NAME_KEY(35)), (115u ^ OBFH_GUI_NAME_KEY(35)), (97u ^ OBFH_GUI_NAME_KEY(35)), (103u ^ OBFH_GUI_NAME_KEY(35)), (101u ^ OBFH_GUI_NAME_KEY(35)), (66u ^ OBFH_GUI_NAME_KEY(35)), (101u ^ OBFH_GUI_NAME_KEY(35)), (101u ^ OBFH_GUI_NAME_KEY(35)), (112u ^ OBFH_GUI_NAME_KEY(35)), (0u ^ OBFH_GUI_NAME_KEY(35)) }
+    { ('M' ^ OBFH_GUI_NAME_KEY(35)), ('e' ^ OBFH_GUI_NAME_KEY(35)), ('s' ^ OBFH_GUI_NAME_KEY(35)), ('s' ^ OBFH_GUI_NAME_KEY(35)), ('a' ^ OBFH_GUI_NAME_KEY(35)), ('g' ^ OBFH_GUI_NAME_KEY(35)), ('e' ^ OBFH_GUI_NAME_KEY(35)), ('B' ^ OBFH_GUI_NAME_KEY(35)), ('e' ^ OBFH_GUI_NAME_KEY(35)), ('e' ^ OBFH_GUI_NAME_KEY(35)), ('p' ^ OBFH_GUI_NAME_KEY(35)), ('\0' ^ OBFH_GUI_NAME_KEY(35)) }
 #define MessageBeep(...) OBFH_API_CALL(0, MessageBeep, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MessageBoxA 36
 #define OBFH_GUI_NAME_MessageBoxA \
-    { (77u ^ OBFH_GUI_NAME_KEY(36)), (101u ^ OBFH_GUI_NAME_KEY(36)), (115u ^ OBFH_GUI_NAME_KEY(36)), (115u ^ OBFH_GUI_NAME_KEY(36)), (97u ^ OBFH_GUI_NAME_KEY(36)), (103u ^ OBFH_GUI_NAME_KEY(36)), (101u ^ OBFH_GUI_NAME_KEY(36)), (66u ^ OBFH_GUI_NAME_KEY(36)), (111u ^ OBFH_GUI_NAME_KEY(36)), (120u ^ OBFH_GUI_NAME_KEY(36)), (65u ^ OBFH_GUI_NAME_KEY(36)), (0u ^ OBFH_GUI_NAME_KEY(36)) }
+    { ('M' ^ OBFH_GUI_NAME_KEY(36)), ('e' ^ OBFH_GUI_NAME_KEY(36)), ('s' ^ OBFH_GUI_NAME_KEY(36)), ('s' ^ OBFH_GUI_NAME_KEY(36)), ('a' ^ OBFH_GUI_NAME_KEY(36)), ('g' ^ OBFH_GUI_NAME_KEY(36)), ('e' ^ OBFH_GUI_NAME_KEY(36)), ('B' ^ OBFH_GUI_NAME_KEY(36)), ('o' ^ OBFH_GUI_NAME_KEY(36)), ('x' ^ OBFH_GUI_NAME_KEY(36)), ('A' ^ OBFH_GUI_NAME_KEY(36)), ('\0' ^ OBFH_GUI_NAME_KEY(36)) }
 #define MessageBoxA(...) OBFH_API_CALL(0, MessageBoxA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MessageBoxW 37
 #define OBFH_GUI_NAME_MessageBoxW \
-    { (77u ^ OBFH_GUI_NAME_KEY(37)), (101u ^ OBFH_GUI_NAME_KEY(37)), (115u ^ OBFH_GUI_NAME_KEY(37)), (115u ^ OBFH_GUI_NAME_KEY(37)), (97u ^ OBFH_GUI_NAME_KEY(37)), (103u ^ OBFH_GUI_NAME_KEY(37)), (101u ^ OBFH_GUI_NAME_KEY(37)), (66u ^ OBFH_GUI_NAME_KEY(37)), (111u ^ OBFH_GUI_NAME_KEY(37)), (120u ^ OBFH_GUI_NAME_KEY(37)), (87u ^ OBFH_GUI_NAME_KEY(37)), (0u ^ OBFH_GUI_NAME_KEY(37)) }
+    { ('M' ^ OBFH_GUI_NAME_KEY(37)), ('e' ^ OBFH_GUI_NAME_KEY(37)), ('s' ^ OBFH_GUI_NAME_KEY(37)), ('s' ^ OBFH_GUI_NAME_KEY(37)), ('a' ^ OBFH_GUI_NAME_KEY(37)), ('g' ^ OBFH_GUI_NAME_KEY(37)), ('e' ^ OBFH_GUI_NAME_KEY(37)), ('B' ^ OBFH_GUI_NAME_KEY(37)), ('o' ^ OBFH_GUI_NAME_KEY(37)), ('x' ^ OBFH_GUI_NAME_KEY(37)), ('W' ^ OBFH_GUI_NAME_KEY(37)), ('\0' ^ OBFH_GUI_NAME_KEY(37)) }
 #define MessageBoxW(...) OBFH_API_CALL(0, MessageBoxW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MoveWindow 38
 #define OBFH_GUI_NAME_MoveWindow \
-    { (77u ^ OBFH_GUI_NAME_KEY(38)), (111u ^ OBFH_GUI_NAME_KEY(38)), (118u ^ OBFH_GUI_NAME_KEY(38)), (101u ^ OBFH_GUI_NAME_KEY(38)), (87u ^ OBFH_GUI_NAME_KEY(38)), (105u ^ OBFH_GUI_NAME_KEY(38)), (110u ^ OBFH_GUI_NAME_KEY(38)), (100u ^ OBFH_GUI_NAME_KEY(38)), (111u ^ OBFH_GUI_NAME_KEY(38)), (119u ^ OBFH_GUI_NAME_KEY(38)), (0u ^ OBFH_GUI_NAME_KEY(38)) }
+    { ('M' ^ OBFH_GUI_NAME_KEY(38)), ('o' ^ OBFH_GUI_NAME_KEY(38)), ('v' ^ OBFH_GUI_NAME_KEY(38)), ('e' ^ OBFH_GUI_NAME_KEY(38)), ('W' ^ OBFH_GUI_NAME_KEY(38)), ('i' ^ OBFH_GUI_NAME_KEY(38)), ('n' ^ OBFH_GUI_NAME_KEY(38)), ('d' ^ OBFH_GUI_NAME_KEY(38)), ('o' ^ OBFH_GUI_NAME_KEY(38)), ('w' ^ OBFH_GUI_NAME_KEY(38)), ('\0' ^ OBFH_GUI_NAME_KEY(38)) }
 #define MoveWindow(...) OBFH_API_CALL(0, MoveWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_OpenClipboard 39
 #define OBFH_GUI_NAME_OpenClipboard \
-    { (79u ^ OBFH_GUI_NAME_KEY(39)), (112u ^ OBFH_GUI_NAME_KEY(39)), (101u ^ OBFH_GUI_NAME_KEY(39)), (110u ^ OBFH_GUI_NAME_KEY(39)), (67u ^ OBFH_GUI_NAME_KEY(39)), (108u ^ OBFH_GUI_NAME_KEY(39)), (105u ^ OBFH_GUI_NAME_KEY(39)), (112u ^ OBFH_GUI_NAME_KEY(39)), (98u ^ OBFH_GUI_NAME_KEY(39)), (111u ^ OBFH_GUI_NAME_KEY(39)), (97u ^ OBFH_GUI_NAME_KEY(39)), (114u ^ OBFH_GUI_NAME_KEY(39)), (100u ^ OBFH_GUI_NAME_KEY(39)), (0u ^ OBFH_GUI_NAME_KEY(39)) }
+    { ('O' ^ OBFH_GUI_NAME_KEY(39)), ('p' ^ OBFH_GUI_NAME_KEY(39)), ('e' ^ OBFH_GUI_NAME_KEY(39)), ('n' ^ OBFH_GUI_NAME_KEY(39)), ('C' ^ OBFH_GUI_NAME_KEY(39)), ('l' ^ OBFH_GUI_NAME_KEY(39)), ('i' ^ OBFH_GUI_NAME_KEY(39)), ('p' ^ OBFH_GUI_NAME_KEY(39)), ('b' ^ OBFH_GUI_NAME_KEY(39)), ('o' ^ OBFH_GUI_NAME_KEY(39)), ('a' ^ OBFH_GUI_NAME_KEY(39)), ('r' ^ OBFH_GUI_NAME_KEY(39)), ('d' ^ OBFH_GUI_NAME_KEY(39)), ('\0' ^ OBFH_GUI_NAME_KEY(39)) }
 #define OpenClipboard(...) OBFH_API_CALL(0, OpenClipboard, __VA_ARGS__)
 
 #define OBFH_GUI_ID_PostQuitMessage 40
 #define OBFH_GUI_NAME_PostQuitMessage \
-    { (80u ^ OBFH_GUI_NAME_KEY(40)), (111u ^ OBFH_GUI_NAME_KEY(40)), (115u ^ OBFH_GUI_NAME_KEY(40)), (116u ^ OBFH_GUI_NAME_KEY(40)), (81u ^ OBFH_GUI_NAME_KEY(40)), (117u ^ OBFH_GUI_NAME_KEY(40)), (105u ^ OBFH_GUI_NAME_KEY(40)), (116u ^ OBFH_GUI_NAME_KEY(40)), (77u ^ OBFH_GUI_NAME_KEY(40)), (101u ^ OBFH_GUI_NAME_KEY(40)), (115u ^ OBFH_GUI_NAME_KEY(40)), (115u ^ OBFH_GUI_NAME_KEY(40)), (97u ^ OBFH_GUI_NAME_KEY(40)), (103u ^ OBFH_GUI_NAME_KEY(40)), (101u ^ OBFH_GUI_NAME_KEY(40)), (0u ^ OBFH_GUI_NAME_KEY(40)) }
+    { ('P' ^ OBFH_GUI_NAME_KEY(40)), ('o' ^ OBFH_GUI_NAME_KEY(40)), ('s' ^ OBFH_GUI_NAME_KEY(40)), ('t' ^ OBFH_GUI_NAME_KEY(40)), ('Q' ^ OBFH_GUI_NAME_KEY(40)), ('u' ^ OBFH_GUI_NAME_KEY(40)), ('i' ^ OBFH_GUI_NAME_KEY(40)), ('t' ^ OBFH_GUI_NAME_KEY(40)), ('M' ^ OBFH_GUI_NAME_KEY(40)), ('e' ^ OBFH_GUI_NAME_KEY(40)), ('s' ^ OBFH_GUI_NAME_KEY(40)), ('s' ^ OBFH_GUI_NAME_KEY(40)), ('a' ^ OBFH_GUI_NAME_KEY(40)), ('g' ^ OBFH_GUI_NAME_KEY(40)), ('e' ^ OBFH_GUI_NAME_KEY(40)), ('\0' ^ OBFH_GUI_NAME_KEY(40)) }
 #define PostQuitMessage(...) OBFH_API_CALL(0, PostQuitMessage, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegisterClassExA 41
 #define OBFH_GUI_NAME_RegisterClassExA \
-    { (82u ^ OBFH_GUI_NAME_KEY(41)), (101u ^ OBFH_GUI_NAME_KEY(41)), (103u ^ OBFH_GUI_NAME_KEY(41)), (105u ^ OBFH_GUI_NAME_KEY(41)), (115u ^ OBFH_GUI_NAME_KEY(41)), (116u ^ OBFH_GUI_NAME_KEY(41)), (101u ^ OBFH_GUI_NAME_KEY(41)), (114u ^ OBFH_GUI_NAME_KEY(41)), (67u ^ OBFH_GUI_NAME_KEY(41)), (108u ^ OBFH_GUI_NAME_KEY(41)), (97u ^ OBFH_GUI_NAME_KEY(41)), (115u ^ OBFH_GUI_NAME_KEY(41)), (115u ^ OBFH_GUI_NAME_KEY(41)), (69u ^ OBFH_GUI_NAME_KEY(41)), (120u ^ OBFH_GUI_NAME_KEY(41)), (65u ^ OBFH_GUI_NAME_KEY(41)), (0u ^ OBFH_GUI_NAME_KEY(41)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(41)), ('e' ^ OBFH_GUI_NAME_KEY(41)), ('g' ^ OBFH_GUI_NAME_KEY(41)), ('i' ^ OBFH_GUI_NAME_KEY(41)), ('s' ^ OBFH_GUI_NAME_KEY(41)), ('t' ^ OBFH_GUI_NAME_KEY(41)), ('e' ^ OBFH_GUI_NAME_KEY(41)), ('r' ^ OBFH_GUI_NAME_KEY(41)), ('C' ^ OBFH_GUI_NAME_KEY(41)), ('l' ^ OBFH_GUI_NAME_KEY(41)), ('a' ^ OBFH_GUI_NAME_KEY(41)), ('s' ^ OBFH_GUI_NAME_KEY(41)), ('s' ^ OBFH_GUI_NAME_KEY(41)), ('E' ^ OBFH_GUI_NAME_KEY(41)), ('x' ^ OBFH_GUI_NAME_KEY(41)), ('A' ^ OBFH_GUI_NAME_KEY(41)), ('\0' ^ OBFH_GUI_NAME_KEY(41)) }
 #define RegisterClassExA(...) OBFH_API_CALL(0, RegisterClassExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegisterClassExW 42
 #define OBFH_GUI_NAME_RegisterClassExW \
-    { (82u ^ OBFH_GUI_NAME_KEY(42)), (101u ^ OBFH_GUI_NAME_KEY(42)), (103u ^ OBFH_GUI_NAME_KEY(42)), (105u ^ OBFH_GUI_NAME_KEY(42)), (115u ^ OBFH_GUI_NAME_KEY(42)), (116u ^ OBFH_GUI_NAME_KEY(42)), (101u ^ OBFH_GUI_NAME_KEY(42)), (114u ^ OBFH_GUI_NAME_KEY(42)), (67u ^ OBFH_GUI_NAME_KEY(42)), (108u ^ OBFH_GUI_NAME_KEY(42)), (97u ^ OBFH_GUI_NAME_KEY(42)), (115u ^ OBFH_GUI_NAME_KEY(42)), (115u ^ OBFH_GUI_NAME_KEY(42)), (69u ^ OBFH_GUI_NAME_KEY(42)), (120u ^ OBFH_GUI_NAME_KEY(42)), (87u ^ OBFH_GUI_NAME_KEY(42)), (0u ^ OBFH_GUI_NAME_KEY(42)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(42)), ('e' ^ OBFH_GUI_NAME_KEY(42)), ('g' ^ OBFH_GUI_NAME_KEY(42)), ('i' ^ OBFH_GUI_NAME_KEY(42)), ('s' ^ OBFH_GUI_NAME_KEY(42)), ('t' ^ OBFH_GUI_NAME_KEY(42)), ('e' ^ OBFH_GUI_NAME_KEY(42)), ('r' ^ OBFH_GUI_NAME_KEY(42)), ('C' ^ OBFH_GUI_NAME_KEY(42)), ('l' ^ OBFH_GUI_NAME_KEY(42)), ('a' ^ OBFH_GUI_NAME_KEY(42)), ('s' ^ OBFH_GUI_NAME_KEY(42)), ('s' ^ OBFH_GUI_NAME_KEY(42)), ('E' ^ OBFH_GUI_NAME_KEY(42)), ('x' ^ OBFH_GUI_NAME_KEY(42)), ('W' ^ OBFH_GUI_NAME_KEY(42)), ('\0' ^ OBFH_GUI_NAME_KEY(42)) }
 #define RegisterClassExW(...) OBFH_API_CALL(0, RegisterClassExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReleaseDC 43
 #define OBFH_GUI_NAME_ReleaseDC \
-    { (82u ^ OBFH_GUI_NAME_KEY(43)), (101u ^ OBFH_GUI_NAME_KEY(43)), (108u ^ OBFH_GUI_NAME_KEY(43)), (101u ^ OBFH_GUI_NAME_KEY(43)), (97u ^ OBFH_GUI_NAME_KEY(43)), (115u ^ OBFH_GUI_NAME_KEY(43)), (101u ^ OBFH_GUI_NAME_KEY(43)), (68u ^ OBFH_GUI_NAME_KEY(43)), (67u ^ OBFH_GUI_NAME_KEY(43)), (0u ^ OBFH_GUI_NAME_KEY(43)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(43)), ('e' ^ OBFH_GUI_NAME_KEY(43)), ('l' ^ OBFH_GUI_NAME_KEY(43)), ('e' ^ OBFH_GUI_NAME_KEY(43)), ('a' ^ OBFH_GUI_NAME_KEY(43)), ('s' ^ OBFH_GUI_NAME_KEY(43)), ('e' ^ OBFH_GUI_NAME_KEY(43)), ('D' ^ OBFH_GUI_NAME_KEY(43)), ('C' ^ OBFH_GUI_NAME_KEY(43)), ('\0' ^ OBFH_GUI_NAME_KEY(43)) }
 #define ReleaseDC(...) OBFH_API_CALL(0, ReleaseDC, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SendMessageA 44
 #define OBFH_GUI_NAME_SendMessageA \
-    { (83u ^ OBFH_GUI_NAME_KEY(44)), (101u ^ OBFH_GUI_NAME_KEY(44)), (110u ^ OBFH_GUI_NAME_KEY(44)), (100u ^ OBFH_GUI_NAME_KEY(44)), (77u ^ OBFH_GUI_NAME_KEY(44)), (101u ^ OBFH_GUI_NAME_KEY(44)), (115u ^ OBFH_GUI_NAME_KEY(44)), (115u ^ OBFH_GUI_NAME_KEY(44)), (97u ^ OBFH_GUI_NAME_KEY(44)), (103u ^ OBFH_GUI_NAME_KEY(44)), (101u ^ OBFH_GUI_NAME_KEY(44)), (65u ^ OBFH_GUI_NAME_KEY(44)), (0u ^ OBFH_GUI_NAME_KEY(44)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(44)), ('e' ^ OBFH_GUI_NAME_KEY(44)), ('n' ^ OBFH_GUI_NAME_KEY(44)), ('d' ^ OBFH_GUI_NAME_KEY(44)), ('M' ^ OBFH_GUI_NAME_KEY(44)), ('e' ^ OBFH_GUI_NAME_KEY(44)), ('s' ^ OBFH_GUI_NAME_KEY(44)), ('s' ^ OBFH_GUI_NAME_KEY(44)), ('a' ^ OBFH_GUI_NAME_KEY(44)), ('g' ^ OBFH_GUI_NAME_KEY(44)), ('e' ^ OBFH_GUI_NAME_KEY(44)), ('A' ^ OBFH_GUI_NAME_KEY(44)), ('\0' ^ OBFH_GUI_NAME_KEY(44)) }
 #define SendMessageA(...) OBFH_API_CALL(0, SendMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SendMessageW 45
 #define OBFH_GUI_NAME_SendMessageW \
-    { (83u ^ OBFH_GUI_NAME_KEY(45)), (101u ^ OBFH_GUI_NAME_KEY(45)), (110u ^ OBFH_GUI_NAME_KEY(45)), (100u ^ OBFH_GUI_NAME_KEY(45)), (77u ^ OBFH_GUI_NAME_KEY(45)), (101u ^ OBFH_GUI_NAME_KEY(45)), (115u ^ OBFH_GUI_NAME_KEY(45)), (115u ^ OBFH_GUI_NAME_KEY(45)), (97u ^ OBFH_GUI_NAME_KEY(45)), (103u ^ OBFH_GUI_NAME_KEY(45)), (101u ^ OBFH_GUI_NAME_KEY(45)), (87u ^ OBFH_GUI_NAME_KEY(45)), (0u ^ OBFH_GUI_NAME_KEY(45)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(45)), ('e' ^ OBFH_GUI_NAME_KEY(45)), ('n' ^ OBFH_GUI_NAME_KEY(45)), ('d' ^ OBFH_GUI_NAME_KEY(45)), ('M' ^ OBFH_GUI_NAME_KEY(45)), ('e' ^ OBFH_GUI_NAME_KEY(45)), ('s' ^ OBFH_GUI_NAME_KEY(45)), ('s' ^ OBFH_GUI_NAME_KEY(45)), ('a' ^ OBFH_GUI_NAME_KEY(45)), ('g' ^ OBFH_GUI_NAME_KEY(45)), ('e' ^ OBFH_GUI_NAME_KEY(45)), ('W' ^ OBFH_GUI_NAME_KEY(45)), ('\0' ^ OBFH_GUI_NAME_KEY(45)) }
 #define SendMessageW(...) OBFH_API_CALL(0, SendMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetClipboardData 46
 #define OBFH_GUI_NAME_SetClipboardData \
-    { (83u ^ OBFH_GUI_NAME_KEY(46)), (101u ^ OBFH_GUI_NAME_KEY(46)), (116u ^ OBFH_GUI_NAME_KEY(46)), (67u ^ OBFH_GUI_NAME_KEY(46)), (108u ^ OBFH_GUI_NAME_KEY(46)), (105u ^ OBFH_GUI_NAME_KEY(46)), (112u ^ OBFH_GUI_NAME_KEY(46)), (98u ^ OBFH_GUI_NAME_KEY(46)), (111u ^ OBFH_GUI_NAME_KEY(46)), (97u ^ OBFH_GUI_NAME_KEY(46)), (114u ^ OBFH_GUI_NAME_KEY(46)), (100u ^ OBFH_GUI_NAME_KEY(46)), (68u ^ OBFH_GUI_NAME_KEY(46)), (97u ^ OBFH_GUI_NAME_KEY(46)), (116u ^ OBFH_GUI_NAME_KEY(46)), (97u ^ OBFH_GUI_NAME_KEY(46)), (0u ^ OBFH_GUI_NAME_KEY(46)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(46)), ('e' ^ OBFH_GUI_NAME_KEY(46)), ('t' ^ OBFH_GUI_NAME_KEY(46)), ('C' ^ OBFH_GUI_NAME_KEY(46)), ('l' ^ OBFH_GUI_NAME_KEY(46)), ('i' ^ OBFH_GUI_NAME_KEY(46)), ('p' ^ OBFH_GUI_NAME_KEY(46)), ('b' ^ OBFH_GUI_NAME_KEY(46)), ('o' ^ OBFH_GUI_NAME_KEY(46)), ('a' ^ OBFH_GUI_NAME_KEY(46)), ('r' ^ OBFH_GUI_NAME_KEY(46)), ('d' ^ OBFH_GUI_NAME_KEY(46)), ('D' ^ OBFH_GUI_NAME_KEY(46)), ('a' ^ OBFH_GUI_NAME_KEY(46)), ('t' ^ OBFH_GUI_NAME_KEY(46)), ('a' ^ OBFH_GUI_NAME_KEY(46)), ('\0' ^ OBFH_GUI_NAME_KEY(46)) }
 #define SetClipboardData(...) OBFH_API_CALL(0, SetClipboardData, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetFocus 47
 #define OBFH_GUI_NAME_SetFocus \
-    { (83u ^ OBFH_GUI_NAME_KEY(47)), (101u ^ OBFH_GUI_NAME_KEY(47)), (116u ^ OBFH_GUI_NAME_KEY(47)), (70u ^ OBFH_GUI_NAME_KEY(47)), (111u ^ OBFH_GUI_NAME_KEY(47)), (99u ^ OBFH_GUI_NAME_KEY(47)), (117u ^ OBFH_GUI_NAME_KEY(47)), (115u ^ OBFH_GUI_NAME_KEY(47)), (0u ^ OBFH_GUI_NAME_KEY(47)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(47)), ('e' ^ OBFH_GUI_NAME_KEY(47)), ('t' ^ OBFH_GUI_NAME_KEY(47)), ('F' ^ OBFH_GUI_NAME_KEY(47)), ('o' ^ OBFH_GUI_NAME_KEY(47)), ('c' ^ OBFH_GUI_NAME_KEY(47)), ('u' ^ OBFH_GUI_NAME_KEY(47)), ('s' ^ OBFH_GUI_NAME_KEY(47)), ('\0' ^ OBFH_GUI_NAME_KEY(47)) }
 #define SetFocus(...) OBFH_API_CALL(0, SetFocus, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowPos 48
 #define OBFH_GUI_NAME_SetWindowPos \
-    { (83u ^ OBFH_GUI_NAME_KEY(48)), (101u ^ OBFH_GUI_NAME_KEY(48)), (116u ^ OBFH_GUI_NAME_KEY(48)), (87u ^ OBFH_GUI_NAME_KEY(48)), (105u ^ OBFH_GUI_NAME_KEY(48)), (110u ^ OBFH_GUI_NAME_KEY(48)), (100u ^ OBFH_GUI_NAME_KEY(48)), (111u ^ OBFH_GUI_NAME_KEY(48)), (119u ^ OBFH_GUI_NAME_KEY(48)), (80u ^ OBFH_GUI_NAME_KEY(48)), (111u ^ OBFH_GUI_NAME_KEY(48)), (115u ^ OBFH_GUI_NAME_KEY(48)), (0u ^ OBFH_GUI_NAME_KEY(48)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(48)), ('e' ^ OBFH_GUI_NAME_KEY(48)), ('t' ^ OBFH_GUI_NAME_KEY(48)), ('W' ^ OBFH_GUI_NAME_KEY(48)), ('i' ^ OBFH_GUI_NAME_KEY(48)), ('n' ^ OBFH_GUI_NAME_KEY(48)), ('d' ^ OBFH_GUI_NAME_KEY(48)), ('o' ^ OBFH_GUI_NAME_KEY(48)), ('w' ^ OBFH_GUI_NAME_KEY(48)), ('P' ^ OBFH_GUI_NAME_KEY(48)), ('o' ^ OBFH_GUI_NAME_KEY(48)), ('s' ^ OBFH_GUI_NAME_KEY(48)), ('\0' ^ OBFH_GUI_NAME_KEY(48)) }
 #define SetWindowPos(...) OBFH_API_CALL(0, SetWindowPos, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowTextA 49
 #define OBFH_GUI_NAME_SetWindowTextA \
-    { (83u ^ OBFH_GUI_NAME_KEY(49)), (101u ^ OBFH_GUI_NAME_KEY(49)), (116u ^ OBFH_GUI_NAME_KEY(49)), (87u ^ OBFH_GUI_NAME_KEY(49)), (105u ^ OBFH_GUI_NAME_KEY(49)), (110u ^ OBFH_GUI_NAME_KEY(49)), (100u ^ OBFH_GUI_NAME_KEY(49)), (111u ^ OBFH_GUI_NAME_KEY(49)), (119u ^ OBFH_GUI_NAME_KEY(49)), (84u ^ OBFH_GUI_NAME_KEY(49)), (101u ^ OBFH_GUI_NAME_KEY(49)), (120u ^ OBFH_GUI_NAME_KEY(49)), (116u ^ OBFH_GUI_NAME_KEY(49)), (65u ^ OBFH_GUI_NAME_KEY(49)), (0u ^ OBFH_GUI_NAME_KEY(49)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(49)), ('e' ^ OBFH_GUI_NAME_KEY(49)), ('t' ^ OBFH_GUI_NAME_KEY(49)), ('W' ^ OBFH_GUI_NAME_KEY(49)), ('i' ^ OBFH_GUI_NAME_KEY(49)), ('n' ^ OBFH_GUI_NAME_KEY(49)), ('d' ^ OBFH_GUI_NAME_KEY(49)), ('o' ^ OBFH_GUI_NAME_KEY(49)), ('w' ^ OBFH_GUI_NAME_KEY(49)), ('T' ^ OBFH_GUI_NAME_KEY(49)), ('e' ^ OBFH_GUI_NAME_KEY(49)), ('x' ^ OBFH_GUI_NAME_KEY(49)), ('t' ^ OBFH_GUI_NAME_KEY(49)), ('A' ^ OBFH_GUI_NAME_KEY(49)), ('\0' ^ OBFH_GUI_NAME_KEY(49)) }
 #define SetWindowTextA(...) OBFH_API_CALL(0, SetWindowTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowTextW 50
 #define OBFH_GUI_NAME_SetWindowTextW \
-    { (83u ^ OBFH_GUI_NAME_KEY(50)), (101u ^ OBFH_GUI_NAME_KEY(50)), (116u ^ OBFH_GUI_NAME_KEY(50)), (87u ^ OBFH_GUI_NAME_KEY(50)), (105u ^ OBFH_GUI_NAME_KEY(50)), (110u ^ OBFH_GUI_NAME_KEY(50)), (100u ^ OBFH_GUI_NAME_KEY(50)), (111u ^ OBFH_GUI_NAME_KEY(50)), (119u ^ OBFH_GUI_NAME_KEY(50)), (84u ^ OBFH_GUI_NAME_KEY(50)), (101u ^ OBFH_GUI_NAME_KEY(50)), (120u ^ OBFH_GUI_NAME_KEY(50)), (116u ^ OBFH_GUI_NAME_KEY(50)), (87u ^ OBFH_GUI_NAME_KEY(50)), (0u ^ OBFH_GUI_NAME_KEY(50)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(50)), ('e' ^ OBFH_GUI_NAME_KEY(50)), ('t' ^ OBFH_GUI_NAME_KEY(50)), ('W' ^ OBFH_GUI_NAME_KEY(50)), ('i' ^ OBFH_GUI_NAME_KEY(50)), ('n' ^ OBFH_GUI_NAME_KEY(50)), ('d' ^ OBFH_GUI_NAME_KEY(50)), ('o' ^ OBFH_GUI_NAME_KEY(50)), ('w' ^ OBFH_GUI_NAME_KEY(50)), ('T' ^ OBFH_GUI_NAME_KEY(50)), ('e' ^ OBFH_GUI_NAME_KEY(50)), ('x' ^ OBFH_GUI_NAME_KEY(50)), ('t' ^ OBFH_GUI_NAME_KEY(50)), ('W' ^ OBFH_GUI_NAME_KEY(50)), ('\0' ^ OBFH_GUI_NAME_KEY(50)) }
 #define SetWindowTextW(...) OBFH_API_CALL(0, SetWindowTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ShowWindow 51
 #define OBFH_GUI_NAME_ShowWindow \
-    { (83u ^ OBFH_GUI_NAME_KEY(51)), (104u ^ OBFH_GUI_NAME_KEY(51)), (111u ^ OBFH_GUI_NAME_KEY(51)), (119u ^ OBFH_GUI_NAME_KEY(51)), (87u ^ OBFH_GUI_NAME_KEY(51)), (105u ^ OBFH_GUI_NAME_KEY(51)), (110u ^ OBFH_GUI_NAME_KEY(51)), (100u ^ OBFH_GUI_NAME_KEY(51)), (111u ^ OBFH_GUI_NAME_KEY(51)), (119u ^ OBFH_GUI_NAME_KEY(51)), (0u ^ OBFH_GUI_NAME_KEY(51)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(51)), ('h' ^ OBFH_GUI_NAME_KEY(51)), ('o' ^ OBFH_GUI_NAME_KEY(51)), ('w' ^ OBFH_GUI_NAME_KEY(51)), ('W' ^ OBFH_GUI_NAME_KEY(51)), ('i' ^ OBFH_GUI_NAME_KEY(51)), ('n' ^ OBFH_GUI_NAME_KEY(51)), ('d' ^ OBFH_GUI_NAME_KEY(51)), ('o' ^ OBFH_GUI_NAME_KEY(51)), ('w' ^ OBFH_GUI_NAME_KEY(51)), ('\0' ^ OBFH_GUI_NAME_KEY(51)) }
 #define ShowWindow(...) OBFH_API_CALL(0, ShowWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TranslateMessage 52
 #define OBFH_GUI_NAME_TranslateMessage \
-    { (84u ^ OBFH_GUI_NAME_KEY(52)), (114u ^ OBFH_GUI_NAME_KEY(52)), (97u ^ OBFH_GUI_NAME_KEY(52)), (110u ^ OBFH_GUI_NAME_KEY(52)), (115u ^ OBFH_GUI_NAME_KEY(52)), (108u ^ OBFH_GUI_NAME_KEY(52)), (97u ^ OBFH_GUI_NAME_KEY(52)), (116u ^ OBFH_GUI_NAME_KEY(52)), (101u ^ OBFH_GUI_NAME_KEY(52)), (77u ^ OBFH_GUI_NAME_KEY(52)), (101u ^ OBFH_GUI_NAME_KEY(52)), (115u ^ OBFH_GUI_NAME_KEY(52)), (115u ^ OBFH_GUI_NAME_KEY(52)), (97u ^ OBFH_GUI_NAME_KEY(52)), (103u ^ OBFH_GUI_NAME_KEY(52)), (101u ^ OBFH_GUI_NAME_KEY(52)), (0u ^ OBFH_GUI_NAME_KEY(52)) }
+    { ('T' ^ OBFH_GUI_NAME_KEY(52)), ('r' ^ OBFH_GUI_NAME_KEY(52)), ('a' ^ OBFH_GUI_NAME_KEY(52)), ('n' ^ OBFH_GUI_NAME_KEY(52)), ('s' ^ OBFH_GUI_NAME_KEY(52)), ('l' ^ OBFH_GUI_NAME_KEY(52)), ('a' ^ OBFH_GUI_NAME_KEY(52)), ('t' ^ OBFH_GUI_NAME_KEY(52)), ('e' ^ OBFH_GUI_NAME_KEY(52)), ('M' ^ OBFH_GUI_NAME_KEY(52)), ('e' ^ OBFH_GUI_NAME_KEY(52)), ('s' ^ OBFH_GUI_NAME_KEY(52)), ('s' ^ OBFH_GUI_NAME_KEY(52)), ('a' ^ OBFH_GUI_NAME_KEY(52)), ('g' ^ OBFH_GUI_NAME_KEY(52)), ('e' ^ OBFH_GUI_NAME_KEY(52)), ('\0' ^ OBFH_GUI_NAME_KEY(52)) }
 #define TranslateMessage(...) OBFH_API_CALL(0, TranslateMessage, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UnregisterClassA 53
 #define OBFH_GUI_NAME_UnregisterClassA \
-    { (85u ^ OBFH_GUI_NAME_KEY(53)), (110u ^ OBFH_GUI_NAME_KEY(53)), (114u ^ OBFH_GUI_NAME_KEY(53)), (101u ^ OBFH_GUI_NAME_KEY(53)), (103u ^ OBFH_GUI_NAME_KEY(53)), (105u ^ OBFH_GUI_NAME_KEY(53)), (115u ^ OBFH_GUI_NAME_KEY(53)), (116u ^ OBFH_GUI_NAME_KEY(53)), (101u ^ OBFH_GUI_NAME_KEY(53)), (114u ^ OBFH_GUI_NAME_KEY(53)), (67u ^ OBFH_GUI_NAME_KEY(53)), (108u ^ OBFH_GUI_NAME_KEY(53)), (97u ^ OBFH_GUI_NAME_KEY(53)), (115u ^ OBFH_GUI_NAME_KEY(53)), (115u ^ OBFH_GUI_NAME_KEY(53)), (65u ^ OBFH_GUI_NAME_KEY(53)), (0u ^ OBFH_GUI_NAME_KEY(53)) }
+    { ('U' ^ OBFH_GUI_NAME_KEY(53)), ('n' ^ OBFH_GUI_NAME_KEY(53)), ('r' ^ OBFH_GUI_NAME_KEY(53)), ('e' ^ OBFH_GUI_NAME_KEY(53)), ('g' ^ OBFH_GUI_NAME_KEY(53)), ('i' ^ OBFH_GUI_NAME_KEY(53)), ('s' ^ OBFH_GUI_NAME_KEY(53)), ('t' ^ OBFH_GUI_NAME_KEY(53)), ('e' ^ OBFH_GUI_NAME_KEY(53)), ('r' ^ OBFH_GUI_NAME_KEY(53)), ('C' ^ OBFH_GUI_NAME_KEY(53)), ('l' ^ OBFH_GUI_NAME_KEY(53)), ('a' ^ OBFH_GUI_NAME_KEY(53)), ('s' ^ OBFH_GUI_NAME_KEY(53)), ('s' ^ OBFH_GUI_NAME_KEY(53)), ('A' ^ OBFH_GUI_NAME_KEY(53)), ('\0' ^ OBFH_GUI_NAME_KEY(53)) }
 #define UnregisterClassA(...) OBFH_API_CALL(0, UnregisterClassA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UnregisterClassW 54
 #define OBFH_GUI_NAME_UnregisterClassW \
-    { (85u ^ OBFH_GUI_NAME_KEY(54)), (110u ^ OBFH_GUI_NAME_KEY(54)), (114u ^ OBFH_GUI_NAME_KEY(54)), (101u ^ OBFH_GUI_NAME_KEY(54)), (103u ^ OBFH_GUI_NAME_KEY(54)), (105u ^ OBFH_GUI_NAME_KEY(54)), (115u ^ OBFH_GUI_NAME_KEY(54)), (116u ^ OBFH_GUI_NAME_KEY(54)), (101u ^ OBFH_GUI_NAME_KEY(54)), (114u ^ OBFH_GUI_NAME_KEY(54)), (67u ^ OBFH_GUI_NAME_KEY(54)), (108u ^ OBFH_GUI_NAME_KEY(54)), (97u ^ OBFH_GUI_NAME_KEY(54)), (115u ^ OBFH_GUI_NAME_KEY(54)), (115u ^ OBFH_GUI_NAME_KEY(54)), (87u ^ OBFH_GUI_NAME_KEY(54)), (0u ^ OBFH_GUI_NAME_KEY(54)) }
+    { ('U' ^ OBFH_GUI_NAME_KEY(54)), ('n' ^ OBFH_GUI_NAME_KEY(54)), ('r' ^ OBFH_GUI_NAME_KEY(54)), ('e' ^ OBFH_GUI_NAME_KEY(54)), ('g' ^ OBFH_GUI_NAME_KEY(54)), ('i' ^ OBFH_GUI_NAME_KEY(54)), ('s' ^ OBFH_GUI_NAME_KEY(54)), ('t' ^ OBFH_GUI_NAME_KEY(54)), ('e' ^ OBFH_GUI_NAME_KEY(54)), ('r' ^ OBFH_GUI_NAME_KEY(54)), ('C' ^ OBFH_GUI_NAME_KEY(54)), ('l' ^ OBFH_GUI_NAME_KEY(54)), ('a' ^ OBFH_GUI_NAME_KEY(54)), ('s' ^ OBFH_GUI_NAME_KEY(54)), ('s' ^ OBFH_GUI_NAME_KEY(54)), ('W' ^ OBFH_GUI_NAME_KEY(54)), ('\0' ^ OBFH_GUI_NAME_KEY(54)) }
 #define UnregisterClassW(...) OBFH_API_CALL(0, UnregisterClassW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UpdateWindow 55
 #define OBFH_GUI_NAME_UpdateWindow \
-    { (85u ^ OBFH_GUI_NAME_KEY(55)), (112u ^ OBFH_GUI_NAME_KEY(55)), (100u ^ OBFH_GUI_NAME_KEY(55)), (97u ^ OBFH_GUI_NAME_KEY(55)), (116u ^ OBFH_GUI_NAME_KEY(55)), (101u ^ OBFH_GUI_NAME_KEY(55)), (87u ^ OBFH_GUI_NAME_KEY(55)), (105u ^ OBFH_GUI_NAME_KEY(55)), (110u ^ OBFH_GUI_NAME_KEY(55)), (100u ^ OBFH_GUI_NAME_KEY(55)), (111u ^ OBFH_GUI_NAME_KEY(55)), (119u ^ OBFH_GUI_NAME_KEY(55)), (0u ^ OBFH_GUI_NAME_KEY(55)) }
+    { ('U' ^ OBFH_GUI_NAME_KEY(55)), ('p' ^ OBFH_GUI_NAME_KEY(55)), ('d' ^ OBFH_GUI_NAME_KEY(55)), ('a' ^ OBFH_GUI_NAME_KEY(55)), ('t' ^ OBFH_GUI_NAME_KEY(55)), ('e' ^ OBFH_GUI_NAME_KEY(55)), ('W' ^ OBFH_GUI_NAME_KEY(55)), ('i' ^ OBFH_GUI_NAME_KEY(55)), ('n' ^ OBFH_GUI_NAME_KEY(55)), ('d' ^ OBFH_GUI_NAME_KEY(55)), ('o' ^ OBFH_GUI_NAME_KEY(55)), ('w' ^ OBFH_GUI_NAME_KEY(55)), ('\0' ^ OBFH_GUI_NAME_KEY(55)) }
 #define UpdateWindow(...) OBFH_API_CALL(0, UpdateWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontA 56
 #define OBFH_GUI_NAME_CreateFontA \
-    { (67u ^ OBFH_GUI_NAME_KEY(56)), (114u ^ OBFH_GUI_NAME_KEY(56)), (101u ^ OBFH_GUI_NAME_KEY(56)), (97u ^ OBFH_GUI_NAME_KEY(56)), (116u ^ OBFH_GUI_NAME_KEY(56)), (101u ^ OBFH_GUI_NAME_KEY(56)), (70u ^ OBFH_GUI_NAME_KEY(56)), (111u ^ OBFH_GUI_NAME_KEY(56)), (110u ^ OBFH_GUI_NAME_KEY(56)), (116u ^ OBFH_GUI_NAME_KEY(56)), (65u ^ OBFH_GUI_NAME_KEY(56)), (0u ^ OBFH_GUI_NAME_KEY(56)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(56)), ('r' ^ OBFH_GUI_NAME_KEY(56)), ('e' ^ OBFH_GUI_NAME_KEY(56)), ('a' ^ OBFH_GUI_NAME_KEY(56)), ('t' ^ OBFH_GUI_NAME_KEY(56)), ('e' ^ OBFH_GUI_NAME_KEY(56)), ('F' ^ OBFH_GUI_NAME_KEY(56)), ('o' ^ OBFH_GUI_NAME_KEY(56)), ('n' ^ OBFH_GUI_NAME_KEY(56)), ('t' ^ OBFH_GUI_NAME_KEY(56)), ('A' ^ OBFH_GUI_NAME_KEY(56)), ('\0' ^ OBFH_GUI_NAME_KEY(56)) }
 #define CreateFontA(...) OBFH_API_CALL(1, CreateFontA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontW 57
 #define OBFH_GUI_NAME_CreateFontW \
-    { (67u ^ OBFH_GUI_NAME_KEY(57)), (114u ^ OBFH_GUI_NAME_KEY(57)), (101u ^ OBFH_GUI_NAME_KEY(57)), (97u ^ OBFH_GUI_NAME_KEY(57)), (116u ^ OBFH_GUI_NAME_KEY(57)), (101u ^ OBFH_GUI_NAME_KEY(57)), (70u ^ OBFH_GUI_NAME_KEY(57)), (111u ^ OBFH_GUI_NAME_KEY(57)), (110u ^ OBFH_GUI_NAME_KEY(57)), (116u ^ OBFH_GUI_NAME_KEY(57)), (87u ^ OBFH_GUI_NAME_KEY(57)), (0u ^ OBFH_GUI_NAME_KEY(57)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(57)), ('r' ^ OBFH_GUI_NAME_KEY(57)), ('e' ^ OBFH_GUI_NAME_KEY(57)), ('a' ^ OBFH_GUI_NAME_KEY(57)), ('t' ^ OBFH_GUI_NAME_KEY(57)), ('e' ^ OBFH_GUI_NAME_KEY(57)), ('F' ^ OBFH_GUI_NAME_KEY(57)), ('o' ^ OBFH_GUI_NAME_KEY(57)), ('n' ^ OBFH_GUI_NAME_KEY(57)), ('t' ^ OBFH_GUI_NAME_KEY(57)), ('W' ^ OBFH_GUI_NAME_KEY(57)), ('\0' ^ OBFH_GUI_NAME_KEY(57)) }
 #define CreateFontW(...) OBFH_API_CALL(1, CreateFontW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontIndirectA 58
 #define OBFH_GUI_NAME_CreateFontIndirectA \
-    { (67u ^ OBFH_GUI_NAME_KEY(58)), (114u ^ OBFH_GUI_NAME_KEY(58)), (101u ^ OBFH_GUI_NAME_KEY(58)), (97u ^ OBFH_GUI_NAME_KEY(58)), (116u ^ OBFH_GUI_NAME_KEY(58)), (101u ^ OBFH_GUI_NAME_KEY(58)), (70u ^ OBFH_GUI_NAME_KEY(58)), (111u ^ OBFH_GUI_NAME_KEY(58)), (110u ^ OBFH_GUI_NAME_KEY(58)), (116u ^ OBFH_GUI_NAME_KEY(58)), (73u ^ OBFH_GUI_NAME_KEY(58)), (110u ^ OBFH_GUI_NAME_KEY(58)), (100u ^ OBFH_GUI_NAME_KEY(58)), (105u ^ OBFH_GUI_NAME_KEY(58)), (114u ^ OBFH_GUI_NAME_KEY(58)), (101u ^ OBFH_GUI_NAME_KEY(58)), (99u ^ OBFH_GUI_NAME_KEY(58)), (116u ^ OBFH_GUI_NAME_KEY(58)), (65u ^ OBFH_GUI_NAME_KEY(58)), (0u ^ OBFH_GUI_NAME_KEY(58)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(58)), ('r' ^ OBFH_GUI_NAME_KEY(58)), ('e' ^ OBFH_GUI_NAME_KEY(58)), ('a' ^ OBFH_GUI_NAME_KEY(58)), ('t' ^ OBFH_GUI_NAME_KEY(58)), ('e' ^ OBFH_GUI_NAME_KEY(58)), ('F' ^ OBFH_GUI_NAME_KEY(58)), ('o' ^ OBFH_GUI_NAME_KEY(58)), ('n' ^ OBFH_GUI_NAME_KEY(58)), ('t' ^ OBFH_GUI_NAME_KEY(58)), ('I' ^ OBFH_GUI_NAME_KEY(58)), ('n' ^ OBFH_GUI_NAME_KEY(58)), ('d' ^ OBFH_GUI_NAME_KEY(58)), ('i' ^ OBFH_GUI_NAME_KEY(58)), ('r' ^ OBFH_GUI_NAME_KEY(58)), ('e' ^ OBFH_GUI_NAME_KEY(58)), ('c' ^ OBFH_GUI_NAME_KEY(58)), ('t' ^ OBFH_GUI_NAME_KEY(58)), ('A' ^ OBFH_GUI_NAME_KEY(58)), ('\0' ^ OBFH_GUI_NAME_KEY(58)) }
 #define CreateFontIndirectA(...) OBFH_API_CALL(1, CreateFontIndirectA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontIndirectW 59
 #define OBFH_GUI_NAME_CreateFontIndirectW \
-    { (67u ^ OBFH_GUI_NAME_KEY(59)), (114u ^ OBFH_GUI_NAME_KEY(59)), (101u ^ OBFH_GUI_NAME_KEY(59)), (97u ^ OBFH_GUI_NAME_KEY(59)), (116u ^ OBFH_GUI_NAME_KEY(59)), (101u ^ OBFH_GUI_NAME_KEY(59)), (70u ^ OBFH_GUI_NAME_KEY(59)), (111u ^ OBFH_GUI_NAME_KEY(59)), (110u ^ OBFH_GUI_NAME_KEY(59)), (116u ^ OBFH_GUI_NAME_KEY(59)), (73u ^ OBFH_GUI_NAME_KEY(59)), (110u ^ OBFH_GUI_NAME_KEY(59)), (100u ^ OBFH_GUI_NAME_KEY(59)), (105u ^ OBFH_GUI_NAME_KEY(59)), (114u ^ OBFH_GUI_NAME_KEY(59)), (101u ^ OBFH_GUI_NAME_KEY(59)), (99u ^ OBFH_GUI_NAME_KEY(59)), (116u ^ OBFH_GUI_NAME_KEY(59)), (87u ^ OBFH_GUI_NAME_KEY(59)), (0u ^ OBFH_GUI_NAME_KEY(59)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(59)), ('r' ^ OBFH_GUI_NAME_KEY(59)), ('e' ^ OBFH_GUI_NAME_KEY(59)), ('a' ^ OBFH_GUI_NAME_KEY(59)), ('t' ^ OBFH_GUI_NAME_KEY(59)), ('e' ^ OBFH_GUI_NAME_KEY(59)), ('F' ^ OBFH_GUI_NAME_KEY(59)), ('o' ^ OBFH_GUI_NAME_KEY(59)), ('n' ^ OBFH_GUI_NAME_KEY(59)), ('t' ^ OBFH_GUI_NAME_KEY(59)), ('I' ^ OBFH_GUI_NAME_KEY(59)), ('n' ^ OBFH_GUI_NAME_KEY(59)), ('d' ^ OBFH_GUI_NAME_KEY(59)), ('i' ^ OBFH_GUI_NAME_KEY(59)), ('r' ^ OBFH_GUI_NAME_KEY(59)), ('e' ^ OBFH_GUI_NAME_KEY(59)), ('c' ^ OBFH_GUI_NAME_KEY(59)), ('t' ^ OBFH_GUI_NAME_KEY(59)), ('W' ^ OBFH_GUI_NAME_KEY(59)), ('\0' ^ OBFH_GUI_NAME_KEY(59)) }
 #define CreateFontIndirectW(...) OBFH_API_CALL(1, CreateFontIndirectW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DeleteObject 60
 #define OBFH_GUI_NAME_DeleteObject \
-    { (68u ^ OBFH_GUI_NAME_KEY(60)), (101u ^ OBFH_GUI_NAME_KEY(60)), (108u ^ OBFH_GUI_NAME_KEY(60)), (101u ^ OBFH_GUI_NAME_KEY(60)), (116u ^ OBFH_GUI_NAME_KEY(60)), (101u ^ OBFH_GUI_NAME_KEY(60)), (79u ^ OBFH_GUI_NAME_KEY(60)), (98u ^ OBFH_GUI_NAME_KEY(60)), (106u ^ OBFH_GUI_NAME_KEY(60)), (101u ^ OBFH_GUI_NAME_KEY(60)), (99u ^ OBFH_GUI_NAME_KEY(60)), (116u ^ OBFH_GUI_NAME_KEY(60)), (0u ^ OBFH_GUI_NAME_KEY(60)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(60)), ('e' ^ OBFH_GUI_NAME_KEY(60)), ('l' ^ OBFH_GUI_NAME_KEY(60)), ('e' ^ OBFH_GUI_NAME_KEY(60)), ('t' ^ OBFH_GUI_NAME_KEY(60)), ('e' ^ OBFH_GUI_NAME_KEY(60)), ('O' ^ OBFH_GUI_NAME_KEY(60)), ('b' ^ OBFH_GUI_NAME_KEY(60)), ('j' ^ OBFH_GUI_NAME_KEY(60)), ('e' ^ OBFH_GUI_NAME_KEY(60)), ('c' ^ OBFH_GUI_NAME_KEY(60)), ('t' ^ OBFH_GUI_NAME_KEY(60)), ('\0' ^ OBFH_GUI_NAME_KEY(60)) }
 #define DeleteObject(...) OBFH_API_CALL(1, DeleteObject, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDeviceCaps 61
 #define OBFH_GUI_NAME_GetDeviceCaps \
-    { (71u ^ OBFH_GUI_NAME_KEY(61)), (101u ^ OBFH_GUI_NAME_KEY(61)), (116u ^ OBFH_GUI_NAME_KEY(61)), (68u ^ OBFH_GUI_NAME_KEY(61)), (101u ^ OBFH_GUI_NAME_KEY(61)), (118u ^ OBFH_GUI_NAME_KEY(61)), (105u ^ OBFH_GUI_NAME_KEY(61)), (99u ^ OBFH_GUI_NAME_KEY(61)), (101u ^ OBFH_GUI_NAME_KEY(61)), (67u ^ OBFH_GUI_NAME_KEY(61)), (97u ^ OBFH_GUI_NAME_KEY(61)), (112u ^ OBFH_GUI_NAME_KEY(61)), (115u ^ OBFH_GUI_NAME_KEY(61)), (0u ^ OBFH_GUI_NAME_KEY(61)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(61)), ('e' ^ OBFH_GUI_NAME_KEY(61)), ('t' ^ OBFH_GUI_NAME_KEY(61)), ('D' ^ OBFH_GUI_NAME_KEY(61)), ('e' ^ OBFH_GUI_NAME_KEY(61)), ('v' ^ OBFH_GUI_NAME_KEY(61)), ('i' ^ OBFH_GUI_NAME_KEY(61)), ('c' ^ OBFH_GUI_NAME_KEY(61)), ('e' ^ OBFH_GUI_NAME_KEY(61)), ('C' ^ OBFH_GUI_NAME_KEY(61)), ('a' ^ OBFH_GUI_NAME_KEY(61)), ('p' ^ OBFH_GUI_NAME_KEY(61)), ('s' ^ OBFH_GUI_NAME_KEY(61)), ('\0' ^ OBFH_GUI_NAME_KEY(61)) }
 #define GetDeviceCaps(...) OBFH_API_CALL(1, GetDeviceCaps, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SelectObject 62
 #define OBFH_GUI_NAME_SelectObject \
-    { (83u ^ OBFH_GUI_NAME_KEY(62)), (101u ^ OBFH_GUI_NAME_KEY(62)), (108u ^ OBFH_GUI_NAME_KEY(62)), (101u ^ OBFH_GUI_NAME_KEY(62)), (99u ^ OBFH_GUI_NAME_KEY(62)), (116u ^ OBFH_GUI_NAME_KEY(62)), (79u ^ OBFH_GUI_NAME_KEY(62)), (98u ^ OBFH_GUI_NAME_KEY(62)), (106u ^ OBFH_GUI_NAME_KEY(62)), (101u ^ OBFH_GUI_NAME_KEY(62)), (99u ^ OBFH_GUI_NAME_KEY(62)), (116u ^ OBFH_GUI_NAME_KEY(62)), (0u ^ OBFH_GUI_NAME_KEY(62)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(62)), ('e' ^ OBFH_GUI_NAME_KEY(62)), ('l' ^ OBFH_GUI_NAME_KEY(62)), ('e' ^ OBFH_GUI_NAME_KEY(62)), ('c' ^ OBFH_GUI_NAME_KEY(62)), ('t' ^ OBFH_GUI_NAME_KEY(62)), ('O' ^ OBFH_GUI_NAME_KEY(62)), ('b' ^ OBFH_GUI_NAME_KEY(62)), ('j' ^ OBFH_GUI_NAME_KEY(62)), ('e' ^ OBFH_GUI_NAME_KEY(62)), ('c' ^ OBFH_GUI_NAME_KEY(62)), ('t' ^ OBFH_GUI_NAME_KEY(62)), ('\0' ^ OBFH_GUI_NAME_KEY(62)) }
 #define SelectObject(...) OBFH_API_CALL(1, SelectObject, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetBkColor 63
 #define OBFH_GUI_NAME_SetBkColor \
-    { (83u ^ OBFH_GUI_NAME_KEY(63)), (101u ^ OBFH_GUI_NAME_KEY(63)), (116u ^ OBFH_GUI_NAME_KEY(63)), (66u ^ OBFH_GUI_NAME_KEY(63)), (107u ^ OBFH_GUI_NAME_KEY(63)), (67u ^ OBFH_GUI_NAME_KEY(63)), (111u ^ OBFH_GUI_NAME_KEY(63)), (108u ^ OBFH_GUI_NAME_KEY(63)), (111u ^ OBFH_GUI_NAME_KEY(63)), (114u ^ OBFH_GUI_NAME_KEY(63)), (0u ^ OBFH_GUI_NAME_KEY(63)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(63)), ('e' ^ OBFH_GUI_NAME_KEY(63)), ('t' ^ OBFH_GUI_NAME_KEY(63)), ('B' ^ OBFH_GUI_NAME_KEY(63)), ('k' ^ OBFH_GUI_NAME_KEY(63)), ('C' ^ OBFH_GUI_NAME_KEY(63)), ('o' ^ OBFH_GUI_NAME_KEY(63)), ('l' ^ OBFH_GUI_NAME_KEY(63)), ('o' ^ OBFH_GUI_NAME_KEY(63)), ('r' ^ OBFH_GUI_NAME_KEY(63)), ('\0' ^ OBFH_GUI_NAME_KEY(63)) }
 #define SetBkColor(...) OBFH_API_CALL(1, SetBkColor, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetTextColor 64
 #define OBFH_GUI_NAME_SetTextColor \
-    { (83u ^ OBFH_GUI_NAME_KEY(64)), (101u ^ OBFH_GUI_NAME_KEY(64)), (116u ^ OBFH_GUI_NAME_KEY(64)), (84u ^ OBFH_GUI_NAME_KEY(64)), (101u ^ OBFH_GUI_NAME_KEY(64)), (120u ^ OBFH_GUI_NAME_KEY(64)), (116u ^ OBFH_GUI_NAME_KEY(64)), (67u ^ OBFH_GUI_NAME_KEY(64)), (111u ^ OBFH_GUI_NAME_KEY(64)), (108u ^ OBFH_GUI_NAME_KEY(64)), (111u ^ OBFH_GUI_NAME_KEY(64)), (114u ^ OBFH_GUI_NAME_KEY(64)), (0u ^ OBFH_GUI_NAME_KEY(64)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(64)), ('e' ^ OBFH_GUI_NAME_KEY(64)), ('t' ^ OBFH_GUI_NAME_KEY(64)), ('T' ^ OBFH_GUI_NAME_KEY(64)), ('e' ^ OBFH_GUI_NAME_KEY(64)), ('x' ^ OBFH_GUI_NAME_KEY(64)), ('t' ^ OBFH_GUI_NAME_KEY(64)), ('C' ^ OBFH_GUI_NAME_KEY(64)), ('o' ^ OBFH_GUI_NAME_KEY(64)), ('l' ^ OBFH_GUI_NAME_KEY(64)), ('o' ^ OBFH_GUI_NAME_KEY(64)), ('r' ^ OBFH_GUI_NAME_KEY(64)), ('\0' ^ OBFH_GUI_NAME_KEY(64)) }
 #define SetTextColor(...) OBFH_API_CALL(1, SetTextColor, __VA_ARGS__)
 // KERNEL32 user call sites share the cache; resolver definitions above use
 // native bootstrap calls and cannot recurse through these late intercepts.
 #define OBFH_GUI_ID_ExitProcess 65
 #define OBFH_GUI_NAME_ExitProcess \
-    { (69u ^ OBFH_GUI_NAME_KEY(65)), (120u ^ OBFH_GUI_NAME_KEY(65)), (105u ^ OBFH_GUI_NAME_KEY(65)), (116u ^ OBFH_GUI_NAME_KEY(65)), (80u ^ OBFH_GUI_NAME_KEY(65)), (114u ^ OBFH_GUI_NAME_KEY(65)), (111u ^ OBFH_GUI_NAME_KEY(65)), (99u ^ OBFH_GUI_NAME_KEY(65)), (101u ^ OBFH_GUI_NAME_KEY(65)), (115u ^ OBFH_GUI_NAME_KEY(65)), (115u ^ OBFH_GUI_NAME_KEY(65)), (0u ^ OBFH_GUI_NAME_KEY(65)) }
+    { ('E' ^ OBFH_GUI_NAME_KEY(65)), ('x' ^ OBFH_GUI_NAME_KEY(65)), ('i' ^ OBFH_GUI_NAME_KEY(65)), ('t' ^ OBFH_GUI_NAME_KEY(65)), ('P' ^ OBFH_GUI_NAME_KEY(65)), ('r' ^ OBFH_GUI_NAME_KEY(65)), ('o' ^ OBFH_GUI_NAME_KEY(65)), ('c' ^ OBFH_GUI_NAME_KEY(65)), ('e' ^ OBFH_GUI_NAME_KEY(65)), ('s' ^ OBFH_GUI_NAME_KEY(65)), ('s' ^ OBFH_GUI_NAME_KEY(65)), ('\0' ^ OBFH_GUI_NAME_KEY(65)) }
 #undef ExitProcess
 #define ExitProcess(...) OBFH_API_CALL(2, ExitProcess, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetLastError 66
 #define OBFH_GUI_NAME_GetLastError \
-    { (71u ^ OBFH_GUI_NAME_KEY(66)), (101u ^ OBFH_GUI_NAME_KEY(66)), (116u ^ OBFH_GUI_NAME_KEY(66)), (76u ^ OBFH_GUI_NAME_KEY(66)), (97u ^ OBFH_GUI_NAME_KEY(66)), (115u ^ OBFH_GUI_NAME_KEY(66)), (116u ^ OBFH_GUI_NAME_KEY(66)), (69u ^ OBFH_GUI_NAME_KEY(66)), (114u ^ OBFH_GUI_NAME_KEY(66)), (114u ^ OBFH_GUI_NAME_KEY(66)), (111u ^ OBFH_GUI_NAME_KEY(66)), (114u ^ OBFH_GUI_NAME_KEY(66)), (0u ^ OBFH_GUI_NAME_KEY(66)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(66)), ('e' ^ OBFH_GUI_NAME_KEY(66)), ('t' ^ OBFH_GUI_NAME_KEY(66)), ('L' ^ OBFH_GUI_NAME_KEY(66)), ('a' ^ OBFH_GUI_NAME_KEY(66)), ('s' ^ OBFH_GUI_NAME_KEY(66)), ('t' ^ OBFH_GUI_NAME_KEY(66)), ('E' ^ OBFH_GUI_NAME_KEY(66)), ('r' ^ OBFH_GUI_NAME_KEY(66)), ('r' ^ OBFH_GUI_NAME_KEY(66)), ('o' ^ OBFH_GUI_NAME_KEY(66)), ('r' ^ OBFH_GUI_NAME_KEY(66)), ('\0' ^ OBFH_GUI_NAME_KEY(66)) }
 #undef GetLastError
 #define GetLastError(...) OBFH_API_CALL(2, GetLastError, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FreeLibrary 67
 #define OBFH_GUI_NAME_FreeLibrary \
-    { (70u ^ OBFH_GUI_NAME_KEY(67)), (114u ^ OBFH_GUI_NAME_KEY(67)), (101u ^ OBFH_GUI_NAME_KEY(67)), (101u ^ OBFH_GUI_NAME_KEY(67)), (76u ^ OBFH_GUI_NAME_KEY(67)), (105u ^ OBFH_GUI_NAME_KEY(67)), (98u ^ OBFH_GUI_NAME_KEY(67)), (114u ^ OBFH_GUI_NAME_KEY(67)), (97u ^ OBFH_GUI_NAME_KEY(67)), (114u ^ OBFH_GUI_NAME_KEY(67)), (121u ^ OBFH_GUI_NAME_KEY(67)), (0u ^ OBFH_GUI_NAME_KEY(67)) }
+    { ('F' ^ OBFH_GUI_NAME_KEY(67)), ('r' ^ OBFH_GUI_NAME_KEY(67)), ('e' ^ OBFH_GUI_NAME_KEY(67)), ('e' ^ OBFH_GUI_NAME_KEY(67)), ('L' ^ OBFH_GUI_NAME_KEY(67)), ('i' ^ OBFH_GUI_NAME_KEY(67)), ('b' ^ OBFH_GUI_NAME_KEY(67)), ('r' ^ OBFH_GUI_NAME_KEY(67)), ('a' ^ OBFH_GUI_NAME_KEY(67)), ('r' ^ OBFH_GUI_NAME_KEY(67)), ('y' ^ OBFH_GUI_NAME_KEY(67)), ('\0' ^ OBFH_GUI_NAME_KEY(67)) }
 #undef FreeLibrary
 #define FreeLibrary(...) OBFH_API_CALL(2, FreeLibrary, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetLastError 68
 #define OBFH_GUI_NAME_SetLastError \
-    { (83u ^ OBFH_GUI_NAME_KEY(68)), (101u ^ OBFH_GUI_NAME_KEY(68)), (116u ^ OBFH_GUI_NAME_KEY(68)), (76u ^ OBFH_GUI_NAME_KEY(68)), (97u ^ OBFH_GUI_NAME_KEY(68)), (115u ^ OBFH_GUI_NAME_KEY(68)), (116u ^ OBFH_GUI_NAME_KEY(68)), (69u ^ OBFH_GUI_NAME_KEY(68)), (114u ^ OBFH_GUI_NAME_KEY(68)), (114u ^ OBFH_GUI_NAME_KEY(68)), (111u ^ OBFH_GUI_NAME_KEY(68)), (114u ^ OBFH_GUI_NAME_KEY(68)), (0u ^ OBFH_GUI_NAME_KEY(68)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(68)), ('e' ^ OBFH_GUI_NAME_KEY(68)), ('t' ^ OBFH_GUI_NAME_KEY(68)), ('L' ^ OBFH_GUI_NAME_KEY(68)), ('a' ^ OBFH_GUI_NAME_KEY(68)), ('s' ^ OBFH_GUI_NAME_KEY(68)), ('t' ^ OBFH_GUI_NAME_KEY(68)), ('E' ^ OBFH_GUI_NAME_KEY(68)), ('r' ^ OBFH_GUI_NAME_KEY(68)), ('r' ^ OBFH_GUI_NAME_KEY(68)), ('o' ^ OBFH_GUI_NAME_KEY(68)), ('r' ^ OBFH_GUI_NAME_KEY(68)), ('\0' ^ OBFH_GUI_NAME_KEY(68)) }
 #undef SetLastError
 #define SetLastError(...) OBFH_API_CALL(2, SetLastError, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WriteConsoleA 69
 #define OBFH_GUI_NAME_WriteConsoleA \
-    { (87u ^ OBFH_GUI_NAME_KEY(69)), (114u ^ OBFH_GUI_NAME_KEY(69)), (105u ^ OBFH_GUI_NAME_KEY(69)), (116u ^ OBFH_GUI_NAME_KEY(69)), (101u ^ OBFH_GUI_NAME_KEY(69)), (67u ^ OBFH_GUI_NAME_KEY(69)), (111u ^ OBFH_GUI_NAME_KEY(69)), (110u ^ OBFH_GUI_NAME_KEY(69)), (115u ^ OBFH_GUI_NAME_KEY(69)), (111u ^ OBFH_GUI_NAME_KEY(69)), (108u ^ OBFH_GUI_NAME_KEY(69)), (101u ^ OBFH_GUI_NAME_KEY(69)), (65u ^ OBFH_GUI_NAME_KEY(69)), (0u ^ OBFH_GUI_NAME_KEY(69)) }
+    { ('W' ^ OBFH_GUI_NAME_KEY(69)), ('r' ^ OBFH_GUI_NAME_KEY(69)), ('i' ^ OBFH_GUI_NAME_KEY(69)), ('t' ^ OBFH_GUI_NAME_KEY(69)), ('e' ^ OBFH_GUI_NAME_KEY(69)), ('C' ^ OBFH_GUI_NAME_KEY(69)), ('o' ^ OBFH_GUI_NAME_KEY(69)), ('n' ^ OBFH_GUI_NAME_KEY(69)), ('s' ^ OBFH_GUI_NAME_KEY(69)), ('o' ^ OBFH_GUI_NAME_KEY(69)), ('l' ^ OBFH_GUI_NAME_KEY(69)), ('e' ^ OBFH_GUI_NAME_KEY(69)), ('A' ^ OBFH_GUI_NAME_KEY(69)), ('\0' ^ OBFH_GUI_NAME_KEY(69)) }
 #undef WriteConsoleA
 #define WriteConsoleA(...) OBFH_API_CALL(2, WriteConsoleA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStdHandle 70
 #define OBFH_GUI_NAME_GetStdHandle \
-    { (71u ^ OBFH_GUI_NAME_KEY(70)), (101u ^ OBFH_GUI_NAME_KEY(70)), (116u ^ OBFH_GUI_NAME_KEY(70)), (83u ^ OBFH_GUI_NAME_KEY(70)), (116u ^ OBFH_GUI_NAME_KEY(70)), (100u ^ OBFH_GUI_NAME_KEY(70)), (72u ^ OBFH_GUI_NAME_KEY(70)), (97u ^ OBFH_GUI_NAME_KEY(70)), (110u ^ OBFH_GUI_NAME_KEY(70)), (100u ^ OBFH_GUI_NAME_KEY(70)), (108u ^ OBFH_GUI_NAME_KEY(70)), (101u ^ OBFH_GUI_NAME_KEY(70)), (0u ^ OBFH_GUI_NAME_KEY(70)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(70)), ('e' ^ OBFH_GUI_NAME_KEY(70)), ('t' ^ OBFH_GUI_NAME_KEY(70)), ('S' ^ OBFH_GUI_NAME_KEY(70)), ('t' ^ OBFH_GUI_NAME_KEY(70)), ('d' ^ OBFH_GUI_NAME_KEY(70)), ('H' ^ OBFH_GUI_NAME_KEY(70)), ('a' ^ OBFH_GUI_NAME_KEY(70)), ('n' ^ OBFH_GUI_NAME_KEY(70)), ('d' ^ OBFH_GUI_NAME_KEY(70)), ('l' ^ OBFH_GUI_NAME_KEY(70)), ('e' ^ OBFH_GUI_NAME_KEY(70)), ('\0' ^ OBFH_GUI_NAME_KEY(70)) }
 #undef GetStdHandle
 #define GetStdHandle(...) OBFH_API_CALL(2, GetStdHandle, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleA 71
 #define OBFH_GUI_NAME_GetModuleHandleA \
-    { (71u ^ OBFH_GUI_NAME_KEY(71)), (101u ^ OBFH_GUI_NAME_KEY(71)), (116u ^ OBFH_GUI_NAME_KEY(71)), (77u ^ OBFH_GUI_NAME_KEY(71)), (111u ^ OBFH_GUI_NAME_KEY(71)), (100u ^ OBFH_GUI_NAME_KEY(71)), (117u ^ OBFH_GUI_NAME_KEY(71)), (108u ^ OBFH_GUI_NAME_KEY(71)), (101u ^ OBFH_GUI_NAME_KEY(71)), (72u ^ OBFH_GUI_NAME_KEY(71)), (97u ^ OBFH_GUI_NAME_KEY(71)), (110u ^ OBFH_GUI_NAME_KEY(71)), (100u ^ OBFH_GUI_NAME_KEY(71)), (108u ^ OBFH_GUI_NAME_KEY(71)), (101u ^ OBFH_GUI_NAME_KEY(71)), (65u ^ OBFH_GUI_NAME_KEY(71)), (0u ^ OBFH_GUI_NAME_KEY(71)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(71)), ('e' ^ OBFH_GUI_NAME_KEY(71)), ('t' ^ OBFH_GUI_NAME_KEY(71)), ('M' ^ OBFH_GUI_NAME_KEY(71)), ('o' ^ OBFH_GUI_NAME_KEY(71)), ('d' ^ OBFH_GUI_NAME_KEY(71)), ('u' ^ OBFH_GUI_NAME_KEY(71)), ('l' ^ OBFH_GUI_NAME_KEY(71)), ('e' ^ OBFH_GUI_NAME_KEY(71)), ('H' ^ OBFH_GUI_NAME_KEY(71)), ('a' ^ OBFH_GUI_NAME_KEY(71)), ('n' ^ OBFH_GUI_NAME_KEY(71)), ('d' ^ OBFH_GUI_NAME_KEY(71)), ('l' ^ OBFH_GUI_NAME_KEY(71)), ('e' ^ OBFH_GUI_NAME_KEY(71)), ('A' ^ OBFH_GUI_NAME_KEY(71)), ('\0' ^ OBFH_GUI_NAME_KEY(71)) }
 #undef GetModuleHandleA
 #define GetModuleHandleA(...) OBFH_API_CALL(2, GetModuleHandleA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleExA 72
 #define OBFH_GUI_NAME_GetModuleHandleExA \
-    { (71u ^ OBFH_GUI_NAME_KEY(72)), (101u ^ OBFH_GUI_NAME_KEY(72)), (116u ^ OBFH_GUI_NAME_KEY(72)), (77u ^ OBFH_GUI_NAME_KEY(72)), (111u ^ OBFH_GUI_NAME_KEY(72)), (100u ^ OBFH_GUI_NAME_KEY(72)), (117u ^ OBFH_GUI_NAME_KEY(72)), (108u ^ OBFH_GUI_NAME_KEY(72)), (101u ^ OBFH_GUI_NAME_KEY(72)), (72u ^ OBFH_GUI_NAME_KEY(72)), (97u ^ OBFH_GUI_NAME_KEY(72)), (110u ^ OBFH_GUI_NAME_KEY(72)), (100u ^ OBFH_GUI_NAME_KEY(72)), (108u ^ OBFH_GUI_NAME_KEY(72)), (101u ^ OBFH_GUI_NAME_KEY(72)), (69u ^ OBFH_GUI_NAME_KEY(72)), (120u ^ OBFH_GUI_NAME_KEY(72)), (65u ^ OBFH_GUI_NAME_KEY(72)), (0u ^ OBFH_GUI_NAME_KEY(72)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(72)), ('e' ^ OBFH_GUI_NAME_KEY(72)), ('t' ^ OBFH_GUI_NAME_KEY(72)), ('M' ^ OBFH_GUI_NAME_KEY(72)), ('o' ^ OBFH_GUI_NAME_KEY(72)), ('d' ^ OBFH_GUI_NAME_KEY(72)), ('u' ^ OBFH_GUI_NAME_KEY(72)), ('l' ^ OBFH_GUI_NAME_KEY(72)), ('e' ^ OBFH_GUI_NAME_KEY(72)), ('H' ^ OBFH_GUI_NAME_KEY(72)), ('a' ^ OBFH_GUI_NAME_KEY(72)), ('n' ^ OBFH_GUI_NAME_KEY(72)), ('d' ^ OBFH_GUI_NAME_KEY(72)), ('l' ^ OBFH_GUI_NAME_KEY(72)), ('e' ^ OBFH_GUI_NAME_KEY(72)), ('E' ^ OBFH_GUI_NAME_KEY(72)), ('x' ^ OBFH_GUI_NAME_KEY(72)), ('A' ^ OBFH_GUI_NAME_KEY(72)), ('\0' ^ OBFH_GUI_NAME_KEY(72)) }
 #undef GetModuleHandleExA
 #define GetModuleHandleExA(...) OBFH_API_CALL(2, GetModuleHandleExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_VirtualQuery 73
 #define OBFH_GUI_NAME_VirtualQuery \
-    { (86u ^ OBFH_GUI_NAME_KEY(73)), (105u ^ OBFH_GUI_NAME_KEY(73)), (114u ^ OBFH_GUI_NAME_KEY(73)), (116u ^ OBFH_GUI_NAME_KEY(73)), (117u ^ OBFH_GUI_NAME_KEY(73)), (97u ^ OBFH_GUI_NAME_KEY(73)), (108u ^ OBFH_GUI_NAME_KEY(73)), (81u ^ OBFH_GUI_NAME_KEY(73)), (117u ^ OBFH_GUI_NAME_KEY(73)), (101u ^ OBFH_GUI_NAME_KEY(73)), (114u ^ OBFH_GUI_NAME_KEY(73)), (121u ^ OBFH_GUI_NAME_KEY(73)), (0u ^ OBFH_GUI_NAME_KEY(73)) }
+    { ('V' ^ OBFH_GUI_NAME_KEY(73)), ('i' ^ OBFH_GUI_NAME_KEY(73)), ('r' ^ OBFH_GUI_NAME_KEY(73)), ('t' ^ OBFH_GUI_NAME_KEY(73)), ('u' ^ OBFH_GUI_NAME_KEY(73)), ('a' ^ OBFH_GUI_NAME_KEY(73)), ('l' ^ OBFH_GUI_NAME_KEY(73)), ('Q' ^ OBFH_GUI_NAME_KEY(73)), ('u' ^ OBFH_GUI_NAME_KEY(73)), ('e' ^ OBFH_GUI_NAME_KEY(73)), ('r' ^ OBFH_GUI_NAME_KEY(73)), ('y' ^ OBFH_GUI_NAME_KEY(73)), ('\0' ^ OBFH_GUI_NAME_KEY(73)) }
 #undef VirtualQuery
 #define VirtualQuery(...) OBFH_API_CALL(2, VirtualQuery, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetConsoleMode 74
 #define OBFH_GUI_NAME_GetConsoleMode \
-    { (71u ^ OBFH_GUI_NAME_KEY(74)), (101u ^ OBFH_GUI_NAME_KEY(74)), (116u ^ OBFH_GUI_NAME_KEY(74)), (67u ^ OBFH_GUI_NAME_KEY(74)), (111u ^ OBFH_GUI_NAME_KEY(74)), (110u ^ OBFH_GUI_NAME_KEY(74)), (115u ^ OBFH_GUI_NAME_KEY(74)), (111u ^ OBFH_GUI_NAME_KEY(74)), (108u ^ OBFH_GUI_NAME_KEY(74)), (101u ^ OBFH_GUI_NAME_KEY(74)), (77u ^ OBFH_GUI_NAME_KEY(74)), (111u ^ OBFH_GUI_NAME_KEY(74)), (100u ^ OBFH_GUI_NAME_KEY(74)), (101u ^ OBFH_GUI_NAME_KEY(74)), (0u ^ OBFH_GUI_NAME_KEY(74)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(74)), ('e' ^ OBFH_GUI_NAME_KEY(74)), ('t' ^ OBFH_GUI_NAME_KEY(74)), ('C' ^ OBFH_GUI_NAME_KEY(74)), ('o' ^ OBFH_GUI_NAME_KEY(74)), ('n' ^ OBFH_GUI_NAME_KEY(74)), ('s' ^ OBFH_GUI_NAME_KEY(74)), ('o' ^ OBFH_GUI_NAME_KEY(74)), ('l' ^ OBFH_GUI_NAME_KEY(74)), ('e' ^ OBFH_GUI_NAME_KEY(74)), ('M' ^ OBFH_GUI_NAME_KEY(74)), ('o' ^ OBFH_GUI_NAME_KEY(74)), ('d' ^ OBFH_GUI_NAME_KEY(74)), ('e' ^ OBFH_GUI_NAME_KEY(74)), ('\0' ^ OBFH_GUI_NAME_KEY(74)) }
 #undef GetConsoleMode
 #define GetConsoleMode(...) OBFH_API_CALL(2, GetConsoleMode, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MulDiv 75
 #define OBFH_GUI_NAME_MulDiv \
-    { (77u ^ OBFH_GUI_NAME_KEY(75)), (117u ^ OBFH_GUI_NAME_KEY(75)), (108u ^ OBFH_GUI_NAME_KEY(75)), (68u ^ OBFH_GUI_NAME_KEY(75)), (105u ^ OBFH_GUI_NAME_KEY(75)), (118u ^ OBFH_GUI_NAME_KEY(75)), (0u ^ OBFH_GUI_NAME_KEY(75)) }
+    { ('M' ^ OBFH_GUI_NAME_KEY(75)), ('u' ^ OBFH_GUI_NAME_KEY(75)), ('l' ^ OBFH_GUI_NAME_KEY(75)), ('D' ^ OBFH_GUI_NAME_KEY(75)), ('i' ^ OBFH_GUI_NAME_KEY(75)), ('v' ^ OBFH_GUI_NAME_KEY(75)), ('\0' ^ OBFH_GUI_NAME_KEY(75)) }
 #undef MulDiv
 #define MulDiv(...) OBFH_API_CALL(2, MulDiv, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalAlloc 76
 #define OBFH_GUI_NAME_GlobalAlloc \
-    { (71u ^ OBFH_GUI_NAME_KEY(76)), (108u ^ OBFH_GUI_NAME_KEY(76)), (111u ^ OBFH_GUI_NAME_KEY(76)), (98u ^ OBFH_GUI_NAME_KEY(76)), (97u ^ OBFH_GUI_NAME_KEY(76)), (108u ^ OBFH_GUI_NAME_KEY(76)), (65u ^ OBFH_GUI_NAME_KEY(76)), (108u ^ OBFH_GUI_NAME_KEY(76)), (108u ^ OBFH_GUI_NAME_KEY(76)), (111u ^ OBFH_GUI_NAME_KEY(76)), (99u ^ OBFH_GUI_NAME_KEY(76)), (0u ^ OBFH_GUI_NAME_KEY(76)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(76)), ('l' ^ OBFH_GUI_NAME_KEY(76)), ('o' ^ OBFH_GUI_NAME_KEY(76)), ('b' ^ OBFH_GUI_NAME_KEY(76)), ('a' ^ OBFH_GUI_NAME_KEY(76)), ('l' ^ OBFH_GUI_NAME_KEY(76)), ('A' ^ OBFH_GUI_NAME_KEY(76)), ('l' ^ OBFH_GUI_NAME_KEY(76)), ('l' ^ OBFH_GUI_NAME_KEY(76)), ('o' ^ OBFH_GUI_NAME_KEY(76)), ('c' ^ OBFH_GUI_NAME_KEY(76)), ('\0' ^ OBFH_GUI_NAME_KEY(76)) }
 #undef GlobalAlloc
 #define GlobalAlloc(...) OBFH_API_CALL(2, GlobalAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalLock 77
 #define OBFH_GUI_NAME_GlobalLock \
-    { (71u ^ OBFH_GUI_NAME_KEY(77)), (108u ^ OBFH_GUI_NAME_KEY(77)), (111u ^ OBFH_GUI_NAME_KEY(77)), (98u ^ OBFH_GUI_NAME_KEY(77)), (97u ^ OBFH_GUI_NAME_KEY(77)), (108u ^ OBFH_GUI_NAME_KEY(77)), (76u ^ OBFH_GUI_NAME_KEY(77)), (111u ^ OBFH_GUI_NAME_KEY(77)), (99u ^ OBFH_GUI_NAME_KEY(77)), (107u ^ OBFH_GUI_NAME_KEY(77)), (0u ^ OBFH_GUI_NAME_KEY(77)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(77)), ('l' ^ OBFH_GUI_NAME_KEY(77)), ('o' ^ OBFH_GUI_NAME_KEY(77)), ('b' ^ OBFH_GUI_NAME_KEY(77)), ('a' ^ OBFH_GUI_NAME_KEY(77)), ('l' ^ OBFH_GUI_NAME_KEY(77)), ('L' ^ OBFH_GUI_NAME_KEY(77)), ('o' ^ OBFH_GUI_NAME_KEY(77)), ('c' ^ OBFH_GUI_NAME_KEY(77)), ('k' ^ OBFH_GUI_NAME_KEY(77)), ('\0' ^ OBFH_GUI_NAME_KEY(77)) }
 #undef GlobalLock
 #define GlobalLock(...) OBFH_API_CALL(2, GlobalLock, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalFree 78
 #define OBFH_GUI_NAME_GlobalFree \
-    { (71u ^ OBFH_GUI_NAME_KEY(78)), (108u ^ OBFH_GUI_NAME_KEY(78)), (111u ^ OBFH_GUI_NAME_KEY(78)), (98u ^ OBFH_GUI_NAME_KEY(78)), (97u ^ OBFH_GUI_NAME_KEY(78)), (108u ^ OBFH_GUI_NAME_KEY(78)), (70u ^ OBFH_GUI_NAME_KEY(78)), (114u ^ OBFH_GUI_NAME_KEY(78)), (101u ^ OBFH_GUI_NAME_KEY(78)), (101u ^ OBFH_GUI_NAME_KEY(78)), (0u ^ OBFH_GUI_NAME_KEY(78)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(78)), ('l' ^ OBFH_GUI_NAME_KEY(78)), ('o' ^ OBFH_GUI_NAME_KEY(78)), ('b' ^ OBFH_GUI_NAME_KEY(78)), ('a' ^ OBFH_GUI_NAME_KEY(78)), ('l' ^ OBFH_GUI_NAME_KEY(78)), ('F' ^ OBFH_GUI_NAME_KEY(78)), ('r' ^ OBFH_GUI_NAME_KEY(78)), ('e' ^ OBFH_GUI_NAME_KEY(78)), ('e' ^ OBFH_GUI_NAME_KEY(78)), ('\0' ^ OBFH_GUI_NAME_KEY(78)) }
 #undef GlobalFree
 #define GlobalFree(...) OBFH_API_CALL(2, GlobalFree, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalUnlock 79
 #define OBFH_GUI_NAME_GlobalUnlock \
-    { (71u ^ OBFH_GUI_NAME_KEY(79)), (108u ^ OBFH_GUI_NAME_KEY(79)), (111u ^ OBFH_GUI_NAME_KEY(79)), (98u ^ OBFH_GUI_NAME_KEY(79)), (97u ^ OBFH_GUI_NAME_KEY(79)), (108u ^ OBFH_GUI_NAME_KEY(79)), (85u ^ OBFH_GUI_NAME_KEY(79)), (110u ^ OBFH_GUI_NAME_KEY(79)), (108u ^ OBFH_GUI_NAME_KEY(79)), (111u ^ OBFH_GUI_NAME_KEY(79)), (99u ^ OBFH_GUI_NAME_KEY(79)), (107u ^ OBFH_GUI_NAME_KEY(79)), (0u ^ OBFH_GUI_NAME_KEY(79)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(79)), ('l' ^ OBFH_GUI_NAME_KEY(79)), ('o' ^ OBFH_GUI_NAME_KEY(79)), ('b' ^ OBFH_GUI_NAME_KEY(79)), ('a' ^ OBFH_GUI_NAME_KEY(79)), ('l' ^ OBFH_GUI_NAME_KEY(79)), ('U' ^ OBFH_GUI_NAME_KEY(79)), ('n' ^ OBFH_GUI_NAME_KEY(79)), ('l' ^ OBFH_GUI_NAME_KEY(79)), ('o' ^ OBFH_GUI_NAME_KEY(79)), ('c' ^ OBFH_GUI_NAME_KEY(79)), ('k' ^ OBFH_GUI_NAME_KEY(79)), ('\0' ^ OBFH_GUI_NAME_KEY(79)) }
 #undef GlobalUnlock
 #define GlobalUnlock(...) OBFH_API_CALL(2, GlobalUnlock, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStartupInfoA 80
 #define OBFH_GUI_NAME_GetStartupInfoA \
-    { (71u ^ OBFH_GUI_NAME_KEY(80)), (101u ^ OBFH_GUI_NAME_KEY(80)), (116u ^ OBFH_GUI_NAME_KEY(80)), (83u ^ OBFH_GUI_NAME_KEY(80)), (116u ^ OBFH_GUI_NAME_KEY(80)), (97u ^ OBFH_GUI_NAME_KEY(80)), (114u ^ OBFH_GUI_NAME_KEY(80)), (116u ^ OBFH_GUI_NAME_KEY(80)), (117u ^ OBFH_GUI_NAME_KEY(80)), (112u ^ OBFH_GUI_NAME_KEY(80)), (73u ^ OBFH_GUI_NAME_KEY(80)), (110u ^ OBFH_GUI_NAME_KEY(80)), (102u ^ OBFH_GUI_NAME_KEY(80)), (111u ^ OBFH_GUI_NAME_KEY(80)), (65u ^ OBFH_GUI_NAME_KEY(80)), (0u ^ OBFH_GUI_NAME_KEY(80)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(80)), ('e' ^ OBFH_GUI_NAME_KEY(80)), ('t' ^ OBFH_GUI_NAME_KEY(80)), ('S' ^ OBFH_GUI_NAME_KEY(80)), ('t' ^ OBFH_GUI_NAME_KEY(80)), ('a' ^ OBFH_GUI_NAME_KEY(80)), ('r' ^ OBFH_GUI_NAME_KEY(80)), ('t' ^ OBFH_GUI_NAME_KEY(80)), ('u' ^ OBFH_GUI_NAME_KEY(80)), ('p' ^ OBFH_GUI_NAME_KEY(80)), ('I' ^ OBFH_GUI_NAME_KEY(80)), ('n' ^ OBFH_GUI_NAME_KEY(80)), ('f' ^ OBFH_GUI_NAME_KEY(80)), ('o' ^ OBFH_GUI_NAME_KEY(80)), ('A' ^ OBFH_GUI_NAME_KEY(80)), ('\0' ^ OBFH_GUI_NAME_KEY(80)) }
 #undef GetStartupInfoA
 #define GetStartupInfoA(...) OBFH_API_CALL(2, GetStartupInfoA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCommandLineA 81
 #define OBFH_GUI_NAME_GetCommandLineA \
-    { (71u ^ OBFH_GUI_NAME_KEY(81)), (101u ^ OBFH_GUI_NAME_KEY(81)), (116u ^ OBFH_GUI_NAME_KEY(81)), (67u ^ OBFH_GUI_NAME_KEY(81)), (111u ^ OBFH_GUI_NAME_KEY(81)), (109u ^ OBFH_GUI_NAME_KEY(81)), (109u ^ OBFH_GUI_NAME_KEY(81)), (97u ^ OBFH_GUI_NAME_KEY(81)), (110u ^ OBFH_GUI_NAME_KEY(81)), (100u ^ OBFH_GUI_NAME_KEY(81)), (76u ^ OBFH_GUI_NAME_KEY(81)), (105u ^ OBFH_GUI_NAME_KEY(81)), (110u ^ OBFH_GUI_NAME_KEY(81)), (101u ^ OBFH_GUI_NAME_KEY(81)), (65u ^ OBFH_GUI_NAME_KEY(81)), (0u ^ OBFH_GUI_NAME_KEY(81)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(81)), ('e' ^ OBFH_GUI_NAME_KEY(81)), ('t' ^ OBFH_GUI_NAME_KEY(81)), ('C' ^ OBFH_GUI_NAME_KEY(81)), ('o' ^ OBFH_GUI_NAME_KEY(81)), ('m' ^ OBFH_GUI_NAME_KEY(81)), ('m' ^ OBFH_GUI_NAME_KEY(81)), ('a' ^ OBFH_GUI_NAME_KEY(81)), ('n' ^ OBFH_GUI_NAME_KEY(81)), ('d' ^ OBFH_GUI_NAME_KEY(81)), ('L' ^ OBFH_GUI_NAME_KEY(81)), ('i' ^ OBFH_GUI_NAME_KEY(81)), ('n' ^ OBFH_GUI_NAME_KEY(81)), ('e' ^ OBFH_GUI_NAME_KEY(81)), ('A' ^ OBFH_GUI_NAME_KEY(81)), ('\0' ^ OBFH_GUI_NAME_KEY(81)) }
 #undef GetCommandLineA
 #define GetCommandLineA(...) OBFH_API_CALL(2, GetCommandLineA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WriteConsoleW 82
 #define OBFH_GUI_NAME_WriteConsoleW \
-    { (87u ^ OBFH_GUI_NAME_KEY(82)), (114u ^ OBFH_GUI_NAME_KEY(82)), (105u ^ OBFH_GUI_NAME_KEY(82)), (116u ^ OBFH_GUI_NAME_KEY(82)), (101u ^ OBFH_GUI_NAME_KEY(82)), (67u ^ OBFH_GUI_NAME_KEY(82)), (111u ^ OBFH_GUI_NAME_KEY(82)), (110u ^ OBFH_GUI_NAME_KEY(82)), (115u ^ OBFH_GUI_NAME_KEY(82)), (111u ^ OBFH_GUI_NAME_KEY(82)), (108u ^ OBFH_GUI_NAME_KEY(82)), (101u ^ OBFH_GUI_NAME_KEY(82)), (87u ^ OBFH_GUI_NAME_KEY(82)), (0u ^ OBFH_GUI_NAME_KEY(82)) }
+    { ('W' ^ OBFH_GUI_NAME_KEY(82)), ('r' ^ OBFH_GUI_NAME_KEY(82)), ('i' ^ OBFH_GUI_NAME_KEY(82)), ('t' ^ OBFH_GUI_NAME_KEY(82)), ('e' ^ OBFH_GUI_NAME_KEY(82)), ('C' ^ OBFH_GUI_NAME_KEY(82)), ('o' ^ OBFH_GUI_NAME_KEY(82)), ('n' ^ OBFH_GUI_NAME_KEY(82)), ('s' ^ OBFH_GUI_NAME_KEY(82)), ('o' ^ OBFH_GUI_NAME_KEY(82)), ('l' ^ OBFH_GUI_NAME_KEY(82)), ('e' ^ OBFH_GUI_NAME_KEY(82)), ('W' ^ OBFH_GUI_NAME_KEY(82)), ('\0' ^ OBFH_GUI_NAME_KEY(82)) }
 #undef WriteConsoleW
 #define WriteConsoleW(...) OBFH_API_CALL(2, WriteConsoleW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleW 83
 #define OBFH_GUI_NAME_GetModuleHandleW \
-    { (71u ^ OBFH_GUI_NAME_KEY(83)), (101u ^ OBFH_GUI_NAME_KEY(83)), (116u ^ OBFH_GUI_NAME_KEY(83)), (77u ^ OBFH_GUI_NAME_KEY(83)), (111u ^ OBFH_GUI_NAME_KEY(83)), (100u ^ OBFH_GUI_NAME_KEY(83)), (117u ^ OBFH_GUI_NAME_KEY(83)), (108u ^ OBFH_GUI_NAME_KEY(83)), (101u ^ OBFH_GUI_NAME_KEY(83)), (72u ^ OBFH_GUI_NAME_KEY(83)), (97u ^ OBFH_GUI_NAME_KEY(83)), (110u ^ OBFH_GUI_NAME_KEY(83)), (100u ^ OBFH_GUI_NAME_KEY(83)), (108u ^ OBFH_GUI_NAME_KEY(83)), (101u ^ OBFH_GUI_NAME_KEY(83)), (87u ^ OBFH_GUI_NAME_KEY(83)), (0u ^ OBFH_GUI_NAME_KEY(83)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(83)), ('e' ^ OBFH_GUI_NAME_KEY(83)), ('t' ^ OBFH_GUI_NAME_KEY(83)), ('M' ^ OBFH_GUI_NAME_KEY(83)), ('o' ^ OBFH_GUI_NAME_KEY(83)), ('d' ^ OBFH_GUI_NAME_KEY(83)), ('u' ^ OBFH_GUI_NAME_KEY(83)), ('l' ^ OBFH_GUI_NAME_KEY(83)), ('e' ^ OBFH_GUI_NAME_KEY(83)), ('H' ^ OBFH_GUI_NAME_KEY(83)), ('a' ^ OBFH_GUI_NAME_KEY(83)), ('n' ^ OBFH_GUI_NAME_KEY(83)), ('d' ^ OBFH_GUI_NAME_KEY(83)), ('l' ^ OBFH_GUI_NAME_KEY(83)), ('e' ^ OBFH_GUI_NAME_KEY(83)), ('W' ^ OBFH_GUI_NAME_KEY(83)), ('\0' ^ OBFH_GUI_NAME_KEY(83)) }
 #undef GetModuleHandleW
 #define GetModuleHandleW(...) OBFH_API_CALL(2, GetModuleHandleW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleExW 84
 #define OBFH_GUI_NAME_GetModuleHandleExW \
-    { (71u ^ OBFH_GUI_NAME_KEY(84)), (101u ^ OBFH_GUI_NAME_KEY(84)), (116u ^ OBFH_GUI_NAME_KEY(84)), (77u ^ OBFH_GUI_NAME_KEY(84)), (111u ^ OBFH_GUI_NAME_KEY(84)), (100u ^ OBFH_GUI_NAME_KEY(84)), (117u ^ OBFH_GUI_NAME_KEY(84)), (108u ^ OBFH_GUI_NAME_KEY(84)), (101u ^ OBFH_GUI_NAME_KEY(84)), (72u ^ OBFH_GUI_NAME_KEY(84)), (97u ^ OBFH_GUI_NAME_KEY(84)), (110u ^ OBFH_GUI_NAME_KEY(84)), (100u ^ OBFH_GUI_NAME_KEY(84)), (108u ^ OBFH_GUI_NAME_KEY(84)), (101u ^ OBFH_GUI_NAME_KEY(84)), (69u ^ OBFH_GUI_NAME_KEY(84)), (120u ^ OBFH_GUI_NAME_KEY(84)), (87u ^ OBFH_GUI_NAME_KEY(84)), (0u ^ OBFH_GUI_NAME_KEY(84)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(84)), ('e' ^ OBFH_GUI_NAME_KEY(84)), ('t' ^ OBFH_GUI_NAME_KEY(84)), ('M' ^ OBFH_GUI_NAME_KEY(84)), ('o' ^ OBFH_GUI_NAME_KEY(84)), ('d' ^ OBFH_GUI_NAME_KEY(84)), ('u' ^ OBFH_GUI_NAME_KEY(84)), ('l' ^ OBFH_GUI_NAME_KEY(84)), ('e' ^ OBFH_GUI_NAME_KEY(84)), ('H' ^ OBFH_GUI_NAME_KEY(84)), ('a' ^ OBFH_GUI_NAME_KEY(84)), ('n' ^ OBFH_GUI_NAME_KEY(84)), ('d' ^ OBFH_GUI_NAME_KEY(84)), ('l' ^ OBFH_GUI_NAME_KEY(84)), ('e' ^ OBFH_GUI_NAME_KEY(84)), ('E' ^ OBFH_GUI_NAME_KEY(84)), ('x' ^ OBFH_GUI_NAME_KEY(84)), ('W' ^ OBFH_GUI_NAME_KEY(84)), ('\0' ^ OBFH_GUI_NAME_KEY(84)) }
 #undef GetModuleHandleExW
 #define GetModuleHandleExW(...) OBFH_API_CALL(2, GetModuleHandleExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStartupInfoW 85
 #define OBFH_GUI_NAME_GetStartupInfoW \
-    { (71u ^ OBFH_GUI_NAME_KEY(85)), (101u ^ OBFH_GUI_NAME_KEY(85)), (116u ^ OBFH_GUI_NAME_KEY(85)), (83u ^ OBFH_GUI_NAME_KEY(85)), (116u ^ OBFH_GUI_NAME_KEY(85)), (97u ^ OBFH_GUI_NAME_KEY(85)), (114u ^ OBFH_GUI_NAME_KEY(85)), (116u ^ OBFH_GUI_NAME_KEY(85)), (117u ^ OBFH_GUI_NAME_KEY(85)), (112u ^ OBFH_GUI_NAME_KEY(85)), (73u ^ OBFH_GUI_NAME_KEY(85)), (110u ^ OBFH_GUI_NAME_KEY(85)), (102u ^ OBFH_GUI_NAME_KEY(85)), (111u ^ OBFH_GUI_NAME_KEY(85)), (87u ^ OBFH_GUI_NAME_KEY(85)), (0u ^ OBFH_GUI_NAME_KEY(85)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(85)), ('e' ^ OBFH_GUI_NAME_KEY(85)), ('t' ^ OBFH_GUI_NAME_KEY(85)), ('S' ^ OBFH_GUI_NAME_KEY(85)), ('t' ^ OBFH_GUI_NAME_KEY(85)), ('a' ^ OBFH_GUI_NAME_KEY(85)), ('r' ^ OBFH_GUI_NAME_KEY(85)), ('t' ^ OBFH_GUI_NAME_KEY(85)), ('u' ^ OBFH_GUI_NAME_KEY(85)), ('p' ^ OBFH_GUI_NAME_KEY(85)), ('I' ^ OBFH_GUI_NAME_KEY(85)), ('n' ^ OBFH_GUI_NAME_KEY(85)), ('f' ^ OBFH_GUI_NAME_KEY(85)), ('o' ^ OBFH_GUI_NAME_KEY(85)), ('W' ^ OBFH_GUI_NAME_KEY(85)), ('\0' ^ OBFH_GUI_NAME_KEY(85)) }
 #undef GetStartupInfoW
 #define GetStartupInfoW(...) OBFH_API_CALL(2, GetStartupInfoW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCommandLineW 86
 #define OBFH_GUI_NAME_GetCommandLineW \
-    { (71u ^ OBFH_GUI_NAME_KEY(86)), (101u ^ OBFH_GUI_NAME_KEY(86)), (116u ^ OBFH_GUI_NAME_KEY(86)), (67u ^ OBFH_GUI_NAME_KEY(86)), (111u ^ OBFH_GUI_NAME_KEY(86)), (109u ^ OBFH_GUI_NAME_KEY(86)), (109u ^ OBFH_GUI_NAME_KEY(86)), (97u ^ OBFH_GUI_NAME_KEY(86)), (110u ^ OBFH_GUI_NAME_KEY(86)), (100u ^ OBFH_GUI_NAME_KEY(86)), (76u ^ OBFH_GUI_NAME_KEY(86)), (105u ^ OBFH_GUI_NAME_KEY(86)), (110u ^ OBFH_GUI_NAME_KEY(86)), (101u ^ OBFH_GUI_NAME_KEY(86)), (87u ^ OBFH_GUI_NAME_KEY(86)), (0u ^ OBFH_GUI_NAME_KEY(86)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(86)), ('e' ^ OBFH_GUI_NAME_KEY(86)), ('t' ^ OBFH_GUI_NAME_KEY(86)), ('C' ^ OBFH_GUI_NAME_KEY(86)), ('o' ^ OBFH_GUI_NAME_KEY(86)), ('m' ^ OBFH_GUI_NAME_KEY(86)), ('m' ^ OBFH_GUI_NAME_KEY(86)), ('a' ^ OBFH_GUI_NAME_KEY(86)), ('n' ^ OBFH_GUI_NAME_KEY(86)), ('d' ^ OBFH_GUI_NAME_KEY(86)), ('L' ^ OBFH_GUI_NAME_KEY(86)), ('i' ^ OBFH_GUI_NAME_KEY(86)), ('n' ^ OBFH_GUI_NAME_KEY(86)), ('e' ^ OBFH_GUI_NAME_KEY(86)), ('W' ^ OBFH_GUI_NAME_KEY(86)), ('\0' ^ OBFH_GUI_NAME_KEY(86)) }
 #undef GetCommandLineW
 #define GetCommandLineW(...) OBFH_API_CALL(2, GetCommandLineW, __VA_ARGS__)
 
@@ -6798,43 +7208,43 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_CreateFileA 87
 #define OBFH_GUI_NAME_CreateFileA \
-    { (67u ^ OBFH_GUI_NAME_KEY(87)), (114u ^ OBFH_GUI_NAME_KEY(87)), (101u ^ OBFH_GUI_NAME_KEY(87)), (97u ^ OBFH_GUI_NAME_KEY(87)), (116u ^ OBFH_GUI_NAME_KEY(87)), (101u ^ OBFH_GUI_NAME_KEY(87)), (70u ^ OBFH_GUI_NAME_KEY(87)), (105u ^ OBFH_GUI_NAME_KEY(87)), (108u ^ OBFH_GUI_NAME_KEY(87)), (101u ^ OBFH_GUI_NAME_KEY(87)), (65u ^ OBFH_GUI_NAME_KEY(87)), (0u ^ OBFH_GUI_NAME_KEY(87)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(87)), ('r' ^ OBFH_GUI_NAME_KEY(87)), ('e' ^ OBFH_GUI_NAME_KEY(87)), ('a' ^ OBFH_GUI_NAME_KEY(87)), ('t' ^ OBFH_GUI_NAME_KEY(87)), ('e' ^ OBFH_GUI_NAME_KEY(87)), ('F' ^ OBFH_GUI_NAME_KEY(87)), ('i' ^ OBFH_GUI_NAME_KEY(87)), ('l' ^ OBFH_GUI_NAME_KEY(87)), ('e' ^ OBFH_GUI_NAME_KEY(87)), ('A' ^ OBFH_GUI_NAME_KEY(87)), ('\0' ^ OBFH_GUI_NAME_KEY(87)) }
 #undef CreateFileA
 #define CreateFileA(...) OBFH_API_CALL(2, CreateFileA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFileW 88
 #define OBFH_GUI_NAME_CreateFileW \
-    { (67u ^ OBFH_GUI_NAME_KEY(88)), (114u ^ OBFH_GUI_NAME_KEY(88)), (101u ^ OBFH_GUI_NAME_KEY(88)), (97u ^ OBFH_GUI_NAME_KEY(88)), (116u ^ OBFH_GUI_NAME_KEY(88)), (101u ^ OBFH_GUI_NAME_KEY(88)), (70u ^ OBFH_GUI_NAME_KEY(88)), (105u ^ OBFH_GUI_NAME_KEY(88)), (108u ^ OBFH_GUI_NAME_KEY(88)), (101u ^ OBFH_GUI_NAME_KEY(88)), (87u ^ OBFH_GUI_NAME_KEY(88)), (0u ^ OBFH_GUI_NAME_KEY(88)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(88)), ('r' ^ OBFH_GUI_NAME_KEY(88)), ('e' ^ OBFH_GUI_NAME_KEY(88)), ('a' ^ OBFH_GUI_NAME_KEY(88)), ('t' ^ OBFH_GUI_NAME_KEY(88)), ('e' ^ OBFH_GUI_NAME_KEY(88)), ('F' ^ OBFH_GUI_NAME_KEY(88)), ('i' ^ OBFH_GUI_NAME_KEY(88)), ('l' ^ OBFH_GUI_NAME_KEY(88)), ('e' ^ OBFH_GUI_NAME_KEY(88)), ('W' ^ OBFH_GUI_NAME_KEY(88)), ('\0' ^ OBFH_GUI_NAME_KEY(88)) }
 #undef CreateFileW
 #define CreateFileW(...) OBFH_API_CALL(2, CreateFileW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReadFile 89
 #define OBFH_GUI_NAME_ReadFile \
-    { (82u ^ OBFH_GUI_NAME_KEY(89)), (101u ^ OBFH_GUI_NAME_KEY(89)), (97u ^ OBFH_GUI_NAME_KEY(89)), (100u ^ OBFH_GUI_NAME_KEY(89)), (70u ^ OBFH_GUI_NAME_KEY(89)), (105u ^ OBFH_GUI_NAME_KEY(89)), (108u ^ OBFH_GUI_NAME_KEY(89)), (101u ^ OBFH_GUI_NAME_KEY(89)), (0u ^ OBFH_GUI_NAME_KEY(89)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(89)), ('e' ^ OBFH_GUI_NAME_KEY(89)), ('a' ^ OBFH_GUI_NAME_KEY(89)), ('d' ^ OBFH_GUI_NAME_KEY(89)), ('F' ^ OBFH_GUI_NAME_KEY(89)), ('i' ^ OBFH_GUI_NAME_KEY(89)), ('l' ^ OBFH_GUI_NAME_KEY(89)), ('e' ^ OBFH_GUI_NAME_KEY(89)), ('\0' ^ OBFH_GUI_NAME_KEY(89)) }
 #undef ReadFile
 #define ReadFile(...) OBFH_API_CALL(2, ReadFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WriteFile 90
 #define OBFH_GUI_NAME_WriteFile \
-    { (87u ^ OBFH_GUI_NAME_KEY(90)), (114u ^ OBFH_GUI_NAME_KEY(90)), (105u ^ OBFH_GUI_NAME_KEY(90)), (116u ^ OBFH_GUI_NAME_KEY(90)), (101u ^ OBFH_GUI_NAME_KEY(90)), (70u ^ OBFH_GUI_NAME_KEY(90)), (105u ^ OBFH_GUI_NAME_KEY(90)), (108u ^ OBFH_GUI_NAME_KEY(90)), (101u ^ OBFH_GUI_NAME_KEY(90)), (0u ^ OBFH_GUI_NAME_KEY(90)) }
+    { ('W' ^ OBFH_GUI_NAME_KEY(90)), ('r' ^ OBFH_GUI_NAME_KEY(90)), ('i' ^ OBFH_GUI_NAME_KEY(90)), ('t' ^ OBFH_GUI_NAME_KEY(90)), ('e' ^ OBFH_GUI_NAME_KEY(90)), ('F' ^ OBFH_GUI_NAME_KEY(90)), ('i' ^ OBFH_GUI_NAME_KEY(90)), ('l' ^ OBFH_GUI_NAME_KEY(90)), ('e' ^ OBFH_GUI_NAME_KEY(90)), ('\0' ^ OBFH_GUI_NAME_KEY(90)) }
 #undef WriteFile
 #define WriteFile(...) OBFH_API_CALL(2, WriteFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CloseHandle 91
 #define OBFH_GUI_NAME_CloseHandle \
-    { (67u ^ OBFH_GUI_NAME_KEY(91)), (108u ^ OBFH_GUI_NAME_KEY(91)), (111u ^ OBFH_GUI_NAME_KEY(91)), (115u ^ OBFH_GUI_NAME_KEY(91)), (101u ^ OBFH_GUI_NAME_KEY(91)), (72u ^ OBFH_GUI_NAME_KEY(91)), (97u ^ OBFH_GUI_NAME_KEY(91)), (110u ^ OBFH_GUI_NAME_KEY(91)), (100u ^ OBFH_GUI_NAME_KEY(91)), (108u ^ OBFH_GUI_NAME_KEY(91)), (101u ^ OBFH_GUI_NAME_KEY(91)), (0u ^ OBFH_GUI_NAME_KEY(91)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(91)), ('l' ^ OBFH_GUI_NAME_KEY(91)), ('o' ^ OBFH_GUI_NAME_KEY(91)), ('s' ^ OBFH_GUI_NAME_KEY(91)), ('e' ^ OBFH_GUI_NAME_KEY(91)), ('H' ^ OBFH_GUI_NAME_KEY(91)), ('a' ^ OBFH_GUI_NAME_KEY(91)), ('n' ^ OBFH_GUI_NAME_KEY(91)), ('d' ^ OBFH_GUI_NAME_KEY(91)), ('l' ^ OBFH_GUI_NAME_KEY(91)), ('e' ^ OBFH_GUI_NAME_KEY(91)), ('\0' ^ OBFH_GUI_NAME_KEY(91)) }
 #undef CloseHandle
 #define CloseHandle(...) OBFH_API_CALL(2, CloseHandle, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileSizeEx 92
 #define OBFH_GUI_NAME_GetFileSizeEx \
-    { (71u ^ OBFH_GUI_NAME_KEY(92)), (101u ^ OBFH_GUI_NAME_KEY(92)), (116u ^ OBFH_GUI_NAME_KEY(92)), (70u ^ OBFH_GUI_NAME_KEY(92)), (105u ^ OBFH_GUI_NAME_KEY(92)), (108u ^ OBFH_GUI_NAME_KEY(92)), (101u ^ OBFH_GUI_NAME_KEY(92)), (83u ^ OBFH_GUI_NAME_KEY(92)), (105u ^ OBFH_GUI_NAME_KEY(92)), (122u ^ OBFH_GUI_NAME_KEY(92)), (101u ^ OBFH_GUI_NAME_KEY(92)), (69u ^ OBFH_GUI_NAME_KEY(92)), (120u ^ OBFH_GUI_NAME_KEY(92)), (0u ^ OBFH_GUI_NAME_KEY(92)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(92)), ('e' ^ OBFH_GUI_NAME_KEY(92)), ('t' ^ OBFH_GUI_NAME_KEY(92)), ('F' ^ OBFH_GUI_NAME_KEY(92)), ('i' ^ OBFH_GUI_NAME_KEY(92)), ('l' ^ OBFH_GUI_NAME_KEY(92)), ('e' ^ OBFH_GUI_NAME_KEY(92)), ('S' ^ OBFH_GUI_NAME_KEY(92)), ('i' ^ OBFH_GUI_NAME_KEY(92)), ('z' ^ OBFH_GUI_NAME_KEY(92)), ('e' ^ OBFH_GUI_NAME_KEY(92)), ('E' ^ OBFH_GUI_NAME_KEY(92)), ('x' ^ OBFH_GUI_NAME_KEY(92)), ('\0' ^ OBFH_GUI_NAME_KEY(92)) }
 #undef GetFileSizeEx
 #define GetFileSizeEx(...) OBFH_API_CALL(2, GetFileSizeEx, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetFilePointerEx 93
 #define OBFH_GUI_NAME_SetFilePointerEx \
-    { (83u ^ OBFH_GUI_NAME_KEY(93)), (101u ^ OBFH_GUI_NAME_KEY(93)), (116u ^ OBFH_GUI_NAME_KEY(93)), (70u ^ OBFH_GUI_NAME_KEY(93)), (105u ^ OBFH_GUI_NAME_KEY(93)), (108u ^ OBFH_GUI_NAME_KEY(93)), (101u ^ OBFH_GUI_NAME_KEY(93)), (80u ^ OBFH_GUI_NAME_KEY(93)), (111u ^ OBFH_GUI_NAME_KEY(93)), (105u ^ OBFH_GUI_NAME_KEY(93)), (110u ^ OBFH_GUI_NAME_KEY(93)), (116u ^ OBFH_GUI_NAME_KEY(93)), (101u ^ OBFH_GUI_NAME_KEY(93)), (114u ^ OBFH_GUI_NAME_KEY(93)), (69u ^ OBFH_GUI_NAME_KEY(93)), (120u ^ OBFH_GUI_NAME_KEY(93)), (0u ^ OBFH_GUI_NAME_KEY(93)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(93)), ('e' ^ OBFH_GUI_NAME_KEY(93)), ('t' ^ OBFH_GUI_NAME_KEY(93)), ('F' ^ OBFH_GUI_NAME_KEY(93)), ('i' ^ OBFH_GUI_NAME_KEY(93)), ('l' ^ OBFH_GUI_NAME_KEY(93)), ('e' ^ OBFH_GUI_NAME_KEY(93)), ('P' ^ OBFH_GUI_NAME_KEY(93)), ('o' ^ OBFH_GUI_NAME_KEY(93)), ('i' ^ OBFH_GUI_NAME_KEY(93)), ('n' ^ OBFH_GUI_NAME_KEY(93)), ('t' ^ OBFH_GUI_NAME_KEY(93)), ('e' ^ OBFH_GUI_NAME_KEY(93)), ('r' ^ OBFH_GUI_NAME_KEY(93)), ('E' ^ OBFH_GUI_NAME_KEY(93)), ('x' ^ OBFH_GUI_NAME_KEY(93)), ('\0' ^ OBFH_GUI_NAME_KEY(93)) }
 #undef SetFilePointerEx
 #define SetFilePointerEx(...) OBFH_API_CALL(2, SetFilePointerEx, __VA_ARGS__)
 
@@ -6842,43 +7252,43 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_VirtualAlloc 94
 #define OBFH_GUI_NAME_VirtualAlloc \
-    { (86u ^ OBFH_GUI_NAME_KEY(94)), (105u ^ OBFH_GUI_NAME_KEY(94)), (114u ^ OBFH_GUI_NAME_KEY(94)), (116u ^ OBFH_GUI_NAME_KEY(94)), (117u ^ OBFH_GUI_NAME_KEY(94)), (97u ^ OBFH_GUI_NAME_KEY(94)), (108u ^ OBFH_GUI_NAME_KEY(94)), (65u ^ OBFH_GUI_NAME_KEY(94)), (108u ^ OBFH_GUI_NAME_KEY(94)), (108u ^ OBFH_GUI_NAME_KEY(94)), (111u ^ OBFH_GUI_NAME_KEY(94)), (99u ^ OBFH_GUI_NAME_KEY(94)), (0u ^ OBFH_GUI_NAME_KEY(94)) }
+    { ('V' ^ OBFH_GUI_NAME_KEY(94)), ('i' ^ OBFH_GUI_NAME_KEY(94)), ('r' ^ OBFH_GUI_NAME_KEY(94)), ('t' ^ OBFH_GUI_NAME_KEY(94)), ('u' ^ OBFH_GUI_NAME_KEY(94)), ('a' ^ OBFH_GUI_NAME_KEY(94)), ('l' ^ OBFH_GUI_NAME_KEY(94)), ('A' ^ OBFH_GUI_NAME_KEY(94)), ('l' ^ OBFH_GUI_NAME_KEY(94)), ('l' ^ OBFH_GUI_NAME_KEY(94)), ('o' ^ OBFH_GUI_NAME_KEY(94)), ('c' ^ OBFH_GUI_NAME_KEY(94)), ('\0' ^ OBFH_GUI_NAME_KEY(94)) }
 #undef VirtualAlloc
 #define VirtualAlloc(...) OBFH_API_CALL(2, VirtualAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_VirtualProtect 95
 #define OBFH_GUI_NAME_VirtualProtect \
-    { (86u ^ OBFH_GUI_NAME_KEY(95)), (105u ^ OBFH_GUI_NAME_KEY(95)), (114u ^ OBFH_GUI_NAME_KEY(95)), (116u ^ OBFH_GUI_NAME_KEY(95)), (117u ^ OBFH_GUI_NAME_KEY(95)), (97u ^ OBFH_GUI_NAME_KEY(95)), (108u ^ OBFH_GUI_NAME_KEY(95)), (80u ^ OBFH_GUI_NAME_KEY(95)), (114u ^ OBFH_GUI_NAME_KEY(95)), (111u ^ OBFH_GUI_NAME_KEY(95)), (116u ^ OBFH_GUI_NAME_KEY(95)), (101u ^ OBFH_GUI_NAME_KEY(95)), (99u ^ OBFH_GUI_NAME_KEY(95)), (116u ^ OBFH_GUI_NAME_KEY(95)), (0u ^ OBFH_GUI_NAME_KEY(95)) }
+    { ('V' ^ OBFH_GUI_NAME_KEY(95)), ('i' ^ OBFH_GUI_NAME_KEY(95)), ('r' ^ OBFH_GUI_NAME_KEY(95)), ('t' ^ OBFH_GUI_NAME_KEY(95)), ('u' ^ OBFH_GUI_NAME_KEY(95)), ('a' ^ OBFH_GUI_NAME_KEY(95)), ('l' ^ OBFH_GUI_NAME_KEY(95)), ('P' ^ OBFH_GUI_NAME_KEY(95)), ('r' ^ OBFH_GUI_NAME_KEY(95)), ('o' ^ OBFH_GUI_NAME_KEY(95)), ('t' ^ OBFH_GUI_NAME_KEY(95)), ('e' ^ OBFH_GUI_NAME_KEY(95)), ('c' ^ OBFH_GUI_NAME_KEY(95)), ('t' ^ OBFH_GUI_NAME_KEY(95)), ('\0' ^ OBFH_GUI_NAME_KEY(95)) }
 #undef VirtualProtect
 #define VirtualProtect(...) OBFH_API_CALL(2, VirtualProtect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_VirtualFree 96
 #define OBFH_GUI_NAME_VirtualFree \
-    { (86u ^ OBFH_GUI_NAME_KEY(96)), (105u ^ OBFH_GUI_NAME_KEY(96)), (114u ^ OBFH_GUI_NAME_KEY(96)), (116u ^ OBFH_GUI_NAME_KEY(96)), (117u ^ OBFH_GUI_NAME_KEY(96)), (97u ^ OBFH_GUI_NAME_KEY(96)), (108u ^ OBFH_GUI_NAME_KEY(96)), (70u ^ OBFH_GUI_NAME_KEY(96)), (114u ^ OBFH_GUI_NAME_KEY(96)), (101u ^ OBFH_GUI_NAME_KEY(96)), (101u ^ OBFH_GUI_NAME_KEY(96)), (0u ^ OBFH_GUI_NAME_KEY(96)) }
+    { ('V' ^ OBFH_GUI_NAME_KEY(96)), ('i' ^ OBFH_GUI_NAME_KEY(96)), ('r' ^ OBFH_GUI_NAME_KEY(96)), ('t' ^ OBFH_GUI_NAME_KEY(96)), ('u' ^ OBFH_GUI_NAME_KEY(96)), ('a' ^ OBFH_GUI_NAME_KEY(96)), ('l' ^ OBFH_GUI_NAME_KEY(96)), ('F' ^ OBFH_GUI_NAME_KEY(96)), ('r' ^ OBFH_GUI_NAME_KEY(96)), ('e' ^ OBFH_GUI_NAME_KEY(96)), ('e' ^ OBFH_GUI_NAME_KEY(96)), ('\0' ^ OBFH_GUI_NAME_KEY(96)) }
 #undef VirtualFree
 #define VirtualFree(...) OBFH_API_CALL(2, VirtualFree, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetProcessHeap 97
 #define OBFH_GUI_NAME_GetProcessHeap \
-    { (71u ^ OBFH_GUI_NAME_KEY(97)), (101u ^ OBFH_GUI_NAME_KEY(97)), (116u ^ OBFH_GUI_NAME_KEY(97)), (80u ^ OBFH_GUI_NAME_KEY(97)), (114u ^ OBFH_GUI_NAME_KEY(97)), (111u ^ OBFH_GUI_NAME_KEY(97)), (99u ^ OBFH_GUI_NAME_KEY(97)), (101u ^ OBFH_GUI_NAME_KEY(97)), (115u ^ OBFH_GUI_NAME_KEY(97)), (115u ^ OBFH_GUI_NAME_KEY(97)), (72u ^ OBFH_GUI_NAME_KEY(97)), (101u ^ OBFH_GUI_NAME_KEY(97)), (97u ^ OBFH_GUI_NAME_KEY(97)), (112u ^ OBFH_GUI_NAME_KEY(97)), (0u ^ OBFH_GUI_NAME_KEY(97)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(97)), ('e' ^ OBFH_GUI_NAME_KEY(97)), ('t' ^ OBFH_GUI_NAME_KEY(97)), ('P' ^ OBFH_GUI_NAME_KEY(97)), ('r' ^ OBFH_GUI_NAME_KEY(97)), ('o' ^ OBFH_GUI_NAME_KEY(97)), ('c' ^ OBFH_GUI_NAME_KEY(97)), ('e' ^ OBFH_GUI_NAME_KEY(97)), ('s' ^ OBFH_GUI_NAME_KEY(97)), ('s' ^ OBFH_GUI_NAME_KEY(97)), ('H' ^ OBFH_GUI_NAME_KEY(97)), ('e' ^ OBFH_GUI_NAME_KEY(97)), ('a' ^ OBFH_GUI_NAME_KEY(97)), ('p' ^ OBFH_GUI_NAME_KEY(97)), ('\0' ^ OBFH_GUI_NAME_KEY(97)) }
 #undef GetProcessHeap
 #define GetProcessHeap(...) OBFH_API_CALL(2, GetProcessHeap, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapAlloc 98
 #define OBFH_GUI_NAME_HeapAlloc \
-    { (72u ^ OBFH_GUI_NAME_KEY(98)), (101u ^ OBFH_GUI_NAME_KEY(98)), (97u ^ OBFH_GUI_NAME_KEY(98)), (112u ^ OBFH_GUI_NAME_KEY(98)), (65u ^ OBFH_GUI_NAME_KEY(98)), (108u ^ OBFH_GUI_NAME_KEY(98)), (108u ^ OBFH_GUI_NAME_KEY(98)), (111u ^ OBFH_GUI_NAME_KEY(98)), (99u ^ OBFH_GUI_NAME_KEY(98)), (0u ^ OBFH_GUI_NAME_KEY(98)) }
+    { ('H' ^ OBFH_GUI_NAME_KEY(98)), ('e' ^ OBFH_GUI_NAME_KEY(98)), ('a' ^ OBFH_GUI_NAME_KEY(98)), ('p' ^ OBFH_GUI_NAME_KEY(98)), ('A' ^ OBFH_GUI_NAME_KEY(98)), ('l' ^ OBFH_GUI_NAME_KEY(98)), ('l' ^ OBFH_GUI_NAME_KEY(98)), ('o' ^ OBFH_GUI_NAME_KEY(98)), ('c' ^ OBFH_GUI_NAME_KEY(98)), ('\0' ^ OBFH_GUI_NAME_KEY(98)) }
 #undef HeapAlloc
 #define HeapAlloc(...) OBFH_API_CALL(2, HeapAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapReAlloc 99
 #define OBFH_GUI_NAME_HeapReAlloc \
-    { (72u ^ OBFH_GUI_NAME_KEY(99)), (101u ^ OBFH_GUI_NAME_KEY(99)), (97u ^ OBFH_GUI_NAME_KEY(99)), (112u ^ OBFH_GUI_NAME_KEY(99)), (82u ^ OBFH_GUI_NAME_KEY(99)), (101u ^ OBFH_GUI_NAME_KEY(99)), (65u ^ OBFH_GUI_NAME_KEY(99)), (108u ^ OBFH_GUI_NAME_KEY(99)), (108u ^ OBFH_GUI_NAME_KEY(99)), (111u ^ OBFH_GUI_NAME_KEY(99)), (99u ^ OBFH_GUI_NAME_KEY(99)), (0u ^ OBFH_GUI_NAME_KEY(99)) }
+    { ('H' ^ OBFH_GUI_NAME_KEY(99)), ('e' ^ OBFH_GUI_NAME_KEY(99)), ('a' ^ OBFH_GUI_NAME_KEY(99)), ('p' ^ OBFH_GUI_NAME_KEY(99)), ('R' ^ OBFH_GUI_NAME_KEY(99)), ('e' ^ OBFH_GUI_NAME_KEY(99)), ('A' ^ OBFH_GUI_NAME_KEY(99)), ('l' ^ OBFH_GUI_NAME_KEY(99)), ('l' ^ OBFH_GUI_NAME_KEY(99)), ('o' ^ OBFH_GUI_NAME_KEY(99)), ('c' ^ OBFH_GUI_NAME_KEY(99)), ('\0' ^ OBFH_GUI_NAME_KEY(99)) }
 #undef HeapReAlloc
 #define HeapReAlloc(...) OBFH_API_CALL(2, HeapReAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapFree 100
 #define OBFH_GUI_NAME_HeapFree \
-    { (72u ^ OBFH_GUI_NAME_KEY(100)), (101u ^ OBFH_GUI_NAME_KEY(100)), (97u ^ OBFH_GUI_NAME_KEY(100)), (112u ^ OBFH_GUI_NAME_KEY(100)), (70u ^ OBFH_GUI_NAME_KEY(100)), (114u ^ OBFH_GUI_NAME_KEY(100)), (101u ^ OBFH_GUI_NAME_KEY(100)), (101u ^ OBFH_GUI_NAME_KEY(100)), (0u ^ OBFH_GUI_NAME_KEY(100)) }
+    { ('H' ^ OBFH_GUI_NAME_KEY(100)), ('e' ^ OBFH_GUI_NAME_KEY(100)), ('a' ^ OBFH_GUI_NAME_KEY(100)), ('p' ^ OBFH_GUI_NAME_KEY(100)), ('F' ^ OBFH_GUI_NAME_KEY(100)), ('r' ^ OBFH_GUI_NAME_KEY(100)), ('e' ^ OBFH_GUI_NAME_KEY(100)), ('e' ^ OBFH_GUI_NAME_KEY(100)), ('\0' ^ OBFH_GUI_NAME_KEY(100)) }
 #undef HeapFree
 #define HeapFree(...) OBFH_API_CALL(2, HeapFree, __VA_ARGS__)
 
@@ -6886,49 +7296,49 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_GetModuleFileNameA 101
 #define OBFH_GUI_NAME_GetModuleFileNameA \
-    { (71u ^ OBFH_GUI_NAME_KEY(101)), (101u ^ OBFH_GUI_NAME_KEY(101)), (116u ^ OBFH_GUI_NAME_KEY(101)), (77u ^ OBFH_GUI_NAME_KEY(101)), (111u ^ OBFH_GUI_NAME_KEY(101)), (100u ^ OBFH_GUI_NAME_KEY(101)), (117u ^ OBFH_GUI_NAME_KEY(101)), (108u ^ OBFH_GUI_NAME_KEY(101)), (101u ^ OBFH_GUI_NAME_KEY(101)), (70u ^ OBFH_GUI_NAME_KEY(101)), (105u ^ OBFH_GUI_NAME_KEY(101)), (108u ^ OBFH_GUI_NAME_KEY(101)), (101u ^ OBFH_GUI_NAME_KEY(101)), (78u ^ OBFH_GUI_NAME_KEY(101)), (97u ^ OBFH_GUI_NAME_KEY(101)), (109u ^ OBFH_GUI_NAME_KEY(101)), (101u ^ OBFH_GUI_NAME_KEY(101)), (65u ^ OBFH_GUI_NAME_KEY(101)), (0u ^ OBFH_GUI_NAME_KEY(101)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(101)), ('e' ^ OBFH_GUI_NAME_KEY(101)), ('t' ^ OBFH_GUI_NAME_KEY(101)), ('M' ^ OBFH_GUI_NAME_KEY(101)), ('o' ^ OBFH_GUI_NAME_KEY(101)), ('d' ^ OBFH_GUI_NAME_KEY(101)), ('u' ^ OBFH_GUI_NAME_KEY(101)), ('l' ^ OBFH_GUI_NAME_KEY(101)), ('e' ^ OBFH_GUI_NAME_KEY(101)), ('F' ^ OBFH_GUI_NAME_KEY(101)), ('i' ^ OBFH_GUI_NAME_KEY(101)), ('l' ^ OBFH_GUI_NAME_KEY(101)), ('e' ^ OBFH_GUI_NAME_KEY(101)), ('N' ^ OBFH_GUI_NAME_KEY(101)), ('a' ^ OBFH_GUI_NAME_KEY(101)), ('m' ^ OBFH_GUI_NAME_KEY(101)), ('e' ^ OBFH_GUI_NAME_KEY(101)), ('A' ^ OBFH_GUI_NAME_KEY(101)), ('\0' ^ OBFH_GUI_NAME_KEY(101)) }
 #undef GetModuleFileNameA
 #define GetModuleFileNameA(...) OBFH_API_CALL(2, GetModuleFileNameA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleFileNameW 102
 #define OBFH_GUI_NAME_GetModuleFileNameW \
-    { (71u ^ OBFH_GUI_NAME_KEY(102)), (101u ^ OBFH_GUI_NAME_KEY(102)), (116u ^ OBFH_GUI_NAME_KEY(102)), (77u ^ OBFH_GUI_NAME_KEY(102)), (111u ^ OBFH_GUI_NAME_KEY(102)), (100u ^ OBFH_GUI_NAME_KEY(102)), (117u ^ OBFH_GUI_NAME_KEY(102)), (108u ^ OBFH_GUI_NAME_KEY(102)), (101u ^ OBFH_GUI_NAME_KEY(102)), (70u ^ OBFH_GUI_NAME_KEY(102)), (105u ^ OBFH_GUI_NAME_KEY(102)), (108u ^ OBFH_GUI_NAME_KEY(102)), (101u ^ OBFH_GUI_NAME_KEY(102)), (78u ^ OBFH_GUI_NAME_KEY(102)), (97u ^ OBFH_GUI_NAME_KEY(102)), (109u ^ OBFH_GUI_NAME_KEY(102)), (101u ^ OBFH_GUI_NAME_KEY(102)), (87u ^ OBFH_GUI_NAME_KEY(102)), (0u ^ OBFH_GUI_NAME_KEY(102)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(102)), ('e' ^ OBFH_GUI_NAME_KEY(102)), ('t' ^ OBFH_GUI_NAME_KEY(102)), ('M' ^ OBFH_GUI_NAME_KEY(102)), ('o' ^ OBFH_GUI_NAME_KEY(102)), ('d' ^ OBFH_GUI_NAME_KEY(102)), ('u' ^ OBFH_GUI_NAME_KEY(102)), ('l' ^ OBFH_GUI_NAME_KEY(102)), ('e' ^ OBFH_GUI_NAME_KEY(102)), ('F' ^ OBFH_GUI_NAME_KEY(102)), ('i' ^ OBFH_GUI_NAME_KEY(102)), ('l' ^ OBFH_GUI_NAME_KEY(102)), ('e' ^ OBFH_GUI_NAME_KEY(102)), ('N' ^ OBFH_GUI_NAME_KEY(102)), ('a' ^ OBFH_GUI_NAME_KEY(102)), ('m' ^ OBFH_GUI_NAME_KEY(102)), ('e' ^ OBFH_GUI_NAME_KEY(102)), ('W' ^ OBFH_GUI_NAME_KEY(102)), ('\0' ^ OBFH_GUI_NAME_KEY(102)) }
 #undef GetModuleFileNameW
 #define GetModuleFileNameW(...) OBFH_API_CALL(2, GetModuleFileNameW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetEnvironmentVariableA 103
 #define OBFH_GUI_NAME_GetEnvironmentVariableA \
-    { (71u ^ OBFH_GUI_NAME_KEY(103)), (101u ^ OBFH_GUI_NAME_KEY(103)), (116u ^ OBFH_GUI_NAME_KEY(103)), (69u ^ OBFH_GUI_NAME_KEY(103)), (110u ^ OBFH_GUI_NAME_KEY(103)), (118u ^ OBFH_GUI_NAME_KEY(103)), (105u ^ OBFH_GUI_NAME_KEY(103)), (114u ^ OBFH_GUI_NAME_KEY(103)), (111u ^ OBFH_GUI_NAME_KEY(103)), (110u ^ OBFH_GUI_NAME_KEY(103)), (109u ^ OBFH_GUI_NAME_KEY(103)), (101u ^ OBFH_GUI_NAME_KEY(103)), (110u ^ OBFH_GUI_NAME_KEY(103)), (116u ^ OBFH_GUI_NAME_KEY(103)), (86u ^ OBFH_GUI_NAME_KEY(103)), (97u ^ OBFH_GUI_NAME_KEY(103)), (114u ^ OBFH_GUI_NAME_KEY(103)), (105u ^ OBFH_GUI_NAME_KEY(103)), (97u ^ OBFH_GUI_NAME_KEY(103)), (98u ^ OBFH_GUI_NAME_KEY(103)), (108u ^ OBFH_GUI_NAME_KEY(103)), (101u ^ OBFH_GUI_NAME_KEY(103)), (65u ^ OBFH_GUI_NAME_KEY(103)), (0u ^ OBFH_GUI_NAME_KEY(103)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(103)), ('e' ^ OBFH_GUI_NAME_KEY(103)), ('t' ^ OBFH_GUI_NAME_KEY(103)), ('E' ^ OBFH_GUI_NAME_KEY(103)), ('n' ^ OBFH_GUI_NAME_KEY(103)), ('v' ^ OBFH_GUI_NAME_KEY(103)), ('i' ^ OBFH_GUI_NAME_KEY(103)), ('r' ^ OBFH_GUI_NAME_KEY(103)), ('o' ^ OBFH_GUI_NAME_KEY(103)), ('n' ^ OBFH_GUI_NAME_KEY(103)), ('m' ^ OBFH_GUI_NAME_KEY(103)), ('e' ^ OBFH_GUI_NAME_KEY(103)), ('n' ^ OBFH_GUI_NAME_KEY(103)), ('t' ^ OBFH_GUI_NAME_KEY(103)), ('V' ^ OBFH_GUI_NAME_KEY(103)), ('a' ^ OBFH_GUI_NAME_KEY(103)), ('r' ^ OBFH_GUI_NAME_KEY(103)), ('i' ^ OBFH_GUI_NAME_KEY(103)), ('a' ^ OBFH_GUI_NAME_KEY(103)), ('b' ^ OBFH_GUI_NAME_KEY(103)), ('l' ^ OBFH_GUI_NAME_KEY(103)), ('e' ^ OBFH_GUI_NAME_KEY(103)), ('A' ^ OBFH_GUI_NAME_KEY(103)), ('\0' ^ OBFH_GUI_NAME_KEY(103)) }
 #undef GetEnvironmentVariableA
 #define GetEnvironmentVariableA(...) OBFH_API_CALL(2, GetEnvironmentVariableA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetEnvironmentVariableW 104
 #define OBFH_GUI_NAME_GetEnvironmentVariableW \
-    { (71u ^ OBFH_GUI_NAME_KEY(104)), (101u ^ OBFH_GUI_NAME_KEY(104)), (116u ^ OBFH_GUI_NAME_KEY(104)), (69u ^ OBFH_GUI_NAME_KEY(104)), (110u ^ OBFH_GUI_NAME_KEY(104)), (118u ^ OBFH_GUI_NAME_KEY(104)), (105u ^ OBFH_GUI_NAME_KEY(104)), (114u ^ OBFH_GUI_NAME_KEY(104)), (111u ^ OBFH_GUI_NAME_KEY(104)), (110u ^ OBFH_GUI_NAME_KEY(104)), (109u ^ OBFH_GUI_NAME_KEY(104)), (101u ^ OBFH_GUI_NAME_KEY(104)), (110u ^ OBFH_GUI_NAME_KEY(104)), (116u ^ OBFH_GUI_NAME_KEY(104)), (86u ^ OBFH_GUI_NAME_KEY(104)), (97u ^ OBFH_GUI_NAME_KEY(104)), (114u ^ OBFH_GUI_NAME_KEY(104)), (105u ^ OBFH_GUI_NAME_KEY(104)), (97u ^ OBFH_GUI_NAME_KEY(104)), (98u ^ OBFH_GUI_NAME_KEY(104)), (108u ^ OBFH_GUI_NAME_KEY(104)), (101u ^ OBFH_GUI_NAME_KEY(104)), (87u ^ OBFH_GUI_NAME_KEY(104)), (0u ^ OBFH_GUI_NAME_KEY(104)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(104)), ('e' ^ OBFH_GUI_NAME_KEY(104)), ('t' ^ OBFH_GUI_NAME_KEY(104)), ('E' ^ OBFH_GUI_NAME_KEY(104)), ('n' ^ OBFH_GUI_NAME_KEY(104)), ('v' ^ OBFH_GUI_NAME_KEY(104)), ('i' ^ OBFH_GUI_NAME_KEY(104)), ('r' ^ OBFH_GUI_NAME_KEY(104)), ('o' ^ OBFH_GUI_NAME_KEY(104)), ('n' ^ OBFH_GUI_NAME_KEY(104)), ('m' ^ OBFH_GUI_NAME_KEY(104)), ('e' ^ OBFH_GUI_NAME_KEY(104)), ('n' ^ OBFH_GUI_NAME_KEY(104)), ('t' ^ OBFH_GUI_NAME_KEY(104)), ('V' ^ OBFH_GUI_NAME_KEY(104)), ('a' ^ OBFH_GUI_NAME_KEY(104)), ('r' ^ OBFH_GUI_NAME_KEY(104)), ('i' ^ OBFH_GUI_NAME_KEY(104)), ('a' ^ OBFH_GUI_NAME_KEY(104)), ('b' ^ OBFH_GUI_NAME_KEY(104)), ('l' ^ OBFH_GUI_NAME_KEY(104)), ('e' ^ OBFH_GUI_NAME_KEY(104)), ('W' ^ OBFH_GUI_NAME_KEY(104)), ('\0' ^ OBFH_GUI_NAME_KEY(104)) }
 #undef GetEnvironmentVariableW
 #define GetEnvironmentVariableW(...) OBFH_API_CALL(2, GetEnvironmentVariableW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentDirectoryA 105
 #define OBFH_GUI_NAME_GetCurrentDirectoryA \
-    { (71u ^ OBFH_GUI_NAME_KEY(105)), (101u ^ OBFH_GUI_NAME_KEY(105)), (116u ^ OBFH_GUI_NAME_KEY(105)), (67u ^ OBFH_GUI_NAME_KEY(105)), (117u ^ OBFH_GUI_NAME_KEY(105)), (114u ^ OBFH_GUI_NAME_KEY(105)), (114u ^ OBFH_GUI_NAME_KEY(105)), (101u ^ OBFH_GUI_NAME_KEY(105)), (110u ^ OBFH_GUI_NAME_KEY(105)), (116u ^ OBFH_GUI_NAME_KEY(105)), (68u ^ OBFH_GUI_NAME_KEY(105)), (105u ^ OBFH_GUI_NAME_KEY(105)), (114u ^ OBFH_GUI_NAME_KEY(105)), (101u ^ OBFH_GUI_NAME_KEY(105)), (99u ^ OBFH_GUI_NAME_KEY(105)), (116u ^ OBFH_GUI_NAME_KEY(105)), (111u ^ OBFH_GUI_NAME_KEY(105)), (114u ^ OBFH_GUI_NAME_KEY(105)), (121u ^ OBFH_GUI_NAME_KEY(105)), (65u ^ OBFH_GUI_NAME_KEY(105)), (0u ^ OBFH_GUI_NAME_KEY(105)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(105)), ('e' ^ OBFH_GUI_NAME_KEY(105)), ('t' ^ OBFH_GUI_NAME_KEY(105)), ('C' ^ OBFH_GUI_NAME_KEY(105)), ('u' ^ OBFH_GUI_NAME_KEY(105)), ('r' ^ OBFH_GUI_NAME_KEY(105)), ('r' ^ OBFH_GUI_NAME_KEY(105)), ('e' ^ OBFH_GUI_NAME_KEY(105)), ('n' ^ OBFH_GUI_NAME_KEY(105)), ('t' ^ OBFH_GUI_NAME_KEY(105)), ('D' ^ OBFH_GUI_NAME_KEY(105)), ('i' ^ OBFH_GUI_NAME_KEY(105)), ('r' ^ OBFH_GUI_NAME_KEY(105)), ('e' ^ OBFH_GUI_NAME_KEY(105)), ('c' ^ OBFH_GUI_NAME_KEY(105)), ('t' ^ OBFH_GUI_NAME_KEY(105)), ('o' ^ OBFH_GUI_NAME_KEY(105)), ('r' ^ OBFH_GUI_NAME_KEY(105)), ('y' ^ OBFH_GUI_NAME_KEY(105)), ('A' ^ OBFH_GUI_NAME_KEY(105)), ('\0' ^ OBFH_GUI_NAME_KEY(105)) }
 #undef GetCurrentDirectoryA
 #define GetCurrentDirectoryA(...) OBFH_API_CALL(2, GetCurrentDirectoryA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentDirectoryW 106
 #define OBFH_GUI_NAME_GetCurrentDirectoryW \
-    { (71u ^ OBFH_GUI_NAME_KEY(106)), (101u ^ OBFH_GUI_NAME_KEY(106)), (116u ^ OBFH_GUI_NAME_KEY(106)), (67u ^ OBFH_GUI_NAME_KEY(106)), (117u ^ OBFH_GUI_NAME_KEY(106)), (114u ^ OBFH_GUI_NAME_KEY(106)), (114u ^ OBFH_GUI_NAME_KEY(106)), (101u ^ OBFH_GUI_NAME_KEY(106)), (110u ^ OBFH_GUI_NAME_KEY(106)), (116u ^ OBFH_GUI_NAME_KEY(106)), (68u ^ OBFH_GUI_NAME_KEY(106)), (105u ^ OBFH_GUI_NAME_KEY(106)), (114u ^ OBFH_GUI_NAME_KEY(106)), (101u ^ OBFH_GUI_NAME_KEY(106)), (99u ^ OBFH_GUI_NAME_KEY(106)), (116u ^ OBFH_GUI_NAME_KEY(106)), (111u ^ OBFH_GUI_NAME_KEY(106)), (114u ^ OBFH_GUI_NAME_KEY(106)), (121u ^ OBFH_GUI_NAME_KEY(106)), (87u ^ OBFH_GUI_NAME_KEY(106)), (0u ^ OBFH_GUI_NAME_KEY(106)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(106)), ('e' ^ OBFH_GUI_NAME_KEY(106)), ('t' ^ OBFH_GUI_NAME_KEY(106)), ('C' ^ OBFH_GUI_NAME_KEY(106)), ('u' ^ OBFH_GUI_NAME_KEY(106)), ('r' ^ OBFH_GUI_NAME_KEY(106)), ('r' ^ OBFH_GUI_NAME_KEY(106)), ('e' ^ OBFH_GUI_NAME_KEY(106)), ('n' ^ OBFH_GUI_NAME_KEY(106)), ('t' ^ OBFH_GUI_NAME_KEY(106)), ('D' ^ OBFH_GUI_NAME_KEY(106)), ('i' ^ OBFH_GUI_NAME_KEY(106)), ('r' ^ OBFH_GUI_NAME_KEY(106)), ('e' ^ OBFH_GUI_NAME_KEY(106)), ('c' ^ OBFH_GUI_NAME_KEY(106)), ('t' ^ OBFH_GUI_NAME_KEY(106)), ('o' ^ OBFH_GUI_NAME_KEY(106)), ('r' ^ OBFH_GUI_NAME_KEY(106)), ('y' ^ OBFH_GUI_NAME_KEY(106)), ('W' ^ OBFH_GUI_NAME_KEY(106)), ('\0' ^ OBFH_GUI_NAME_KEY(106)) }
 #undef GetCurrentDirectoryW
 #define GetCurrentDirectoryW(...) OBFH_API_CALL(2, GetCurrentDirectoryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTempPathA 107
 #define OBFH_GUI_NAME_GetTempPathA \
-    { (71u ^ OBFH_GUI_NAME_KEY(107)), (101u ^ OBFH_GUI_NAME_KEY(107)), (116u ^ OBFH_GUI_NAME_KEY(107)), (84u ^ OBFH_GUI_NAME_KEY(107)), (101u ^ OBFH_GUI_NAME_KEY(107)), (109u ^ OBFH_GUI_NAME_KEY(107)), (112u ^ OBFH_GUI_NAME_KEY(107)), (80u ^ OBFH_GUI_NAME_KEY(107)), (97u ^ OBFH_GUI_NAME_KEY(107)), (116u ^ OBFH_GUI_NAME_KEY(107)), (104u ^ OBFH_GUI_NAME_KEY(107)), (65u ^ OBFH_GUI_NAME_KEY(107)), (0u ^ OBFH_GUI_NAME_KEY(107)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(107)), ('e' ^ OBFH_GUI_NAME_KEY(107)), ('t' ^ OBFH_GUI_NAME_KEY(107)), ('T' ^ OBFH_GUI_NAME_KEY(107)), ('e' ^ OBFH_GUI_NAME_KEY(107)), ('m' ^ OBFH_GUI_NAME_KEY(107)), ('p' ^ OBFH_GUI_NAME_KEY(107)), ('P' ^ OBFH_GUI_NAME_KEY(107)), ('a' ^ OBFH_GUI_NAME_KEY(107)), ('t' ^ OBFH_GUI_NAME_KEY(107)), ('h' ^ OBFH_GUI_NAME_KEY(107)), ('A' ^ OBFH_GUI_NAME_KEY(107)), ('\0' ^ OBFH_GUI_NAME_KEY(107)) }
 #undef GetTempPathA
 #define GetTempPathA(...) OBFH_API_CALL(2, GetTempPathA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTempPathW 108
 #define OBFH_GUI_NAME_GetTempPathW \
-    { (71u ^ OBFH_GUI_NAME_KEY(108)), (101u ^ OBFH_GUI_NAME_KEY(108)), (116u ^ OBFH_GUI_NAME_KEY(108)), (84u ^ OBFH_GUI_NAME_KEY(108)), (101u ^ OBFH_GUI_NAME_KEY(108)), (109u ^ OBFH_GUI_NAME_KEY(108)), (112u ^ OBFH_GUI_NAME_KEY(108)), (80u ^ OBFH_GUI_NAME_KEY(108)), (97u ^ OBFH_GUI_NAME_KEY(108)), (116u ^ OBFH_GUI_NAME_KEY(108)), (104u ^ OBFH_GUI_NAME_KEY(108)), (87u ^ OBFH_GUI_NAME_KEY(108)), (0u ^ OBFH_GUI_NAME_KEY(108)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(108)), ('e' ^ OBFH_GUI_NAME_KEY(108)), ('t' ^ OBFH_GUI_NAME_KEY(108)), ('T' ^ OBFH_GUI_NAME_KEY(108)), ('e' ^ OBFH_GUI_NAME_KEY(108)), ('m' ^ OBFH_GUI_NAME_KEY(108)), ('p' ^ OBFH_GUI_NAME_KEY(108)), ('P' ^ OBFH_GUI_NAME_KEY(108)), ('a' ^ OBFH_GUI_NAME_KEY(108)), ('t' ^ OBFH_GUI_NAME_KEY(108)), ('h' ^ OBFH_GUI_NAME_KEY(108)), ('W' ^ OBFH_GUI_NAME_KEY(108)), ('\0' ^ OBFH_GUI_NAME_KEY(108)) }
 #undef GetTempPathW
 #define GetTempPathW(...) OBFH_API_CALL(2, GetTempPathW, __VA_ARGS__)
 
@@ -6936,43 +7346,43 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_CreateThread 109
 #define OBFH_GUI_NAME_CreateThread \
-    { (67u ^ OBFH_GUI_NAME_KEY(109)), (114u ^ OBFH_GUI_NAME_KEY(109)), (101u ^ OBFH_GUI_NAME_KEY(109)), (97u ^ OBFH_GUI_NAME_KEY(109)), (116u ^ OBFH_GUI_NAME_KEY(109)), (101u ^ OBFH_GUI_NAME_KEY(109)), (84u ^ OBFH_GUI_NAME_KEY(109)), (104u ^ OBFH_GUI_NAME_KEY(109)), (114u ^ OBFH_GUI_NAME_KEY(109)), (101u ^ OBFH_GUI_NAME_KEY(109)), (97u ^ OBFH_GUI_NAME_KEY(109)), (100u ^ OBFH_GUI_NAME_KEY(109)), (0u ^ OBFH_GUI_NAME_KEY(109)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(109)), ('r' ^ OBFH_GUI_NAME_KEY(109)), ('e' ^ OBFH_GUI_NAME_KEY(109)), ('a' ^ OBFH_GUI_NAME_KEY(109)), ('t' ^ OBFH_GUI_NAME_KEY(109)), ('e' ^ OBFH_GUI_NAME_KEY(109)), ('T' ^ OBFH_GUI_NAME_KEY(109)), ('h' ^ OBFH_GUI_NAME_KEY(109)), ('r' ^ OBFH_GUI_NAME_KEY(109)), ('e' ^ OBFH_GUI_NAME_KEY(109)), ('a' ^ OBFH_GUI_NAME_KEY(109)), ('d' ^ OBFH_GUI_NAME_KEY(109)), ('\0' ^ OBFH_GUI_NAME_KEY(109)) }
 #undef CreateThread
 #define CreateThread(...) OBFH_API_CALL(2, CreateThread, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WaitForSingleObject 110
 #define OBFH_GUI_NAME_WaitForSingleObject \
-    { (87u ^ OBFH_GUI_NAME_KEY(110)), (97u ^ OBFH_GUI_NAME_KEY(110)), (105u ^ OBFH_GUI_NAME_KEY(110)), (116u ^ OBFH_GUI_NAME_KEY(110)), (70u ^ OBFH_GUI_NAME_KEY(110)), (111u ^ OBFH_GUI_NAME_KEY(110)), (114u ^ OBFH_GUI_NAME_KEY(110)), (83u ^ OBFH_GUI_NAME_KEY(110)), (105u ^ OBFH_GUI_NAME_KEY(110)), (110u ^ OBFH_GUI_NAME_KEY(110)), (103u ^ OBFH_GUI_NAME_KEY(110)), (108u ^ OBFH_GUI_NAME_KEY(110)), (101u ^ OBFH_GUI_NAME_KEY(110)), (79u ^ OBFH_GUI_NAME_KEY(110)), (98u ^ OBFH_GUI_NAME_KEY(110)), (106u ^ OBFH_GUI_NAME_KEY(110)), (101u ^ OBFH_GUI_NAME_KEY(110)), (99u ^ OBFH_GUI_NAME_KEY(110)), (116u ^ OBFH_GUI_NAME_KEY(110)), (0u ^ OBFH_GUI_NAME_KEY(110)) }
+    { ('W' ^ OBFH_GUI_NAME_KEY(110)), ('a' ^ OBFH_GUI_NAME_KEY(110)), ('i' ^ OBFH_GUI_NAME_KEY(110)), ('t' ^ OBFH_GUI_NAME_KEY(110)), ('F' ^ OBFH_GUI_NAME_KEY(110)), ('o' ^ OBFH_GUI_NAME_KEY(110)), ('r' ^ OBFH_GUI_NAME_KEY(110)), ('S' ^ OBFH_GUI_NAME_KEY(110)), ('i' ^ OBFH_GUI_NAME_KEY(110)), ('n' ^ OBFH_GUI_NAME_KEY(110)), ('g' ^ OBFH_GUI_NAME_KEY(110)), ('l' ^ OBFH_GUI_NAME_KEY(110)), ('e' ^ OBFH_GUI_NAME_KEY(110)), ('O' ^ OBFH_GUI_NAME_KEY(110)), ('b' ^ OBFH_GUI_NAME_KEY(110)), ('j' ^ OBFH_GUI_NAME_KEY(110)), ('e' ^ OBFH_GUI_NAME_KEY(110)), ('c' ^ OBFH_GUI_NAME_KEY(110)), ('t' ^ OBFH_GUI_NAME_KEY(110)), ('\0' ^ OBFH_GUI_NAME_KEY(110)) }
 #undef WaitForSingleObject
 #define WaitForSingleObject(...) OBFH_API_CALL(2, WaitForSingleObject, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WaitForMultipleObjects 111
 #define OBFH_GUI_NAME_WaitForMultipleObjects \
-    { (87u ^ OBFH_GUI_NAME_KEY(111)), (97u ^ OBFH_GUI_NAME_KEY(111)), (105u ^ OBFH_GUI_NAME_KEY(111)), (116u ^ OBFH_GUI_NAME_KEY(111)), (70u ^ OBFH_GUI_NAME_KEY(111)), (111u ^ OBFH_GUI_NAME_KEY(111)), (114u ^ OBFH_GUI_NAME_KEY(111)), (77u ^ OBFH_GUI_NAME_KEY(111)), (117u ^ OBFH_GUI_NAME_KEY(111)), (108u ^ OBFH_GUI_NAME_KEY(111)), (116u ^ OBFH_GUI_NAME_KEY(111)), (105u ^ OBFH_GUI_NAME_KEY(111)), (112u ^ OBFH_GUI_NAME_KEY(111)), (108u ^ OBFH_GUI_NAME_KEY(111)), (101u ^ OBFH_GUI_NAME_KEY(111)), (79u ^ OBFH_GUI_NAME_KEY(111)), (98u ^ OBFH_GUI_NAME_KEY(111)), (106u ^ OBFH_GUI_NAME_KEY(111)), (101u ^ OBFH_GUI_NAME_KEY(111)), (99u ^ OBFH_GUI_NAME_KEY(111)), (116u ^ OBFH_GUI_NAME_KEY(111)), (115u ^ OBFH_GUI_NAME_KEY(111)), (0u ^ OBFH_GUI_NAME_KEY(111)) }
+    { ('W' ^ OBFH_GUI_NAME_KEY(111)), ('a' ^ OBFH_GUI_NAME_KEY(111)), ('i' ^ OBFH_GUI_NAME_KEY(111)), ('t' ^ OBFH_GUI_NAME_KEY(111)), ('F' ^ OBFH_GUI_NAME_KEY(111)), ('o' ^ OBFH_GUI_NAME_KEY(111)), ('r' ^ OBFH_GUI_NAME_KEY(111)), ('M' ^ OBFH_GUI_NAME_KEY(111)), ('u' ^ OBFH_GUI_NAME_KEY(111)), ('l' ^ OBFH_GUI_NAME_KEY(111)), ('t' ^ OBFH_GUI_NAME_KEY(111)), ('i' ^ OBFH_GUI_NAME_KEY(111)), ('p' ^ OBFH_GUI_NAME_KEY(111)), ('l' ^ OBFH_GUI_NAME_KEY(111)), ('e' ^ OBFH_GUI_NAME_KEY(111)), ('O' ^ OBFH_GUI_NAME_KEY(111)), ('b' ^ OBFH_GUI_NAME_KEY(111)), ('j' ^ OBFH_GUI_NAME_KEY(111)), ('e' ^ OBFH_GUI_NAME_KEY(111)), ('c' ^ OBFH_GUI_NAME_KEY(111)), ('t' ^ OBFH_GUI_NAME_KEY(111)), ('s' ^ OBFH_GUI_NAME_KEY(111)), ('\0' ^ OBFH_GUI_NAME_KEY(111)) }
 #undef WaitForMultipleObjects
 #define WaitForMultipleObjects(...) OBFH_API_CALL(2, WaitForMultipleObjects, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateEventA 112
 #define OBFH_GUI_NAME_CreateEventA \
-    { (67u ^ OBFH_GUI_NAME_KEY(112)), (114u ^ OBFH_GUI_NAME_KEY(112)), (101u ^ OBFH_GUI_NAME_KEY(112)), (97u ^ OBFH_GUI_NAME_KEY(112)), (116u ^ OBFH_GUI_NAME_KEY(112)), (101u ^ OBFH_GUI_NAME_KEY(112)), (69u ^ OBFH_GUI_NAME_KEY(112)), (118u ^ OBFH_GUI_NAME_KEY(112)), (101u ^ OBFH_GUI_NAME_KEY(112)), (110u ^ OBFH_GUI_NAME_KEY(112)), (116u ^ OBFH_GUI_NAME_KEY(112)), (65u ^ OBFH_GUI_NAME_KEY(112)), (0u ^ OBFH_GUI_NAME_KEY(112)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(112)), ('r' ^ OBFH_GUI_NAME_KEY(112)), ('e' ^ OBFH_GUI_NAME_KEY(112)), ('a' ^ OBFH_GUI_NAME_KEY(112)), ('t' ^ OBFH_GUI_NAME_KEY(112)), ('e' ^ OBFH_GUI_NAME_KEY(112)), ('E' ^ OBFH_GUI_NAME_KEY(112)), ('v' ^ OBFH_GUI_NAME_KEY(112)), ('e' ^ OBFH_GUI_NAME_KEY(112)), ('n' ^ OBFH_GUI_NAME_KEY(112)), ('t' ^ OBFH_GUI_NAME_KEY(112)), ('A' ^ OBFH_GUI_NAME_KEY(112)), ('\0' ^ OBFH_GUI_NAME_KEY(112)) }
 #undef CreateEventA
 #define CreateEventA(...) OBFH_API_CALL(2, CreateEventA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateEventW 113
 #define OBFH_GUI_NAME_CreateEventW \
-    { (67u ^ OBFH_GUI_NAME_KEY(113)), (114u ^ OBFH_GUI_NAME_KEY(113)), (101u ^ OBFH_GUI_NAME_KEY(113)), (97u ^ OBFH_GUI_NAME_KEY(113)), (116u ^ OBFH_GUI_NAME_KEY(113)), (101u ^ OBFH_GUI_NAME_KEY(113)), (69u ^ OBFH_GUI_NAME_KEY(113)), (118u ^ OBFH_GUI_NAME_KEY(113)), (101u ^ OBFH_GUI_NAME_KEY(113)), (110u ^ OBFH_GUI_NAME_KEY(113)), (116u ^ OBFH_GUI_NAME_KEY(113)), (87u ^ OBFH_GUI_NAME_KEY(113)), (0u ^ OBFH_GUI_NAME_KEY(113)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(113)), ('r' ^ OBFH_GUI_NAME_KEY(113)), ('e' ^ OBFH_GUI_NAME_KEY(113)), ('a' ^ OBFH_GUI_NAME_KEY(113)), ('t' ^ OBFH_GUI_NAME_KEY(113)), ('e' ^ OBFH_GUI_NAME_KEY(113)), ('E' ^ OBFH_GUI_NAME_KEY(113)), ('v' ^ OBFH_GUI_NAME_KEY(113)), ('e' ^ OBFH_GUI_NAME_KEY(113)), ('n' ^ OBFH_GUI_NAME_KEY(113)), ('t' ^ OBFH_GUI_NAME_KEY(113)), ('W' ^ OBFH_GUI_NAME_KEY(113)), ('\0' ^ OBFH_GUI_NAME_KEY(113)) }
 #undef CreateEventW
 #define CreateEventW(...) OBFH_API_CALL(2, CreateEventW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetEvent 114
 #define OBFH_GUI_NAME_SetEvent \
-    { (83u ^ OBFH_GUI_NAME_KEY(114)), (101u ^ OBFH_GUI_NAME_KEY(114)), (116u ^ OBFH_GUI_NAME_KEY(114)), (69u ^ OBFH_GUI_NAME_KEY(114)), (118u ^ OBFH_GUI_NAME_KEY(114)), (101u ^ OBFH_GUI_NAME_KEY(114)), (110u ^ OBFH_GUI_NAME_KEY(114)), (116u ^ OBFH_GUI_NAME_KEY(114)), (0u ^ OBFH_GUI_NAME_KEY(114)) }
+    { ('S' ^ OBFH_GUI_NAME_KEY(114)), ('e' ^ OBFH_GUI_NAME_KEY(114)), ('t' ^ OBFH_GUI_NAME_KEY(114)), ('E' ^ OBFH_GUI_NAME_KEY(114)), ('v' ^ OBFH_GUI_NAME_KEY(114)), ('e' ^ OBFH_GUI_NAME_KEY(114)), ('n' ^ OBFH_GUI_NAME_KEY(114)), ('t' ^ OBFH_GUI_NAME_KEY(114)), ('\0' ^ OBFH_GUI_NAME_KEY(114)) }
 #undef SetEvent
 #define SetEvent(...) OBFH_API_CALL(2, SetEvent, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ResetEvent 115
 #define OBFH_GUI_NAME_ResetEvent \
-    { (82u ^ OBFH_GUI_NAME_KEY(115)), (101u ^ OBFH_GUI_NAME_KEY(115)), (115u ^ OBFH_GUI_NAME_KEY(115)), (101u ^ OBFH_GUI_NAME_KEY(115)), (116u ^ OBFH_GUI_NAME_KEY(115)), (69u ^ OBFH_GUI_NAME_KEY(115)), (118u ^ OBFH_GUI_NAME_KEY(115)), (101u ^ OBFH_GUI_NAME_KEY(115)), (110u ^ OBFH_GUI_NAME_KEY(115)), (116u ^ OBFH_GUI_NAME_KEY(115)), (0u ^ OBFH_GUI_NAME_KEY(115)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(115)), ('e' ^ OBFH_GUI_NAME_KEY(115)), ('s' ^ OBFH_GUI_NAME_KEY(115)), ('e' ^ OBFH_GUI_NAME_KEY(115)), ('t' ^ OBFH_GUI_NAME_KEY(115)), ('E' ^ OBFH_GUI_NAME_KEY(115)), ('v' ^ OBFH_GUI_NAME_KEY(115)), ('e' ^ OBFH_GUI_NAME_KEY(115)), ('n' ^ OBFH_GUI_NAME_KEY(115)), ('t' ^ OBFH_GUI_NAME_KEY(115)), ('\0' ^ OBFH_GUI_NAME_KEY(115)) }
 #undef ResetEvent
 #define ResetEvent(...) OBFH_API_CALL(2, ResetEvent, __VA_ARGS__)
 
@@ -6980,61 +7390,61 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_BeginPaint 116
 #define OBFH_GUI_NAME_BeginPaint \
-    { (66u ^ OBFH_GUI_NAME_KEY(116)), (101u ^ OBFH_GUI_NAME_KEY(116)), (103u ^ OBFH_GUI_NAME_KEY(116)), (105u ^ OBFH_GUI_NAME_KEY(116)), (110u ^ OBFH_GUI_NAME_KEY(116)), (80u ^ OBFH_GUI_NAME_KEY(116)), (97u ^ OBFH_GUI_NAME_KEY(116)), (105u ^ OBFH_GUI_NAME_KEY(116)), (110u ^ OBFH_GUI_NAME_KEY(116)), (116u ^ OBFH_GUI_NAME_KEY(116)), (0u ^ OBFH_GUI_NAME_KEY(116)) }
+    { ('B' ^ OBFH_GUI_NAME_KEY(116)), ('e' ^ OBFH_GUI_NAME_KEY(116)), ('g' ^ OBFH_GUI_NAME_KEY(116)), ('i' ^ OBFH_GUI_NAME_KEY(116)), ('n' ^ OBFH_GUI_NAME_KEY(116)), ('P' ^ OBFH_GUI_NAME_KEY(116)), ('a' ^ OBFH_GUI_NAME_KEY(116)), ('i' ^ OBFH_GUI_NAME_KEY(116)), ('n' ^ OBFH_GUI_NAME_KEY(116)), ('t' ^ OBFH_GUI_NAME_KEY(116)), ('\0' ^ OBFH_GUI_NAME_KEY(116)) }
 #undef BeginPaint
 #define BeginPaint(...) OBFH_API_CALL(0, BeginPaint, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EndPaint 117
 #define OBFH_GUI_NAME_EndPaint \
-    { (69u ^ OBFH_GUI_NAME_KEY(117)), (110u ^ OBFH_GUI_NAME_KEY(117)), (100u ^ OBFH_GUI_NAME_KEY(117)), (80u ^ OBFH_GUI_NAME_KEY(117)), (97u ^ OBFH_GUI_NAME_KEY(117)), (105u ^ OBFH_GUI_NAME_KEY(117)), (110u ^ OBFH_GUI_NAME_KEY(117)), (116u ^ OBFH_GUI_NAME_KEY(117)), (0u ^ OBFH_GUI_NAME_KEY(117)) }
+    { ('E' ^ OBFH_GUI_NAME_KEY(117)), ('n' ^ OBFH_GUI_NAME_KEY(117)), ('d' ^ OBFH_GUI_NAME_KEY(117)), ('P' ^ OBFH_GUI_NAME_KEY(117)), ('a' ^ OBFH_GUI_NAME_KEY(117)), ('i' ^ OBFH_GUI_NAME_KEY(117)), ('n' ^ OBFH_GUI_NAME_KEY(117)), ('t' ^ OBFH_GUI_NAME_KEY(117)), ('\0' ^ OBFH_GUI_NAME_KEY(117)) }
 #undef EndPaint
 #define EndPaint(...) OBFH_API_CALL(0, EndPaint, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DrawTextA 118
 #define OBFH_GUI_NAME_DrawTextA \
-    { (68u ^ OBFH_GUI_NAME_KEY(118)), (114u ^ OBFH_GUI_NAME_KEY(118)), (97u ^ OBFH_GUI_NAME_KEY(118)), (119u ^ OBFH_GUI_NAME_KEY(118)), (84u ^ OBFH_GUI_NAME_KEY(118)), (101u ^ OBFH_GUI_NAME_KEY(118)), (120u ^ OBFH_GUI_NAME_KEY(118)), (116u ^ OBFH_GUI_NAME_KEY(118)), (65u ^ OBFH_GUI_NAME_KEY(118)), (0u ^ OBFH_GUI_NAME_KEY(118)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(118)), ('r' ^ OBFH_GUI_NAME_KEY(118)), ('a' ^ OBFH_GUI_NAME_KEY(118)), ('w' ^ OBFH_GUI_NAME_KEY(118)), ('T' ^ OBFH_GUI_NAME_KEY(118)), ('e' ^ OBFH_GUI_NAME_KEY(118)), ('x' ^ OBFH_GUI_NAME_KEY(118)), ('t' ^ OBFH_GUI_NAME_KEY(118)), ('A' ^ OBFH_GUI_NAME_KEY(118)), ('\0' ^ OBFH_GUI_NAME_KEY(118)) }
 #undef DrawTextA
 #define DrawTextA(...) OBFH_API_CALL(0, DrawTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DrawTextW 119
 #define OBFH_GUI_NAME_DrawTextW \
-    { (68u ^ OBFH_GUI_NAME_KEY(119)), (114u ^ OBFH_GUI_NAME_KEY(119)), (97u ^ OBFH_GUI_NAME_KEY(119)), (119u ^ OBFH_GUI_NAME_KEY(119)), (84u ^ OBFH_GUI_NAME_KEY(119)), (101u ^ OBFH_GUI_NAME_KEY(119)), (120u ^ OBFH_GUI_NAME_KEY(119)), (116u ^ OBFH_GUI_NAME_KEY(119)), (87u ^ OBFH_GUI_NAME_KEY(119)), (0u ^ OBFH_GUI_NAME_KEY(119)) }
+    { ('D' ^ OBFH_GUI_NAME_KEY(119)), ('r' ^ OBFH_GUI_NAME_KEY(119)), ('a' ^ OBFH_GUI_NAME_KEY(119)), ('w' ^ OBFH_GUI_NAME_KEY(119)), ('T' ^ OBFH_GUI_NAME_KEY(119)), ('e' ^ OBFH_GUI_NAME_KEY(119)), ('x' ^ OBFH_GUI_NAME_KEY(119)), ('t' ^ OBFH_GUI_NAME_KEY(119)), ('W' ^ OBFH_GUI_NAME_KEY(119)), ('\0' ^ OBFH_GUI_NAME_KEY(119)) }
 #undef DrawTextW
 #define DrawTextW(...) OBFH_API_CALL(0, DrawTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TextOutA 120
 #define OBFH_GUI_NAME_TextOutA \
-    { (84u ^ OBFH_GUI_NAME_KEY(120)), (101u ^ OBFH_GUI_NAME_KEY(120)), (120u ^ OBFH_GUI_NAME_KEY(120)), (116u ^ OBFH_GUI_NAME_KEY(120)), (79u ^ OBFH_GUI_NAME_KEY(120)), (117u ^ OBFH_GUI_NAME_KEY(120)), (116u ^ OBFH_GUI_NAME_KEY(120)), (65u ^ OBFH_GUI_NAME_KEY(120)), (0u ^ OBFH_GUI_NAME_KEY(120)) }
+    { ('T' ^ OBFH_GUI_NAME_KEY(120)), ('e' ^ OBFH_GUI_NAME_KEY(120)), ('x' ^ OBFH_GUI_NAME_KEY(120)), ('t' ^ OBFH_GUI_NAME_KEY(120)), ('O' ^ OBFH_GUI_NAME_KEY(120)), ('u' ^ OBFH_GUI_NAME_KEY(120)), ('t' ^ OBFH_GUI_NAME_KEY(120)), ('A' ^ OBFH_GUI_NAME_KEY(120)), ('\0' ^ OBFH_GUI_NAME_KEY(120)) }
 #undef TextOutA
 #define TextOutA(...) OBFH_API_CALL(1, TextOutA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TextOutW 121
 #define OBFH_GUI_NAME_TextOutW \
-    { (84u ^ OBFH_GUI_NAME_KEY(121)), (101u ^ OBFH_GUI_NAME_KEY(121)), (120u ^ OBFH_GUI_NAME_KEY(121)), (116u ^ OBFH_GUI_NAME_KEY(121)), (79u ^ OBFH_GUI_NAME_KEY(121)), (117u ^ OBFH_GUI_NAME_KEY(121)), (116u ^ OBFH_GUI_NAME_KEY(121)), (87u ^ OBFH_GUI_NAME_KEY(121)), (0u ^ OBFH_GUI_NAME_KEY(121)) }
+    { ('T' ^ OBFH_GUI_NAME_KEY(121)), ('e' ^ OBFH_GUI_NAME_KEY(121)), ('x' ^ OBFH_GUI_NAME_KEY(121)), ('t' ^ OBFH_GUI_NAME_KEY(121)), ('O' ^ OBFH_GUI_NAME_KEY(121)), ('u' ^ OBFH_GUI_NAME_KEY(121)), ('t' ^ OBFH_GUI_NAME_KEY(121)), ('W' ^ OBFH_GUI_NAME_KEY(121)), ('\0' ^ OBFH_GUI_NAME_KEY(121)) }
 #undef TextOutW
 #define TextOutW(...) OBFH_API_CALL(1, TextOutW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_BitBlt 122
 #define OBFH_GUI_NAME_BitBlt \
-    { (66u ^ OBFH_GUI_NAME_KEY(122)), (105u ^ OBFH_GUI_NAME_KEY(122)), (116u ^ OBFH_GUI_NAME_KEY(122)), (66u ^ OBFH_GUI_NAME_KEY(122)), (108u ^ OBFH_GUI_NAME_KEY(122)), (116u ^ OBFH_GUI_NAME_KEY(122)), (0u ^ OBFH_GUI_NAME_KEY(122)) }
+    { ('B' ^ OBFH_GUI_NAME_KEY(122)), ('i' ^ OBFH_GUI_NAME_KEY(122)), ('t' ^ OBFH_GUI_NAME_KEY(122)), ('B' ^ OBFH_GUI_NAME_KEY(122)), ('l' ^ OBFH_GUI_NAME_KEY(122)), ('t' ^ OBFH_GUI_NAME_KEY(122)), ('\0' ^ OBFH_GUI_NAME_KEY(122)) }
 #undef BitBlt
 #define BitBlt(...) OBFH_API_CALL(1, BitBlt, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateCompatibleDC 123
 #define OBFH_GUI_NAME_CreateCompatibleDC \
-    { (67u ^ OBFH_GUI_NAME_KEY(123)), (114u ^ OBFH_GUI_NAME_KEY(123)), (101u ^ OBFH_GUI_NAME_KEY(123)), (97u ^ OBFH_GUI_NAME_KEY(123)), (116u ^ OBFH_GUI_NAME_KEY(123)), (101u ^ OBFH_GUI_NAME_KEY(123)), (67u ^ OBFH_GUI_NAME_KEY(123)), (111u ^ OBFH_GUI_NAME_KEY(123)), (109u ^ OBFH_GUI_NAME_KEY(123)), (112u ^ OBFH_GUI_NAME_KEY(123)), (97u ^ OBFH_GUI_NAME_KEY(123)), (116u ^ OBFH_GUI_NAME_KEY(123)), (105u ^ OBFH_GUI_NAME_KEY(123)), (98u ^ OBFH_GUI_NAME_KEY(123)), (108u ^ OBFH_GUI_NAME_KEY(123)), (101u ^ OBFH_GUI_NAME_KEY(123)), (68u ^ OBFH_GUI_NAME_KEY(123)), (67u ^ OBFH_GUI_NAME_KEY(123)), (0u ^ OBFH_GUI_NAME_KEY(123)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(123)), ('r' ^ OBFH_GUI_NAME_KEY(123)), ('e' ^ OBFH_GUI_NAME_KEY(123)), ('a' ^ OBFH_GUI_NAME_KEY(123)), ('t' ^ OBFH_GUI_NAME_KEY(123)), ('e' ^ OBFH_GUI_NAME_KEY(123)), ('C' ^ OBFH_GUI_NAME_KEY(123)), ('o' ^ OBFH_GUI_NAME_KEY(123)), ('m' ^ OBFH_GUI_NAME_KEY(123)), ('p' ^ OBFH_GUI_NAME_KEY(123)), ('a' ^ OBFH_GUI_NAME_KEY(123)), ('t' ^ OBFH_GUI_NAME_KEY(123)), ('i' ^ OBFH_GUI_NAME_KEY(123)), ('b' ^ OBFH_GUI_NAME_KEY(123)), ('l' ^ OBFH_GUI_NAME_KEY(123)), ('e' ^ OBFH_GUI_NAME_KEY(123)), ('D' ^ OBFH_GUI_NAME_KEY(123)), ('C' ^ OBFH_GUI_NAME_KEY(123)), ('\0' ^ OBFH_GUI_NAME_KEY(123)) }
 #undef CreateCompatibleDC
 #define CreateCompatibleDC(...) OBFH_API_CALL(1, CreateCompatibleDC, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateCompatibleBitmap 124
 #define OBFH_GUI_NAME_CreateCompatibleBitmap \
-    { (67u ^ OBFH_GUI_NAME_KEY(124)), (114u ^ OBFH_GUI_NAME_KEY(124)), (101u ^ OBFH_GUI_NAME_KEY(124)), (97u ^ OBFH_GUI_NAME_KEY(124)), (116u ^ OBFH_GUI_NAME_KEY(124)), (101u ^ OBFH_GUI_NAME_KEY(124)), (67u ^ OBFH_GUI_NAME_KEY(124)), (111u ^ OBFH_GUI_NAME_KEY(124)), (109u ^ OBFH_GUI_NAME_KEY(124)), (112u ^ OBFH_GUI_NAME_KEY(124)), (97u ^ OBFH_GUI_NAME_KEY(124)), (116u ^ OBFH_GUI_NAME_KEY(124)), (105u ^ OBFH_GUI_NAME_KEY(124)), (98u ^ OBFH_GUI_NAME_KEY(124)), (108u ^ OBFH_GUI_NAME_KEY(124)), (101u ^ OBFH_GUI_NAME_KEY(124)), (66u ^ OBFH_GUI_NAME_KEY(124)), (105u ^ OBFH_GUI_NAME_KEY(124)), (116u ^ OBFH_GUI_NAME_KEY(124)), (109u ^ OBFH_GUI_NAME_KEY(124)), (97u ^ OBFH_GUI_NAME_KEY(124)), (112u ^ OBFH_GUI_NAME_KEY(124)), (0u ^ OBFH_GUI_NAME_KEY(124)) }
+    { ('C' ^ OBFH_GUI_NAME_KEY(124)), ('r' ^ OBFH_GUI_NAME_KEY(124)), ('e' ^ OBFH_GUI_NAME_KEY(124)), ('a' ^ OBFH_GUI_NAME_KEY(124)), ('t' ^ OBFH_GUI_NAME_KEY(124)), ('e' ^ OBFH_GUI_NAME_KEY(124)), ('C' ^ OBFH_GUI_NAME_KEY(124)), ('o' ^ OBFH_GUI_NAME_KEY(124)), ('m' ^ OBFH_GUI_NAME_KEY(124)), ('p' ^ OBFH_GUI_NAME_KEY(124)), ('a' ^ OBFH_GUI_NAME_KEY(124)), ('t' ^ OBFH_GUI_NAME_KEY(124)), ('i' ^ OBFH_GUI_NAME_KEY(124)), ('b' ^ OBFH_GUI_NAME_KEY(124)), ('l' ^ OBFH_GUI_NAME_KEY(124)), ('e' ^ OBFH_GUI_NAME_KEY(124)), ('B' ^ OBFH_GUI_NAME_KEY(124)), ('i' ^ OBFH_GUI_NAME_KEY(124)), ('t' ^ OBFH_GUI_NAME_KEY(124)), ('m' ^ OBFH_GUI_NAME_KEY(124)), ('a' ^ OBFH_GUI_NAME_KEY(124)), ('p' ^ OBFH_GUI_NAME_KEY(124)), ('\0' ^ OBFH_GUI_NAME_KEY(124)) }
 #undef CreateCompatibleBitmap
 #define CreateCompatibleBitmap(...) OBFH_API_CALL(1, CreateCompatibleBitmap, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStockObject 125
 #define OBFH_GUI_NAME_GetStockObject \
-    { (71u ^ OBFH_GUI_NAME_KEY(125)), (101u ^ OBFH_GUI_NAME_KEY(125)), (116u ^ OBFH_GUI_NAME_KEY(125)), (83u ^ OBFH_GUI_NAME_KEY(125)), (116u ^ OBFH_GUI_NAME_KEY(125)), (111u ^ OBFH_GUI_NAME_KEY(125)), (99u ^ OBFH_GUI_NAME_KEY(125)), (107u ^ OBFH_GUI_NAME_KEY(125)), (79u ^ OBFH_GUI_NAME_KEY(125)), (98u ^ OBFH_GUI_NAME_KEY(125)), (106u ^ OBFH_GUI_NAME_KEY(125)), (101u ^ OBFH_GUI_NAME_KEY(125)), (99u ^ OBFH_GUI_NAME_KEY(125)), (116u ^ OBFH_GUI_NAME_KEY(125)), (0u ^ OBFH_GUI_NAME_KEY(125)) }
+    { ('G' ^ OBFH_GUI_NAME_KEY(125)), ('e' ^ OBFH_GUI_NAME_KEY(125)), ('t' ^ OBFH_GUI_NAME_KEY(125)), ('S' ^ OBFH_GUI_NAME_KEY(125)), ('t' ^ OBFH_GUI_NAME_KEY(125)), ('o' ^ OBFH_GUI_NAME_KEY(125)), ('c' ^ OBFH_GUI_NAME_KEY(125)), ('k' ^ OBFH_GUI_NAME_KEY(125)), ('O' ^ OBFH_GUI_NAME_KEY(125)), ('b' ^ OBFH_GUI_NAME_KEY(125)), ('j' ^ OBFH_GUI_NAME_KEY(125)), ('e' ^ OBFH_GUI_NAME_KEY(125)), ('c' ^ OBFH_GUI_NAME_KEY(125)), ('t' ^ OBFH_GUI_NAME_KEY(125)), ('\0' ^ OBFH_GUI_NAME_KEY(125)) }
 #undef GetStockObject
 #define GetStockObject(...) OBFH_API_CALL(1, GetStockObject, __VA_ARGS__)
 
@@ -7042,43 +7452,43 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_RegOpenKeyExA 126
 #define OBFH_GUI_NAME_RegOpenKeyExA \
-    { (82u ^ OBFH_GUI_NAME_KEY(126)), (101u ^ OBFH_GUI_NAME_KEY(126)), (103u ^ OBFH_GUI_NAME_KEY(126)), (79u ^ OBFH_GUI_NAME_KEY(126)), (112u ^ OBFH_GUI_NAME_KEY(126)), (101u ^ OBFH_GUI_NAME_KEY(126)), (110u ^ OBFH_GUI_NAME_KEY(126)), (75u ^ OBFH_GUI_NAME_KEY(126)), (101u ^ OBFH_GUI_NAME_KEY(126)), (121u ^ OBFH_GUI_NAME_KEY(126)), (69u ^ OBFH_GUI_NAME_KEY(126)), (120u ^ OBFH_GUI_NAME_KEY(126)), (65u ^ OBFH_GUI_NAME_KEY(126)), (0u ^ OBFH_GUI_NAME_KEY(126)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(126)), ('e' ^ OBFH_GUI_NAME_KEY(126)), ('g' ^ OBFH_GUI_NAME_KEY(126)), ('O' ^ OBFH_GUI_NAME_KEY(126)), ('p' ^ OBFH_GUI_NAME_KEY(126)), ('e' ^ OBFH_GUI_NAME_KEY(126)), ('n' ^ OBFH_GUI_NAME_KEY(126)), ('K' ^ OBFH_GUI_NAME_KEY(126)), ('e' ^ OBFH_GUI_NAME_KEY(126)), ('y' ^ OBFH_GUI_NAME_KEY(126)), ('E' ^ OBFH_GUI_NAME_KEY(126)), ('x' ^ OBFH_GUI_NAME_KEY(126)), ('A' ^ OBFH_GUI_NAME_KEY(126)), ('\0' ^ OBFH_GUI_NAME_KEY(126)) }
 #undef RegOpenKeyExA
 #define RegOpenKeyExA(...) OBFH_API_CALL(3, RegOpenKeyExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegOpenKeyExW 127
 #define OBFH_GUI_NAME_RegOpenKeyExW \
-    { (82u ^ OBFH_GUI_NAME_KEY(127)), (101u ^ OBFH_GUI_NAME_KEY(127)), (103u ^ OBFH_GUI_NAME_KEY(127)), (79u ^ OBFH_GUI_NAME_KEY(127)), (112u ^ OBFH_GUI_NAME_KEY(127)), (101u ^ OBFH_GUI_NAME_KEY(127)), (110u ^ OBFH_GUI_NAME_KEY(127)), (75u ^ OBFH_GUI_NAME_KEY(127)), (101u ^ OBFH_GUI_NAME_KEY(127)), (121u ^ OBFH_GUI_NAME_KEY(127)), (69u ^ OBFH_GUI_NAME_KEY(127)), (120u ^ OBFH_GUI_NAME_KEY(127)), (87u ^ OBFH_GUI_NAME_KEY(127)), (0u ^ OBFH_GUI_NAME_KEY(127)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(127)), ('e' ^ OBFH_GUI_NAME_KEY(127)), ('g' ^ OBFH_GUI_NAME_KEY(127)), ('O' ^ OBFH_GUI_NAME_KEY(127)), ('p' ^ OBFH_GUI_NAME_KEY(127)), ('e' ^ OBFH_GUI_NAME_KEY(127)), ('n' ^ OBFH_GUI_NAME_KEY(127)), ('K' ^ OBFH_GUI_NAME_KEY(127)), ('e' ^ OBFH_GUI_NAME_KEY(127)), ('y' ^ OBFH_GUI_NAME_KEY(127)), ('E' ^ OBFH_GUI_NAME_KEY(127)), ('x' ^ OBFH_GUI_NAME_KEY(127)), ('W' ^ OBFH_GUI_NAME_KEY(127)), ('\0' ^ OBFH_GUI_NAME_KEY(127)) }
 #undef RegOpenKeyExW
 #define RegOpenKeyExW(...) OBFH_API_CALL(3, RegOpenKeyExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegQueryValueExA 128
 #define OBFH_GUI_NAME_RegQueryValueExA \
-    { (82u ^ OBFH_GUI_NAME_KEY(128)), (101u ^ OBFH_GUI_NAME_KEY(128)), (103u ^ OBFH_GUI_NAME_KEY(128)), (81u ^ OBFH_GUI_NAME_KEY(128)), (117u ^ OBFH_GUI_NAME_KEY(128)), (101u ^ OBFH_GUI_NAME_KEY(128)), (114u ^ OBFH_GUI_NAME_KEY(128)), (121u ^ OBFH_GUI_NAME_KEY(128)), (86u ^ OBFH_GUI_NAME_KEY(128)), (97u ^ OBFH_GUI_NAME_KEY(128)), (108u ^ OBFH_GUI_NAME_KEY(128)), (117u ^ OBFH_GUI_NAME_KEY(128)), (101u ^ OBFH_GUI_NAME_KEY(128)), (69u ^ OBFH_GUI_NAME_KEY(128)), (120u ^ OBFH_GUI_NAME_KEY(128)), (65u ^ OBFH_GUI_NAME_KEY(128)), (0u ^ OBFH_GUI_NAME_KEY(128)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(128)), ('e' ^ OBFH_GUI_NAME_KEY(128)), ('g' ^ OBFH_GUI_NAME_KEY(128)), ('Q' ^ OBFH_GUI_NAME_KEY(128)), ('u' ^ OBFH_GUI_NAME_KEY(128)), ('e' ^ OBFH_GUI_NAME_KEY(128)), ('r' ^ OBFH_GUI_NAME_KEY(128)), ('y' ^ OBFH_GUI_NAME_KEY(128)), ('V' ^ OBFH_GUI_NAME_KEY(128)), ('a' ^ OBFH_GUI_NAME_KEY(128)), ('l' ^ OBFH_GUI_NAME_KEY(128)), ('u' ^ OBFH_GUI_NAME_KEY(128)), ('e' ^ OBFH_GUI_NAME_KEY(128)), ('E' ^ OBFH_GUI_NAME_KEY(128)), ('x' ^ OBFH_GUI_NAME_KEY(128)), ('A' ^ OBFH_GUI_NAME_KEY(128)), ('\0' ^ OBFH_GUI_NAME_KEY(128)) }
 #undef RegQueryValueExA
 #define RegQueryValueExA(...) OBFH_API_CALL(3, RegQueryValueExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegQueryValueExW 129
 #define OBFH_GUI_NAME_RegQueryValueExW \
-    { (82u ^ OBFH_GUI_NAME_KEY(129)), (101u ^ OBFH_GUI_NAME_KEY(129)), (103u ^ OBFH_GUI_NAME_KEY(129)), (81u ^ OBFH_GUI_NAME_KEY(129)), (117u ^ OBFH_GUI_NAME_KEY(129)), (101u ^ OBFH_GUI_NAME_KEY(129)), (114u ^ OBFH_GUI_NAME_KEY(129)), (121u ^ OBFH_GUI_NAME_KEY(129)), (86u ^ OBFH_GUI_NAME_KEY(129)), (97u ^ OBFH_GUI_NAME_KEY(129)), (108u ^ OBFH_GUI_NAME_KEY(129)), (117u ^ OBFH_GUI_NAME_KEY(129)), (101u ^ OBFH_GUI_NAME_KEY(129)), (69u ^ OBFH_GUI_NAME_KEY(129)), (120u ^ OBFH_GUI_NAME_KEY(129)), (87u ^ OBFH_GUI_NAME_KEY(129)), (0u ^ OBFH_GUI_NAME_KEY(129)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(129)), ('e' ^ OBFH_GUI_NAME_KEY(129)), ('g' ^ OBFH_GUI_NAME_KEY(129)), ('Q' ^ OBFH_GUI_NAME_KEY(129)), ('u' ^ OBFH_GUI_NAME_KEY(129)), ('e' ^ OBFH_GUI_NAME_KEY(129)), ('r' ^ OBFH_GUI_NAME_KEY(129)), ('y' ^ OBFH_GUI_NAME_KEY(129)), ('V' ^ OBFH_GUI_NAME_KEY(129)), ('a' ^ OBFH_GUI_NAME_KEY(129)), ('l' ^ OBFH_GUI_NAME_KEY(129)), ('u' ^ OBFH_GUI_NAME_KEY(129)), ('e' ^ OBFH_GUI_NAME_KEY(129)), ('E' ^ OBFH_GUI_NAME_KEY(129)), ('x' ^ OBFH_GUI_NAME_KEY(129)), ('W' ^ OBFH_GUI_NAME_KEY(129)), ('\0' ^ OBFH_GUI_NAME_KEY(129)) }
 #undef RegQueryValueExW
 #define RegQueryValueExW(...) OBFH_API_CALL(3, RegQueryValueExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegSetValueExA 130
 #define OBFH_GUI_NAME_RegSetValueExA \
-    { (82u ^ OBFH_GUI_NAME_KEY(130)), (101u ^ OBFH_GUI_NAME_KEY(130)), (103u ^ OBFH_GUI_NAME_KEY(130)), (83u ^ OBFH_GUI_NAME_KEY(130)), (101u ^ OBFH_GUI_NAME_KEY(130)), (116u ^ OBFH_GUI_NAME_KEY(130)), (86u ^ OBFH_GUI_NAME_KEY(130)), (97u ^ OBFH_GUI_NAME_KEY(130)), (108u ^ OBFH_GUI_NAME_KEY(130)), (117u ^ OBFH_GUI_NAME_KEY(130)), (101u ^ OBFH_GUI_NAME_KEY(130)), (69u ^ OBFH_GUI_NAME_KEY(130)), (120u ^ OBFH_GUI_NAME_KEY(130)), (65u ^ OBFH_GUI_NAME_KEY(130)), (0u ^ OBFH_GUI_NAME_KEY(130)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(130)), ('e' ^ OBFH_GUI_NAME_KEY(130)), ('g' ^ OBFH_GUI_NAME_KEY(130)), ('S' ^ OBFH_GUI_NAME_KEY(130)), ('e' ^ OBFH_GUI_NAME_KEY(130)), ('t' ^ OBFH_GUI_NAME_KEY(130)), ('V' ^ OBFH_GUI_NAME_KEY(130)), ('a' ^ OBFH_GUI_NAME_KEY(130)), ('l' ^ OBFH_GUI_NAME_KEY(130)), ('u' ^ OBFH_GUI_NAME_KEY(130)), ('e' ^ OBFH_GUI_NAME_KEY(130)), ('E' ^ OBFH_GUI_NAME_KEY(130)), ('x' ^ OBFH_GUI_NAME_KEY(130)), ('A' ^ OBFH_GUI_NAME_KEY(130)), ('\0' ^ OBFH_GUI_NAME_KEY(130)) }
 #undef RegSetValueExA
 #define RegSetValueExA(...) OBFH_API_CALL(3, RegSetValueExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegSetValueExW 131
 #define OBFH_GUI_NAME_RegSetValueExW \
-    { (82u ^ OBFH_GUI_NAME_KEY(131)), (101u ^ OBFH_GUI_NAME_KEY(131)), (103u ^ OBFH_GUI_NAME_KEY(131)), (83u ^ OBFH_GUI_NAME_KEY(131)), (101u ^ OBFH_GUI_NAME_KEY(131)), (116u ^ OBFH_GUI_NAME_KEY(131)), (86u ^ OBFH_GUI_NAME_KEY(131)), (97u ^ OBFH_GUI_NAME_KEY(131)), (108u ^ OBFH_GUI_NAME_KEY(131)), (117u ^ OBFH_GUI_NAME_KEY(131)), (101u ^ OBFH_GUI_NAME_KEY(131)), (69u ^ OBFH_GUI_NAME_KEY(131)), (120u ^ OBFH_GUI_NAME_KEY(131)), (87u ^ OBFH_GUI_NAME_KEY(131)), (0u ^ OBFH_GUI_NAME_KEY(131)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(131)), ('e' ^ OBFH_GUI_NAME_KEY(131)), ('g' ^ OBFH_GUI_NAME_KEY(131)), ('S' ^ OBFH_GUI_NAME_KEY(131)), ('e' ^ OBFH_GUI_NAME_KEY(131)), ('t' ^ OBFH_GUI_NAME_KEY(131)), ('V' ^ OBFH_GUI_NAME_KEY(131)), ('a' ^ OBFH_GUI_NAME_KEY(131)), ('l' ^ OBFH_GUI_NAME_KEY(131)), ('u' ^ OBFH_GUI_NAME_KEY(131)), ('e' ^ OBFH_GUI_NAME_KEY(131)), ('E' ^ OBFH_GUI_NAME_KEY(131)), ('x' ^ OBFH_GUI_NAME_KEY(131)), ('W' ^ OBFH_GUI_NAME_KEY(131)), ('\0' ^ OBFH_GUI_NAME_KEY(131)) }
 #undef RegSetValueExW
 #define RegSetValueExW(...) OBFH_API_CALL(3, RegSetValueExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegCloseKey 132
 #define OBFH_GUI_NAME_RegCloseKey \
-    { (82u ^ OBFH_GUI_NAME_KEY(132)), (101u ^ OBFH_GUI_NAME_KEY(132)), (103u ^ OBFH_GUI_NAME_KEY(132)), (67u ^ OBFH_GUI_NAME_KEY(132)), (108u ^ OBFH_GUI_NAME_KEY(132)), (111u ^ OBFH_GUI_NAME_KEY(132)), (115u ^ OBFH_GUI_NAME_KEY(132)), (101u ^ OBFH_GUI_NAME_KEY(132)), (75u ^ OBFH_GUI_NAME_KEY(132)), (101u ^ OBFH_GUI_NAME_KEY(132)), (121u ^ OBFH_GUI_NAME_KEY(132)), (0u ^ OBFH_GUI_NAME_KEY(132)) }
+    { ('R' ^ OBFH_GUI_NAME_KEY(132)), ('e' ^ OBFH_GUI_NAME_KEY(132)), ('g' ^ OBFH_GUI_NAME_KEY(132)), ('C' ^ OBFH_GUI_NAME_KEY(132)), ('l' ^ OBFH_GUI_NAME_KEY(132)), ('o' ^ OBFH_GUI_NAME_KEY(132)), ('s' ^ OBFH_GUI_NAME_KEY(132)), ('e' ^ OBFH_GUI_NAME_KEY(132)), ('K' ^ OBFH_GUI_NAME_KEY(132)), ('e' ^ OBFH_GUI_NAME_KEY(132)), ('y' ^ OBFH_GUI_NAME_KEY(132)), ('\0' ^ OBFH_GUI_NAME_KEY(132)) }
 #undef RegCloseKey
 #define RegCloseKey(...) OBFH_API_CALL(3, RegCloseKey, __VA_ARGS__)
 
@@ -7086,21 +7496,540 @@ __obfh_gui_decode:                                                              
 
 #define OBFH_GUI_ID_LoadLibraryW 133
 #define OBFH_GUI_NAME_LoadLibraryW \
-    { (76u ^ OBFH_GUI_NAME_KEY(133)), (111u ^ OBFH_GUI_NAME_KEY(133)), (97u ^ OBFH_GUI_NAME_KEY(133)), (100u ^ OBFH_GUI_NAME_KEY(133)), (76u ^ OBFH_GUI_NAME_KEY(133)), (105u ^ OBFH_GUI_NAME_KEY(133)), (98u ^ OBFH_GUI_NAME_KEY(133)), (114u ^ OBFH_GUI_NAME_KEY(133)), (97u ^ OBFH_GUI_NAME_KEY(133)), (114u ^ OBFH_GUI_NAME_KEY(133)), (121u ^ OBFH_GUI_NAME_KEY(133)), (87u ^ OBFH_GUI_NAME_KEY(133)), (0u ^ OBFH_GUI_NAME_KEY(133)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(133)), ('o' ^ OBFH_GUI_NAME_KEY(133)), ('a' ^ OBFH_GUI_NAME_KEY(133)), ('d' ^ OBFH_GUI_NAME_KEY(133)), ('L' ^ OBFH_GUI_NAME_KEY(133)), ('i' ^ OBFH_GUI_NAME_KEY(133)), ('b' ^ OBFH_GUI_NAME_KEY(133)), ('r' ^ OBFH_GUI_NAME_KEY(133)), ('a' ^ OBFH_GUI_NAME_KEY(133)), ('r' ^ OBFH_GUI_NAME_KEY(133)), ('y' ^ OBFH_GUI_NAME_KEY(133)), ('W' ^ OBFH_GUI_NAME_KEY(133)), ('\0' ^ OBFH_GUI_NAME_KEY(133)) }
 #undef LoadLibraryW
 #define LoadLibraryW(...) OBFH_API_CALL(2, LoadLibraryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadLibraryExA 134
 #define OBFH_GUI_NAME_LoadLibraryExA \
-    { (76u ^ OBFH_GUI_NAME_KEY(134)), (111u ^ OBFH_GUI_NAME_KEY(134)), (97u ^ OBFH_GUI_NAME_KEY(134)), (100u ^ OBFH_GUI_NAME_KEY(134)), (76u ^ OBFH_GUI_NAME_KEY(134)), (105u ^ OBFH_GUI_NAME_KEY(134)), (98u ^ OBFH_GUI_NAME_KEY(134)), (114u ^ OBFH_GUI_NAME_KEY(134)), (97u ^ OBFH_GUI_NAME_KEY(134)), (114u ^ OBFH_GUI_NAME_KEY(134)), (121u ^ OBFH_GUI_NAME_KEY(134)), (69u ^ OBFH_GUI_NAME_KEY(134)), (120u ^ OBFH_GUI_NAME_KEY(134)), (65u ^ OBFH_GUI_NAME_KEY(134)), (0u ^ OBFH_GUI_NAME_KEY(134)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(134)), ('o' ^ OBFH_GUI_NAME_KEY(134)), ('a' ^ OBFH_GUI_NAME_KEY(134)), ('d' ^ OBFH_GUI_NAME_KEY(134)), ('L' ^ OBFH_GUI_NAME_KEY(134)), ('i' ^ OBFH_GUI_NAME_KEY(134)), ('b' ^ OBFH_GUI_NAME_KEY(134)), ('r' ^ OBFH_GUI_NAME_KEY(134)), ('a' ^ OBFH_GUI_NAME_KEY(134)), ('r' ^ OBFH_GUI_NAME_KEY(134)), ('y' ^ OBFH_GUI_NAME_KEY(134)), ('E' ^ OBFH_GUI_NAME_KEY(134)), ('x' ^ OBFH_GUI_NAME_KEY(134)), ('A' ^ OBFH_GUI_NAME_KEY(134)), ('\0' ^ OBFH_GUI_NAME_KEY(134)) }
 #undef LoadLibraryExA
 #define LoadLibraryExA(...) OBFH_API_CALL(2, LoadLibraryExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadLibraryExW 135
 #define OBFH_GUI_NAME_LoadLibraryExW \
-    { (76u ^ OBFH_GUI_NAME_KEY(135)), (111u ^ OBFH_GUI_NAME_KEY(135)), (97u ^ OBFH_GUI_NAME_KEY(135)), (100u ^ OBFH_GUI_NAME_KEY(135)), (76u ^ OBFH_GUI_NAME_KEY(135)), (105u ^ OBFH_GUI_NAME_KEY(135)), (98u ^ OBFH_GUI_NAME_KEY(135)), (114u ^ OBFH_GUI_NAME_KEY(135)), (97u ^ OBFH_GUI_NAME_KEY(135)), (114u ^ OBFH_GUI_NAME_KEY(135)), (121u ^ OBFH_GUI_NAME_KEY(135)), (69u ^ OBFH_GUI_NAME_KEY(135)), (120u ^ OBFH_GUI_NAME_KEY(135)), (87u ^ OBFH_GUI_NAME_KEY(135)), (0u ^ OBFH_GUI_NAME_KEY(135)) }
+    { ('L' ^ OBFH_GUI_NAME_KEY(135)), ('o' ^ OBFH_GUI_NAME_KEY(135)), ('a' ^ OBFH_GUI_NAME_KEY(135)), ('d' ^ OBFH_GUI_NAME_KEY(135)), ('L' ^ OBFH_GUI_NAME_KEY(135)), ('i' ^ OBFH_GUI_NAME_KEY(135)), ('b' ^ OBFH_GUI_NAME_KEY(135)), ('r' ^ OBFH_GUI_NAME_KEY(135)), ('a' ^ OBFH_GUI_NAME_KEY(135)), ('r' ^ OBFH_GUI_NAME_KEY(135)), ('y' ^ OBFH_GUI_NAME_KEY(135)), ('E' ^ OBFH_GUI_NAME_KEY(135)), ('x' ^ OBFH_GUI_NAME_KEY(135)), ('W' ^ OBFH_GUI_NAME_KEY(135)), ('\0' ^ OBFH_GUI_NAME_KEY(135)) }
 #undef LoadLibraryExW
 #define LoadLibraryExW(...) OBFH_API_CALL(2, LoadLibraryExW, __VA_ARGS__)
+
+// ============================================================================
+// File mappings, process control, synchronization and additional GUI calls.
+
+#define OBFH_GUI_ID_CreateDirectoryA 189
+#define OBFH_GUI_NAME_CreateDirectoryA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(189)), ('r' ^ OBFH_GUI_NAME_KEY(189)), ('e' ^ OBFH_GUI_NAME_KEY(189)), ('a' ^ OBFH_GUI_NAME_KEY(189)), ('t' ^ OBFH_GUI_NAME_KEY(189)), ('e' ^ OBFH_GUI_NAME_KEY(189)), ('D' ^ OBFH_GUI_NAME_KEY(189)), ('i' ^ OBFH_GUI_NAME_KEY(189)), ('r' ^ OBFH_GUI_NAME_KEY(189)), ('e' ^ OBFH_GUI_NAME_KEY(189)), ('c' ^ OBFH_GUI_NAME_KEY(189)), ('t' ^ OBFH_GUI_NAME_KEY(189)), ('o' ^ OBFH_GUI_NAME_KEY(189)), ('r' ^ OBFH_GUI_NAME_KEY(189)), ('y' ^ OBFH_GUI_NAME_KEY(189)), ('A' ^ OBFH_GUI_NAME_KEY(189)), ('\0' ^ OBFH_GUI_NAME_KEY(189)) }
+#undef CreateDirectoryA
+#define CreateDirectoryA(...) OBFH_API_CALL(2, CreateDirectoryA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateDirectoryW 190
+#define OBFH_GUI_NAME_CreateDirectoryW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(190)), ('r' ^ OBFH_GUI_NAME_KEY(190)), ('e' ^ OBFH_GUI_NAME_KEY(190)), ('a' ^ OBFH_GUI_NAME_KEY(190)), ('t' ^ OBFH_GUI_NAME_KEY(190)), ('e' ^ OBFH_GUI_NAME_KEY(190)), ('D' ^ OBFH_GUI_NAME_KEY(190)), ('i' ^ OBFH_GUI_NAME_KEY(190)), ('r' ^ OBFH_GUI_NAME_KEY(190)), ('e' ^ OBFH_GUI_NAME_KEY(190)), ('c' ^ OBFH_GUI_NAME_KEY(190)), ('t' ^ OBFH_GUI_NAME_KEY(190)), ('o' ^ OBFH_GUI_NAME_KEY(190)), ('r' ^ OBFH_GUI_NAME_KEY(190)), ('y' ^ OBFH_GUI_NAME_KEY(190)), ('W' ^ OBFH_GUI_NAME_KEY(190)), ('\0' ^ OBFH_GUI_NAME_KEY(190)) }
+#undef CreateDirectoryW
+#define CreateDirectoryW(...) OBFH_API_CALL(2, CreateDirectoryW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_RemoveDirectoryA 191
+#define OBFH_GUI_NAME_RemoveDirectoryA \
+    { ('R' ^ OBFH_GUI_NAME_KEY(191)), ('e' ^ OBFH_GUI_NAME_KEY(191)), ('m' ^ OBFH_GUI_NAME_KEY(191)), ('o' ^ OBFH_GUI_NAME_KEY(191)), ('v' ^ OBFH_GUI_NAME_KEY(191)), ('e' ^ OBFH_GUI_NAME_KEY(191)), ('D' ^ OBFH_GUI_NAME_KEY(191)), ('i' ^ OBFH_GUI_NAME_KEY(191)), ('r' ^ OBFH_GUI_NAME_KEY(191)), ('e' ^ OBFH_GUI_NAME_KEY(191)), ('c' ^ OBFH_GUI_NAME_KEY(191)), ('t' ^ OBFH_GUI_NAME_KEY(191)), ('o' ^ OBFH_GUI_NAME_KEY(191)), ('r' ^ OBFH_GUI_NAME_KEY(191)), ('y' ^ OBFH_GUI_NAME_KEY(191)), ('A' ^ OBFH_GUI_NAME_KEY(191)), ('\0' ^ OBFH_GUI_NAME_KEY(191)) }
+#undef RemoveDirectoryA
+#define RemoveDirectoryA(...) OBFH_API_CALL(2, RemoveDirectoryA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_RemoveDirectoryW 192
+#define OBFH_GUI_NAME_RemoveDirectoryW \
+    { ('R' ^ OBFH_GUI_NAME_KEY(192)), ('e' ^ OBFH_GUI_NAME_KEY(192)), ('m' ^ OBFH_GUI_NAME_KEY(192)), ('o' ^ OBFH_GUI_NAME_KEY(192)), ('v' ^ OBFH_GUI_NAME_KEY(192)), ('e' ^ OBFH_GUI_NAME_KEY(192)), ('D' ^ OBFH_GUI_NAME_KEY(192)), ('i' ^ OBFH_GUI_NAME_KEY(192)), ('r' ^ OBFH_GUI_NAME_KEY(192)), ('e' ^ OBFH_GUI_NAME_KEY(192)), ('c' ^ OBFH_GUI_NAME_KEY(192)), ('t' ^ OBFH_GUI_NAME_KEY(192)), ('o' ^ OBFH_GUI_NAME_KEY(192)), ('r' ^ OBFH_GUI_NAME_KEY(192)), ('y' ^ OBFH_GUI_NAME_KEY(192)), ('W' ^ OBFH_GUI_NAME_KEY(192)), ('\0' ^ OBFH_GUI_NAME_KEY(192)) }
+#undef RemoveDirectoryW
+#define RemoveDirectoryW(...) OBFH_API_CALL(2, RemoveDirectoryW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetCurrentDirectoryA 193
+#define OBFH_GUI_NAME_SetCurrentDirectoryA \
+    { ('S' ^ OBFH_GUI_NAME_KEY(193)), ('e' ^ OBFH_GUI_NAME_KEY(193)), ('t' ^ OBFH_GUI_NAME_KEY(193)), ('C' ^ OBFH_GUI_NAME_KEY(193)), ('u' ^ OBFH_GUI_NAME_KEY(193)), ('r' ^ OBFH_GUI_NAME_KEY(193)), ('r' ^ OBFH_GUI_NAME_KEY(193)), ('e' ^ OBFH_GUI_NAME_KEY(193)), ('n' ^ OBFH_GUI_NAME_KEY(193)), ('t' ^ OBFH_GUI_NAME_KEY(193)), ('D' ^ OBFH_GUI_NAME_KEY(193)), ('i' ^ OBFH_GUI_NAME_KEY(193)), ('r' ^ OBFH_GUI_NAME_KEY(193)), ('e' ^ OBFH_GUI_NAME_KEY(193)), ('c' ^ OBFH_GUI_NAME_KEY(193)), ('t' ^ OBFH_GUI_NAME_KEY(193)), ('o' ^ OBFH_GUI_NAME_KEY(193)), ('r' ^ OBFH_GUI_NAME_KEY(193)), ('y' ^ OBFH_GUI_NAME_KEY(193)), ('A' ^ OBFH_GUI_NAME_KEY(193)), ('\0' ^ OBFH_GUI_NAME_KEY(193)) }
+#undef SetCurrentDirectoryA
+#define SetCurrentDirectoryA(...) OBFH_API_CALL(2, SetCurrentDirectoryA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetCurrentDirectoryW 194
+#define OBFH_GUI_NAME_SetCurrentDirectoryW \
+    { ('S' ^ OBFH_GUI_NAME_KEY(194)), ('e' ^ OBFH_GUI_NAME_KEY(194)), ('t' ^ OBFH_GUI_NAME_KEY(194)), ('C' ^ OBFH_GUI_NAME_KEY(194)), ('u' ^ OBFH_GUI_NAME_KEY(194)), ('r' ^ OBFH_GUI_NAME_KEY(194)), ('r' ^ OBFH_GUI_NAME_KEY(194)), ('e' ^ OBFH_GUI_NAME_KEY(194)), ('n' ^ OBFH_GUI_NAME_KEY(194)), ('t' ^ OBFH_GUI_NAME_KEY(194)), ('D' ^ OBFH_GUI_NAME_KEY(194)), ('i' ^ OBFH_GUI_NAME_KEY(194)), ('r' ^ OBFH_GUI_NAME_KEY(194)), ('e' ^ OBFH_GUI_NAME_KEY(194)), ('c' ^ OBFH_GUI_NAME_KEY(194)), ('t' ^ OBFH_GUI_NAME_KEY(194)), ('o' ^ OBFH_GUI_NAME_KEY(194)), ('r' ^ OBFH_GUI_NAME_KEY(194)), ('y' ^ OBFH_GUI_NAME_KEY(194)), ('W' ^ OBFH_GUI_NAME_KEY(194)), ('\0' ^ OBFH_GUI_NAME_KEY(194)) }
+#undef SetCurrentDirectoryW
+#define SetCurrentDirectoryW(...) OBFH_API_CALL(2, SetCurrentDirectoryW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFullPathNameA 195
+#define OBFH_GUI_NAME_GetFullPathNameA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(195)), ('e' ^ OBFH_GUI_NAME_KEY(195)), ('t' ^ OBFH_GUI_NAME_KEY(195)), ('F' ^ OBFH_GUI_NAME_KEY(195)), ('u' ^ OBFH_GUI_NAME_KEY(195)), ('l' ^ OBFH_GUI_NAME_KEY(195)), ('l' ^ OBFH_GUI_NAME_KEY(195)), ('P' ^ OBFH_GUI_NAME_KEY(195)), ('a' ^ OBFH_GUI_NAME_KEY(195)), ('t' ^ OBFH_GUI_NAME_KEY(195)), ('h' ^ OBFH_GUI_NAME_KEY(195)), ('N' ^ OBFH_GUI_NAME_KEY(195)), ('a' ^ OBFH_GUI_NAME_KEY(195)), ('m' ^ OBFH_GUI_NAME_KEY(195)), ('e' ^ OBFH_GUI_NAME_KEY(195)), ('A' ^ OBFH_GUI_NAME_KEY(195)), ('\0' ^ OBFH_GUI_NAME_KEY(195)) }
+#undef GetFullPathNameA
+#define GetFullPathNameA(...) OBFH_API_CALL(2, GetFullPathNameA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFullPathNameW 196
+#define OBFH_GUI_NAME_GetFullPathNameW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(196)), ('e' ^ OBFH_GUI_NAME_KEY(196)), ('t' ^ OBFH_GUI_NAME_KEY(196)), ('F' ^ OBFH_GUI_NAME_KEY(196)), ('u' ^ OBFH_GUI_NAME_KEY(196)), ('l' ^ OBFH_GUI_NAME_KEY(196)), ('l' ^ OBFH_GUI_NAME_KEY(196)), ('P' ^ OBFH_GUI_NAME_KEY(196)), ('a' ^ OBFH_GUI_NAME_KEY(196)), ('t' ^ OBFH_GUI_NAME_KEY(196)), ('h' ^ OBFH_GUI_NAME_KEY(196)), ('N' ^ OBFH_GUI_NAME_KEY(196)), ('a' ^ OBFH_GUI_NAME_KEY(196)), ('m' ^ OBFH_GUI_NAME_KEY(196)), ('e' ^ OBFH_GUI_NAME_KEY(196)), ('W' ^ OBFH_GUI_NAME_KEY(196)), ('\0' ^ OBFH_GUI_NAME_KEY(196)) }
+#undef GetFullPathNameW
+#define GetFullPathNameW(...) OBFH_API_CALL(2, GetFullPathNameW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetTempFileNameA 197
+#define OBFH_GUI_NAME_GetTempFileNameA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(197)), ('e' ^ OBFH_GUI_NAME_KEY(197)), ('t' ^ OBFH_GUI_NAME_KEY(197)), ('T' ^ OBFH_GUI_NAME_KEY(197)), ('e' ^ OBFH_GUI_NAME_KEY(197)), ('m' ^ OBFH_GUI_NAME_KEY(197)), ('p' ^ OBFH_GUI_NAME_KEY(197)), ('F' ^ OBFH_GUI_NAME_KEY(197)), ('i' ^ OBFH_GUI_NAME_KEY(197)), ('l' ^ OBFH_GUI_NAME_KEY(197)), ('e' ^ OBFH_GUI_NAME_KEY(197)), ('N' ^ OBFH_GUI_NAME_KEY(197)), ('a' ^ OBFH_GUI_NAME_KEY(197)), ('m' ^ OBFH_GUI_NAME_KEY(197)), ('e' ^ OBFH_GUI_NAME_KEY(197)), ('A' ^ OBFH_GUI_NAME_KEY(197)), ('\0' ^ OBFH_GUI_NAME_KEY(197)) }
+#undef GetTempFileNameA
+#define GetTempFileNameA(...) OBFH_API_CALL(2, GetTempFileNameA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetTempFileNameW 198
+#define OBFH_GUI_NAME_GetTempFileNameW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(198)), ('e' ^ OBFH_GUI_NAME_KEY(198)), ('t' ^ OBFH_GUI_NAME_KEY(198)), ('T' ^ OBFH_GUI_NAME_KEY(198)), ('e' ^ OBFH_GUI_NAME_KEY(198)), ('m' ^ OBFH_GUI_NAME_KEY(198)), ('p' ^ OBFH_GUI_NAME_KEY(198)), ('F' ^ OBFH_GUI_NAME_KEY(198)), ('i' ^ OBFH_GUI_NAME_KEY(198)), ('l' ^ OBFH_GUI_NAME_KEY(198)), ('e' ^ OBFH_GUI_NAME_KEY(198)), ('N' ^ OBFH_GUI_NAME_KEY(198)), ('a' ^ OBFH_GUI_NAME_KEY(198)), ('m' ^ OBFH_GUI_NAME_KEY(198)), ('e' ^ OBFH_GUI_NAME_KEY(198)), ('W' ^ OBFH_GUI_NAME_KEY(198)), ('\0' ^ OBFH_GUI_NAME_KEY(198)) }
+#undef GetTempFileNameW
+#define GetTempFileNameW(...) OBFH_API_CALL(2, GetTempFileNameW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateFileMappingA 199
+#define OBFH_GUI_NAME_CreateFileMappingA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(199)), ('r' ^ OBFH_GUI_NAME_KEY(199)), ('e' ^ OBFH_GUI_NAME_KEY(199)), ('a' ^ OBFH_GUI_NAME_KEY(199)), ('t' ^ OBFH_GUI_NAME_KEY(199)), ('e' ^ OBFH_GUI_NAME_KEY(199)), ('F' ^ OBFH_GUI_NAME_KEY(199)), ('i' ^ OBFH_GUI_NAME_KEY(199)), ('l' ^ OBFH_GUI_NAME_KEY(199)), ('e' ^ OBFH_GUI_NAME_KEY(199)), ('M' ^ OBFH_GUI_NAME_KEY(199)), ('a' ^ OBFH_GUI_NAME_KEY(199)), ('p' ^ OBFH_GUI_NAME_KEY(199)), ('p' ^ OBFH_GUI_NAME_KEY(199)), ('i' ^ OBFH_GUI_NAME_KEY(199)), ('n' ^ OBFH_GUI_NAME_KEY(199)), ('g' ^ OBFH_GUI_NAME_KEY(199)), ('A' ^ OBFH_GUI_NAME_KEY(199)), ('\0' ^ OBFH_GUI_NAME_KEY(199)) }
+#undef CreateFileMappingA
+#define CreateFileMappingA(...) OBFH_API_CALL(2, CreateFileMappingA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateFileMappingW 200
+#define OBFH_GUI_NAME_CreateFileMappingW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(200)), ('r' ^ OBFH_GUI_NAME_KEY(200)), ('e' ^ OBFH_GUI_NAME_KEY(200)), ('a' ^ OBFH_GUI_NAME_KEY(200)), ('t' ^ OBFH_GUI_NAME_KEY(200)), ('e' ^ OBFH_GUI_NAME_KEY(200)), ('F' ^ OBFH_GUI_NAME_KEY(200)), ('i' ^ OBFH_GUI_NAME_KEY(200)), ('l' ^ OBFH_GUI_NAME_KEY(200)), ('e' ^ OBFH_GUI_NAME_KEY(200)), ('M' ^ OBFH_GUI_NAME_KEY(200)), ('a' ^ OBFH_GUI_NAME_KEY(200)), ('p' ^ OBFH_GUI_NAME_KEY(200)), ('p' ^ OBFH_GUI_NAME_KEY(200)), ('i' ^ OBFH_GUI_NAME_KEY(200)), ('n' ^ OBFH_GUI_NAME_KEY(200)), ('g' ^ OBFH_GUI_NAME_KEY(200)), ('W' ^ OBFH_GUI_NAME_KEY(200)), ('\0' ^ OBFH_GUI_NAME_KEY(200)) }
+#undef CreateFileMappingW
+#define CreateFileMappingW(...) OBFH_API_CALL(2, CreateFileMappingW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_OpenFileMappingA 201
+#define OBFH_GUI_NAME_OpenFileMappingA \
+    { ('O' ^ OBFH_GUI_NAME_KEY(201)), ('p' ^ OBFH_GUI_NAME_KEY(201)), ('e' ^ OBFH_GUI_NAME_KEY(201)), ('n' ^ OBFH_GUI_NAME_KEY(201)), ('F' ^ OBFH_GUI_NAME_KEY(201)), ('i' ^ OBFH_GUI_NAME_KEY(201)), ('l' ^ OBFH_GUI_NAME_KEY(201)), ('e' ^ OBFH_GUI_NAME_KEY(201)), ('M' ^ OBFH_GUI_NAME_KEY(201)), ('a' ^ OBFH_GUI_NAME_KEY(201)), ('p' ^ OBFH_GUI_NAME_KEY(201)), ('p' ^ OBFH_GUI_NAME_KEY(201)), ('i' ^ OBFH_GUI_NAME_KEY(201)), ('n' ^ OBFH_GUI_NAME_KEY(201)), ('g' ^ OBFH_GUI_NAME_KEY(201)), ('A' ^ OBFH_GUI_NAME_KEY(201)), ('\0' ^ OBFH_GUI_NAME_KEY(201)) }
+#undef OpenFileMappingA
+#define OpenFileMappingA(...) OBFH_API_CALL(2, OpenFileMappingA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_OpenFileMappingW 202
+#define OBFH_GUI_NAME_OpenFileMappingW \
+    { ('O' ^ OBFH_GUI_NAME_KEY(202)), ('p' ^ OBFH_GUI_NAME_KEY(202)), ('e' ^ OBFH_GUI_NAME_KEY(202)), ('n' ^ OBFH_GUI_NAME_KEY(202)), ('F' ^ OBFH_GUI_NAME_KEY(202)), ('i' ^ OBFH_GUI_NAME_KEY(202)), ('l' ^ OBFH_GUI_NAME_KEY(202)), ('e' ^ OBFH_GUI_NAME_KEY(202)), ('M' ^ OBFH_GUI_NAME_KEY(202)), ('a' ^ OBFH_GUI_NAME_KEY(202)), ('p' ^ OBFH_GUI_NAME_KEY(202)), ('p' ^ OBFH_GUI_NAME_KEY(202)), ('i' ^ OBFH_GUI_NAME_KEY(202)), ('n' ^ OBFH_GUI_NAME_KEY(202)), ('g' ^ OBFH_GUI_NAME_KEY(202)), ('W' ^ OBFH_GUI_NAME_KEY(202)), ('\0' ^ OBFH_GUI_NAME_KEY(202)) }
+#undef OpenFileMappingW
+#define OpenFileMappingW(...) OBFH_API_CALL(2, OpenFileMappingW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateProcessA 203
+#define OBFH_GUI_NAME_CreateProcessA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(203)), ('r' ^ OBFH_GUI_NAME_KEY(203)), ('e' ^ OBFH_GUI_NAME_KEY(203)), ('a' ^ OBFH_GUI_NAME_KEY(203)), ('t' ^ OBFH_GUI_NAME_KEY(203)), ('e' ^ OBFH_GUI_NAME_KEY(203)), ('P' ^ OBFH_GUI_NAME_KEY(203)), ('r' ^ OBFH_GUI_NAME_KEY(203)), ('o' ^ OBFH_GUI_NAME_KEY(203)), ('c' ^ OBFH_GUI_NAME_KEY(203)), ('e' ^ OBFH_GUI_NAME_KEY(203)), ('s' ^ OBFH_GUI_NAME_KEY(203)), ('s' ^ OBFH_GUI_NAME_KEY(203)), ('A' ^ OBFH_GUI_NAME_KEY(203)), ('\0' ^ OBFH_GUI_NAME_KEY(203)) }
+#undef CreateProcessA
+#define CreateProcessA(...) OBFH_API_CALL(2, CreateProcessA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateProcessW 204
+#define OBFH_GUI_NAME_CreateProcessW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(204)), ('r' ^ OBFH_GUI_NAME_KEY(204)), ('e' ^ OBFH_GUI_NAME_KEY(204)), ('a' ^ OBFH_GUI_NAME_KEY(204)), ('t' ^ OBFH_GUI_NAME_KEY(204)), ('e' ^ OBFH_GUI_NAME_KEY(204)), ('P' ^ OBFH_GUI_NAME_KEY(204)), ('r' ^ OBFH_GUI_NAME_KEY(204)), ('o' ^ OBFH_GUI_NAME_KEY(204)), ('c' ^ OBFH_GUI_NAME_KEY(204)), ('e' ^ OBFH_GUI_NAME_KEY(204)), ('s' ^ OBFH_GUI_NAME_KEY(204)), ('s' ^ OBFH_GUI_NAME_KEY(204)), ('W' ^ OBFH_GUI_NAME_KEY(204)), ('\0' ^ OBFH_GUI_NAME_KEY(204)) }
+#undef CreateProcessW
+#define CreateProcessW(...) OBFH_API_CALL(2, CreateProcessW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateMutexA 205
+#define OBFH_GUI_NAME_CreateMutexA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(205)), ('r' ^ OBFH_GUI_NAME_KEY(205)), ('e' ^ OBFH_GUI_NAME_KEY(205)), ('a' ^ OBFH_GUI_NAME_KEY(205)), ('t' ^ OBFH_GUI_NAME_KEY(205)), ('e' ^ OBFH_GUI_NAME_KEY(205)), ('M' ^ OBFH_GUI_NAME_KEY(205)), ('u' ^ OBFH_GUI_NAME_KEY(205)), ('t' ^ OBFH_GUI_NAME_KEY(205)), ('e' ^ OBFH_GUI_NAME_KEY(205)), ('x' ^ OBFH_GUI_NAME_KEY(205)), ('A' ^ OBFH_GUI_NAME_KEY(205)), ('\0' ^ OBFH_GUI_NAME_KEY(205)) }
+#undef CreateMutexA
+#define CreateMutexA(...) OBFH_API_CALL(2, CreateMutexA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateMutexW 206
+#define OBFH_GUI_NAME_CreateMutexW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(206)), ('r' ^ OBFH_GUI_NAME_KEY(206)), ('e' ^ OBFH_GUI_NAME_KEY(206)), ('a' ^ OBFH_GUI_NAME_KEY(206)), ('t' ^ OBFH_GUI_NAME_KEY(206)), ('e' ^ OBFH_GUI_NAME_KEY(206)), ('M' ^ OBFH_GUI_NAME_KEY(206)), ('u' ^ OBFH_GUI_NAME_KEY(206)), ('t' ^ OBFH_GUI_NAME_KEY(206)), ('e' ^ OBFH_GUI_NAME_KEY(206)), ('x' ^ OBFH_GUI_NAME_KEY(206)), ('W' ^ OBFH_GUI_NAME_KEY(206)), ('\0' ^ OBFH_GUI_NAME_KEY(206)) }
+#undef CreateMutexW
+#define CreateMutexW(...) OBFH_API_CALL(2, CreateMutexW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateSemaphoreA 207
+#define OBFH_GUI_NAME_CreateSemaphoreA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(207)), ('r' ^ OBFH_GUI_NAME_KEY(207)), ('e' ^ OBFH_GUI_NAME_KEY(207)), ('a' ^ OBFH_GUI_NAME_KEY(207)), ('t' ^ OBFH_GUI_NAME_KEY(207)), ('e' ^ OBFH_GUI_NAME_KEY(207)), ('S' ^ OBFH_GUI_NAME_KEY(207)), ('e' ^ OBFH_GUI_NAME_KEY(207)), ('m' ^ OBFH_GUI_NAME_KEY(207)), ('a' ^ OBFH_GUI_NAME_KEY(207)), ('p' ^ OBFH_GUI_NAME_KEY(207)), ('h' ^ OBFH_GUI_NAME_KEY(207)), ('o' ^ OBFH_GUI_NAME_KEY(207)), ('r' ^ OBFH_GUI_NAME_KEY(207)), ('e' ^ OBFH_GUI_NAME_KEY(207)), ('A' ^ OBFH_GUI_NAME_KEY(207)), ('\0' ^ OBFH_GUI_NAME_KEY(207)) }
+#undef CreateSemaphoreA
+#define CreateSemaphoreA(...) OBFH_API_CALL(2, CreateSemaphoreA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateSemaphoreW 208
+#define OBFH_GUI_NAME_CreateSemaphoreW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(208)), ('r' ^ OBFH_GUI_NAME_KEY(208)), ('e' ^ OBFH_GUI_NAME_KEY(208)), ('a' ^ OBFH_GUI_NAME_KEY(208)), ('t' ^ OBFH_GUI_NAME_KEY(208)), ('e' ^ OBFH_GUI_NAME_KEY(208)), ('S' ^ OBFH_GUI_NAME_KEY(208)), ('e' ^ OBFH_GUI_NAME_KEY(208)), ('m' ^ OBFH_GUI_NAME_KEY(208)), ('a' ^ OBFH_GUI_NAME_KEY(208)), ('p' ^ OBFH_GUI_NAME_KEY(208)), ('h' ^ OBFH_GUI_NAME_KEY(208)), ('o' ^ OBFH_GUI_NAME_KEY(208)), ('r' ^ OBFH_GUI_NAME_KEY(208)), ('e' ^ OBFH_GUI_NAME_KEY(208)), ('W' ^ OBFH_GUI_NAME_KEY(208)), ('\0' ^ OBFH_GUI_NAME_KEY(208)) }
+#undef CreateSemaphoreW
+#define CreateSemaphoreW(...) OBFH_API_CALL(2, CreateSemaphoreW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_ReadConsoleA 209
+#define OBFH_GUI_NAME_ReadConsoleA \
+    { ('R' ^ OBFH_GUI_NAME_KEY(209)), ('e' ^ OBFH_GUI_NAME_KEY(209)), ('a' ^ OBFH_GUI_NAME_KEY(209)), ('d' ^ OBFH_GUI_NAME_KEY(209)), ('C' ^ OBFH_GUI_NAME_KEY(209)), ('o' ^ OBFH_GUI_NAME_KEY(209)), ('n' ^ OBFH_GUI_NAME_KEY(209)), ('s' ^ OBFH_GUI_NAME_KEY(209)), ('o' ^ OBFH_GUI_NAME_KEY(209)), ('l' ^ OBFH_GUI_NAME_KEY(209)), ('e' ^ OBFH_GUI_NAME_KEY(209)), ('A' ^ OBFH_GUI_NAME_KEY(209)), ('\0' ^ OBFH_GUI_NAME_KEY(209)) }
+#undef ReadConsoleA
+#define ReadConsoleA(...) OBFH_API_CALL(2, ReadConsoleA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_ReadConsoleW 210
+#define OBFH_GUI_NAME_ReadConsoleW \
+    { ('R' ^ OBFH_GUI_NAME_KEY(210)), ('e' ^ OBFH_GUI_NAME_KEY(210)), ('a' ^ OBFH_GUI_NAME_KEY(210)), ('d' ^ OBFH_GUI_NAME_KEY(210)), ('C' ^ OBFH_GUI_NAME_KEY(210)), ('o' ^ OBFH_GUI_NAME_KEY(210)), ('n' ^ OBFH_GUI_NAME_KEY(210)), ('s' ^ OBFH_GUI_NAME_KEY(210)), ('o' ^ OBFH_GUI_NAME_KEY(210)), ('l' ^ OBFH_GUI_NAME_KEY(210)), ('e' ^ OBFH_GUI_NAME_KEY(210)), ('W' ^ OBFH_GUI_NAME_KEY(210)), ('\0' ^ OBFH_GUI_NAME_KEY(210)) }
+#undef ReadConsoleW
+#define ReadConsoleW(...) OBFH_API_CALL(2, ReadConsoleW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FlushFileBuffers 211
+#define OBFH_GUI_NAME_FlushFileBuffers \
+    { ('F' ^ OBFH_GUI_NAME_KEY(211)), ('l' ^ OBFH_GUI_NAME_KEY(211)), ('u' ^ OBFH_GUI_NAME_KEY(211)), ('s' ^ OBFH_GUI_NAME_KEY(211)), ('h' ^ OBFH_GUI_NAME_KEY(211)), ('F' ^ OBFH_GUI_NAME_KEY(211)), ('i' ^ OBFH_GUI_NAME_KEY(211)), ('l' ^ OBFH_GUI_NAME_KEY(211)), ('e' ^ OBFH_GUI_NAME_KEY(211)), ('B' ^ OBFH_GUI_NAME_KEY(211)), ('u' ^ OBFH_GUI_NAME_KEY(211)), ('f' ^ OBFH_GUI_NAME_KEY(211)), ('f' ^ OBFH_GUI_NAME_KEY(211)), ('e' ^ OBFH_GUI_NAME_KEY(211)), ('r' ^ OBFH_GUI_NAME_KEY(211)), ('s' ^ OBFH_GUI_NAME_KEY(211)), ('\0' ^ OBFH_GUI_NAME_KEY(211)) }
+#undef FlushFileBuffers
+#define FlushFileBuffers(...) OBFH_API_CALL(2, FlushFileBuffers, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileTime 212
+#define OBFH_GUI_NAME_GetFileTime \
+    { ('G' ^ OBFH_GUI_NAME_KEY(212)), ('e' ^ OBFH_GUI_NAME_KEY(212)), ('t' ^ OBFH_GUI_NAME_KEY(212)), ('F' ^ OBFH_GUI_NAME_KEY(212)), ('i' ^ OBFH_GUI_NAME_KEY(212)), ('l' ^ OBFH_GUI_NAME_KEY(212)), ('e' ^ OBFH_GUI_NAME_KEY(212)), ('T' ^ OBFH_GUI_NAME_KEY(212)), ('i' ^ OBFH_GUI_NAME_KEY(212)), ('m' ^ OBFH_GUI_NAME_KEY(212)), ('e' ^ OBFH_GUI_NAME_KEY(212)), ('\0' ^ OBFH_GUI_NAME_KEY(212)) }
+#undef GetFileTime
+#define GetFileTime(...) OBFH_API_CALL(2, GetFileTime, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetFileTime 213
+#define OBFH_GUI_NAME_SetFileTime \
+    { ('S' ^ OBFH_GUI_NAME_KEY(213)), ('e' ^ OBFH_GUI_NAME_KEY(213)), ('t' ^ OBFH_GUI_NAME_KEY(213)), ('F' ^ OBFH_GUI_NAME_KEY(213)), ('i' ^ OBFH_GUI_NAME_KEY(213)), ('l' ^ OBFH_GUI_NAME_KEY(213)), ('e' ^ OBFH_GUI_NAME_KEY(213)), ('T' ^ OBFH_GUI_NAME_KEY(213)), ('i' ^ OBFH_GUI_NAME_KEY(213)), ('m' ^ OBFH_GUI_NAME_KEY(213)), ('e' ^ OBFH_GUI_NAME_KEY(213)), ('\0' ^ OBFH_GUI_NAME_KEY(213)) }
+#undef SetFileTime
+#define SetFileTime(...) OBFH_API_CALL(2, SetFileTime, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileInformationByHandle 214
+#define OBFH_GUI_NAME_GetFileInformationByHandle \
+    { ('G' ^ OBFH_GUI_NAME_KEY(214)), ('e' ^ OBFH_GUI_NAME_KEY(214)), ('t' ^ OBFH_GUI_NAME_KEY(214)), ('F' ^ OBFH_GUI_NAME_KEY(214)), ('i' ^ OBFH_GUI_NAME_KEY(214)), ('l' ^ OBFH_GUI_NAME_KEY(214)), ('e' ^ OBFH_GUI_NAME_KEY(214)), ('I' ^ OBFH_GUI_NAME_KEY(214)), ('n' ^ OBFH_GUI_NAME_KEY(214)), ('f' ^ OBFH_GUI_NAME_KEY(214)), ('o' ^ OBFH_GUI_NAME_KEY(214)), ('r' ^ OBFH_GUI_NAME_KEY(214)), ('m' ^ OBFH_GUI_NAME_KEY(214)), ('a' ^ OBFH_GUI_NAME_KEY(214)), ('t' ^ OBFH_GUI_NAME_KEY(214)), ('i' ^ OBFH_GUI_NAME_KEY(214)), ('o' ^ OBFH_GUI_NAME_KEY(214)), ('n' ^ OBFH_GUI_NAME_KEY(214)), ('B' ^ OBFH_GUI_NAME_KEY(214)), ('y' ^ OBFH_GUI_NAME_KEY(214)), ('H' ^ OBFH_GUI_NAME_KEY(214)), ('a' ^ OBFH_GUI_NAME_KEY(214)), ('n' ^ OBFH_GUI_NAME_KEY(214)), ('d' ^ OBFH_GUI_NAME_KEY(214)), ('l' ^ OBFH_GUI_NAME_KEY(214)), ('e' ^ OBFH_GUI_NAME_KEY(214)), ('\0' ^ OBFH_GUI_NAME_KEY(214)) }
+#undef GetFileInformationByHandle
+#define GetFileInformationByHandle(...) OBFH_API_CALL(2, GetFileInformationByHandle, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetOverlappedResult 215
+#define OBFH_GUI_NAME_GetOverlappedResult \
+    { ('G' ^ OBFH_GUI_NAME_KEY(215)), ('e' ^ OBFH_GUI_NAME_KEY(215)), ('t' ^ OBFH_GUI_NAME_KEY(215)), ('O' ^ OBFH_GUI_NAME_KEY(215)), ('v' ^ OBFH_GUI_NAME_KEY(215)), ('e' ^ OBFH_GUI_NAME_KEY(215)), ('r' ^ OBFH_GUI_NAME_KEY(215)), ('l' ^ OBFH_GUI_NAME_KEY(215)), ('a' ^ OBFH_GUI_NAME_KEY(215)), ('p' ^ OBFH_GUI_NAME_KEY(215)), ('p' ^ OBFH_GUI_NAME_KEY(215)), ('e' ^ OBFH_GUI_NAME_KEY(215)), ('d' ^ OBFH_GUI_NAME_KEY(215)), ('R' ^ OBFH_GUI_NAME_KEY(215)), ('e' ^ OBFH_GUI_NAME_KEY(215)), ('s' ^ OBFH_GUI_NAME_KEY(215)), ('u' ^ OBFH_GUI_NAME_KEY(215)), ('l' ^ OBFH_GUI_NAME_KEY(215)), ('t' ^ OBFH_GUI_NAME_KEY(215)), ('\0' ^ OBFH_GUI_NAME_KEY(215)) }
+#undef GetOverlappedResult
+#define GetOverlappedResult(...) OBFH_API_CALL(2, GetOverlappedResult, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CancelIo 216
+#define OBFH_GUI_NAME_CancelIo \
+    { ('C' ^ OBFH_GUI_NAME_KEY(216)), ('a' ^ OBFH_GUI_NAME_KEY(216)), ('n' ^ OBFH_GUI_NAME_KEY(216)), ('c' ^ OBFH_GUI_NAME_KEY(216)), ('e' ^ OBFH_GUI_NAME_KEY(216)), ('l' ^ OBFH_GUI_NAME_KEY(216)), ('I' ^ OBFH_GUI_NAME_KEY(216)), ('o' ^ OBFH_GUI_NAME_KEY(216)), ('\0' ^ OBFH_GUI_NAME_KEY(216)) }
+#undef CancelIo
+#define CancelIo(...) OBFH_API_CALL(2, CancelIo, __VA_ARGS__)
+
+#define OBFH_GUI_ID_MapViewOfFile 217
+#define OBFH_GUI_NAME_MapViewOfFile \
+    { ('M' ^ OBFH_GUI_NAME_KEY(217)), ('a' ^ OBFH_GUI_NAME_KEY(217)), ('p' ^ OBFH_GUI_NAME_KEY(217)), ('V' ^ OBFH_GUI_NAME_KEY(217)), ('i' ^ OBFH_GUI_NAME_KEY(217)), ('e' ^ OBFH_GUI_NAME_KEY(217)), ('w' ^ OBFH_GUI_NAME_KEY(217)), ('O' ^ OBFH_GUI_NAME_KEY(217)), ('f' ^ OBFH_GUI_NAME_KEY(217)), ('F' ^ OBFH_GUI_NAME_KEY(217)), ('i' ^ OBFH_GUI_NAME_KEY(217)), ('l' ^ OBFH_GUI_NAME_KEY(217)), ('e' ^ OBFH_GUI_NAME_KEY(217)), ('\0' ^ OBFH_GUI_NAME_KEY(217)) }
+#undef MapViewOfFile
+#define MapViewOfFile(...) OBFH_API_CALL(2, MapViewOfFile, __VA_ARGS__)
+
+#define OBFH_GUI_ID_UnmapViewOfFile 218
+#define OBFH_GUI_NAME_UnmapViewOfFile \
+    { ('U' ^ OBFH_GUI_NAME_KEY(218)), ('n' ^ OBFH_GUI_NAME_KEY(218)), ('m' ^ OBFH_GUI_NAME_KEY(218)), ('a' ^ OBFH_GUI_NAME_KEY(218)), ('p' ^ OBFH_GUI_NAME_KEY(218)), ('V' ^ OBFH_GUI_NAME_KEY(218)), ('i' ^ OBFH_GUI_NAME_KEY(218)), ('e' ^ OBFH_GUI_NAME_KEY(218)), ('w' ^ OBFH_GUI_NAME_KEY(218)), ('O' ^ OBFH_GUI_NAME_KEY(218)), ('f' ^ OBFH_GUI_NAME_KEY(218)), ('F' ^ OBFH_GUI_NAME_KEY(218)), ('i' ^ OBFH_GUI_NAME_KEY(218)), ('l' ^ OBFH_GUI_NAME_KEY(218)), ('e' ^ OBFH_GUI_NAME_KEY(218)), ('\0' ^ OBFH_GUI_NAME_KEY(218)) }
+#undef UnmapViewOfFile
+#define UnmapViewOfFile(...) OBFH_API_CALL(2, UnmapViewOfFile, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FlushViewOfFile 219
+#define OBFH_GUI_NAME_FlushViewOfFile \
+    { ('F' ^ OBFH_GUI_NAME_KEY(219)), ('l' ^ OBFH_GUI_NAME_KEY(219)), ('u' ^ OBFH_GUI_NAME_KEY(219)), ('s' ^ OBFH_GUI_NAME_KEY(219)), ('h' ^ OBFH_GUI_NAME_KEY(219)), ('V' ^ OBFH_GUI_NAME_KEY(219)), ('i' ^ OBFH_GUI_NAME_KEY(219)), ('e' ^ OBFH_GUI_NAME_KEY(219)), ('w' ^ OBFH_GUI_NAME_KEY(219)), ('O' ^ OBFH_GUI_NAME_KEY(219)), ('f' ^ OBFH_GUI_NAME_KEY(219)), ('F' ^ OBFH_GUI_NAME_KEY(219)), ('i' ^ OBFH_GUI_NAME_KEY(219)), ('l' ^ OBFH_GUI_NAME_KEY(219)), ('e' ^ OBFH_GUI_NAME_KEY(219)), ('\0' ^ OBFH_GUI_NAME_KEY(219)) }
+#undef FlushViewOfFile
+#define FlushViewOfFile(...) OBFH_API_CALL(2, FlushViewOfFile, __VA_ARGS__)
+
+#define OBFH_GUI_ID_OpenProcess 220
+#define OBFH_GUI_NAME_OpenProcess \
+    { ('O' ^ OBFH_GUI_NAME_KEY(220)), ('p' ^ OBFH_GUI_NAME_KEY(220)), ('e' ^ OBFH_GUI_NAME_KEY(220)), ('n' ^ OBFH_GUI_NAME_KEY(220)), ('P' ^ OBFH_GUI_NAME_KEY(220)), ('r' ^ OBFH_GUI_NAME_KEY(220)), ('o' ^ OBFH_GUI_NAME_KEY(220)), ('c' ^ OBFH_GUI_NAME_KEY(220)), ('e' ^ OBFH_GUI_NAME_KEY(220)), ('s' ^ OBFH_GUI_NAME_KEY(220)), ('s' ^ OBFH_GUI_NAME_KEY(220)), ('\0' ^ OBFH_GUI_NAME_KEY(220)) }
+#undef OpenProcess
+#define OpenProcess(...) OBFH_API_CALL(2, OpenProcess, __VA_ARGS__)
+
+#define OBFH_GUI_ID_TerminateProcess 221
+#define OBFH_GUI_NAME_TerminateProcess \
+    { ('T' ^ OBFH_GUI_NAME_KEY(221)), ('e' ^ OBFH_GUI_NAME_KEY(221)), ('r' ^ OBFH_GUI_NAME_KEY(221)), ('m' ^ OBFH_GUI_NAME_KEY(221)), ('i' ^ OBFH_GUI_NAME_KEY(221)), ('n' ^ OBFH_GUI_NAME_KEY(221)), ('a' ^ OBFH_GUI_NAME_KEY(221)), ('t' ^ OBFH_GUI_NAME_KEY(221)), ('e' ^ OBFH_GUI_NAME_KEY(221)), ('P' ^ OBFH_GUI_NAME_KEY(221)), ('r' ^ OBFH_GUI_NAME_KEY(221)), ('o' ^ OBFH_GUI_NAME_KEY(221)), ('c' ^ OBFH_GUI_NAME_KEY(221)), ('e' ^ OBFH_GUI_NAME_KEY(221)), ('s' ^ OBFH_GUI_NAME_KEY(221)), ('s' ^ OBFH_GUI_NAME_KEY(221)), ('\0' ^ OBFH_GUI_NAME_KEY(221)) }
+#undef TerminateProcess
+#define TerminateProcess(...) OBFH_API_CALL(2, TerminateProcess, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetExitCodeProcess 222
+#define OBFH_GUI_NAME_GetExitCodeProcess \
+    { ('G' ^ OBFH_GUI_NAME_KEY(222)), ('e' ^ OBFH_GUI_NAME_KEY(222)), ('t' ^ OBFH_GUI_NAME_KEY(222)), ('E' ^ OBFH_GUI_NAME_KEY(222)), ('x' ^ OBFH_GUI_NAME_KEY(222)), ('i' ^ OBFH_GUI_NAME_KEY(222)), ('t' ^ OBFH_GUI_NAME_KEY(222)), ('C' ^ OBFH_GUI_NAME_KEY(222)), ('o' ^ OBFH_GUI_NAME_KEY(222)), ('d' ^ OBFH_GUI_NAME_KEY(222)), ('e' ^ OBFH_GUI_NAME_KEY(222)), ('P' ^ OBFH_GUI_NAME_KEY(222)), ('r' ^ OBFH_GUI_NAME_KEY(222)), ('o' ^ OBFH_GUI_NAME_KEY(222)), ('c' ^ OBFH_GUI_NAME_KEY(222)), ('e' ^ OBFH_GUI_NAME_KEY(222)), ('s' ^ OBFH_GUI_NAME_KEY(222)), ('s' ^ OBFH_GUI_NAME_KEY(222)), ('\0' ^ OBFH_GUI_NAME_KEY(222)) }
+#undef GetExitCodeProcess
+#define GetExitCodeProcess(...) OBFH_API_CALL(2, GetExitCodeProcess, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetProcessTimes 223
+#define OBFH_GUI_NAME_GetProcessTimes \
+    { ('G' ^ OBFH_GUI_NAME_KEY(223)), ('e' ^ OBFH_GUI_NAME_KEY(223)), ('t' ^ OBFH_GUI_NAME_KEY(223)), ('P' ^ OBFH_GUI_NAME_KEY(223)), ('r' ^ OBFH_GUI_NAME_KEY(223)), ('o' ^ OBFH_GUI_NAME_KEY(223)), ('c' ^ OBFH_GUI_NAME_KEY(223)), ('e' ^ OBFH_GUI_NAME_KEY(223)), ('s' ^ OBFH_GUI_NAME_KEY(223)), ('s' ^ OBFH_GUI_NAME_KEY(223)), ('T' ^ OBFH_GUI_NAME_KEY(223)), ('i' ^ OBFH_GUI_NAME_KEY(223)), ('m' ^ OBFH_GUI_NAME_KEY(223)), ('e' ^ OBFH_GUI_NAME_KEY(223)), ('s' ^ OBFH_GUI_NAME_KEY(223)), ('\0' ^ OBFH_GUI_NAME_KEY(223)) }
+#undef GetProcessTimes
+#define GetProcessTimes(...) OBFH_API_CALL(2, GetProcessTimes, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SleepEx 224
+#define OBFH_GUI_NAME_SleepEx \
+    { ('S' ^ OBFH_GUI_NAME_KEY(224)), ('l' ^ OBFH_GUI_NAME_KEY(224)), ('e' ^ OBFH_GUI_NAME_KEY(224)), ('e' ^ OBFH_GUI_NAME_KEY(224)), ('p' ^ OBFH_GUI_NAME_KEY(224)), ('E' ^ OBFH_GUI_NAME_KEY(224)), ('x' ^ OBFH_GUI_NAME_KEY(224)), ('\0' ^ OBFH_GUI_NAME_KEY(224)) }
+#undef SleepEx
+#define SleepEx(...) OBFH_API_CALL(2, SleepEx, __VA_ARGS__)
+
+#define OBFH_GUI_ID_ReleaseMutex 225
+#define OBFH_GUI_NAME_ReleaseMutex \
+    { ('R' ^ OBFH_GUI_NAME_KEY(225)), ('e' ^ OBFH_GUI_NAME_KEY(225)), ('l' ^ OBFH_GUI_NAME_KEY(225)), ('e' ^ OBFH_GUI_NAME_KEY(225)), ('a' ^ OBFH_GUI_NAME_KEY(225)), ('s' ^ OBFH_GUI_NAME_KEY(225)), ('e' ^ OBFH_GUI_NAME_KEY(225)), ('M' ^ OBFH_GUI_NAME_KEY(225)), ('u' ^ OBFH_GUI_NAME_KEY(225)), ('t' ^ OBFH_GUI_NAME_KEY(225)), ('e' ^ OBFH_GUI_NAME_KEY(225)), ('x' ^ OBFH_GUI_NAME_KEY(225)), ('\0' ^ OBFH_GUI_NAME_KEY(225)) }
+#undef ReleaseMutex
+#define ReleaseMutex(...) OBFH_API_CALL(2, ReleaseMutex, __VA_ARGS__)
+
+#define OBFH_GUI_ID_ReleaseSemaphore 226
+#define OBFH_GUI_NAME_ReleaseSemaphore \
+    { ('R' ^ OBFH_GUI_NAME_KEY(226)), ('e' ^ OBFH_GUI_NAME_KEY(226)), ('l' ^ OBFH_GUI_NAME_KEY(226)), ('e' ^ OBFH_GUI_NAME_KEY(226)), ('a' ^ OBFH_GUI_NAME_KEY(226)), ('s' ^ OBFH_GUI_NAME_KEY(226)), ('e' ^ OBFH_GUI_NAME_KEY(226)), ('S' ^ OBFH_GUI_NAME_KEY(226)), ('e' ^ OBFH_GUI_NAME_KEY(226)), ('m' ^ OBFH_GUI_NAME_KEY(226)), ('a' ^ OBFH_GUI_NAME_KEY(226)), ('p' ^ OBFH_GUI_NAME_KEY(226)), ('h' ^ OBFH_GUI_NAME_KEY(226)), ('o' ^ OBFH_GUI_NAME_KEY(226)), ('r' ^ OBFH_GUI_NAME_KEY(226)), ('e' ^ OBFH_GUI_NAME_KEY(226)), ('\0' ^ OBFH_GUI_NAME_KEY(226)) }
+#undef ReleaseSemaphore
+#define ReleaseSemaphore(...) OBFH_API_CALL(2, ReleaseSemaphore, __VA_ARGS__)
+
+#define OBFH_GUI_ID_InitializeCriticalSection 227
+#define OBFH_GUI_NAME_InitializeCriticalSection \
+    { ('I' ^ OBFH_GUI_NAME_KEY(227)), ('n' ^ OBFH_GUI_NAME_KEY(227)), ('i' ^ OBFH_GUI_NAME_KEY(227)), ('t' ^ OBFH_GUI_NAME_KEY(227)), ('i' ^ OBFH_GUI_NAME_KEY(227)), ('a' ^ OBFH_GUI_NAME_KEY(227)), ('l' ^ OBFH_GUI_NAME_KEY(227)), ('i' ^ OBFH_GUI_NAME_KEY(227)), ('z' ^ OBFH_GUI_NAME_KEY(227)), ('e' ^ OBFH_GUI_NAME_KEY(227)), ('C' ^ OBFH_GUI_NAME_KEY(227)), ('r' ^ OBFH_GUI_NAME_KEY(227)), ('i' ^ OBFH_GUI_NAME_KEY(227)), ('t' ^ OBFH_GUI_NAME_KEY(227)), ('i' ^ OBFH_GUI_NAME_KEY(227)), ('c' ^ OBFH_GUI_NAME_KEY(227)), ('a' ^ OBFH_GUI_NAME_KEY(227)), ('l' ^ OBFH_GUI_NAME_KEY(227)), ('S' ^ OBFH_GUI_NAME_KEY(227)), ('e' ^ OBFH_GUI_NAME_KEY(227)), ('c' ^ OBFH_GUI_NAME_KEY(227)), ('t' ^ OBFH_GUI_NAME_KEY(227)), ('i' ^ OBFH_GUI_NAME_KEY(227)), ('o' ^ OBFH_GUI_NAME_KEY(227)), ('n' ^ OBFH_GUI_NAME_KEY(227)), ('\0' ^ OBFH_GUI_NAME_KEY(227)) }
+#undef InitializeCriticalSection
+#define InitializeCriticalSection(...) OBFH_API_CALL(2, InitializeCriticalSection, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DeleteCriticalSection 228
+#define OBFH_GUI_NAME_DeleteCriticalSection \
+    { ('D' ^ OBFH_GUI_NAME_KEY(228)), ('e' ^ OBFH_GUI_NAME_KEY(228)), ('l' ^ OBFH_GUI_NAME_KEY(228)), ('e' ^ OBFH_GUI_NAME_KEY(228)), ('t' ^ OBFH_GUI_NAME_KEY(228)), ('e' ^ OBFH_GUI_NAME_KEY(228)), ('C' ^ OBFH_GUI_NAME_KEY(228)), ('r' ^ OBFH_GUI_NAME_KEY(228)), ('i' ^ OBFH_GUI_NAME_KEY(228)), ('t' ^ OBFH_GUI_NAME_KEY(228)), ('i' ^ OBFH_GUI_NAME_KEY(228)), ('c' ^ OBFH_GUI_NAME_KEY(228)), ('a' ^ OBFH_GUI_NAME_KEY(228)), ('l' ^ OBFH_GUI_NAME_KEY(228)), ('S' ^ OBFH_GUI_NAME_KEY(228)), ('e' ^ OBFH_GUI_NAME_KEY(228)), ('c' ^ OBFH_GUI_NAME_KEY(228)), ('t' ^ OBFH_GUI_NAME_KEY(228)), ('i' ^ OBFH_GUI_NAME_KEY(228)), ('o' ^ OBFH_GUI_NAME_KEY(228)), ('n' ^ OBFH_GUI_NAME_KEY(228)), ('\0' ^ OBFH_GUI_NAME_KEY(228)) }
+#undef DeleteCriticalSection
+#define DeleteCriticalSection(...) OBFH_API_CALL(2, DeleteCriticalSection, __VA_ARGS__)
+
+#define OBFH_GUI_ID_EnterCriticalSection 229
+#define OBFH_GUI_NAME_EnterCriticalSection \
+    { ('E' ^ OBFH_GUI_NAME_KEY(229)), ('n' ^ OBFH_GUI_NAME_KEY(229)), ('t' ^ OBFH_GUI_NAME_KEY(229)), ('e' ^ OBFH_GUI_NAME_KEY(229)), ('r' ^ OBFH_GUI_NAME_KEY(229)), ('C' ^ OBFH_GUI_NAME_KEY(229)), ('r' ^ OBFH_GUI_NAME_KEY(229)), ('i' ^ OBFH_GUI_NAME_KEY(229)), ('t' ^ OBFH_GUI_NAME_KEY(229)), ('i' ^ OBFH_GUI_NAME_KEY(229)), ('c' ^ OBFH_GUI_NAME_KEY(229)), ('a' ^ OBFH_GUI_NAME_KEY(229)), ('l' ^ OBFH_GUI_NAME_KEY(229)), ('S' ^ OBFH_GUI_NAME_KEY(229)), ('e' ^ OBFH_GUI_NAME_KEY(229)), ('c' ^ OBFH_GUI_NAME_KEY(229)), ('t' ^ OBFH_GUI_NAME_KEY(229)), ('i' ^ OBFH_GUI_NAME_KEY(229)), ('o' ^ OBFH_GUI_NAME_KEY(229)), ('n' ^ OBFH_GUI_NAME_KEY(229)), ('\0' ^ OBFH_GUI_NAME_KEY(229)) }
+#undef EnterCriticalSection
+#define EnterCriticalSection(...) OBFH_API_CALL(2, EnterCriticalSection, __VA_ARGS__)
+
+#define OBFH_GUI_ID_LeaveCriticalSection 230
+#define OBFH_GUI_NAME_LeaveCriticalSection \
+    { ('L' ^ OBFH_GUI_NAME_KEY(230)), ('e' ^ OBFH_GUI_NAME_KEY(230)), ('a' ^ OBFH_GUI_NAME_KEY(230)), ('v' ^ OBFH_GUI_NAME_KEY(230)), ('e' ^ OBFH_GUI_NAME_KEY(230)), ('C' ^ OBFH_GUI_NAME_KEY(230)), ('r' ^ OBFH_GUI_NAME_KEY(230)), ('i' ^ OBFH_GUI_NAME_KEY(230)), ('t' ^ OBFH_GUI_NAME_KEY(230)), ('i' ^ OBFH_GUI_NAME_KEY(230)), ('c' ^ OBFH_GUI_NAME_KEY(230)), ('a' ^ OBFH_GUI_NAME_KEY(230)), ('l' ^ OBFH_GUI_NAME_KEY(230)), ('S' ^ OBFH_GUI_NAME_KEY(230)), ('e' ^ OBFH_GUI_NAME_KEY(230)), ('c' ^ OBFH_GUI_NAME_KEY(230)), ('t' ^ OBFH_GUI_NAME_KEY(230)), ('i' ^ OBFH_GUI_NAME_KEY(230)), ('o' ^ OBFH_GUI_NAME_KEY(230)), ('n' ^ OBFH_GUI_NAME_KEY(230)), ('\0' ^ OBFH_GUI_NAME_KEY(230)) }
+#undef LeaveCriticalSection
+#define LeaveCriticalSection(...) OBFH_API_CALL(2, LeaveCriticalSection, __VA_ARGS__)
+
+#define OBFH_GUI_ID_TryEnterCriticalSection 231
+#define OBFH_GUI_NAME_TryEnterCriticalSection \
+    { ('T' ^ OBFH_GUI_NAME_KEY(231)), ('r' ^ OBFH_GUI_NAME_KEY(231)), ('y' ^ OBFH_GUI_NAME_KEY(231)), ('E' ^ OBFH_GUI_NAME_KEY(231)), ('n' ^ OBFH_GUI_NAME_KEY(231)), ('t' ^ OBFH_GUI_NAME_KEY(231)), ('e' ^ OBFH_GUI_NAME_KEY(231)), ('r' ^ OBFH_GUI_NAME_KEY(231)), ('C' ^ OBFH_GUI_NAME_KEY(231)), ('r' ^ OBFH_GUI_NAME_KEY(231)), ('i' ^ OBFH_GUI_NAME_KEY(231)), ('t' ^ OBFH_GUI_NAME_KEY(231)), ('i' ^ OBFH_GUI_NAME_KEY(231)), ('c' ^ OBFH_GUI_NAME_KEY(231)), ('a' ^ OBFH_GUI_NAME_KEY(231)), ('l' ^ OBFH_GUI_NAME_KEY(231)), ('S' ^ OBFH_GUI_NAME_KEY(231)), ('e' ^ OBFH_GUI_NAME_KEY(231)), ('c' ^ OBFH_GUI_NAME_KEY(231)), ('t' ^ OBFH_GUI_NAME_KEY(231)), ('i' ^ OBFH_GUI_NAME_KEY(231)), ('o' ^ OBFH_GUI_NAME_KEY(231)), ('n' ^ OBFH_GUI_NAME_KEY(231)), ('\0' ^ OBFH_GUI_NAME_KEY(231)) }
+#undef TryEnterCriticalSection
+#define TryEnterCriticalSection(...) OBFH_API_CALL(2, TryEnterCriticalSection, __VA_ARGS__)
+
+#define OBFH_GUI_ID_AllocConsole 232
+#define OBFH_GUI_NAME_AllocConsole \
+    { ('A' ^ OBFH_GUI_NAME_KEY(232)), ('l' ^ OBFH_GUI_NAME_KEY(232)), ('l' ^ OBFH_GUI_NAME_KEY(232)), ('o' ^ OBFH_GUI_NAME_KEY(232)), ('c' ^ OBFH_GUI_NAME_KEY(232)), ('C' ^ OBFH_GUI_NAME_KEY(232)), ('o' ^ OBFH_GUI_NAME_KEY(232)), ('n' ^ OBFH_GUI_NAME_KEY(232)), ('s' ^ OBFH_GUI_NAME_KEY(232)), ('o' ^ OBFH_GUI_NAME_KEY(232)), ('l' ^ OBFH_GUI_NAME_KEY(232)), ('e' ^ OBFH_GUI_NAME_KEY(232)), ('\0' ^ OBFH_GUI_NAME_KEY(232)) }
+#undef AllocConsole
+#define AllocConsole(...) OBFH_API_CALL(2, AllocConsole, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FreeConsole 233
+#define OBFH_GUI_NAME_FreeConsole \
+    { ('F' ^ OBFH_GUI_NAME_KEY(233)), ('r' ^ OBFH_GUI_NAME_KEY(233)), ('e' ^ OBFH_GUI_NAME_KEY(233)), ('e' ^ OBFH_GUI_NAME_KEY(233)), ('C' ^ OBFH_GUI_NAME_KEY(233)), ('o' ^ OBFH_GUI_NAME_KEY(233)), ('n' ^ OBFH_GUI_NAME_KEY(233)), ('s' ^ OBFH_GUI_NAME_KEY(233)), ('o' ^ OBFH_GUI_NAME_KEY(233)), ('l' ^ OBFH_GUI_NAME_KEY(233)), ('e' ^ OBFH_GUI_NAME_KEY(233)), ('\0' ^ OBFH_GUI_NAME_KEY(233)) }
+#undef FreeConsole
+#define FreeConsole(...) OBFH_API_CALL(2, FreeConsole, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetConsoleWindow 234
+#define OBFH_GUI_NAME_GetConsoleWindow \
+    { ('G' ^ OBFH_GUI_NAME_KEY(234)), ('e' ^ OBFH_GUI_NAME_KEY(234)), ('t' ^ OBFH_GUI_NAME_KEY(234)), ('C' ^ OBFH_GUI_NAME_KEY(234)), ('o' ^ OBFH_GUI_NAME_KEY(234)), ('n' ^ OBFH_GUI_NAME_KEY(234)), ('s' ^ OBFH_GUI_NAME_KEY(234)), ('o' ^ OBFH_GUI_NAME_KEY(234)), ('l' ^ OBFH_GUI_NAME_KEY(234)), ('e' ^ OBFH_GUI_NAME_KEY(234)), ('W' ^ OBFH_GUI_NAME_KEY(234)), ('i' ^ OBFH_GUI_NAME_KEY(234)), ('n' ^ OBFH_GUI_NAME_KEY(234)), ('d' ^ OBFH_GUI_NAME_KEY(234)), ('o' ^ OBFH_GUI_NAME_KEY(234)), ('w' ^ OBFH_GUI_NAME_KEY(234)), ('\0' ^ OBFH_GUI_NAME_KEY(234)) }
+#undef GetConsoleWindow
+#define GetConsoleWindow(...) OBFH_API_CALL(2, GetConsoleWindow, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetConsoleMode 235
+#define OBFH_GUI_NAME_SetConsoleMode \
+    { ('S' ^ OBFH_GUI_NAME_KEY(235)), ('e' ^ OBFH_GUI_NAME_KEY(235)), ('t' ^ OBFH_GUI_NAME_KEY(235)), ('C' ^ OBFH_GUI_NAME_KEY(235)), ('o' ^ OBFH_GUI_NAME_KEY(235)), ('n' ^ OBFH_GUI_NAME_KEY(235)), ('s' ^ OBFH_GUI_NAME_KEY(235)), ('o' ^ OBFH_GUI_NAME_KEY(235)), ('l' ^ OBFH_GUI_NAME_KEY(235)), ('e' ^ OBFH_GUI_NAME_KEY(235)), ('M' ^ OBFH_GUI_NAME_KEY(235)), ('o' ^ OBFH_GUI_NAME_KEY(235)), ('d' ^ OBFH_GUI_NAME_KEY(235)), ('e' ^ OBFH_GUI_NAME_KEY(235)), ('\0' ^ OBFH_GUI_NAME_KEY(235)) }
+#undef SetConsoleMode
+#define SetConsoleMode(...) OBFH_API_CALL(2, SetConsoleMode, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetConsoleCP 236
+#define OBFH_GUI_NAME_GetConsoleCP \
+    { ('G' ^ OBFH_GUI_NAME_KEY(236)), ('e' ^ OBFH_GUI_NAME_KEY(236)), ('t' ^ OBFH_GUI_NAME_KEY(236)), ('C' ^ OBFH_GUI_NAME_KEY(236)), ('o' ^ OBFH_GUI_NAME_KEY(236)), ('n' ^ OBFH_GUI_NAME_KEY(236)), ('s' ^ OBFH_GUI_NAME_KEY(236)), ('o' ^ OBFH_GUI_NAME_KEY(236)), ('l' ^ OBFH_GUI_NAME_KEY(236)), ('e' ^ OBFH_GUI_NAME_KEY(236)), ('C' ^ OBFH_GUI_NAME_KEY(236)), ('P' ^ OBFH_GUI_NAME_KEY(236)), ('\0' ^ OBFH_GUI_NAME_KEY(236)) }
+#undef GetConsoleCP
+#define GetConsoleCP(...) OBFH_API_CALL(2, GetConsoleCP, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetConsoleOutputCP 237
+#define OBFH_GUI_NAME_GetConsoleOutputCP \
+    { ('G' ^ OBFH_GUI_NAME_KEY(237)), ('e' ^ OBFH_GUI_NAME_KEY(237)), ('t' ^ OBFH_GUI_NAME_KEY(237)), ('C' ^ OBFH_GUI_NAME_KEY(237)), ('o' ^ OBFH_GUI_NAME_KEY(237)), ('n' ^ OBFH_GUI_NAME_KEY(237)), ('s' ^ OBFH_GUI_NAME_KEY(237)), ('o' ^ OBFH_GUI_NAME_KEY(237)), ('l' ^ OBFH_GUI_NAME_KEY(237)), ('e' ^ OBFH_GUI_NAME_KEY(237)), ('O' ^ OBFH_GUI_NAME_KEY(237)), ('u' ^ OBFH_GUI_NAME_KEY(237)), ('t' ^ OBFH_GUI_NAME_KEY(237)), ('p' ^ OBFH_GUI_NAME_KEY(237)), ('u' ^ OBFH_GUI_NAME_KEY(237)), ('t' ^ OBFH_GUI_NAME_KEY(237)), ('C' ^ OBFH_GUI_NAME_KEY(237)), ('P' ^ OBFH_GUI_NAME_KEY(237)), ('\0' ^ OBFH_GUI_NAME_KEY(237)) }
+#undef GetConsoleOutputCP
+#define GetConsoleOutputCP(...) OBFH_API_CALL(2, GetConsoleOutputCP, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetConsoleCP 238
+#define OBFH_GUI_NAME_SetConsoleCP \
+    { ('S' ^ OBFH_GUI_NAME_KEY(238)), ('e' ^ OBFH_GUI_NAME_KEY(238)), ('t' ^ OBFH_GUI_NAME_KEY(238)), ('C' ^ OBFH_GUI_NAME_KEY(238)), ('o' ^ OBFH_GUI_NAME_KEY(238)), ('n' ^ OBFH_GUI_NAME_KEY(238)), ('s' ^ OBFH_GUI_NAME_KEY(238)), ('o' ^ OBFH_GUI_NAME_KEY(238)), ('l' ^ OBFH_GUI_NAME_KEY(238)), ('e' ^ OBFH_GUI_NAME_KEY(238)), ('C' ^ OBFH_GUI_NAME_KEY(238)), ('P' ^ OBFH_GUI_NAME_KEY(238)), ('\0' ^ OBFH_GUI_NAME_KEY(238)) }
+#undef SetConsoleCP
+#define SetConsoleCP(...) OBFH_API_CALL(2, SetConsoleCP, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetConsoleOutputCP 239
+#define OBFH_GUI_NAME_SetConsoleOutputCP \
+    { ('S' ^ OBFH_GUI_NAME_KEY(239)), ('e' ^ OBFH_GUI_NAME_KEY(239)), ('t' ^ OBFH_GUI_NAME_KEY(239)), ('C' ^ OBFH_GUI_NAME_KEY(239)), ('o' ^ OBFH_GUI_NAME_KEY(239)), ('n' ^ OBFH_GUI_NAME_KEY(239)), ('s' ^ OBFH_GUI_NAME_KEY(239)), ('o' ^ OBFH_GUI_NAME_KEY(239)), ('l' ^ OBFH_GUI_NAME_KEY(239)), ('e' ^ OBFH_GUI_NAME_KEY(239)), ('O' ^ OBFH_GUI_NAME_KEY(239)), ('u' ^ OBFH_GUI_NAME_KEY(239)), ('t' ^ OBFH_GUI_NAME_KEY(239)), ('p' ^ OBFH_GUI_NAME_KEY(239)), ('u' ^ OBFH_GUI_NAME_KEY(239)), ('t' ^ OBFH_GUI_NAME_KEY(239)), ('C' ^ OBFH_GUI_NAME_KEY(239)), ('P' ^ OBFH_GUI_NAME_KEY(239)), ('\0' ^ OBFH_GUI_NAME_KEY(239)) }
+#undef SetConsoleOutputCP
+#define SetConsoleOutputCP(...) OBFH_API_CALL(2, SetConsoleOutputCP, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetSystemInfo 240
+#define OBFH_GUI_NAME_GetSystemInfo \
+    { ('G' ^ OBFH_GUI_NAME_KEY(240)), ('e' ^ OBFH_GUI_NAME_KEY(240)), ('t' ^ OBFH_GUI_NAME_KEY(240)), ('S' ^ OBFH_GUI_NAME_KEY(240)), ('y' ^ OBFH_GUI_NAME_KEY(240)), ('s' ^ OBFH_GUI_NAME_KEY(240)), ('t' ^ OBFH_GUI_NAME_KEY(240)), ('e' ^ OBFH_GUI_NAME_KEY(240)), ('m' ^ OBFH_GUI_NAME_KEY(240)), ('I' ^ OBFH_GUI_NAME_KEY(240)), ('n' ^ OBFH_GUI_NAME_KEY(240)), ('f' ^ OBFH_GUI_NAME_KEY(240)), ('o' ^ OBFH_GUI_NAME_KEY(240)), ('\0' ^ OBFH_GUI_NAME_KEY(240)) }
+#undef GetSystemInfo
+#define GetSystemInfo(...) OBFH_API_CALL(2, GetSystemInfo, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetNativeSystemInfo 241
+#define OBFH_GUI_NAME_GetNativeSystemInfo \
+    { ('G' ^ OBFH_GUI_NAME_KEY(241)), ('e' ^ OBFH_GUI_NAME_KEY(241)), ('t' ^ OBFH_GUI_NAME_KEY(241)), ('N' ^ OBFH_GUI_NAME_KEY(241)), ('a' ^ OBFH_GUI_NAME_KEY(241)), ('t' ^ OBFH_GUI_NAME_KEY(241)), ('i' ^ OBFH_GUI_NAME_KEY(241)), ('v' ^ OBFH_GUI_NAME_KEY(241)), ('e' ^ OBFH_GUI_NAME_KEY(241)), ('S' ^ OBFH_GUI_NAME_KEY(241)), ('y' ^ OBFH_GUI_NAME_KEY(241)), ('s' ^ OBFH_GUI_NAME_KEY(241)), ('t' ^ OBFH_GUI_NAME_KEY(241)), ('e' ^ OBFH_GUI_NAME_KEY(241)), ('m' ^ OBFH_GUI_NAME_KEY(241)), ('I' ^ OBFH_GUI_NAME_KEY(241)), ('n' ^ OBFH_GUI_NAME_KEY(241)), ('f' ^ OBFH_GUI_NAME_KEY(241)), ('o' ^ OBFH_GUI_NAME_KEY(241)), ('\0' ^ OBFH_GUI_NAME_KEY(241)) }
+#undef GetNativeSystemInfo
+#define GetNativeSystemInfo(...) OBFH_API_CALL(2, GetNativeSystemInfo, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetSystemTimeAsFileTime 242
+#define OBFH_GUI_NAME_GetSystemTimeAsFileTime \
+    { ('G' ^ OBFH_GUI_NAME_KEY(242)), ('e' ^ OBFH_GUI_NAME_KEY(242)), ('t' ^ OBFH_GUI_NAME_KEY(242)), ('S' ^ OBFH_GUI_NAME_KEY(242)), ('y' ^ OBFH_GUI_NAME_KEY(242)), ('s' ^ OBFH_GUI_NAME_KEY(242)), ('t' ^ OBFH_GUI_NAME_KEY(242)), ('e' ^ OBFH_GUI_NAME_KEY(242)), ('m' ^ OBFH_GUI_NAME_KEY(242)), ('T' ^ OBFH_GUI_NAME_KEY(242)), ('i' ^ OBFH_GUI_NAME_KEY(242)), ('m' ^ OBFH_GUI_NAME_KEY(242)), ('e' ^ OBFH_GUI_NAME_KEY(242)), ('A' ^ OBFH_GUI_NAME_KEY(242)), ('s' ^ OBFH_GUI_NAME_KEY(242)), ('F' ^ OBFH_GUI_NAME_KEY(242)), ('i' ^ OBFH_GUI_NAME_KEY(242)), ('l' ^ OBFH_GUI_NAME_KEY(242)), ('e' ^ OBFH_GUI_NAME_KEY(242)), ('T' ^ OBFH_GUI_NAME_KEY(242)), ('i' ^ OBFH_GUI_NAME_KEY(242)), ('m' ^ OBFH_GUI_NAME_KEY(242)), ('e' ^ OBFH_GUI_NAME_KEY(242)), ('\0' ^ OBFH_GUI_NAME_KEY(242)) }
+#undef GetSystemTimeAsFileTime
+#define GetSystemTimeAsFileTime(...) OBFH_API_CALL(2, GetSystemTimeAsFileTime, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateDialogParamA 243
+#define OBFH_GUI_NAME_CreateDialogParamA \
+    { ('C' ^ OBFH_GUI_NAME_KEY(243)), ('r' ^ OBFH_GUI_NAME_KEY(243)), ('e' ^ OBFH_GUI_NAME_KEY(243)), ('a' ^ OBFH_GUI_NAME_KEY(243)), ('t' ^ OBFH_GUI_NAME_KEY(243)), ('e' ^ OBFH_GUI_NAME_KEY(243)), ('D' ^ OBFH_GUI_NAME_KEY(243)), ('i' ^ OBFH_GUI_NAME_KEY(243)), ('a' ^ OBFH_GUI_NAME_KEY(243)), ('l' ^ OBFH_GUI_NAME_KEY(243)), ('o' ^ OBFH_GUI_NAME_KEY(243)), ('g' ^ OBFH_GUI_NAME_KEY(243)), ('P' ^ OBFH_GUI_NAME_KEY(243)), ('a' ^ OBFH_GUI_NAME_KEY(243)), ('r' ^ OBFH_GUI_NAME_KEY(243)), ('a' ^ OBFH_GUI_NAME_KEY(243)), ('m' ^ OBFH_GUI_NAME_KEY(243)), ('A' ^ OBFH_GUI_NAME_KEY(243)), ('\0' ^ OBFH_GUI_NAME_KEY(243)) }
+#undef CreateDialogParamA
+#define CreateDialogParamA(...) OBFH_API_CALL(0, CreateDialogParamA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CreateDialogParamW 244
+#define OBFH_GUI_NAME_CreateDialogParamW \
+    { ('C' ^ OBFH_GUI_NAME_KEY(244)), ('r' ^ OBFH_GUI_NAME_KEY(244)), ('e' ^ OBFH_GUI_NAME_KEY(244)), ('a' ^ OBFH_GUI_NAME_KEY(244)), ('t' ^ OBFH_GUI_NAME_KEY(244)), ('e' ^ OBFH_GUI_NAME_KEY(244)), ('D' ^ OBFH_GUI_NAME_KEY(244)), ('i' ^ OBFH_GUI_NAME_KEY(244)), ('a' ^ OBFH_GUI_NAME_KEY(244)), ('l' ^ OBFH_GUI_NAME_KEY(244)), ('o' ^ OBFH_GUI_NAME_KEY(244)), ('g' ^ OBFH_GUI_NAME_KEY(244)), ('P' ^ OBFH_GUI_NAME_KEY(244)), ('a' ^ OBFH_GUI_NAME_KEY(244)), ('r' ^ OBFH_GUI_NAME_KEY(244)), ('a' ^ OBFH_GUI_NAME_KEY(244)), ('m' ^ OBFH_GUI_NAME_KEY(244)), ('W' ^ OBFH_GUI_NAME_KEY(244)), ('\0' ^ OBFH_GUI_NAME_KEY(244)) }
+#undef CreateDialogParamW
+#define CreateDialogParamW(...) OBFH_API_CALL(0, CreateDialogParamW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DialogBoxParamA 245
+#define OBFH_GUI_NAME_DialogBoxParamA \
+    { ('D' ^ OBFH_GUI_NAME_KEY(245)), ('i' ^ OBFH_GUI_NAME_KEY(245)), ('a' ^ OBFH_GUI_NAME_KEY(245)), ('l' ^ OBFH_GUI_NAME_KEY(245)), ('o' ^ OBFH_GUI_NAME_KEY(245)), ('g' ^ OBFH_GUI_NAME_KEY(245)), ('B' ^ OBFH_GUI_NAME_KEY(245)), ('o' ^ OBFH_GUI_NAME_KEY(245)), ('x' ^ OBFH_GUI_NAME_KEY(245)), ('P' ^ OBFH_GUI_NAME_KEY(245)), ('a' ^ OBFH_GUI_NAME_KEY(245)), ('r' ^ OBFH_GUI_NAME_KEY(245)), ('a' ^ OBFH_GUI_NAME_KEY(245)), ('m' ^ OBFH_GUI_NAME_KEY(245)), ('A' ^ OBFH_GUI_NAME_KEY(245)), ('\0' ^ OBFH_GUI_NAME_KEY(245)) }
+#undef DialogBoxParamA
+#define DialogBoxParamA(...) OBFH_API_CALL(0, DialogBoxParamA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DialogBoxParamW 246
+#define OBFH_GUI_NAME_DialogBoxParamW \
+    { ('D' ^ OBFH_GUI_NAME_KEY(246)), ('i' ^ OBFH_GUI_NAME_KEY(246)), ('a' ^ OBFH_GUI_NAME_KEY(246)), ('l' ^ OBFH_GUI_NAME_KEY(246)), ('o' ^ OBFH_GUI_NAME_KEY(246)), ('g' ^ OBFH_GUI_NAME_KEY(246)), ('B' ^ OBFH_GUI_NAME_KEY(246)), ('o' ^ OBFH_GUI_NAME_KEY(246)), ('x' ^ OBFH_GUI_NAME_KEY(246)), ('P' ^ OBFH_GUI_NAME_KEY(246)), ('a' ^ OBFH_GUI_NAME_KEY(246)), ('r' ^ OBFH_GUI_NAME_KEY(246)), ('a' ^ OBFH_GUI_NAME_KEY(246)), ('m' ^ OBFH_GUI_NAME_KEY(246)), ('W' ^ OBFH_GUI_NAME_KEY(246)), ('\0' ^ OBFH_GUI_NAME_KEY(246)) }
+#undef DialogBoxParamW
+#define DialogBoxParamW(...) OBFH_API_CALL(0, DialogBoxParamW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetDlgItemTextA 247
+#define OBFH_GUI_NAME_GetDlgItemTextA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(247)), ('e' ^ OBFH_GUI_NAME_KEY(247)), ('t' ^ OBFH_GUI_NAME_KEY(247)), ('D' ^ OBFH_GUI_NAME_KEY(247)), ('l' ^ OBFH_GUI_NAME_KEY(247)), ('g' ^ OBFH_GUI_NAME_KEY(247)), ('I' ^ OBFH_GUI_NAME_KEY(247)), ('t' ^ OBFH_GUI_NAME_KEY(247)), ('e' ^ OBFH_GUI_NAME_KEY(247)), ('m' ^ OBFH_GUI_NAME_KEY(247)), ('T' ^ OBFH_GUI_NAME_KEY(247)), ('e' ^ OBFH_GUI_NAME_KEY(247)), ('x' ^ OBFH_GUI_NAME_KEY(247)), ('t' ^ OBFH_GUI_NAME_KEY(247)), ('A' ^ OBFH_GUI_NAME_KEY(247)), ('\0' ^ OBFH_GUI_NAME_KEY(247)) }
+#undef GetDlgItemTextA
+#define GetDlgItemTextA(...) OBFH_API_CALL(0, GetDlgItemTextA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetDlgItemTextW 248
+#define OBFH_GUI_NAME_GetDlgItemTextW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(248)), ('e' ^ OBFH_GUI_NAME_KEY(248)), ('t' ^ OBFH_GUI_NAME_KEY(248)), ('D' ^ OBFH_GUI_NAME_KEY(248)), ('l' ^ OBFH_GUI_NAME_KEY(248)), ('g' ^ OBFH_GUI_NAME_KEY(248)), ('I' ^ OBFH_GUI_NAME_KEY(248)), ('t' ^ OBFH_GUI_NAME_KEY(248)), ('e' ^ OBFH_GUI_NAME_KEY(248)), ('m' ^ OBFH_GUI_NAME_KEY(248)), ('T' ^ OBFH_GUI_NAME_KEY(248)), ('e' ^ OBFH_GUI_NAME_KEY(248)), ('x' ^ OBFH_GUI_NAME_KEY(248)), ('t' ^ OBFH_GUI_NAME_KEY(248)), ('W' ^ OBFH_GUI_NAME_KEY(248)), ('\0' ^ OBFH_GUI_NAME_KEY(248)) }
+#undef GetDlgItemTextW
+#define GetDlgItemTextW(...) OBFH_API_CALL(0, GetDlgItemTextW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetDlgItemTextA 249
+#define OBFH_GUI_NAME_SetDlgItemTextA \
+    { ('S' ^ OBFH_GUI_NAME_KEY(249)), ('e' ^ OBFH_GUI_NAME_KEY(249)), ('t' ^ OBFH_GUI_NAME_KEY(249)), ('D' ^ OBFH_GUI_NAME_KEY(249)), ('l' ^ OBFH_GUI_NAME_KEY(249)), ('g' ^ OBFH_GUI_NAME_KEY(249)), ('I' ^ OBFH_GUI_NAME_KEY(249)), ('t' ^ OBFH_GUI_NAME_KEY(249)), ('e' ^ OBFH_GUI_NAME_KEY(249)), ('m' ^ OBFH_GUI_NAME_KEY(249)), ('T' ^ OBFH_GUI_NAME_KEY(249)), ('e' ^ OBFH_GUI_NAME_KEY(249)), ('x' ^ OBFH_GUI_NAME_KEY(249)), ('t' ^ OBFH_GUI_NAME_KEY(249)), ('A' ^ OBFH_GUI_NAME_KEY(249)), ('\0' ^ OBFH_GUI_NAME_KEY(249)) }
+#undef SetDlgItemTextA
+#define SetDlgItemTextA(...) OBFH_API_CALL(0, SetDlgItemTextA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetDlgItemTextW 250
+#define OBFH_GUI_NAME_SetDlgItemTextW \
+    { ('S' ^ OBFH_GUI_NAME_KEY(250)), ('e' ^ OBFH_GUI_NAME_KEY(250)), ('t' ^ OBFH_GUI_NAME_KEY(250)), ('D' ^ OBFH_GUI_NAME_KEY(250)), ('l' ^ OBFH_GUI_NAME_KEY(250)), ('g' ^ OBFH_GUI_NAME_KEY(250)), ('I' ^ OBFH_GUI_NAME_KEY(250)), ('t' ^ OBFH_GUI_NAME_KEY(250)), ('e' ^ OBFH_GUI_NAME_KEY(250)), ('m' ^ OBFH_GUI_NAME_KEY(250)), ('T' ^ OBFH_GUI_NAME_KEY(250)), ('e' ^ OBFH_GUI_NAME_KEY(250)), ('x' ^ OBFH_GUI_NAME_KEY(250)), ('t' ^ OBFH_GUI_NAME_KEY(250)), ('W' ^ OBFH_GUI_NAME_KEY(250)), ('\0' ^ OBFH_GUI_NAME_KEY(250)) }
+#undef SetDlgItemTextW
+#define SetDlgItemTextW(...) OBFH_API_CALL(0, SetDlgItemTextW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_PeekMessageA 251
+#define OBFH_GUI_NAME_PeekMessageA \
+    { ('P' ^ OBFH_GUI_NAME_KEY(251)), ('e' ^ OBFH_GUI_NAME_KEY(251)), ('e' ^ OBFH_GUI_NAME_KEY(251)), ('k' ^ OBFH_GUI_NAME_KEY(251)), ('M' ^ OBFH_GUI_NAME_KEY(251)), ('e' ^ OBFH_GUI_NAME_KEY(251)), ('s' ^ OBFH_GUI_NAME_KEY(251)), ('s' ^ OBFH_GUI_NAME_KEY(251)), ('a' ^ OBFH_GUI_NAME_KEY(251)), ('g' ^ OBFH_GUI_NAME_KEY(251)), ('e' ^ OBFH_GUI_NAME_KEY(251)), ('A' ^ OBFH_GUI_NAME_KEY(251)), ('\0' ^ OBFH_GUI_NAME_KEY(251)) }
+#undef PeekMessageA
+#define PeekMessageA(...) OBFH_API_CALL(0, PeekMessageA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_PeekMessageW 252
+#define OBFH_GUI_NAME_PeekMessageW \
+    { ('P' ^ OBFH_GUI_NAME_KEY(252)), ('e' ^ OBFH_GUI_NAME_KEY(252)), ('e' ^ OBFH_GUI_NAME_KEY(252)), ('k' ^ OBFH_GUI_NAME_KEY(252)), ('M' ^ OBFH_GUI_NAME_KEY(252)), ('e' ^ OBFH_GUI_NAME_KEY(252)), ('s' ^ OBFH_GUI_NAME_KEY(252)), ('s' ^ OBFH_GUI_NAME_KEY(252)), ('a' ^ OBFH_GUI_NAME_KEY(252)), ('g' ^ OBFH_GUI_NAME_KEY(252)), ('e' ^ OBFH_GUI_NAME_KEY(252)), ('W' ^ OBFH_GUI_NAME_KEY(252)), ('\0' ^ OBFH_GUI_NAME_KEY(252)) }
+#undef PeekMessageW
+#define PeekMessageW(...) OBFH_API_CALL(0, PeekMessageW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_EndDialog 253
+#define OBFH_GUI_NAME_EndDialog \
+    { ('E' ^ OBFH_GUI_NAME_KEY(253)), ('n' ^ OBFH_GUI_NAME_KEY(253)), ('d' ^ OBFH_GUI_NAME_KEY(253)), ('D' ^ OBFH_GUI_NAME_KEY(253)), ('i' ^ OBFH_GUI_NAME_KEY(253)), ('a' ^ OBFH_GUI_NAME_KEY(253)), ('l' ^ OBFH_GUI_NAME_KEY(253)), ('o' ^ OBFH_GUI_NAME_KEY(253)), ('g' ^ OBFH_GUI_NAME_KEY(253)), ('\0' ^ OBFH_GUI_NAME_KEY(253)) }
+#undef EndDialog
+#define EndDialog(...) OBFH_API_CALL(0, EndDialog, __VA_ARGS__)
+
+#define OBFH_GUI_ID_CheckDlgButton 254
+#define OBFH_GUI_NAME_CheckDlgButton \
+    { ('C' ^ OBFH_GUI_NAME_KEY(254)), ('h' ^ OBFH_GUI_NAME_KEY(254)), ('e' ^ OBFH_GUI_NAME_KEY(254)), ('c' ^ OBFH_GUI_NAME_KEY(254)), ('k' ^ OBFH_GUI_NAME_KEY(254)), ('D' ^ OBFH_GUI_NAME_KEY(254)), ('l' ^ OBFH_GUI_NAME_KEY(254)), ('g' ^ OBFH_GUI_NAME_KEY(254)), ('B' ^ OBFH_GUI_NAME_KEY(254)), ('u' ^ OBFH_GUI_NAME_KEY(254)), ('t' ^ OBFH_GUI_NAME_KEY(254)), ('t' ^ OBFH_GUI_NAME_KEY(254)), ('o' ^ OBFH_GUI_NAME_KEY(254)), ('n' ^ OBFH_GUI_NAME_KEY(254)), ('\0' ^ OBFH_GUI_NAME_KEY(254)) }
+#undef CheckDlgButton
+#define CheckDlgButton(...) OBFH_API_CALL(0, CheckDlgButton, __VA_ARGS__)
+
+#define OBFH_GUI_ID_IsDlgButtonChecked 255
+#define OBFH_GUI_NAME_IsDlgButtonChecked \
+    { ('I' ^ OBFH_GUI_NAME_KEY(255)), ('s' ^ OBFH_GUI_NAME_KEY(255)), ('D' ^ OBFH_GUI_NAME_KEY(255)), ('l' ^ OBFH_GUI_NAME_KEY(255)), ('g' ^ OBFH_GUI_NAME_KEY(255)), ('B' ^ OBFH_GUI_NAME_KEY(255)), ('u' ^ OBFH_GUI_NAME_KEY(255)), ('t' ^ OBFH_GUI_NAME_KEY(255)), ('t' ^ OBFH_GUI_NAME_KEY(255)), ('o' ^ OBFH_GUI_NAME_KEY(255)), ('n' ^ OBFH_GUI_NAME_KEY(255)), ('C' ^ OBFH_GUI_NAME_KEY(255)), ('h' ^ OBFH_GUI_NAME_KEY(255)), ('e' ^ OBFH_GUI_NAME_KEY(255)), ('c' ^ OBFH_GUI_NAME_KEY(255)), ('k' ^ OBFH_GUI_NAME_KEY(255)), ('e' ^ OBFH_GUI_NAME_KEY(255)), ('d' ^ OBFH_GUI_NAME_KEY(255)), ('\0' ^ OBFH_GUI_NAME_KEY(255)) }
+#undef IsDlgButtonChecked
+#define IsDlgButtonChecked(...) OBFH_API_CALL(0, IsDlgButtonChecked, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetMenu 256
+#define OBFH_GUI_NAME_SetMenu \
+    { ('S' ^ OBFH_GUI_NAME_KEY(256)), ('e' ^ OBFH_GUI_NAME_KEY(256)), ('t' ^ OBFH_GUI_NAME_KEY(256)), ('M' ^ OBFH_GUI_NAME_KEY(256)), ('e' ^ OBFH_GUI_NAME_KEY(256)), ('n' ^ OBFH_GUI_NAME_KEY(256)), ('u' ^ OBFH_GUI_NAME_KEY(256)), ('\0' ^ OBFH_GUI_NAME_KEY(256)) }
+#undef SetMenu
+#define SetMenu(...) OBFH_API_CALL(0, SetMenu, __VA_ARGS__)
+
+#define OBFH_GUI_ID_DestroyMenu 257
+#define OBFH_GUI_NAME_DestroyMenu \
+    { ('D' ^ OBFH_GUI_NAME_KEY(257)), ('e' ^ OBFH_GUI_NAME_KEY(257)), ('s' ^ OBFH_GUI_NAME_KEY(257)), ('t' ^ OBFH_GUI_NAME_KEY(257)), ('r' ^ OBFH_GUI_NAME_KEY(257)), ('o' ^ OBFH_GUI_NAME_KEY(257)), ('y' ^ OBFH_GUI_NAME_KEY(257)), ('M' ^ OBFH_GUI_NAME_KEY(257)), ('e' ^ OBFH_GUI_NAME_KEY(257)), ('n' ^ OBFH_GUI_NAME_KEY(257)), ('u' ^ OBFH_GUI_NAME_KEY(257)), ('\0' ^ OBFH_GUI_NAME_KEY(257)) }
+#undef DestroyMenu
+#define DestroyMenu(...) OBFH_API_CALL(0, DestroyMenu, __VA_ARGS__)
+
+#define OBFH_GUI_ID_InvalidateRect 258
+#define OBFH_GUI_NAME_InvalidateRect \
+    { ('I' ^ OBFH_GUI_NAME_KEY(258)), ('n' ^ OBFH_GUI_NAME_KEY(258)), ('v' ^ OBFH_GUI_NAME_KEY(258)), ('a' ^ OBFH_GUI_NAME_KEY(258)), ('l' ^ OBFH_GUI_NAME_KEY(258)), ('i' ^ OBFH_GUI_NAME_KEY(258)), ('d' ^ OBFH_GUI_NAME_KEY(258)), ('a' ^ OBFH_GUI_NAME_KEY(258)), ('t' ^ OBFH_GUI_NAME_KEY(258)), ('e' ^ OBFH_GUI_NAME_KEY(258)), ('R' ^ OBFH_GUI_NAME_KEY(258)), ('e' ^ OBFH_GUI_NAME_KEY(258)), ('c' ^ OBFH_GUI_NAME_KEY(258)), ('t' ^ OBFH_GUI_NAME_KEY(258)), ('\0' ^ OBFH_GUI_NAME_KEY(258)) }
+#undef InvalidateRect
+#define InvalidateRect(...) OBFH_API_CALL(0, InvalidateRect, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetAsyncKeyState 259
+#define OBFH_GUI_NAME_GetAsyncKeyState \
+    { ('G' ^ OBFH_GUI_NAME_KEY(259)), ('e' ^ OBFH_GUI_NAME_KEY(259)), ('t' ^ OBFH_GUI_NAME_KEY(259)), ('A' ^ OBFH_GUI_NAME_KEY(259)), ('s' ^ OBFH_GUI_NAME_KEY(259)), ('y' ^ OBFH_GUI_NAME_KEY(259)), ('n' ^ OBFH_GUI_NAME_KEY(259)), ('c' ^ OBFH_GUI_NAME_KEY(259)), ('K' ^ OBFH_GUI_NAME_KEY(259)), ('e' ^ OBFH_GUI_NAME_KEY(259)), ('y' ^ OBFH_GUI_NAME_KEY(259)), ('S' ^ OBFH_GUI_NAME_KEY(259)), ('t' ^ OBFH_GUI_NAME_KEY(259)), ('a' ^ OBFH_GUI_NAME_KEY(259)), ('t' ^ OBFH_GUI_NAME_KEY(259)), ('e' ^ OBFH_GUI_NAME_KEY(259)), ('\0' ^ OBFH_GUI_NAME_KEY(259)) }
+#undef GetAsyncKeyState
+#define GetAsyncKeyState(...) OBFH_API_CALL(0, GetAsyncKeyState, __VA_ARGS__)
+
+#define OBFH_GUI_ID_ScreenToClient 260
+#define OBFH_GUI_NAME_ScreenToClient \
+    { ('S' ^ OBFH_GUI_NAME_KEY(260)), ('c' ^ OBFH_GUI_NAME_KEY(260)), ('r' ^ OBFH_GUI_NAME_KEY(260)), ('e' ^ OBFH_GUI_NAME_KEY(260)), ('e' ^ OBFH_GUI_NAME_KEY(260)), ('n' ^ OBFH_GUI_NAME_KEY(260)), ('T' ^ OBFH_GUI_NAME_KEY(260)), ('o' ^ OBFH_GUI_NAME_KEY(260)), ('C' ^ OBFH_GUI_NAME_KEY(260)), ('l' ^ OBFH_GUI_NAME_KEY(260)), ('i' ^ OBFH_GUI_NAME_KEY(260)), ('e' ^ OBFH_GUI_NAME_KEY(260)), ('n' ^ OBFH_GUI_NAME_KEY(260)), ('t' ^ OBFH_GUI_NAME_KEY(260)), ('\0' ^ OBFH_GUI_NAME_KEY(260)) }
+#undef ScreenToClient
+#define ScreenToClient(...) OBFH_API_CALL(0, ScreenToClient, __VA_ARGS__)
+
+#define OBFH_GUI_ID_ClientToScreen 261
+#define OBFH_GUI_NAME_ClientToScreen \
+    { ('C' ^ OBFH_GUI_NAME_KEY(261)), ('l' ^ OBFH_GUI_NAME_KEY(261)), ('i' ^ OBFH_GUI_NAME_KEY(261)), ('e' ^ OBFH_GUI_NAME_KEY(261)), ('n' ^ OBFH_GUI_NAME_KEY(261)), ('t' ^ OBFH_GUI_NAME_KEY(261)), ('T' ^ OBFH_GUI_NAME_KEY(261)), ('o' ^ OBFH_GUI_NAME_KEY(261)), ('S' ^ OBFH_GUI_NAME_KEY(261)), ('c' ^ OBFH_GUI_NAME_KEY(261)), ('r' ^ OBFH_GUI_NAME_KEY(261)), ('e' ^ OBFH_GUI_NAME_KEY(261)), ('e' ^ OBFH_GUI_NAME_KEY(261)), ('n' ^ OBFH_GUI_NAME_KEY(261)), ('\0' ^ OBFH_GUI_NAME_KEY(261)) }
+#undef ClientToScreen
+#define ClientToScreen(...) OBFH_API_CALL(0, ClientToScreen, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetCursorPos 262
+#define OBFH_GUI_NAME_GetCursorPos \
+    { ('G' ^ OBFH_GUI_NAME_KEY(262)), ('e' ^ OBFH_GUI_NAME_KEY(262)), ('t' ^ OBFH_GUI_NAME_KEY(262)), ('C' ^ OBFH_GUI_NAME_KEY(262)), ('u' ^ OBFH_GUI_NAME_KEY(262)), ('r' ^ OBFH_GUI_NAME_KEY(262)), ('s' ^ OBFH_GUI_NAME_KEY(262)), ('o' ^ OBFH_GUI_NAME_KEY(262)), ('r' ^ OBFH_GUI_NAME_KEY(262)), ('P' ^ OBFH_GUI_NAME_KEY(262)), ('o' ^ OBFH_GUI_NAME_KEY(262)), ('s' ^ OBFH_GUI_NAME_KEY(262)), ('\0' ^ OBFH_GUI_NAME_KEY(262)) }
+#undef GetCursorPos
+#define GetCursorPos(...) OBFH_API_CALL(0, GetCursorPos, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetWindow 263
+#define OBFH_GUI_NAME_GetWindow \
+    { ('G' ^ OBFH_GUI_NAME_KEY(263)), ('e' ^ OBFH_GUI_NAME_KEY(263)), ('t' ^ OBFH_GUI_NAME_KEY(263)), ('W' ^ OBFH_GUI_NAME_KEY(263)), ('i' ^ OBFH_GUI_NAME_KEY(263)), ('n' ^ OBFH_GUI_NAME_KEY(263)), ('d' ^ OBFH_GUI_NAME_KEY(263)), ('o' ^ OBFH_GUI_NAME_KEY(263)), ('w' ^ OBFH_GUI_NAME_KEY(263)), ('\0' ^ OBFH_GUI_NAME_KEY(263)) }
+#undef GetWindow
+#define GetWindow(...) OBFH_API_CALL(0, GetWindow, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetAncestor 264
+#define OBFH_GUI_NAME_GetAncestor \
+    { ('G' ^ OBFH_GUI_NAME_KEY(264)), ('e' ^ OBFH_GUI_NAME_KEY(264)), ('t' ^ OBFH_GUI_NAME_KEY(264)), ('A' ^ OBFH_GUI_NAME_KEY(264)), ('n' ^ OBFH_GUI_NAME_KEY(264)), ('c' ^ OBFH_GUI_NAME_KEY(264)), ('e' ^ OBFH_GUI_NAME_KEY(264)), ('s' ^ OBFH_GUI_NAME_KEY(264)), ('t' ^ OBFH_GUI_NAME_KEY(264)), ('o' ^ OBFH_GUI_NAME_KEY(264)), ('r' ^ OBFH_GUI_NAME_KEY(264)), ('\0' ^ OBFH_GUI_NAME_KEY(264)) }
+#undef GetAncestor
+#define GetAncestor(...) OBFH_API_CALL(0, GetAncestor, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetTextExtentPoint32A 265
+#define OBFH_GUI_NAME_GetTextExtentPoint32A \
+    { ('G' ^ OBFH_GUI_NAME_KEY(265)), ('e' ^ OBFH_GUI_NAME_KEY(265)), ('t' ^ OBFH_GUI_NAME_KEY(265)), ('T' ^ OBFH_GUI_NAME_KEY(265)), ('e' ^ OBFH_GUI_NAME_KEY(265)), ('x' ^ OBFH_GUI_NAME_KEY(265)), ('t' ^ OBFH_GUI_NAME_KEY(265)), ('E' ^ OBFH_GUI_NAME_KEY(265)), ('x' ^ OBFH_GUI_NAME_KEY(265)), ('t' ^ OBFH_GUI_NAME_KEY(265)), ('e' ^ OBFH_GUI_NAME_KEY(265)), ('n' ^ OBFH_GUI_NAME_KEY(265)), ('t' ^ OBFH_GUI_NAME_KEY(265)), ('P' ^ OBFH_GUI_NAME_KEY(265)), ('o' ^ OBFH_GUI_NAME_KEY(265)), ('i' ^ OBFH_GUI_NAME_KEY(265)), ('n' ^ OBFH_GUI_NAME_KEY(265)), ('t' ^ OBFH_GUI_NAME_KEY(265)), ('3' ^ OBFH_GUI_NAME_KEY(265)), ('2' ^ OBFH_GUI_NAME_KEY(265)), ('A' ^ OBFH_GUI_NAME_KEY(265)), ('\0' ^ OBFH_GUI_NAME_KEY(265)) }
+#undef GetTextExtentPoint32A
+#define GetTextExtentPoint32A(...) OBFH_API_CALL(1, GetTextExtentPoint32A, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetTextExtentPoint32W 266
+#define OBFH_GUI_NAME_GetTextExtentPoint32W \
+    { ('G' ^ OBFH_GUI_NAME_KEY(266)), ('e' ^ OBFH_GUI_NAME_KEY(266)), ('t' ^ OBFH_GUI_NAME_KEY(266)), ('T' ^ OBFH_GUI_NAME_KEY(266)), ('e' ^ OBFH_GUI_NAME_KEY(266)), ('x' ^ OBFH_GUI_NAME_KEY(266)), ('t' ^ OBFH_GUI_NAME_KEY(266)), ('E' ^ OBFH_GUI_NAME_KEY(266)), ('x' ^ OBFH_GUI_NAME_KEY(266)), ('t' ^ OBFH_GUI_NAME_KEY(266)), ('e' ^ OBFH_GUI_NAME_KEY(266)), ('n' ^ OBFH_GUI_NAME_KEY(266)), ('t' ^ OBFH_GUI_NAME_KEY(266)), ('P' ^ OBFH_GUI_NAME_KEY(266)), ('o' ^ OBFH_GUI_NAME_KEY(266)), ('i' ^ OBFH_GUI_NAME_KEY(266)), ('n' ^ OBFH_GUI_NAME_KEY(266)), ('t' ^ OBFH_GUI_NAME_KEY(266)), ('3' ^ OBFH_GUI_NAME_KEY(266)), ('2' ^ OBFH_GUI_NAME_KEY(266)), ('W' ^ OBFH_GUI_NAME_KEY(266)), ('\0' ^ OBFH_GUI_NAME_KEY(266)) }
+#undef GetTextExtentPoint32W
+#define GetTextExtentPoint32W(...) OBFH_API_CALL(1, GetTextExtentPoint32W, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetBkMode 267
+#define OBFH_GUI_NAME_SetBkMode \
+    { ('S' ^ OBFH_GUI_NAME_KEY(267)), ('e' ^ OBFH_GUI_NAME_KEY(267)), ('t' ^ OBFH_GUI_NAME_KEY(267)), ('B' ^ OBFH_GUI_NAME_KEY(267)), ('k' ^ OBFH_GUI_NAME_KEY(267)), ('M' ^ OBFH_GUI_NAME_KEY(267)), ('o' ^ OBFH_GUI_NAME_KEY(267)), ('d' ^ OBFH_GUI_NAME_KEY(267)), ('e' ^ OBFH_GUI_NAME_KEY(267)), ('\0' ^ OBFH_GUI_NAME_KEY(267)) }
+#undef SetBkMode
+#define SetBkMode(...) OBFH_API_CALL(1, SetBkMode, __VA_ARGS__)
+
+#define OBFH_GUI_ID_HeapDestroy 268
+#define OBFH_GUI_NAME_HeapDestroy \
+    { ('H' ^ OBFH_GUI_NAME_KEY(268)), ('e' ^ OBFH_GUI_NAME_KEY(268)), ('a' ^ OBFH_GUI_NAME_KEY(268)), ('p' ^ OBFH_GUI_NAME_KEY(268)), ('D' ^ OBFH_GUI_NAME_KEY(268)), ('e' ^ OBFH_GUI_NAME_KEY(268)), ('s' ^ OBFH_GUI_NAME_KEY(268)), ('t' ^ OBFH_GUI_NAME_KEY(268)), ('r' ^ OBFH_GUI_NAME_KEY(268)), ('o' ^ OBFH_GUI_NAME_KEY(268)), ('y' ^ OBFH_GUI_NAME_KEY(268)), ('\0' ^ OBFH_GUI_NAME_KEY(268)) }
+#undef HeapDestroy
+#define HeapDestroy(...) OBFH_API_CALL(2, HeapDestroy, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileSize 269
+#define OBFH_GUI_NAME_GetFileSize \
+    { ('G' ^ OBFH_GUI_NAME_KEY(269)), ('e' ^ OBFH_GUI_NAME_KEY(269)), ('t' ^ OBFH_GUI_NAME_KEY(269)), ('F' ^ OBFH_GUI_NAME_KEY(269)), ('i' ^ OBFH_GUI_NAME_KEY(269)), ('l' ^ OBFH_GUI_NAME_KEY(269)), ('e' ^ OBFH_GUI_NAME_KEY(269)), ('S' ^ OBFH_GUI_NAME_KEY(269)), ('i' ^ OBFH_GUI_NAME_KEY(269)), ('z' ^ OBFH_GUI_NAME_KEY(269)), ('e' ^ OBFH_GUI_NAME_KEY(269)), ('\0' ^ OBFH_GUI_NAME_KEY(269)) }
+#undef GetFileSize
+#define GetFileSize(...) OBFH_API_CALL(2, GetFileSize, __VA_ARGS__)
+
+#define OBFH_GUI_ID_SetFilePointer 270
+#define OBFH_GUI_NAME_SetFilePointer \
+    { ('S' ^ OBFH_GUI_NAME_KEY(270)), ('e' ^ OBFH_GUI_NAME_KEY(270)), ('t' ^ OBFH_GUI_NAME_KEY(270)), ('F' ^ OBFH_GUI_NAME_KEY(270)), ('i' ^ OBFH_GUI_NAME_KEY(270)), ('l' ^ OBFH_GUI_NAME_KEY(270)), ('e' ^ OBFH_GUI_NAME_KEY(270)), ('P' ^ OBFH_GUI_NAME_KEY(270)), ('o' ^ OBFH_GUI_NAME_KEY(270)), ('i' ^ OBFH_GUI_NAME_KEY(270)), ('n' ^ OBFH_GUI_NAME_KEY(270)), ('t' ^ OBFH_GUI_NAME_KEY(270)), ('e' ^ OBFH_GUI_NAME_KEY(270)), ('r' ^ OBFH_GUI_NAME_KEY(270)), ('\0' ^ OBFH_GUI_NAME_KEY(270)) }
+#undef SetFilePointer
+#define SetFilePointer(...) OBFH_API_CALL(2, SetFilePointer, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileAttributesExA 271
+#define OBFH_GUI_NAME_GetFileAttributesExA \
+    { ('G' ^ OBFH_GUI_NAME_KEY(271)), ('e' ^ OBFH_GUI_NAME_KEY(271)), ('t' ^ OBFH_GUI_NAME_KEY(271)), ('F' ^ OBFH_GUI_NAME_KEY(271)), ('i' ^ OBFH_GUI_NAME_KEY(271)), ('l' ^ OBFH_GUI_NAME_KEY(271)), ('e' ^ OBFH_GUI_NAME_KEY(271)), ('A' ^ OBFH_GUI_NAME_KEY(271)), ('t' ^ OBFH_GUI_NAME_KEY(271)), ('t' ^ OBFH_GUI_NAME_KEY(271)), ('r' ^ OBFH_GUI_NAME_KEY(271)), ('i' ^ OBFH_GUI_NAME_KEY(271)), ('b' ^ OBFH_GUI_NAME_KEY(271)), ('u' ^ OBFH_GUI_NAME_KEY(271)), ('t' ^ OBFH_GUI_NAME_KEY(271)), ('e' ^ OBFH_GUI_NAME_KEY(271)), ('s' ^ OBFH_GUI_NAME_KEY(271)), ('E' ^ OBFH_GUI_NAME_KEY(271)), ('x' ^ OBFH_GUI_NAME_KEY(271)), ('A' ^ OBFH_GUI_NAME_KEY(271)), ('\0' ^ OBFH_GUI_NAME_KEY(271)) }
+#undef GetFileAttributesExA
+#define GetFileAttributesExA(...) OBFH_API_CALL(2, GetFileAttributesExA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_GetFileAttributesExW 272
+#define OBFH_GUI_NAME_GetFileAttributesExW \
+    { ('G' ^ OBFH_GUI_NAME_KEY(272)), ('e' ^ OBFH_GUI_NAME_KEY(272)), ('t' ^ OBFH_GUI_NAME_KEY(272)), ('F' ^ OBFH_GUI_NAME_KEY(272)), ('i' ^ OBFH_GUI_NAME_KEY(272)), ('l' ^ OBFH_GUI_NAME_KEY(272)), ('e' ^ OBFH_GUI_NAME_KEY(272)), ('A' ^ OBFH_GUI_NAME_KEY(272)), ('t' ^ OBFH_GUI_NAME_KEY(272)), ('t' ^ OBFH_GUI_NAME_KEY(272)), ('r' ^ OBFH_GUI_NAME_KEY(272)), ('i' ^ OBFH_GUI_NAME_KEY(272)), ('b' ^ OBFH_GUI_NAME_KEY(272)), ('u' ^ OBFH_GUI_NAME_KEY(272)), ('t' ^ OBFH_GUI_NAME_KEY(272)), ('e' ^ OBFH_GUI_NAME_KEY(272)), ('s' ^ OBFH_GUI_NAME_KEY(272)), ('E' ^ OBFH_GUI_NAME_KEY(272)), ('x' ^ OBFH_GUI_NAME_KEY(272)), ('W' ^ OBFH_GUI_NAME_KEY(272)), ('\0' ^ OBFH_GUI_NAME_KEY(272)) }
+#undef GetFileAttributesExW
+#define GetFileAttributesExW(...) OBFH_API_CALL(2, GetFileAttributesExW, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindFirstFileExA 273
+#define OBFH_GUI_NAME_FindFirstFileExA \
+    { ('F' ^ OBFH_GUI_NAME_KEY(273)), ('i' ^ OBFH_GUI_NAME_KEY(273)), ('n' ^ OBFH_GUI_NAME_KEY(273)), ('d' ^ OBFH_GUI_NAME_KEY(273)), ('F' ^ OBFH_GUI_NAME_KEY(273)), ('i' ^ OBFH_GUI_NAME_KEY(273)), ('r' ^ OBFH_GUI_NAME_KEY(273)), ('s' ^ OBFH_GUI_NAME_KEY(273)), ('t' ^ OBFH_GUI_NAME_KEY(273)), ('F' ^ OBFH_GUI_NAME_KEY(273)), ('i' ^ OBFH_GUI_NAME_KEY(273)), ('l' ^ OBFH_GUI_NAME_KEY(273)), ('e' ^ OBFH_GUI_NAME_KEY(273)), ('E' ^ OBFH_GUI_NAME_KEY(273)), ('x' ^ OBFH_GUI_NAME_KEY(273)), ('A' ^ OBFH_GUI_NAME_KEY(273)), ('\0' ^ OBFH_GUI_NAME_KEY(273)) }
+#undef FindFirstFileExA
+#define FindFirstFileExA(...) OBFH_API_CALL(2, FindFirstFileExA, __VA_ARGS__)
+
+#define OBFH_GUI_ID_FindFirstFileExW 274
+#define OBFH_GUI_NAME_FindFirstFileExW \
+    { ('F' ^ OBFH_GUI_NAME_KEY(274)), ('i' ^ OBFH_GUI_NAME_KEY(274)), ('n' ^ OBFH_GUI_NAME_KEY(274)), ('d' ^ OBFH_GUI_NAME_KEY(274)), ('F' ^ OBFH_GUI_NAME_KEY(274)), ('i' ^ OBFH_GUI_NAME_KEY(274)), ('r' ^ OBFH_GUI_NAME_KEY(274)), ('s' ^ OBFH_GUI_NAME_KEY(274)), ('t' ^ OBFH_GUI_NAME_KEY(274)), ('F' ^ OBFH_GUI_NAME_KEY(274)), ('i' ^ OBFH_GUI_NAME_KEY(274)), ('l' ^ OBFH_GUI_NAME_KEY(274)), ('e' ^ OBFH_GUI_NAME_KEY(274)), ('E' ^ OBFH_GUI_NAME_KEY(274)), ('x' ^ OBFH_GUI_NAME_KEY(274)), ('W' ^ OBFH_GUI_NAME_KEY(274)), ('\0' ^ OBFH_GUI_NAME_KEY(274)) }
+#undef FindFirstFileExW
+#define FindFirstFileExW(...) OBFH_API_CALL(2, FindFirstFileExW, __VA_ARGS__)
 
 // ============================================================================
 // 22. Math aliases and typed operand transport
@@ -7114,16 +8043,16 @@ static int obfh_abs_proxy(int value) {
 #define abs(x) obfh_abs_proxy(x)
 
 #if virt_std == 1
-#define OBFH_MATH_KEY() ((ULONG_PTR)VM_OBF_INT(SALT_SHIFT))
+#define OBFH_MATH_KEY ((ULONG_PTR)VM_OBF_INT(SALT_SHIFT))
 #else
-#define OBFH_MATH_KEY() ((ULONG_PTR)obfh_condition_proxy((float)_1, (float)obfh_int_proxy(SALT_SHIFT)))
+#define OBFH_MATH_KEY ((ULONG_PTR)obfh_condition_proxy((float)_1, (float)obfh_int_proxy(SALT_SHIFT)))
 #endif
 // Mutate the typed value's address: arithmetic identities can change -0,
 // rounding, NaN payloads or wide integer exponents before the math call.
 #define _MUTATE_MATH(value) ({                                                                           \
     BREAK_STACK_CFLOW;                                                                                   \
     __typeof__((value)) volatile __obfh_math_value = (value);                                            \
-    volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY();                                                \
+    volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY;                                                  \
     ULONG_PTR __obfh_math_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_math_value ^ __obfh_math_key); \
     *(__typeof__(&__obfh_math_value))(__obfh_math_address ^ __obfh_math_key);                            \
 })
