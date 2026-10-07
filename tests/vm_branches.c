@@ -30,11 +30,13 @@ static int reference_recursive(int n) {
         }                                                                  \
     } while (0)
 #if OBFH_TEST_BRANCH_TRACE
-static volatile LONG branch_calls, steps[19], invalid_steps;
-void obfh_test_vm_enter(void){InterlockedIncrement(&branch_calls);}
-void obfh_test_vm_step(unsigned int op,unsigned int pc){
-    if(op<1||op>18||pc>=32)InterlockedIncrement(&invalid_steps);
-    else InterlockedIncrement(&steps[op]);
+static volatile LONG branch_calls, steps[OBFH_V_RETURN + 1], invalid_steps;
+void obfh_test_vm_enter(void) { InterlockedIncrement(&branch_calls); }
+void obfh_test_vm_step(unsigned int op, unsigned int pc) {
+    if (op < OBFH_V_LOAD_A || op > OBFH_V_RETURN || pc >= 32)
+        InterlockedIncrement(&invalid_steps);
+    else
+        InterlockedIncrement(&steps[op]);
 }
 #endif
 static int virtual_chain(int a, double b, void *p, double q) {
