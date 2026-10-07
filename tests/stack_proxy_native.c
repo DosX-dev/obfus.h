@@ -66,11 +66,15 @@ CARRIER(link_gate,
         OBFH_SF_FRAME("sf_frame_a") OBFH_SF_ARGS OBFH_SF_CALL_AT("2f", "4") OBFH_SF_EPILOGUE
         "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE)
 
+CARRIER(link_eight,
+        OBFH_SF_FRAME("sf_frame_c")
+            OBFH_SF_LAYOUT_28(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_B))
+
 int main(void) {
     NativeLeaf functions[] = {leaf_a(), leaf_b(), leaf_c(), leaf_d(), leaf_e(), leaf_f(),
                               leaf_g(), leaf_h(), leaf_i(), leaf_j(), leaf_k(), leaf_l(),
                               frame_a(), frame_b(), frame_c(), frame_d(),
-                              link_chain(), link_shared(), link_tail(), link_gate()};
+                              link_chain(), link_shared(), link_tail(), link_gate(), link_eight()};
     volatile unsigned canaries[4] = {0xabcdef01u, 0x12345678u, 0xfedcba98u, 0x98765432u};
     volatile unsigned digest = 0;
     unsigned state = 1;
