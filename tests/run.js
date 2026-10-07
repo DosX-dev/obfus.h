@@ -296,12 +296,12 @@ async function main() {
             assert(!/\b(?:FAKE_CPUID|NOP_FLOOD)\b/.test(source), 'legacy junk macro remains');
             assert(!source.includes('__obfh_strcmp_junk_done'), 'inline legacy NOP clone remains');
         });
-        await check('source: custom exports and generated masks preserved', async () => {
+        await check('source: custom exports and unified name construction preserved', async () => {
             const begin = source.indexOf('FARPROC obfh_find_export('), end = source.indexOf('#define GetProcAddress', begin);
             assert(begin >= 0 && source.slice(begin, end).includes('AddressOfFunctions'), 'custom export parser missing');
             assert(!/\bGetProcAddress\(/.test(source.slice(begin, end)), 'custom parser delegates to native GetProcAddress');
-            const maskBegin = source.indexOf('char *getCharMask('), maskEnd = source.indexOf('// WriteConsoleA', maskBegin);
-            assert(maskBegin >= 0 && !source.slice(maskBegin, maskEnd).includes('"%c'), 'literal mask table present');
+            assert(!source.includes('getCharMask('), 'obsolete format-mask builder remains');
+            assert(source.includes('#define OBFH_NAME_ORDER(') && source.includes('#define OBFH_CRT_INVOKE('), 'shared name/call implementation missing');
             const hidden = source.slice(source.lastIndexOf('#define HIDE_STRING'), source.indexOf('typedef enum', source.lastIndexOf('#define HIDE_STRING')));
             assert(hidden.includes('== RND('), 'HIDE_STRING false-branch obfuscation lost');
         });
@@ -341,7 +341,15 @@ async function main() {
         const setup = source.slice(source.indexOf('static DWORD WINAPI obfh_ad_register_worker'), source.indexOf('static int obfh_ad_process_probe'));
         assert(setup.includes('DuplicateHandle') && /#endif\s*$/.test(setup), 'failure-test extraction missing');
         const failureFile = path.join(directory, 'failures.c');
-        const processProbe = source.slice(source.indexOf('static int obfh_ad_process_probe'), source.indexOf('static int IsDebuggerPresent_proxy(void)'));
+        const processNames = ['getKernel32Name_proxy', 'getDebuggerName_proxy'].map(name => {
+            const match = source.match(new RegExp('static char \\*' + name + '\\(char \\*name\\) \\{[\\s\\S]*?\\n\\}'));
+            assert(match, 'process probe name builder missing: ' + name);
+            return match[0];
+        }).join('\n');
+        const nameSetup = '#define OBFH_HIDE_JUNK ((void)0)\n#define OBFH_NAME_ORDER(forward, reverse) ((mode & 1) ? (forward) : (reverse))\n'
+            + [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(char => `static volatile char _${char} = '${char}';`).join('\n')
+            + '\nstatic volatile char _0 = 0;\n';
+        const processProbe = nameSetup + processNames + '\n' + source.slice(source.indexOf('static int obfh_ad_process_probe'), source.indexOf('static int IsDebuggerPresent_proxy(void)'));
         assert(processProbe.includes('gs:0x60') && processProbe.includes('fs:0x30'), 'process-probe extraction missing');
         fs.writeFileSync(failureFile, fs.readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8')
             .replace('/* REGISTER_PROBES */', '#if ANTIDEBUG_V2 == 1\n' + setup).replace('/* PROCESS_PROBE */', processProbe));

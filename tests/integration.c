@@ -148,16 +148,17 @@ static int exercise(int report) {
 #if !NO_OBF
         CHECK(GetProcAddress(NULL, "anything") == NULL);
         struct {
-            char mask[16];
+            char name[18];
             unsigned char guard[8];
         } masks;
         memset(&masks, 0x5a, sizeof masks);
-        CHECK(getCharMask(-1, masks.mask, sizeof masks.mask) == NULL);
-        CHECK(getCharMask(8, masks.mask, sizeof masks.mask) == NULL);
-        CHECK(getCharMask(7, masks.mask, sizeof masks.mask) == masks.mask);
-        CHECK(strcmp(masks.mask, "%c%c%c%c%c%c%c") == 0);
+        CHECK(getKernel32Name_proxy(masks.name) == masks.name);
+        CHECK(strcmp(masks.name, "kernel32") == 0);
+        CHECK(getLoaderName_proxy(masks.name) == masks.name);
+        CHECK(strcmp(masks.name, "LoadLibraryA") == 0);
+        CHECK(getDebuggerName_proxy(masks.name) == masks.name);
+        CHECK(strcmp(masks.name, "IsDebuggerPresent") == 0);
         for (int k = 0; k < 8; k++) CHECK(masks.guard[k] == 0x5a);
-        CHECK(getCharMask(0, masks.mask, sizeof masks.mask) == masks.mask && masks.mask[0] == 0);
         CHECK(obfh_double_proxy(3.5) == 3.5);
         CHECK(obfh_condition_proxy(0, -1) == -1);
         CHECK((ULONG_PTR)GetCurrentProcess() == (ULONG_PTR)-1);

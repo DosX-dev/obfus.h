@@ -39,9 +39,10 @@ int main(void) {
 #endif
     CHECK(obfh_double_proxy(3.25) == 3.25);
     CHECK(shifted(31) == 31 && addressed(3.25) == 3.25);
-    char mask[32], name[11];
-    CHECK(getCharMask(6, mask, sizeof mask) == mask);
-    CHECK(strlen(mask) == 12);
+    char name[18];
+    CHECK(strcmp(getKernel32Name_proxy(name), "kernel32") == 0);
+    CHECK(strcmp(getLoaderName_proxy(name), "LoadLibraryA") == 0);
+    CHECK(strcmp(getDebuggerName_proxy(name), "IsDebuggerPresent") == 0);
     CHECK(strcmp(getStdLibName_proxy(name, sizeof name), "msvcrt") == 0);
     unsigned char boundedName[9] = {0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5};
     CHECK(getStdLibName_proxy((char *)boundedName, 6) == NULL && boundedName[0] == 0xa5);

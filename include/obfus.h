@@ -361,10 +361,12 @@ typedef enum {
 #define OBFH_MIX_B(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 13)) * 3266489909u)
 
 // Select stores at compile time; each use has its own captured parameters.
-#define OBFH_CRT_NAME_ORDER(forward, reverse) ({                  \
+#define OBFH_NAME_ORDER(forward, reverse) ({                      \
     enum { __obfh_name_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; \
     __builtin_choose_expr(__obfh_name_order, forward, reverse);   \
 })
+
+#define OBFH_CRT_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER(forward, reverse)
 
 #define OBFH_DATA_DRAW(salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u)))
 
@@ -2780,15 +2782,22 @@ static void obfh_junk_func() OBFH_DATA_CODE_SECTION_ATTRIBUTE {
 #define FALSE (((_3 + _6 + (RND(0, 1000) * _0)) - _9) * RND(0, 255))
 
 static FARPROC obfh_crt_resolve(const char *name);
+#define OBFH_CRT_TARGET(type, name) ((type)obfh_crt_resolve(name))
+#define OBFH_CRT_PROXY_ENTER \
+    STACK_PROXY_FUNCTIONS;   \
+    BREAK_STACK_CFLOW
+#define OBFH_CRT_PROXY_RETURN(value) \
+    PHANTOM_NOP;                     \
+    STACK_PROXY_FUNCTIONS;           \
+    RET_BY_VAR(value)
 static void *malloc_proxy(size_t size) {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char name[7];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _m, name[1] = _a, name[2] = _l, name[3] = _l, name[4] = _o, name[5] = _c, name[6] = _0),
         (name[6] = _0, name[5] = _c, name[4] = _o, name[3] = _l, name[2] = _l, name[1] = _a, name[0] = _m));
     PHANTOM_NOP;
-    void *result = ((void *(*)(size_t))obfh_crt_resolve(name))(size);
+    void *result = OBFH_CRT_TARGET(void *(*)(size_t), name)(size);
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
@@ -4026,6 +4035,8 @@ __obfh_strchr_done:;                                                            
     __obfh_strchr_result;                                                                                \
 })
 
+#define strchr(...) strchr_custom(__VA_ARGS__)
+
 #define strrchr_custom(...) ({                                                                              \
     __label__ __obfh_strrchr_loop, __obfh_strrchr_found, __obfh_strrchr_done;                               \
     struct {                                                                                                \
@@ -4050,6 +4061,8 @@ __obfh_strrchr_found:                                                           
 __obfh_strrchr_done:;                                                                                       \
     __obfh_strrchr_result;                                                                                  \
 })
+
+#define strrchr(...) strrchr_custom(__VA_ARGS__)
 
 #define wcschr_custom(...) ({                                                             \
     __label__ __obfh_wcschr_loop, __obfh_wcschr_found, __obfh_wcschr_done;                \
@@ -4121,6 +4134,8 @@ __obfh_strcpy_done:;                                             \
     __obfh_strcpy_args.destination;                              \
 })
 
+#define strcpy(...) strcpy_custom(__VA_ARGS__)
+
 #define strcat_custom(...) ({                                             \
     __label__ __obfh_strcat_scan, __obfh_strcat_copy, __obfh_strcat_done; \
     struct {                                                              \
@@ -4145,6 +4160,8 @@ __obfh_strcat_copy:                                                       \
 __obfh_strcat_done:;                                                      \
     __obfh_strcat_args.destination;                                       \
 })
+
+#define strcat(...) strcat_custom(__VA_ARGS__)
 
 #define strncpy_custom(...) ({                                               \
     __label__ __obfh_strncpy_copy, __obfh_strncpy_fill, __obfh_strncpy_done; \
@@ -4174,6 +4191,8 @@ __obfh_strncpy_fill:                                                         \
 __obfh_strncpy_done:;                                                        \
     __obfh_strncpy_args.destination;                                         \
 })
+
+#define strncpy(...) strncpy_custom(__VA_ARGS__)
 
 #define strncat_custom(...) ({                                                                    \
     __label__ __obfh_strncat_scan, __obfh_strncat_copy, __obfh_strncat_fill, __obfh_strncat_done; \
@@ -4205,6 +4224,8 @@ __obfh_strncat_done:;                                                           
     __obfh_strncat_args.destination;                                                              \
 })
 
+#define strncat(...) strncat_custom(__VA_ARGS__)
+
 #define memcpy_custom(...) ({                                              \
     struct {                                                               \
         void *destination;                                                 \
@@ -4224,6 +4245,8 @@ __obfh_strncat_done:;                                                           
     __obfh_memcpy_args.destination;                                        \
 })
 
+#define memcpy(...) memcpy_custom(__VA_ARGS__)
+
 #define memset_custom(...) ({                                            \
     struct {                                                             \
         void *destination;                                               \
@@ -4240,6 +4263,8 @@ __obfh_strncat_done:;                                                           
                  : "memory");                                            \
     __obfh_memset_args.destination;                                      \
 })
+
+#define memset(...) memset_custom(__VA_ARGS__)
 
 #if defined(__x86_64__)
 #define OBFH_MOVE_WIDTH "q"
@@ -4322,6 +4347,8 @@ __obfh_memmove_vector:                                                          
 __obfh_memmove_done:;                                                                                                 \
     __obfh_memmove_args.destination;                                                                                  \
 })
+
+#define memmove(...) memmove_custom(__VA_ARGS__)
 #define wcslen_custom(...) ({                                                            \
     __label__ __obfh_wcslen_loop, __obfh_wcslen_done;                                    \
     struct {                                                                             \
@@ -4755,7 +4782,60 @@ __obfh_bsearch_done:;                                                           
     __obfh_bsearch_result;                                                                                                            \
 })
 
-// GUI publication precedes invocation, allowing callback reentry.
+#define bsearch(...) bsearch_custom(__VA_ARGS__)
+
+#define strcmp_custom(...) ({                                                                                         \
+    __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done;                     \
+    struct {                                                                                                          \
+        const char *__obfh_strcmp_str1;                                                                               \
+        const char *__obfh_strcmp_str2;                                                                               \
+    } __obfh_strcmp_args = {__VA_ARGS__};                                                                             \
+    int __obfh_strcmp_result;                                                                                         \
+    int __obfh_strcmp_a;                                                                                              \
+    int __obfh_strcmp_b;                                                                                              \
+    BREAK_STACK_CFLOW;                                                                                                \
+    PHANTOM_NOP;                                                                                                      \
+__obfh_strcmp_loop:                                                                                                   \
+    __obfh_strcmp_a = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str1;                                          \
+    __obfh_strcmp_b = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str2;                                          \
+    OBFH_INLINE_EXIT(!(__obfh_strcmp_a || __obfh_strcmp_b), __obfh_strcmp_equal);                                     \
+    __obfh_strcmp_a = obfh_int_proxy(__obfh_strcmp_a);                                                                \
+    __obfh_strcmp_b = obfh_int_proxy(__obfh_strcmp_b);                                                                \
+    OBFH_INLINE_EXIT(__obfh_strcmp_a == __obfh_strcmp_b, __obfh_strcmp_advance);                                      \
+    __obfh_strcmp_result = obfh_int_proxy((__obfh_strcmp_a > __obfh_strcmp_b) - (__obfh_strcmp_a < __obfh_strcmp_b)); \
+    goto __obfh_strcmp_done;                                                                                          \
+__obfh_strcmp_advance:                                                                                                \
+    __obfh_strcmp_args.__obfh_strcmp_str1 += obfh_int_proxy(_1);                                                      \
+    __obfh_strcmp_args.__obfh_strcmp_str2 += obfh_int_proxy(_2 - _1);                                                 \
+    goto __obfh_strcmp_loop;                                                                                          \
+__obfh_strcmp_equal:                                                                                                  \
+    __obfh_strcmp_result = _0;                                                                                        \
+__obfh_strcmp_done:;                                                                                                  \
+    __obfh_strcmp_result;                                                                                             \
+})
+#define strcmp(...) strcmp_custom(__VA_ARGS__)
+
+#define strlen_custom(...) ({                                                \
+    __label__ __obfh_strlen_loop, __obfh_strlen_done;                        \
+    struct {                                                                 \
+        const char *str;                                                     \
+    } __obfh_strlen_args = {__VA_ARGS__};                                    \
+    int __obfh_strlen_step;                                                  \
+    size_t __obfh_strlen_length = _0;                                        \
+    BREAK_STACK_CFLOW;                                                       \
+    PHANTOM_NOP;                                                             \
+__obfh_strlen_loop:                                                          \
+    OBFH_INLINE_EXIT(!*__obfh_strlen_args.str, __obfh_strlen_done);          \
+    __obfh_strlen_step = obfh_int_proxy(_1);                                 \
+    __obfh_strlen_length += __obfh_strlen_step;                              \
+    __obfh_strlen_args.str += __obfh_strlen_step;                            \
+    goto __obfh_strlen_loop;                                                 \
+__obfh_strlen_done:                                                          \
+    (size_t) obfh_uintptr_proxy(__obfh_strlen_length + (RND(0, 1000) * _0)); \
+})
+#define strlen(...) strlen_custom(__VA_ARGS__)
+
+// API cache publication precedes invocation, allowing callback reentry.
 typedef struct {
     PVOID volatile encoded;
     LONG volatile ready;
@@ -4777,6 +4857,67 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #define OBFH_GUI_ROTATE(index) (OBFH_GUI_DRAW(index, 0x47554934u) % (sizeof(ULONG_PTR) * 8 - 1) + 1)
 #define OBFH_GUI_NAME_KEY(index) ((OBFH_GUI_DRAW(index, 0x47554935u) & 255u) | 1u)
 
+// Internal fixed names use caller-owned storage and the same compile-time store selector.
+static char *getKernel32Name_proxy(char *name) {
+    BREAK_STACK_CFLOW;
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _k, name[1] = _e, name[2] = _r, name[3] = _n, name[4] = _e, name[5] = _l, name[6] = ('3'), name[7] = ('2'), name[8] = _0),
+        (name[8] = _0, name[7] = ('2'), name[6] = ('3'), name[5] = _l, name[4] = _e, name[3] = _n, name[2] = _r, name[1] = _e, name[0] = _k));
+    PHANTOM_NOP;
+    return name;
+}
+
+static char *getUser32Name_proxy(char *name) {
+    BREAK_STACK_CFLOW;
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _u, name[1] = _s, name[2] = _e, name[3] = _r, name[4] = ('3'), name[5] = ('2'), name[6] = _0),
+        (name[6] = _0, name[5] = ('2'), name[4] = ('3'), name[3] = _r, name[2] = _e, name[1] = _s, name[0] = _u));
+    PHANTOM_NOP;
+    return name;
+}
+
+static char *getGdi32Name_proxy(char *name) {
+    BREAK_STACK_CFLOW;
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _g, name[1] = _d, name[2] = _i, name[3] = ('3'), name[4] = ('2'), name[5] = _0),
+        (name[5] = _0, name[4] = ('2'), name[3] = ('3'), name[2] = _i, name[1] = _d, name[0] = _g));
+    PHANTOM_NOP;
+    return name;
+}
+
+static char *getAdvapi32Name_proxy(char *name) {
+    BREAK_STACK_CFLOW;
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _a, name[1] = _d, name[2] = _v, name[3] = _a, name[4] = _p, name[5] = _i, name[6] = ('3'), name[7] = ('2'), name[8] = _0),
+        (name[8] = _0, name[7] = ('2'), name[6] = ('3'), name[5] = _i, name[4] = _p, name[3] = _a, name[2] = _v, name[1] = _d, name[0] = _a));
+    PHANTOM_NOP;
+    return name;
+}
+
+static char *getLoaderName_proxy(char *name) {
+    BREAK_STACK_CFLOW;
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _L, name[1] = _o, name[2] = _a, name[3] = _d, name[4] = _L, name[5] = _i, name[6] = _b, name[7] = _r, name[8] = _a, name[9] = _r, name[10] = _y, name[11] = _A, name[12] = _0),
+        (name[12] = _0, name[11] = _A, name[10] = _y, name[9] = _r, name[8] = _a, name[7] = _r, name[6] = _b, name[5] = _i, name[4] = _L, name[3] = _d, name[2] = _a, name[1] = _o, name[0] = _L));
+    PHANTOM_NOP;
+    return name;
+}
+
+static char *getDebuggerName_proxy(char *name) {
+    BREAK_STACK_CFLOW;
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _I, name[1] = _s, name[2] = _D, name[3] = _e, name[4] = _b, name[5] = _u, name[6] = _g, name[7] = _g, name[8] = _e, name[9] = _r, name[10] = _P, name[11] = _r, name[12] = _e, name[13] = _s, name[14] = _e, name[15] = _n, name[16] = _t, name[17] = _0),
+        (name[17] = _0, name[16] = _t, name[15] = _n, name[14] = _e, name[13] = _s, name[12] = _e, name[11] = _r, name[10] = _P, name[9] = _r, name[8] = _e, name[7] = _g, name[6] = _g, name[5] = _u, name[4] = _b, name[3] = _e, name[2] = _D, name[1] = _s, name[0] = _I));
+    PHANTOM_NOP;
+    return name;
+}
+
 // Native cold-path control avoids expanding CFLOW at every cache check.
 static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
                                const unsigned char *encoded_name, size_t length) {
@@ -4788,10 +4929,9 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
     HMODULE module = (HMODULE)InterlockedCompareExchangePointer(&obfh_gui_modules[module_id], NULL, NULL);
     if (!module) {
         char library[9];
-        const char *hidden = module_id == 3 ? HIDE_STRING("advapi32") : (module_id == 2 ? HIDE_STRING("kernel32") : (module_id ? HIDE_STRING("gdi32") : HIDE_STRING("user32")));
-        size_t n = module_id >= 2 ? 9 : (module_id ? 6 : 7);
-        for (size_t i = 0; i < n; ++i)
-            library[i] = hidden[i];
+        module_id == 3 ? getAdvapi32Name_proxy(library)
+                       : (module_id == 2 ? getKernel32Name_proxy(library)
+                                         : (module_id ? getGdi32Name_proxy(library) : getUser32Name_proxy(library)));
         HMODULE loaded = LoadLibraryA_proxy(library);
         if (!loaded)
             ExitProcess(0xe0bf4701u);
@@ -5076,99 +5216,34 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, unsigned int index,
 #endif
 
 // ============================================================================
-// 15. Console proxies, inline comparisons and PE export lookup
+// 15. Bootstrap console/module calls and PE export lookup
 // ============================================================================
 
 // Caller-owned storage keeps the mask valid and avoids shared-buffer races.
-static char *getCharMask(int count, char *mask, size_t capacity) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
-    if (!mask || !capacity || count < 0 || (size_t)count > (capacity - 1) / 2)
-        return NULL;
-    int i = (((_1 * _5) - _4) + _1) - _2;
-    BREAK_STACK_CFLOW;
-    PHANTOM_NOP;
-    char *ptr = mask;
-    for (i = _0; i < count; ++i) {
-        *ptr++ = '%';
-        *ptr++ = _c;
-    }
-    *ptr = _0;
-    BREAK_STACK_CFLOW;
-    return mask;
-}
 
+// Bootstrap calls below are defined before public API interception.
+// They cannot use the lazy API cache while that cache is resolving its loader.
 // WriteConsoleA
-static BOOL WriteConsoleA_proxy(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_CODE_SECTION_ATTRIBUTE {
+static BOOL obfh_bootstrap_write_console(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
-#define WriteConsoleA(...) WriteConsoleA_proxy(__VA_ARGS__)
+#define WriteConsoleA(...) obfh_bootstrap_write_console(__VA_ARGS__)
 
-static HANDLE GetStdHandle_proxy(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
+static HANDLE obfh_bootstrap_std_handle(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return GetStdHandle(obfh_int_proxy(nStdHandle));
 }
-#define GetStdHandle(...) GetStdHandle_proxy(__VA_ARGS__)
+#define GetStdHandle(...) obfh_bootstrap_std_handle(__VA_ARGS__)
 
-static HMODULE GetModuleHandleA_proxy(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTRIBUTE {
+static HMODULE obfh_bootstrap_module(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return GetModuleHandleA(lpModuleName);
 }
-#define GetModuleHandleA(...) GetModuleHandleA_proxy(__VA_ARGS__)
-
-#define strcmp_custom(...) ({                                                                                         \
-    __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done;                     \
-    struct {                                                                                                          \
-        const char *__obfh_strcmp_str1;                                                                               \
-        const char *__obfh_strcmp_str2;                                                                               \
-    } __obfh_strcmp_args = {__VA_ARGS__};                                                                             \
-    int __obfh_strcmp_result;                                                                                         \
-    int __obfh_strcmp_a;                                                                                              \
-    int __obfh_strcmp_b;                                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                \
-    PHANTOM_NOP;                                                                                                      \
-__obfh_strcmp_loop:                                                                                                   \
-    __obfh_strcmp_a = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str1;                                          \
-    __obfh_strcmp_b = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str2;                                          \
-    OBFH_INLINE_EXIT(!(__obfh_strcmp_a || __obfh_strcmp_b), __obfh_strcmp_equal);                                     \
-    __obfh_strcmp_a = obfh_int_proxy(__obfh_strcmp_a);                                                                \
-    __obfh_strcmp_b = obfh_int_proxy(__obfh_strcmp_b);                                                                \
-    OBFH_INLINE_EXIT(__obfh_strcmp_a == __obfh_strcmp_b, __obfh_strcmp_advance);                                      \
-    __obfh_strcmp_result = obfh_int_proxy((__obfh_strcmp_a > __obfh_strcmp_b) - (__obfh_strcmp_a < __obfh_strcmp_b)); \
-    goto __obfh_strcmp_done;                                                                                          \
-__obfh_strcmp_advance:                                                                                                \
-    __obfh_strcmp_args.__obfh_strcmp_str1 += obfh_int_proxy(_1);                                                      \
-    __obfh_strcmp_args.__obfh_strcmp_str2 += obfh_int_proxy(_2 - _1);                                                 \
-    goto __obfh_strcmp_loop;                                                                                          \
-__obfh_strcmp_equal:                                                                                                  \
-    __obfh_strcmp_result = _0;                                                                                        \
-__obfh_strcmp_done:;                                                                                                  \
-    __obfh_strcmp_result;                                                                                             \
-})
-#define strcmp(...) strcmp_custom(__VA_ARGS__)
-
-#define strlen_custom(...) ({                                                \
-    __label__ __obfh_strlen_loop, __obfh_strlen_done;                        \
-    struct {                                                                 \
-        const char *str;                                                     \
-    } __obfh_strlen_args = {__VA_ARGS__};                                    \
-    int __obfh_strlen_step;                                                  \
-    size_t __obfh_strlen_length = _0;                                        \
-    BREAK_STACK_CFLOW;                                                       \
-    PHANTOM_NOP;                                                             \
-__obfh_strlen_loop:                                                          \
-    OBFH_INLINE_EXIT(!*__obfh_strlen_args.str, __obfh_strlen_done);          \
-    __obfh_strlen_step = obfh_int_proxy(_1);                                 \
-    __obfh_strlen_length += __obfh_strlen_step;                              \
-    __obfh_strlen_args.str += __obfh_strlen_step;                            \
-    goto __obfh_strlen_loop;                                                 \
-__obfh_strlen_done:                                                          \
-    (size_t) obfh_uintptr_proxy(__obfh_strlen_length + (RND(0, 1000) * _0)); \
-})
-#define strlen(...) strlen_custom(__VA_ARGS__)
+#define GetModuleHandleA(...) obfh_bootstrap_module(__VA_ARGS__)
 
 // Forward declaration for forwarded-export module loading.
 static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
@@ -5347,23 +5422,14 @@ static HMODULE LoadLibraryA_0(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE 
             static PVOID volatile cachedLoader;
             LoadLibraryAFunc loader = (LoadLibraryAFunc)InterlockedCompareExchangePointer(&cachedLoader, NULL, NULL);
             if (!loader) {
-                char mask[32], libName[32], funcName[32];
-                char *format = getCharMask(_6, mask, sizeof mask);
-                format[_6 * _2] = '%';
-                format[_6 * _2 + _1] = _d;
-                format[_6 * _2 + _2] = _0;
-                sprintf(libName, format, _k, _e, _r, _n, _e, _l, _4 * _8);
+                char libName[9], funcName[13];
+                getKernel32Name_proxy(libName);
                 HMODULE kernel = GetModuleHandleA(libName);
                 if (!kernel)
                     return NULL;
-                char charL = _L;
                 obfh_junk_func_args(_0 + RND(1, 5));
                 BREAK_STACK_CFLOW;
-                format = getCharMask(_4, mask, sizeof mask);
-                sprintf(funcName, format, obfh_int_proxy(charL), obfh_int_proxy(_o), obfh_int_proxy(_a), obfh_int_proxy(_d));
-                char tail[] = {_L, _i, _b, _r, _a, _r, _y, _A, _0};
-                for (int i = _0; i <= _8; ++i)
-                    funcName[_4 + i] = tail[i];
+                getLoaderName_proxy(funcName);
                 loader = (LoadLibraryAFunc)GetProcAddress(kernel, funcName);
                 if (loader)
                     InterlockedCompareExchangePointer(&cachedLoader, (PVOID)loader, NULL);
@@ -5469,10 +5535,11 @@ static int obfh_ad_register_probe(void) {
 static int obfh_ad_process_probe(void) {
     typedef BOOL(WINAPI * ObfhDebuggerCheck)(void);
     BREAK_STACK_CFLOW;
-    // Caller-owned hidden strings remain alive through the export lookup.
-    HMODULE kernel = GetModuleHandleA(HIDE_STRING("kernel32"));
+    // Caller-owned names remain alive through the export lookup.
+    char library[9], symbol[18];
+    HMODULE kernel = GetModuleHandleA(getKernel32Name_proxy(library));
     BREAK_STACK_CFLOW;
-    ObfhDebuggerCheck check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, HIDE_STRING("IsDebuggerPresent")) : NULL;
+    ObfhDebuggerCheck check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, getDebuggerName_proxy(symbol)) : NULL;
     PHANTOM_NOP;
     if (check)
         return check() != FALSE;
@@ -5545,16 +5612,16 @@ static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECT
 // 18. CRT resolution, formatted output and compact call adapters
 // ============================================================================
 
-// CRT module name, copied within the hidden string's lifetime.
+// Bounded CRT module name in caller-owned storage.
 static char *getStdLibName_proxy(char *name, size_t capacity) {
     BREAK_STACK_CFLOW;
     if (!name || capacity < sizeof("msvcrt"))
         return NULL;
-    const char *hidden = HIDE_STRING("msvcrt");
+    OBFH_HIDE_JUNK;
+    OBFH_NAME_ORDER(
+        (name[0] = _m, name[1] = _s, name[2] = _v, name[3] = _c, name[4] = _r, name[5] = _t, name[6] = _0),
+        (name[6] = _0, name[5] = _t, name[4] = _r, name[3] = _c, name[2] = _v, name[1] = _s, name[0] = _m));
     PHANTOM_NOP;
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = hidden[0], name[1] = hidden[1], name[2] = hidden[2], name[3] = hidden[3], name[4] = hidden[4], name[5] = hidden[5], name[6] = hidden[6]),
-        (name[6] = hidden[6], name[5] = hidden[5], name[4] = hidden[4], name[3] = hidden[3], name[2] = hidden[2], name[1] = hidden[1], name[0] = hidden[0]));
     return name;
 }
 
@@ -5622,7 +5689,7 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
     obfh_junk_func_args((int)((ULONG_PTR)console & 0x3fffffff) + junk);
     va_start(args, format);
     char functionName[8];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (functionName[0] = _v, functionName[1] = _p, functionName[2] = _r, functionName[3] = _i, functionName[4] = _n, functionName[5] = _t, functionName[6] = _f, functionName[7] = _0),
         (functionName[7] = _0, functionName[6] = _f, functionName[5] = _t, functionName[4] = _n, functionName[3] = _i, functionName[2] = _r, functionName[1] = _p, functionName[0] = _v));
     int result;
@@ -5630,12 +5697,12 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
     PHANTOM_NOP;
     if (GetConsoleMode(console, &mode) && !obfh_format_has_count(format)) {
         char countName[11];
-        OBFH_CRT_NAME_ORDER(
+        OBFH_NAME_ORDER(
             (countName[0] = '_', countName[1] = _v, countName[2] = _s, countName[3] = _c, countName[4] = _p, countName[5] = _r, countName[6] = _i, countName[7] = _n, countName[8] = _t, countName[9] = _f, countName[10] = _0),
             (countName[10] = _0, countName[9] = _f, countName[8] = _t, countName[7] = _n, countName[6] = _i, countName[5] = _r, countName[4] = _p, countName[3] = _c, countName[2] = _s, countName[1] = _v, countName[0] = '_'));
         va_list countArgs;
         va_copy(countArgs, args);
-        int length = ((int (*)(const char *, va_list))obfh_crt_resolve(countName))(format, countArgs);
+        int length = OBFH_CRT_TARGET(int (*)(const char *, va_list), countName)(format, countArgs);
         va_end(countArgs);
         char *buffer = length >= 0 ? malloc((size_t)length + 1) : NULL;
         if (buffer) {
@@ -5648,7 +5715,7 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
         } else
             result = -1;
     } else {
-        result = ((int (*)(const char *, va_list))obfh_crt_resolve(functionName))(format, args);
+        result = OBFH_CRT_TARGET(int (*)(const char *, va_list), functionName)(format, args);
     }
     va_end(args);
     return result;
@@ -5669,23 +5736,28 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
 #define puts(string) ({                                                                                                                      \
     const char *__obfh_puts_string = (string);                                                                                               \
     char __obfh_puts_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_puts_name[0] = _p, __obfh_puts_name[1] = _u, __obfh_puts_name[2] = _t, __obfh_puts_name[3] = _s, __obfh_puts_name[4] = _0),  \
         (__obfh_puts_name[4] = _0, __obfh_puts_name[3] = _s, __obfh_puts_name[2] = _t, __obfh_puts_name[1] = _u, __obfh_puts_name[0] = _p)); \
-    ((int (*)(const char *))obfh_crt_resolve(__obfh_puts_name))(__obfh_puts_string);                                                         \
+    OBFH_CRT_TARGET(int (*)(const char *), __obfh_puts_name)                                                                                 \
+    (__obfh_puts_string);                                                                                                                    \
 })
 
 // Build the name in caller-owned storage, then invoke the resolved typed function.
-#define OBFH_CRT_CALL(name_builder, function_type, ...) ({                         \
-    BREAK_STACK_CFLOW;                                                             \
-    char __obfh_crt_name[32];                                                      \
-    STACK_PROXY_FUNCTIONS;                                                         \
-    ((function_type)obfh_crt_resolve(name_builder(__obfh_crt_name)))(__VA_ARGS__); \
+#define OBFH_CRT_INVOKE(builder, type, entry, ...) ({ \
+    char __obfh_crt_name[32];                         \
+    entry;                                            \
+    OBFH_CRT_TARGET(type, builder(__obfh_crt_name))   \
+    (__VA_ARGS__);                                    \
 })
+#define OBFH_CRT_CALL(builder, type, ...) \
+    OBFH_CRT_INVOKE(builder, type, STACK_PROXY_FUNCTIONS, __VA_ARGS__)
+#define OBFH_CRT_COMPACT_CALL(builder, type, ...) \
+    OBFH_CRT_INVOKE(builder, type, ((void)0), __VA_ARGS__)
 
 static char *getScanfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _c, name[2] = _a, name[3] = _n, name[4] = _f, name[5] = _0),
         (name[5] = _0, name[4] = _f, name[3] = _n, name[2] = _a, name[1] = _c, name[0] = _s));
     PHANTOM_NOP;
@@ -5696,18 +5768,12 @@ static char *getScanfName_proxy(char *name) {
 }
 #define scanf(...) OBFH_CRT_CALL(getScanfName_proxy, int (*)(const char *, ...), __VA_ARGS__)
 
-// Compact CRT calls reuse resolution/cache without adding per-call junk layers.
-#define OBFH_CRT_COMPACT_CALL(builder, type, ...) ({                     \
-    char __obfh_compact_name[32];                                        \
-    ((type)obfh_crt_resolve(builder(__obfh_compact_name)))(__VA_ARGS__); \
-})
-
 // ============================================================================
 // 19. CRT name builders and public function aliases
 // ============================================================================
 
 static char *getFreeName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _r, name[2] = _e, name[3] = _e, name[4] = _0),
         (name[4] = _0, name[3] = _e, name[2] = _e, name[1] = _r, name[0] = _f));
     PHANTOM_NOP;
@@ -5715,35 +5781,8 @@ static char *getFreeName_proxy(char *name) {
 }
 #define free(...) OBFH_CRT_COMPACT_CALL(getFreeName_proxy, void (*)(void *), __VA_ARGS__)
 
-static char *getStrncpyName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _n, name[4] = _c, name[5] = _p, name[6] = _y, name[7] = _0),
-        (name[7] = _0, name[6] = _y, name[5] = _p, name[4] = _c, name[3] = _n, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-    return name;
-}
-#define strncpy(...) strncpy_custom(__VA_ARGS__)
-
-static char *getStrcatName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _c, name[4] = _a, name[5] = _t, name[6] = _0),
-        (name[6] = _0, name[5] = _t, name[4] = _a, name[3] = _c, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-    return name;
-}
-#define strcat(...) strcat_custom(__VA_ARGS__)
-
-static char *getStrncatName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _n, name[4] = _c, name[5] = _a, name[6] = _t, name[7] = _0),
-        (name[7] = _0, name[6] = _t, name[5] = _a, name[4] = _c, name[3] = _n, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-    return name;
-}
-#define strncat(...) strncat_custom(__VA_ARGS__)
-
 static char *getAtoiName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _i, name[4] = _0),
         (name[4] = _0, name[3] = _i, name[2] = _o, name[1] = _t, name[0] = _a));
     PHANTOM_NOP;
@@ -5752,7 +5791,7 @@ static char *getAtoiName_proxy(char *name) {
 #define atoi(...) OBFH_CRT_COMPACT_CALL(getAtoiName_proxy, int (*)(const char *), __VA_ARGS__)
 
 static char *getAtolName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _l, name[4] = _0),
         (name[4] = _0, name[3] = _l, name[2] = _o, name[1] = _t, name[0] = _a));
     PHANTOM_NOP;
@@ -5761,7 +5800,7 @@ static char *getAtolName_proxy(char *name) {
 #define atol(...) OBFH_CRT_COMPACT_CALL(getAtolName_proxy, long (*)(const char *), __VA_ARGS__)
 
 static char *getAtofName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _f, name[4] = _0),
         (name[4] = _0, name[3] = _f, name[2] = _o, name[1] = _t, name[0] = _a));
     PHANTOM_NOP;
@@ -5770,7 +5809,7 @@ static char *getAtofName_proxy(char *name) {
 #define atof(...) OBFH_CRT_COMPACT_CALL(getAtofName_proxy, double (*)(const char *), __VA_ARGS__)
 
 static char *getStrtolName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _l, name[6] = _0),
         (name[6] = _0, name[5] = _l, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
     PHANTOM_NOP;
@@ -5779,7 +5818,7 @@ static char *getStrtolName_proxy(char *name) {
 #define strtol(...) OBFH_CRT_COMPACT_CALL(getStrtolName_proxy, long (*)(const char *, char **, int), __VA_ARGS__)
 
 static char *getStrtoulName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _u, name[6] = _l, name[7] = _0),
         (name[7] = _0, name[6] = _l, name[5] = _u, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
     PHANTOM_NOP;
@@ -5788,7 +5827,7 @@ static char *getStrtoulName_proxy(char *name) {
 #define strtoul(...) OBFH_CRT_COMPACT_CALL(getStrtoulName_proxy, unsigned long (*)(const char *, char **, int), __VA_ARGS__)
 
 static char *getStrtodName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _d, name[6] = _0),
         (name[6] = _0, name[5] = _d, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
     PHANTOM_NOP;
@@ -5797,7 +5836,7 @@ static char *getStrtodName_proxy(char *name) {
 #define strtod(...) OBFH_CRT_COMPACT_CALL(getStrtodName_proxy, double (*)(const char *, char **), __VA_ARGS__)
 
 static char *getSrandName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _r, name[2] = _a, name[3] = _n, name[4] = _d, name[5] = _0),
         (name[5] = _0, name[4] = _d, name[3] = _n, name[2] = _a, name[1] = _r, name[0] = _s));
     PHANTOM_NOP;
@@ -5806,7 +5845,7 @@ static char *getSrandName_proxy(char *name) {
 #define srand(...) OBFH_CRT_COMPACT_CALL(getSrandName_proxy, void (*)(unsigned int), __VA_ARGS__)
 
 static char *getFgetsName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _g, name[2] = _e, name[3] = _t, name[4] = _s, name[5] = _0),
         (name[5] = _0, name[4] = _s, name[3] = _t, name[2] = _e, name[1] = _g, name[0] = _f));
     PHANTOM_NOP;
@@ -5815,7 +5854,7 @@ static char *getFgetsName_proxy(char *name) {
 #define fgets(...) OBFH_CRT_COMPACT_CALL(getFgetsName_proxy, char *(*)(char *, int, FILE *), __VA_ARGS__)
 
 static char *getFputsName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _p, name[2] = _u, name[3] = _t, name[4] = _s, name[5] = _0),
         (name[5] = _0, name[4] = _s, name[3] = _t, name[2] = _u, name[1] = _p, name[0] = _f));
     PHANTOM_NOP;
@@ -5824,7 +5863,7 @@ static char *getFputsName_proxy(char *name) {
 #define fputs(...) OBFH_CRT_COMPACT_CALL(getFputsName_proxy, int (*)(const char *, FILE *), __VA_ARGS__)
 
 static char *getFprintfName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _p, name[2] = _r, name[3] = _i, name[4] = _n, name[5] = _t, name[6] = _f, name[7] = _0),
         (name[7] = _0, name[6] = _f, name[5] = _t, name[4] = _n, name[3] = _i, name[2] = _r, name[1] = _p, name[0] = _f));
     PHANTOM_NOP;
@@ -5833,7 +5872,7 @@ static char *getFprintfName_proxy(char *name) {
 #define fprintf(...) OBFH_CRT_COMPACT_CALL(getFprintfName_proxy, int (*)(FILE *, const char *, ...), __VA_ARGS__)
 
 static char *getFflushName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _f, name[2] = _l, name[3] = _u, name[4] = _s, name[5] = _h, name[6] = _0),
         (name[6] = _0, name[5] = _h, name[4] = _s, name[3] = _u, name[2] = _l, name[1] = _f, name[0] = _f));
     PHANTOM_NOP;
@@ -5842,7 +5881,7 @@ static char *getFflushName_proxy(char *name) {
 #define fflush(...) OBFH_CRT_COMPACT_CALL(getFflushName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getFseekName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _s, name[2] = _e, name[3] = _e, name[4] = _k, name[5] = _0),
         (name[5] = _0, name[4] = _k, name[3] = _e, name[2] = _e, name[1] = _s, name[0] = _f));
     PHANTOM_NOP;
@@ -5851,7 +5890,7 @@ static char *getFseekName_proxy(char *name) {
 #define fseek(...) OBFH_CRT_COMPACT_CALL(getFseekName_proxy, int (*)(FILE *, long, int), __VA_ARGS__)
 
 static char *getFtellName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _t, name[2] = _e, name[3] = _l, name[4] = _l, name[5] = _0),
         (name[5] = _0, name[4] = _l, name[3] = _l, name[2] = _e, name[1] = _t, name[0] = _f));
     PHANTOM_NOP;
@@ -5860,7 +5899,7 @@ static char *getFtellName_proxy(char *name) {
 #define ftell(...) OBFH_CRT_COMPACT_CALL(getFtellName_proxy, long (*)(FILE *), __VA_ARGS__)
 
 static char *getFgetcName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _g, name[2] = _e, name[3] = _t, name[4] = _c, name[5] = _0),
         (name[5] = _0, name[4] = _c, name[3] = _t, name[2] = _e, name[1] = _g, name[0] = _f));
     PHANTOM_NOP;
@@ -5869,7 +5908,7 @@ static char *getFgetcName_proxy(char *name) {
 #define fgetc(...) OBFH_CRT_COMPACT_CALL(getFgetcName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getFputcName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _p, name[2] = _u, name[3] = _t, name[4] = _c, name[5] = _0),
         (name[5] = _0, name[4] = _c, name[3] = _t, name[2] = _u, name[1] = _p, name[0] = _f));
     PHANTOM_NOP;
@@ -5878,7 +5917,7 @@ static char *getFputcName_proxy(char *name) {
 #define fputc(...) OBFH_CRT_COMPACT_CALL(getFputcName_proxy, int (*)(int, FILE *), __VA_ARGS__)
 
 static char *getGetcharName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _g, name[1] = _e, name[2] = _t, name[3] = _c, name[4] = _h, name[5] = _a, name[6] = _r, name[7] = _0),
         (name[7] = _0, name[6] = _r, name[5] = _a, name[4] = _h, name[3] = _c, name[2] = _t, name[1] = _e, name[0] = _g));
     PHANTOM_NOP;
@@ -5888,7 +5927,7 @@ static char *getGetcharName_proxy(char *name) {
 #define getchar(...) OBFH_CRT_COMPACT_CALL(getGetcharName_proxy, int (*)(void), __VA_ARGS__)
 
 static char *getPutcharName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _p, name[1] = _u, name[2] = _t, name[3] = _c, name[4] = _h, name[5] = _a, name[6] = _r, name[7] = _0),
         (name[7] = _0, name[6] = _r, name[5] = _a, name[4] = _h, name[3] = _c, name[2] = _t, name[1] = _u, name[0] = _p));
     PHANTOM_NOP;
@@ -5898,7 +5937,7 @@ static char *getPutcharName_proxy(char *name) {
 #define putchar(...) OBFH_CRT_COMPACT_CALL(getPutcharName_proxy, int (*)(int), __VA_ARGS__)
 
 static char *getFeofName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _e, name[2] = _o, name[3] = _f, name[4] = _0),
         (name[4] = _0, name[3] = _f, name[2] = _o, name[1] = _e, name[0] = _f));
     PHANTOM_NOP;
@@ -5908,7 +5947,7 @@ static char *getFeofName_proxy(char *name) {
 #define feof(...) OBFH_CRT_COMPACT_CALL(getFeofName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getFerrorName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _e, name[2] = _r, name[3] = _r, name[4] = _o, name[5] = _r, name[6] = _0),
         (name[6] = _0, name[5] = _r, name[4] = _o, name[3] = _r, name[2] = _r, name[1] = _e, name[0] = _f));
     PHANTOM_NOP;
@@ -5918,7 +5957,7 @@ static char *getFerrorName_proxy(char *name) {
 #define ferror(...) OBFH_CRT_COMPACT_CALL(getFerrorName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getClearerrName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _c, name[1] = _l, name[2] = _e, name[3] = _a, name[4] = _r, name[5] = _e, name[6] = _r, name[7] = _r, name[8] = _0),
         (name[8] = _0, name[7] = _r, name[6] = _r, name[5] = _e, name[4] = _r, name[3] = _a, name[2] = _e, name[1] = _l, name[0] = _c));
     PHANTOM_NOP;
@@ -5928,7 +5967,7 @@ static char *getClearerrName_proxy(char *name) {
 #define clearerr(...) OBFH_CRT_COMPACT_CALL(getClearerrName_proxy, void (*)(FILE *), __VA_ARGS__)
 
 static char *getRewindName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _r, name[1] = _e, name[2] = _w, name[3] = _i, name[4] = _n, name[5] = _d, name[6] = _0),
         (name[6] = _0, name[5] = _d, name[4] = _n, name[3] = _i, name[2] = _w, name[1] = _e, name[0] = _r));
     PHANTOM_NOP;
@@ -5938,7 +5977,7 @@ static char *getRewindName_proxy(char *name) {
 #define rewind(...) OBFH_CRT_COMPACT_CALL(getRewindName_proxy, void (*)(FILE *), __VA_ARGS__)
 
 static char *getRemoveName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _r, name[1] = _e, name[2] = _m, name[3] = _o, name[4] = _v, name[5] = _e, name[6] = _0),
         (name[6] = _0, name[5] = _e, name[4] = _v, name[3] = _o, name[2] = _m, name[1] = _e, name[0] = _r));
     PHANTOM_NOP;
@@ -5948,7 +5987,7 @@ static char *getRemoveName_proxy(char *name) {
 #define remove(...) OBFH_CRT_COMPACT_CALL(getRemoveName_proxy, int (*)(const char *), __VA_ARGS__)
 
 static char *getRenameName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _r, name[1] = _e, name[2] = _n, name[3] = _a, name[4] = _m, name[5] = _e, name[6] = _0),
         (name[6] = _0, name[5] = _e, name[4] = _m, name[3] = _a, name[2] = _n, name[1] = _e, name[0] = _r));
     PHANTOM_NOP;
@@ -5958,7 +5997,7 @@ static char *getRenameName_proxy(char *name) {
 #define rename(...) OBFH_CRT_COMPACT_CALL(getRenameName_proxy, int (*)(const char *, const char *), __VA_ARGS__)
 
 static char *getFreopenName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _r, name[2] = _e, name[3] = _o, name[4] = _p, name[5] = _e, name[6] = _n, name[7] = _0),
         (name[7] = _0, name[6] = _n, name[5] = _e, name[4] = _p, name[3] = _o, name[2] = _e, name[1] = _r, name[0] = _f));
     PHANTOM_NOP;
@@ -5968,7 +6007,7 @@ static char *getFreopenName_proxy(char *name) {
 #define freopen(...) OBFH_CRT_COMPACT_CALL(getFreopenName_proxy, FILE *(*)(const char *, const char *, FILE *), __VA_ARGS__)
 
 static char *getQsortName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _q, name[1] = _s, name[2] = _o, name[3] = _r, name[4] = _t, name[5] = _0),
         (name[5] = _0, name[4] = _t, name[3] = _r, name[2] = _o, name[1] = _s, name[0] = _q));
     PHANTOM_NOP;
@@ -5977,20 +6016,12 @@ static char *getQsortName_proxy(char *name) {
 #undef qsort
 #define qsort(...) OBFH_CRT_COMPACT_CALL(getQsortName_proxy, void (*)(void *, size_t, size_t, int (*)(const void *, const void *)), __VA_ARGS__)
 
-static char *getBsearchName_proxy(char *name) {
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _b, name[1] = _s, name[2] = _e, name[3] = _a, name[4] = _r, name[5] = _c, name[6] = _h, name[7] = _0),
-        (name[7] = _0, name[6] = _h, name[5] = _c, name[4] = _r, name[3] = _a, name[2] = _e, name[1] = _s, name[0] = _b));
-    PHANTOM_NOP;
-    return name;
-}
 #undef bsearch
-#define bsearch(...) bsearch_custom(__VA_ARGS__)
 
 static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
     int saved_errno = errno;
     char name[7];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _p, name[1] = _e, name[2] = _r, name[3] = _r, name[4] = _o, name[5] = _r, name[6] = _0),
         (name[6] = _0, name[5] = _r, name[4] = _o, name[3] = _r, name[2] = _r, name[1] = _e, name[0] = _p));
     PHANTOM_NOP;
@@ -6002,7 +6033,7 @@ static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
 
 static char *getSprintfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _p, name[2] = _r, name[3] = _i, name[4] = _n, name[5] = _t, name[6] = _f, name[7] = _0),
         (name[7] = _0, name[6] = _f, name[5] = _t, name[4] = _n, name[3] = _i, name[2] = _r, name[1] = _p, name[0] = _s));
     PHANTOM_NOP;
@@ -6015,7 +6046,7 @@ static char *getSprintfName_proxy(char *name) {
 
 static char *getFcloseName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _c, name[2] = _l, name[3] = _o, name[4] = _s, name[5] = _e, name[6] = _0),
         (name[6] = _0, name[5] = _e, name[4] = _s, name[3] = _o, name[2] = _l, name[1] = _c, name[0] = _f));
     PHANTOM_NOP;
@@ -6028,7 +6059,7 @@ static char *getFcloseName_proxy(char *name) {
 
 static char *getFopenName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _o, name[2] = _p, name[3] = _e, name[4] = _n, name[5] = _0),
         (name[5] = _0, name[4] = _n, name[3] = _e, name[2] = _p, name[1] = _o, name[0] = _f));
     PHANTOM_NOP;
@@ -6041,7 +6072,7 @@ static char *getFopenName_proxy(char *name) {
 
 static char *getFreadName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _r, name[2] = _e, name[3] = _a, name[4] = _d, name[5] = _0),
         (name[5] = _0, name[4] = _d, name[3] = _a, name[2] = _e, name[1] = _r, name[0] = _f));
     PHANTOM_NOP;
@@ -6054,7 +6085,7 @@ static char *getFreadName_proxy(char *name) {
 
 static char *getFwriteName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _f, name[1] = _w, name[2] = _r, name[3] = _i, name[4] = _t, name[5] = _e, name[6] = _0),
         (name[6] = _0, name[5] = _e, name[4] = _t, name[3] = _i, name[2] = _r, name[1] = _w, name[0] = _f));
     PHANTOM_NOP;
@@ -6067,7 +6098,7 @@ static char *getFwriteName_proxy(char *name) {
 
 static char *getExitName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _e, name[1] = _x, name[2] = _i, name[3] = _t, name[4] = _0),
         (name[4] = _0, name[3] = _t, name[2] = _i, name[1] = _x, name[0] = _e));
     PHANTOM_NOP;
@@ -6078,22 +6109,9 @@ static char *getExitName_proxy(char *name) {
 }
 #define exit(...) OBFH_CRT_CALL(getExitName_proxy, void (*)(int), __VA_ARGS__)
 
-static char *getStrcpyName_proxy(char *name) {
-    BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _c, name[4] = _p, name[5] = _y, name[6] = _0),
-        (name[6] = _0, name[5] = _y, name[4] = _p, name[3] = _c, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-#if CFLOW_V2
-    BREAK_STACK_CFLOW;
-#endif
-    return name;
-}
-#define strcpy(...) strcpy_custom(__VA_ARGS__)
-
 static char *getStrtokName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _k, name[6] = _0),
         (name[6] = _0, name[5] = _k, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
     PHANTOM_NOP;
@@ -6104,62 +6122,9 @@ static char *getStrtokName_proxy(char *name) {
 }
 #define strtok(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
 
-static void *memset_proxy(void *ptr, int value, size_t num) {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
-    char __obfh_resolved_name[7];
-    OBFH_CRT_NAME_ORDER(
-        (__obfh_resolved_name[0] = _m, __obfh_resolved_name[1] = _e, __obfh_resolved_name[2] = _m, __obfh_resolved_name[3] = _s, __obfh_resolved_name[4] = _e, __obfh_resolved_name[5] = _t, __obfh_resolved_name[6] = _0),
-        (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _t, __obfh_resolved_name[4] = _e, __obfh_resolved_name[3] = _s, __obfh_resolved_name[2] = _m, __obfh_resolved_name[1] = _e, __obfh_resolved_name[0] = _m));
-    void *result = ((void *(*)(void *, int, size_t))obfh_crt_resolve(__obfh_resolved_name))(ptr, value * _1, num);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
-}
-#define memset(...) memset_custom(__VA_ARGS__)
-
-static char *getMemcpyName_proxy(char *name) {
-    BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _m, name[1] = _e, name[2] = _m, name[3] = _c, name[4] = _p, name[5] = _y, name[6] = _0),
-        (name[6] = _0, name[5] = _y, name[4] = _p, name[3] = _c, name[2] = _m, name[1] = _e, name[0] = _m));
-    PHANTOM_NOP;
-#if CFLOW_V2
-    BREAK_STACK_CFLOW;
-#endif
-    return name;
-}
-#define memcpy(...) memcpy_custom(__VA_ARGS__)
-
-static char *getStrchrName_proxy(char *name) {
-    BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _c, name[4] = _h, name[5] = _r, name[6] = _0),
-        (name[6] = _0, name[5] = _r, name[4] = _h, name[3] = _c, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-#if CFLOW_V2
-    BREAK_STACK_CFLOW;
-#endif
-    return name;
-}
-#define strchr(...) strchr_custom(__VA_ARGS__)
-
-static char *getStrrchrName_proxy(char *name) {
-    BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _r, name[4] = _c, name[5] = _h, name[6] = _r, name[7] = _0),
-        (name[7] = _0, name[6] = _r, name[5] = _h, name[4] = _c, name[3] = _r, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-#if CFLOW_V2
-    BREAK_STACK_CFLOW;
-#endif
-    return name;
-}
-#define strrchr(...) strrchr_custom(__VA_ARGS__)
-
 static char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _r, name[1] = _a, name[2] = _n, name[3] = _d, name[4] = _0),
         (name[4] = _0, name[3] = _d, name[2] = _n, name[1] = _a, name[0] = _r));
     PHANTOM_NOP;
@@ -6172,7 +6137,7 @@ static char *getRandName_proxy(char *name) {
 
 static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (name[0] = _r, name[1] = _e, name[2] = _a, name[3] = _l, name[4] = _l, name[5] = _o, name[6] = _c, name[7] = _0),
         (name[7] = _0, name[6] = _c, name[5] = _o, name[4] = _l, name[3] = _l, name[2] = _a, name[1] = _e, name[0] = _r));
     PHANTOM_NOP;
@@ -6188,48 +6153,40 @@ static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
 // ============================================================================
 
 static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _c, __obfh_resolved_name[1] = _a, __obfh_resolved_name[2] = _l, __obfh_resolved_name[3] = _l, __obfh_resolved_name[4] = _o, __obfh_resolved_name[5] = _c, __obfh_resolved_name[6] = _0),
         (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _c, __obfh_resolved_name[4] = _o, __obfh_resolved_name[3] = _l, __obfh_resolved_name[2] = _l, __obfh_resolved_name[1] = _a, __obfh_resolved_name[0] = _c));
-    void *result = ((void *(*)(size_t, size_t))obfh_crt_resolve(__obfh_resolved_name))(nmemb, size);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    void *result = OBFH_CRT_TARGET(void *(*)(size_t, size_t), __obfh_resolved_name)(nmemb, size);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
 #undef realloc
 static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char name[32];
     PHANTOM_NOP;
-    void *result = ((void *(*)(void *, size_t))obfh_crt_resolve(getReallocName_proxy(name)))(ptr, size);
+    void *result = OBFH_CRT_TARGET(void *(*)(void *, size_t), getReallocName_proxy(name))(ptr, size);
     STACK_PROXY_FUNCTIONS;
     RET_BY_VAR(result);
 }
 #define realloc(ptr, size) realloc_proxy(ptr, size)
 
 static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[5];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _g, __obfh_resolved_name[1] = _e, __obfh_resolved_name[2] = _t, __obfh_resolved_name[3] = _s, __obfh_resolved_name[4] = _0),
         (__obfh_resolved_name[4] = _0, __obfh_resolved_name[3] = _s, __obfh_resolved_name[2] = _t, __obfh_resolved_name[1] = _e, __obfh_resolved_name[0] = _g));
-    char *result = ((char *(*)(char *))obfh_crt_resolve(__obfh_resolved_name))(s);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    char *result = OBFH_CRT_TARGET(char *(*)(char *), __obfh_resolved_name)(s);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define gets(s) gets_proxy(s)
 
 static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     va_list args;
     va_start(args, format);
     PHANTOM_NOP;
@@ -6241,123 +6198,99 @@ static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_
 #define snprintf(...) snprintf_proxy(__VA_ARGS__)
 
 static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[9];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _v, __obfh_resolved_name[1] = _s, __obfh_resolved_name[2] = _p, __obfh_resolved_name[3] = _r, __obfh_resolved_name[4] = _i, __obfh_resolved_name[5] = _n, __obfh_resolved_name[6] = _t, __obfh_resolved_name[7] = _f, __obfh_resolved_name[8] = _0),
         (__obfh_resolved_name[8] = _0, __obfh_resolved_name[7] = _f, __obfh_resolved_name[6] = _t, __obfh_resolved_name[5] = _n, __obfh_resolved_name[4] = _i, __obfh_resolved_name[3] = _r, __obfh_resolved_name[2] = _p, __obfh_resolved_name[1] = _s, __obfh_resolved_name[0] = _v));
-    int result = ((int (*)(char *, const char *, va_list))obfh_crt_resolve(__obfh_resolved_name))(str, format, args);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    int result = OBFH_CRT_TARGET(int (*)(char *, const char *, va_list), __obfh_resolved_name)(str, format, args);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
 static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     // Keep TCC's formatting adapter: it need not be an msvcrt export.
     int result = vsnprintf(str, size, format, args);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
 static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _g, __obfh_resolved_name[1] = _e, __obfh_resolved_name[2] = _t, __obfh_resolved_name[3] = _e, __obfh_resolved_name[4] = _n, __obfh_resolved_name[5] = _v, __obfh_resolved_name[6] = _0),
         (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _v, __obfh_resolved_name[4] = _n, __obfh_resolved_name[3] = _e, __obfh_resolved_name[2] = _t, __obfh_resolved_name[1] = _e, __obfh_resolved_name[0] = _g));
-    char *result = ((char *(*)(const char *))obfh_crt_resolve(__obfh_resolved_name))(name);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    char *result = OBFH_CRT_TARGET(char *(*)(const char *), __obfh_resolved_name)(name);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define getenv(name) getenv_proxy(name)
 
 static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _s, __obfh_resolved_name[1] = _y, __obfh_resolved_name[2] = _s, __obfh_resolved_name[3] = _t, __obfh_resolved_name[4] = _e, __obfh_resolved_name[5] = _m, __obfh_resolved_name[6] = _0),
         (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _m, __obfh_resolved_name[4] = _e, __obfh_resolved_name[3] = _t, __obfh_resolved_name[2] = _s, __obfh_resolved_name[1] = _y, __obfh_resolved_name[0] = _s));
-    int result = ((int (*)(const char *))obfh_crt_resolve(__obfh_resolved_name))(command);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    int result = OBFH_CRT_TARGET(int (*)(const char *), __obfh_resolved_name)(command);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define system(command) system_proxy(command)
 
 static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     PHANTOM_NOP;
     char __obfh_resolved_name[6];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _a, __obfh_resolved_name[1] = _b, __obfh_resolved_name[2] = _o, __obfh_resolved_name[3] = _r, __obfh_resolved_name[4] = _t, __obfh_resolved_name[5] = _0),
         (__obfh_resolved_name[5] = _0, __obfh_resolved_name[4] = _t, __obfh_resolved_name[3] = _r, __obfh_resolved_name[2] = _o, __obfh_resolved_name[1] = _b, __obfh_resolved_name[0] = _a));
-    ((void (*)(void))obfh_crt_resolve(__obfh_resolved_name))();
+    OBFH_CRT_TARGET(void (*)(void), __obfh_resolved_name)
+    ();
 }
 #define abort(...) abort_proxy(__VA_ARGS__)
 
 static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _a, __obfh_resolved_name[1] = _t, __obfh_resolved_name[2] = _e, __obfh_resolved_name[3] = _x, __obfh_resolved_name[4] = _i, __obfh_resolved_name[5] = _t, __obfh_resolved_name[6] = _0),
         (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _t, __obfh_resolved_name[4] = _i, __obfh_resolved_name[3] = _x, __obfh_resolved_name[2] = _e, __obfh_resolved_name[1] = _t, __obfh_resolved_name[0] = _a));
-    int result = ((int (*)(void (*)(void)))obfh_crt_resolve(__obfh_resolved_name))(func);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    int result = OBFH_CRT_TARGET(int (*)(void (*)(void)), __obfh_resolved_name)(func);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define atexit(func) atexit_proxy(func)
 
 static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = '_', __obfh_resolved_name[1] = _g, __obfh_resolved_name[2] = _e, __obfh_resolved_name[3] = _t, __obfh_resolved_name[4] = _c, __obfh_resolved_name[5] = _w, __obfh_resolved_name[6] = _d, __obfh_resolved_name[7] = _0),
         (__obfh_resolved_name[7] = _0, __obfh_resolved_name[6] = _d, __obfh_resolved_name[5] = _w, __obfh_resolved_name[4] = _c, __obfh_resolved_name[3] = _t, __obfh_resolved_name[2] = _e, __obfh_resolved_name[1] = _g, __obfh_resolved_name[0] = '_'));
-    char *result = ((char *(*)(char *, int))obfh_crt_resolve(__obfh_resolved_name))(buf, (int)size);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    char *result = OBFH_CRT_TARGET(char *(*)(char *, int), __obfh_resolved_name)(buf, (int)size);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
 static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _t, __obfh_resolved_name[1] = _o, __obfh_resolved_name[2] = _l, __obfh_resolved_name[3] = _o, __obfh_resolved_name[4] = _w, __obfh_resolved_name[5] = _e, __obfh_resolved_name[6] = _r, __obfh_resolved_name[7] = _0),
         (__obfh_resolved_name[7] = _0, __obfh_resolved_name[6] = _r, __obfh_resolved_name[5] = _e, __obfh_resolved_name[4] = _w, __obfh_resolved_name[3] = _o, __obfh_resolved_name[2] = _l, __obfh_resolved_name[1] = _o, __obfh_resolved_name[0] = _t));
-    int result = ((int (*)(int))obfh_crt_resolve(__obfh_resolved_name))(c);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    int result = OBFH_CRT_TARGET(int (*)(int), __obfh_resolved_name)(c);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define tolower(c) tolower_proxy(c)
 
 static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
-    STACK_PROXY_FUNCTIONS;
-    BREAK_STACK_CFLOW;
+    OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
-    OBFH_CRT_NAME_ORDER(
+    OBFH_NAME_ORDER(
         (__obfh_resolved_name[0] = _t, __obfh_resolved_name[1] = _o, __obfh_resolved_name[2] = _u, __obfh_resolved_name[3] = _p, __obfh_resolved_name[4] = _p, __obfh_resolved_name[5] = _e, __obfh_resolved_name[6] = _r, __obfh_resolved_name[7] = _0),
         (__obfh_resolved_name[7] = _0, __obfh_resolved_name[6] = _r, __obfh_resolved_name[5] = _e, __obfh_resolved_name[4] = _p, __obfh_resolved_name[3] = _p, __obfh_resolved_name[2] = _u, __obfh_resolved_name[1] = _o, __obfh_resolved_name[0] = _t));
-    int result = ((int (*)(int))obfh_crt_resolve(__obfh_resolved_name))(c);
-    PHANTOM_NOP;
-    STACK_PROXY_FUNCTIONS;
-    RET_BY_VAR(result);
+    int result = OBFH_CRT_TARGET(int (*)(int), __obfh_resolved_name)(c);
+    OBFH_CRT_PROXY_RETURN(result);
 }
 #define toupper(c) toupper_proxy(c)
 
@@ -6386,8 +6319,6 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #define GetModuleFileName OBFH_WINAPI(GetModuleFileName)
 #undef GetTempPath
 #define GetTempPath OBFH_WINAPI(GetTempPath)
-
-#define memmove(...) memmove_custom(__VA_ARGS__)
 
 // USER32/GDI32: covered function-like calls use cached indirect targets.
 // Four local decode layouts; arguments appear once in the typed invocation.
@@ -8083,7 +8014,8 @@ static int obfh_abs_proxy(int value) {
     *(__typeof__(&__obfh_math_value))(__obfh_math_address ^ __obfh_math_key);                            \
 })
 
-// Native math calls with typed operand transport.
+// TCC math adapters without a guaranteed matching msvcrt export retain native calls.
+// This preserves signatures and special-value behavior; operands still use typed transport.
 #define acosh(x) acosh(_MUTATE_MATH(x))
 #define asinh(x) asinh(_MUTATE_MATH(x))
 #define atanh(x) atanh(_MUTATE_MATH(x))
@@ -8115,181 +8047,203 @@ static int obfh_abs_proxy(int value) {
 #define tgamma(x) tgamma(_MUTATE_MATH(x))
 #define trunc(x) trunc(_MUTATE_MATH(x))
 
-// CRT exports resolved through the protected loader.
+// Known msvcrt math exports use the same name selector and typed target as other CRT calls.
 #define acos(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _a, __obfh_math_name[1] = _c, __obfh_math_name[2] = _o, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _o, __obfh_math_name[1] = _c, __obfh_math_name[0] = _a)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define asin(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _a, __obfh_math_name[1] = _s, __obfh_math_name[2] = _i, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _i, __obfh_math_name[1] = _s, __obfh_math_name[0] = _a)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define atan(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define atan2(y, x) ({                                                                                                                                                         \
     char __obfh_math_name[6];                                                                                                                                                  \
-    OBFH_CRT_NAME_ORDER(                                                                                                                                                       \
+    OBFH_NAME_ORDER(                                                                                                                                                           \
         (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[5] = _0),  \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); \
-    ((double (*)(double, double))obfh_crt_resolve(__obfh_math_name))(y, x);                                                                                                    \
+    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name)                                                                                                              \
+    (y, x);                                                                                                                                                                    \
 })
 
 #define ceil(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _c, __obfh_math_name[1] = _e, __obfh_math_name[2] = _i, __obfh_math_name[3] = _l, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _l, __obfh_math_name[2] = _i, __obfh_math_name[1] = _e, __obfh_math_name[0] = _c)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define cos(x) ({                                                                                                  \
     char __obfh_math_name[4];                                                                                      \
-    OBFH_CRT_NAME_ORDER(                                                                                           \
+    OBFH_NAME_ORDER(                                                                                               \
         (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _0),  \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                   \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
+    (x);                                                                                                           \
 })
 
 #define cosh(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define exp(x) ({                                                                                                  \
     char __obfh_math_name[4];                                                                                      \
-    OBFH_CRT_NAME_ORDER(                                                                                           \
+    OBFH_NAME_ORDER(                                                                                               \
         (__obfh_math_name[0] = _e, __obfh_math_name[1] = _x, __obfh_math_name[2] = _p, __obfh_math_name[3] = _0),  \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _p, __obfh_math_name[1] = _x, __obfh_math_name[0] = _e)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                   \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
+    (x);                                                                                                           \
 })
 
 #define fabs(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _f, __obfh_math_name[1] = _a, __obfh_math_name[2] = _b, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _b, __obfh_math_name[1] = _a, __obfh_math_name[0] = _f)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define floor(x) ({                                                                                                                                                    \
     char __obfh_math_name[6];                                                                                                                                          \
-    OBFH_CRT_NAME_ORDER(                                                                                                                                               \
+    OBFH_NAME_ORDER(                                                                                                                                                   \
         (__obfh_math_name[0] = _f, __obfh_math_name[1] = _l, __obfh_math_name[2] = _o, __obfh_math_name[3] = _o, __obfh_math_name[4] = _r, __obfh_math_name[5] = _0),  \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = _r, __obfh_math_name[3] = _o, __obfh_math_name[2] = _o, __obfh_math_name[1] = _l, __obfh_math_name[0] = _f)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                                                       \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                                              \
+    (x);                                                                                                                                                               \
 })
 
 #define fmod(x, y) ({                                                                                                                        \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _f, __obfh_math_name[1] = _m, __obfh_math_name[2] = _o, __obfh_math_name[3] = _d, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _d, __obfh_math_name[2] = _o, __obfh_math_name[1] = _m, __obfh_math_name[0] = _f)); \
-    ((double (*)(double, double))obfh_crt_resolve(__obfh_math_name))(x, y);                                                                  \
+    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name)                                                                            \
+    (x, y);                                                                                                                                  \
 })
 
 #define frexp(x, y) ({                                                                                                                                                 \
     char __obfh_math_name[6];                                                                                                                                          \
-    OBFH_CRT_NAME_ORDER(                                                                                                                                               \
+    OBFH_NAME_ORDER(                                                                                                                                                   \
         (__obfh_math_name[0] = _f, __obfh_math_name[1] = _r, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0),  \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _r, __obfh_math_name[0] = _f)); \
-    ((double (*)(double, int *))obfh_crt_resolve(__obfh_math_name))(x, y);                                                                                             \
+    OBFH_CRT_TARGET(double (*)(double, int *), __obfh_math_name)                                                                                                       \
+    (x, y);                                                                                                                                                            \
 })
 
 #define ldexp(x, y) ({                                                                                                                                                 \
     char __obfh_math_name[6];                                                                                                                                          \
-    OBFH_CRT_NAME_ORDER(                                                                                                                                               \
+    OBFH_NAME_ORDER(                                                                                                                                                   \
         (__obfh_math_name[0] = _l, __obfh_math_name[1] = _d, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0),  \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _d, __obfh_math_name[0] = _l)); \
-    ((double (*)(double, int))obfh_crt_resolve(__obfh_math_name))(x, y);                                                                                               \
+    OBFH_CRT_TARGET(double (*)(double, int), __obfh_math_name)                                                                                                         \
+    (x, y);                                                                                                                                                            \
 })
 
 #define log(x) ({                                                                                                  \
     char __obfh_math_name[4];                                                                                      \
-    OBFH_CRT_NAME_ORDER(                                                                                           \
+    OBFH_NAME_ORDER(                                                                                               \
         (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = _0),  \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                   \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
+    (x);                                                                                                           \
 })
 
 #define log10(x) ({                                                                                                                                                                    \
     char __obfh_math_name[6];                                                                                                                                                          \
-    OBFH_CRT_NAME_ORDER(                                                                                                                                                               \
+    OBFH_NAME_ORDER(                                                                                                                                                                   \
         (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[5] = _0),  \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                                                                       \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                                                              \
+    (x);                                                                                                                                                                               \
 })
 
 #define modf(x, y) ({                                                                                                                        \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _m, __obfh_math_name[1] = _o, __obfh_math_name[2] = _d, __obfh_math_name[3] = _f, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _f, __obfh_math_name[2] = _d, __obfh_math_name[1] = _o, __obfh_math_name[0] = _m)); \
-    ((double (*)(double, double *))obfh_crt_resolve(__obfh_math_name))(x, y);                                                                \
+    OBFH_CRT_TARGET(double (*)(double, double *), __obfh_math_name)                                                                          \
+    (x, y);                                                                                                                                  \
 })
 
 #define pow(x, y) ({                                                                                               \
     char __obfh_math_name[4];                                                                                      \
-    OBFH_CRT_NAME_ORDER(                                                                                           \
+    OBFH_NAME_ORDER(                                                                                               \
         (__obfh_math_name[0] = _p, __obfh_math_name[1] = _o, __obfh_math_name[2] = _w, __obfh_math_name[3] = _0),  \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _w, __obfh_math_name[1] = _o, __obfh_math_name[0] = _p)); \
-    ((double (*)(double, double))obfh_crt_resolve(__obfh_math_name))(x, y);                                        \
+    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name)                                                  \
+    (x, y);                                                                                                        \
 })
 
 #define sin(x) ({                                                                                                  \
     char __obfh_math_name[4];                                                                                      \
-    OBFH_CRT_NAME_ORDER(                                                                                           \
+    OBFH_NAME_ORDER(                                                                                               \
         (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0),  \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                   \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
+    (x);                                                                                                           \
 })
 
 #define sinh(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define sqrt(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _s, __obfh_math_name[1] = _q, __obfh_math_name[2] = _r, __obfh_math_name[3] = _t, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _t, __obfh_math_name[2] = _r, __obfh_math_name[1] = _q, __obfh_math_name[0] = _s)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 #define tan(x) ({                                                                                                  \
     char __obfh_math_name[4];                                                                                      \
-    OBFH_CRT_NAME_ORDER(                                                                                           \
+    OBFH_NAME_ORDER(                                                                                               \
         (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0),  \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                   \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
+    (x);                                                                                                           \
 })
 
 #define tanh(x) ({                                                                                                                           \
     char __obfh_math_name[5];                                                                                                                \
-    OBFH_CRT_NAME_ORDER(                                                                                                                     \
+    OBFH_NAME_ORDER(                                                                                                                         \
         (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0),  \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); \
-    ((double (*)(double))obfh_crt_resolve(__obfh_math_name))(x);                                                                             \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
+    (x);                                                                                                                                     \
 })
 
 // ============================================================================
