@@ -214,6 +214,21 @@ static int recursive(int n) {
         side_effect = 0;                                                                \
         CHECK(OBFH_FLOW_CONDITION((++side_effect, -7), site) == 1 && side_effect == 1); \
     } while (0)
+/* Ordered NaN conditions must not acquire a compiler-sensitive logical NOT.
+   The comma operator also verifies that the user expression runs once. */
+static int ordered_nan(double n, double y, int *calls) {
+    int mask = 0;
+    if ((++*calls, n < y)) mask |= 1;
+    if ((++*calls, n <= y)) mask |= 2;
+    if ((++*calls, n > y)) mask |= 4;
+    if ((++*calls, n >= y)) mask |= 8;
+    if ((++*calls, y < n)) mask |= 16;
+    if ((++*calls, y <= n)) mask |= 32;
+    if ((++*calls, y > n)) mask |= 64;
+    if ((++*calls, y >= n)) mask |= 128;
+    return mask;
+}
+
 int main(void) {
     TRANSPORT_CHECK(1u);
     TRANSPORT_CHECK(978u);
@@ -411,6 +426,10 @@ int main(void) {
     for (int i = 0; i < 9; ++i)
         for (int j = 0; j < 9; ++j)
             CHECK(protected_branch(values[i], values[j]) == native(values[i], values[j]));
+    int nan_calls = 0;
+    CHECK(ordered_nan(NAN, 1.0, &nan_calls) == 0 && nan_calls == 8);
+    nan_calls = 0;
+    CHECK(ordered_nan(1.0, 2.0, &nan_calls) == 195 && nan_calls == 8);
     int count = 0;
     CHECK(effects(&count, 0) == 2 && count == 1);
     count = 0;

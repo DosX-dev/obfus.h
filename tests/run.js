@@ -7,12 +7,19 @@ const breakRandom = require('./break_random');
 const stackProxy = require('./stack_proxy');
 const pdataDecoys = require('./pdata_decoys');
 const vmKernel = require('./vm_kernel');
+const compactAsm = require('./compact_asm');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8');
 const selectedArch = process.argv.find(value => value.startsWith('--arch='))?.slice(7);
 const selectedConfig = process.argv.find(value => value.startsWith('--config='))?.slice(9);
 const results = [];
 let artifactDirectory;
+let snapshotRoot;
+function snapshotFile(file) {
+    const relative = path.relative(path.join(root, "tests"), path.resolve(file));
+    return snapshotRoot && !relative.startsWith("..") && !path.isAbsolute(relative)
+        ? path.join(snapshotRoot, "tests", relative) : file;
+}
 const configs = {
     plain: ['NO_OBF=1'],
     default: [],
@@ -112,7 +119,7 @@ async function discover() {
 }
 async function compile(compiler, directory, name, file, flags, extra = []) {
     const output = path.join(directory, name);
-    const result = await run(compiler, ['-w', ...flags.map(flag => '-D' + flag), file, '-o', output, ...extra], { timeout: buildTimeout });
+    const result = await run(compiler, ['-w', ...flags.map(flag => '-D' + flag), snapshotFile(file), '-o', output, ...extra], { timeout: buildTimeout });
     assert(result.status === 0, `compile ${path.basename(file)} exit=${result.status}: ${result.stderr || result.stdout}`);
     assert(fs.existsSync(output), 'compiler did not produce output');
     return output;
@@ -132,6 +139,24 @@ function pe(binary) {
         sections.push({ executable: !!(binary.readUInt32LE(offset + 36) & 0x20000000), name: binary.subarray(offset, offset + 8).toString().replace(/\0.*$/, ''), virtualAddress: binary.readUInt32LE(offset + 12), rawOffset: binary.readUInt32LE(offset + 20), rawSize: binary.readUInt32LE(offset + 16), bytes: binary.subarray(binary.readUInt32LE(offset + 20), binary.readUInt32LE(offset + 20) + binary.readUInt32LE(offset + 16)) });
     }
     return { machine: binary.readUInt16LE(nt + 4), sections };
+}
+function importModules(binary) {
+    const { sections } = pe(binary);
+    const optional = binary.readUInt32LE(0x3c) + 24;
+    const directory = optional + (binary.readUInt16LE(optional) === 0x20b ? 112 : 96);
+    const rva = binary.readUInt32LE(directory + 8);
+    if (!rva) return [];
+    const offset = address => {
+        const section = sections.find(value => address >= value.virtualAddress && address - value.virtualAddress < value.rawSize);
+        assert(section, 'import RVA outside image');
+        return section.rawOffset + address - section.virtualAddress;
+    };
+    const modules = [];
+    for (let descriptor = offset(rva); binary.readUInt32LE(descriptor + 12); descriptor += 20) {
+        const name = offset(binary.readUInt32LE(descriptor + 12));
+        modules.push(binary.subarray(name, binary.indexOf(0, name)).toString().toLowerCase());
+    }
+    return modules;
 }
 function assertNoConstantSignature(binary) {
     for (const signature of [Buffer.from('abcdefghijklmnopqrstuvwxyz'), Buffer.from('a\0b\0c\0d\0e\0f\0g\0h\0'), Buffer.from('SLAIDP'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])])
@@ -202,14 +227,25 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const forResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-for-bypass.exe`, file, flags), []);
     assert(forResult.status === 1 && forResult.stderr.includes('cflow failure'), 'per-iteration for bypass was not detected');
 
-    const tokenMutant = traced.replace(/unsigned int __obfh_flow_state[\\\s]*=[\\\s]*__builtin_choose_expr\([\s\S]*?;/, 'unsigned int __obfh_flow_state = __obfh_false_tag; (void)(condition);');
-    assert(tokenMutant !== traced, 'encoded condition mutation target missing');
-    fs.writeFileSync(header, tokenMutant);
+    // Mutate user-site transport after the header's helpers have been compiled.
+    // Corrupting loader/CRT startup instead only tests an unrelated early crash.
+    const transportStart = traced.indexOf('#define OBFH_FLOW_CONDITION(');
+    let transportEnd = transportStart;
+    do {
+        const next = traced.indexOf('\n', transportEnd);
+        const continued = traced.slice(transportEnd, next).trimEnd().endsWith(String.fromCharCode(92));
+        transportEnd = next + 1;
+        if (!continued) break;
+    } while (transportEnd > 0);
+    const transport = traced.slice(transportStart, transportEnd);
+    const tokenMutant = transport.replace(/unsigned int __obfh_flow_state[\\\s]*=[\s\S]*?(?=unsigned int __obfh_flow_tag)/, 'unsigned int __obfh_flow_state = __obfh_false_tag; (void)(condition); \\\n        ');
+    assert(tokenMutant !== transport, 'encoded condition mutation target missing');
+    fs.writeFileSync(header, traced + '\n#undef OBFH_FLOW_CONDITION\n' + tokenMutant);
     const tokenResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags), []);
     assert(tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'), 'discarded condition transport was not detected');
-    const stageMutant = traced.replace(/#define OBFH_P_PERMUTE\(s,\s*p,\s*instructions\)[\s\S]*?(?=\r?\n#define)/, '#define OBFH_P_PERMUTE(s,p,instructions) ((void)0)\n');
-    assert(stageMutant !== traced, 'stage mutation target missing');
-    fs.writeFileSync(header, stageMutant);
+    const permutation = traced.match(/#define OBFH_P_PERMUTE\(s,\s*p,\s*instructions\)[\s\S]*?(?=\r?\n#define)/)?.[0];
+    assert(permutation, 'stage mutation target missing');
+    fs.writeFileSync(header, traced + '\n#undef OBFH_P_PERMUTE\n#define OBFH_P_PERMUTE(s,p,instructions) ((void)0)\n');
     const stageResult = await run(await compile(compiler, directory, arch + '-cflow-' + mode + '-stage-bypass.exe', file, flags), []);
     assert(stageResult.status === 1 && stageResult.stderr.includes('cflow failure'), 'skipped permutation was not detected');
 }
@@ -223,7 +259,16 @@ async function main() {
         assert(!selectedConfig || Object.hasOwn(configs, selectedConfig), 'unknown configuration');
         directory = fs.mkdtempSync(path.join(os.tmpdir(), 'obfh-js-suite-'));
         artifactDirectory = directory;
+        snapshotRoot = path.join(directory, 'snapshot');
+        fs.mkdirSync(path.join(snapshotRoot, 'include'), { recursive: true });
+        fs.writeFileSync(path.join(snapshotRoot, 'include', 'obfus.h'), source);
+        fs.cpSync(path.join(root, 'tests'), path.join(snapshotRoot, 'tests'), {
+            recursive: true,
+            filter: file => fs.statSync(file).isDirectory() || /\.(?:c|h|in)$/.test(file),
+        });
+        fs.writeFileSync(path.join(directory, 'header-sha256.txt'), require('node:crypto').createHash('sha256').update(source).digest('hex') + '\n');
         console.log(`Artifacts: ${directory}`);
+        await check('source: compact ASM matches readable fragments on both architectures', async () => compactAsm.verify(source, { x64: compilers.x64, x86: compilers.x86 }));
         await check('binary scanner: skipped CPUID bytes versus live CPUID', async () => {
             const code = Buffer.from([0x0f, 0x84, 2, 0, 0, 0, 0x0f, 0xa2, 0x90]);
             assert(!withoutSkippedPayload(code, 0).liveBytes.includes(Buffer.from([0x0f, 0xa2])), 'skipped payload counted as live code');
@@ -235,7 +280,7 @@ async function main() {
             assert(definitions.length === 128 && definitions.every((name, index) => name === 'BREAK_STACK_CFLOW_' + index), 'pool contains intervening helpers or missing/out-of-order variants');
         });
         await check('source: 128 proxy variants with distinct guard/layout pairs', async () => {
-            const variants = [...source.matchAll(/^#define OBFH_SF_VARIANT_(\d+) OBFH_SF_ASM\(OBFH_SF_GUARD_(\d+), OBFH_SF_LAYOUT_(\d+)\(/gm)];
+            const variants = [...source.matchAll(/^#define OBFH_SF_SPEC_(\d+)\(emit\) emit\(OBFH_SF_GUARD_(\d+), OBFH_SF_LAYOUT_(\d+)\(/gm)];
             assert(variants.length === stackProxy.variantCount && variants.every((v, i) => Number(v[1]) === i), 'proxy variants missing or out of order');
             assert(new Set(variants.map(v => v[2] + ':' + v[3])).size === variants.length, 'duplicate proxy guard/layout pair');
             assert(source.includes('#define OBFH_SF_VARIANT_COUNT ' + stackProxy.variantCount + 'u'), 'proxy count and test disagree');
@@ -246,6 +291,10 @@ async function main() {
             const macros = block.replace(/\\\r?\n/g, ' ').split(/\r?\n/).filter(line => line.startsWith('#define VM_'));
             assert(macros.length === 19, `expected 19 arithmetic/identity macros, found ${macros.length}`);
             for (const macro of macros) assert(/OBFH_VM_EXEC\s*\(\s*Obfh_VirtualMachine\s*,/.test(macro), `VM bypass: ${macro}`);
+        });
+        await check('source: legacy CPUID/NOP macros removed', async () => {
+            assert(!/\b(?:FAKE_CPUID|NOP_FLOOD)\b/.test(source), 'legacy junk macro remains');
+            assert(!source.includes('__obfh_strcmp_junk_done'), 'inline legacy NOP clone remains');
         });
         await check('source: custom exports and generated masks preserved', async () => {
             const begin = source.indexOf('FARPROC obfh_find_export('), end = source.indexOf('#define GetProcAddress', begin);
@@ -271,7 +320,7 @@ async function main() {
         });
         await check('source: every library break uses the unified selector', async () => {
             assert(!/\bBREAK_STACK_\d+\b/.test(source), 'old numbered public macro remains');
-            const callsStart = source.indexOf('#define BAD_JMP');
+            const callsStart = source.indexOf('#define BAD_JMP', source.indexOf('// 08. Junk primitives'));
             assert(callsStart > 0, 'library call-site boundary missing');
             const calls = source.slice(callsStart);
             assert(!/\bBREAK_STACK_CFLOW_\d+\b/.test(calls), 'library pins a numbered template');
@@ -299,6 +348,18 @@ async function main() {
         for (const [arch, compiler] of Object.entries(compilers)) {
             if (selectedArch && selectedArch !== arch) continue;
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
+            await check(`${arch}/IntelliSense interface and real compiler isolation`, async () => {
+                const file = path.join(__dirname, 'editor_view.c');
+                await execute(await compile(compiler, directory, `${arch}-editor-view.exe`, file, ['__INTELLISENSE__=1', 'EXPECT_EDITOR=1'], ['-U__TINYC__']), 'EDITOR_VIEW_PASS');
+                await execute(await compile(compiler, directory, `${arch}-editor-real.exe`, file, ['__INTELLISENSE__=1', 'EXPECT_EDITOR=0', 'NO_ANTIDEBUG=1']), 'EDITOR_VIEW_PASS');
+                const expanded = await run(compiler, ['-w', '-E', '-D__INTELLISENSE__=1', '-U__TINYC__', snapshotFile(file)]);
+                assert(!expanded.stdout.includes('__obfh_sf_variant') && !expanded.stdout.includes('Obfh_VirtualMachine'), 'editor still instantiates heavy protection');
+            });
+            await check(`${arch}/RND equivalence to original formula/all seeds`, async () => {
+                for (const seed of [0, 1, 2, 3735928559, 4294967295])
+                    await execute(await compile(compiler, directory, `${arch}-random-constants-${seed}.exe`, path.join(__dirname, 'random_constants.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'RANDOM_CONSTANTS_PASS');
+            });
+            if (process.argv.includes('--only-preprocessor')) continue;
             if (process.argv.includes('--only-vm') || !process.argv.some(arg => arg.startsWith('--only-'))) {
                 await vmKernel.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
                 if (process.argv.includes('--only-vm')) continue;
@@ -380,7 +441,7 @@ async function main() {
                     });
                 }
                 await check(`${arch}/anti-debug resolver fallback`, async () => {
-                    const fallback = source.replace('if (check) return check() != FALSE;', 'if (0) return check() != FALSE;');
+                    const fallback = source.replace(/if\s*\(check\)\s*return\s+check\(\)\s*!=\s*FALSE;/, 'if (0) return check() != FALSE;');
                     assert(fallback !== source, 'fallback target missing');
                     fs.writeFileSync(antiHeader, fallback);
                     await execute(await compile(compiler, directory, `${arch}-antidebug-fallback.exe`, antiFile, []), 'ANTIDEBUG_PASS');
@@ -636,9 +697,45 @@ async function main() {
                 for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['numeric', 'NUMERIC_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
                     await check(`${label}/${file}`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-${file}.exe`, path.join(__dirname, file + '.c'), flags, ['-luser32', '-lgdi32']), marker));
                 }
+                await check(`${label}/GUI cache + ABI + callback reentry`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-gui-calls.exe`, path.join(__dirname, 'gui_calls.c'), flags, ['-luser32', '-lgdi32']);
+                    await execute(exe, 'GUI_CALLS_PASS');
+                    const inline = await compile(compiler, directory, `${arch}-${config}-gui-inline.exe`, path.join(__dirname, 'gui_inline.c'), flags, ['-luser32', '-lgdi32']);
+                    assert((await run(inline, [])).status === 0, 'GUI warm decode or macro nesting failed');
+                    if (!flags.includes('NO_OBF=1')) {
+                        const modules = importModules(fs.readFileSync(inline));
+                        assert(!modules.includes('user32.dll') && !modules.includes('gdi32.dll'), 'covered GUI calls retain imports');
+                        assert(((await run(exe, ['x'])).status >>> 0) === 0xe0bf4701, 'invalid GUI cache input did not fail fast');
+                    }
+                });
+                await check(`${label}/KERNEL32 cache + errors + memory + termination`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-kernel-calls.exe`, path.join(__dirname, 'kernel_calls.c'), flags, ['-luser32', '-lgdi32']);
+                    await execute(exe, 'KERNEL_CALLS_PASS');
+                    assert((await run(exe, ['x'])).status === 23, 'cached ExitProcess changed exit code');
+                });
+                await check(`${label}/files + memory + paths + threads + painting + registry`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-api-calls.exe`, path.join(__dirname, 'api_calls.c'), flags, ['-luser32', '-lgdi32', '-ladvapi32']);
+                    await execute(exe, 'API_CALLS_PASS');
+                });
                 await check(`${label}/CRT proxy calls + atexit + input`, async () => {
                     const exe = await compile(compiler, directory, `${arch}-${config}-crt-proxies.exe`, path.join(__dirname, 'crt_proxies.c'), flags);
                     await execute(exe, 'CRT_ATEXIT_PASS');
+                    const inlineControl = await compile(compiler, directory, `${arch}-${config}-custom-inline.exe`, path.join(__dirname, 'custom_inline.c'), flags);
+                    const inlineResult = await run(inlineControl, []);
+                    assert(inlineResult.status === 0, 'custom inline control or nesting failed');
+                    const copyControl = await compile(compiler, directory, `${arch}-${config}-custom-copy.exe`, path.join(__dirname, 'custom_copy.c'), flags);
+                    await execute(copyControl, 'CUSTOM_COPY_PASS');
+                    const wideControl = await compile(compiler, directory, `${arch}-${config}-custom-wide.exe`, path.join(__dirname, 'custom_wide.c'), flags);
+                    await execute(wideControl, 'CUSTOM_WIDE_PASS');
+                    const chars = await run(exe, ['chars'], { input: 'Q' });
+                    assert(chars.status === 0 && chars.stdout === 'Z', 'getchar/putchar/EOF contract failed');
+                    const errors = await run(exe, ['perror']);
+                    const messages = errors.stderr.trim().split(/\r?\n/);
+                    assert(errors.status === 0 && messages.length === 2 && messages[0].startsWith('OBFH_PERROR_TEST:') && messages[0] === messages[1], 'perror changed caller errno during resolution');
+                    const failure = await run(exe, ['puts-error']);
+                    assert(failure.status === 0, 'puts error return or stream error flag failed');
+                    const output = await run(exe, ['puts']);
+                    assert(output.status === 0 && output.stdout.replace(/\r\n/g, '\n') === 'literal %s %n %%\n\nline\n\nCRT_PUTS_PASS\n', 'puts output or single evaluation failed');
                     const input = await run(exe, ['gets'], { input: 'proxy-input\n' });
                     assert(input.status === 0 && input.stdout.includes('CRT_GETS_PASS'), 'protected gets input failed');
                 });

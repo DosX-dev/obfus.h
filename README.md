@@ -11,6 +11,7 @@
 - 🚫 **Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
 - 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
 - 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
+- 🪟 **Windows API Protection**: Automatically protects common GUI and system calls with no extra setup.
 
 ## 🎯 Intended use
 
@@ -29,9 +30,9 @@ Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/ob
 ```c
 #include "obfus.h"
 ```
-This enables compile-time obfuscation to make your code harder to analyze and help protect your intellectual property.
+**One header. Powerful protection.** Include it, build your application and make your native code much harder to analyze.
 
-Junk branches use different compile-time constants and skipped byte sequences at each expansion. Define `OBFH_BUILD_SEED` before including the header, or pass `-DOBFH_BUILD_SEED=123u`, to vary them between builds. The default seed is `0`; a fixed seed keeps the variation reproducible with the same source and compiler.
+Protection varies throughout the application and between builds. Define `OBFH_BUILD_SEED` before including the header to choose a build seed. Reusing a seed keeps builds reproducible with the same source and compiler.
 
 Control-flow protection turns straightforward conditions and loops into a tangled graph of branches, junk code and fake functions, making the original logic harder to follow in disassemblers and decompilers. The inserted code varies throughout the program and can change between builds. `CFLOW_V2` adds another layer of control-flow mutation.
 
@@ -39,7 +40,9 @@ Protection is inserted automatically around `if` conditions. For explicit insert
 
 On Windows x64, additional fake functions add noise to the function graph without requiring extra setup.
 
-Define `NO_PDATA_DECOYS=1` to disable these x64 decoys, or set `OBFH_PDATA_DECOY_COUNT` to a fixed count from 86 to 128 per translation unit. This layer does not apply to x86. It handles the library's code-section placement; application functions in custom code sections still depend on TCC's unwind support.
+IntelliSense stays responsive while TCC builds the fully protected application. Integration remains a single header, with no extra generation step.
+
+Define `NO_PDATA_DECOYS=1` to disable the additional x64 fake functions.
 
 
 > Available options for protection configuring:
@@ -67,6 +70,8 @@ Define `NO_PDATA_DECOYS=1` to disable these x64 decoys, or set `OBFH_PDATA_DECOY
 > [!WARNING]
 > When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
 
+Common Windows GUI and system calls are protected automatically. Keep writing ordinary Windows code; obfus.h adds protection without requiring extra wrappers or setup.
+
 🔐 Debugging protection is triggered by calls to many basic MSVCRT functions.
 In critical places in the code you can use the `ANTI_DEBUG;` construct. For example:
 ```c
@@ -82,7 +87,7 @@ The `HIDE_STRING(str)` obfuscates and visually hides strings by mutating them, s
 > [!IMPORTANT]
 > Some decompilers may still reveal them due to static optimizations. In disassembler output, the code will appear complex and cumbersome, which can deter straightforward analysis but may not fully prevent determined reverse engineering efforts.
 
-The returned pointer remains valid until the enclosing block ends. Copy the string if it needs to outlive that block. There is no fixed 4096-byte helper buffer.
+The returned pointer remains valid until the enclosing block ends. Copy the string if it needs to outlive that block.
 
 An example of calling the `printf` function from the standard library with static hiding of the message and its decryption on the stack:
 ```c
@@ -94,7 +99,7 @@ printf(hidden_message);
 ## 👺 Virtualization
 This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `VIRT` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
 
-The VM interprets internal instruction programs with its own registers and flags. Program layouts and value representations vary throughout the application. Use the existing macros with `VIRT` enabled; no extra initialization is required.
+Enable `VIRT` and use the VM macros to protect sensitive calculations. No extra initialization is required.
 
 > [!WARNING]
 > Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed

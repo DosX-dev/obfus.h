@@ -25,10 +25,7 @@ typedef unsigned (*NativeLeaf)(unsigned, unsigned);
 #endif
 #define CARRIER(name, body)                                          \
     static NativeLeaf name(void) {                                   \
-        enum { __obfh_sf_mask = OBFH_JUNK_WORD,                      \
-               __obfh_sf_alu_a = RND(0, 4),                          \
-               __obfh_sf_alu_b = RND(0, 6),                          \
-               __obfh_sf_shift = RND(0, 4) };                        \
+        OBFH_SF_CAPTURE;                                             \
         NativeLeaf entry;                                            \
         __asm__ __volatile__(LEAF_ADDRESS body "9:"                  \
                              : "=r"(entry)                           \
@@ -62,7 +59,8 @@ CARRIER(link_shared,
         "3:" OBFH_SF_FRAME("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE_ALT)
 CARRIER(link_tail,
         OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "3") OBFH_SF_EPILOGUE
-        "2:" OBFH_SF_FRAME_ALT("sf_frame_b") OBFH_SF_BODY_B "leave; jmp 3f;"
+        "2:" OBFH_SF_FRAME_ALT("sf_frame_b") OBFH_SF_BODY_B
+        "leave; jmp 3f;"
         "3:" OBFH_SF_FRAME("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
 CARRIER(link_gate,
         OBFH_SF_FRAME("sf_frame_a") OBFH_SF_ARGS OBFH_SF_CALL_AT("2f", "4") OBFH_SF_EPILOGUE
