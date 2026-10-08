@@ -2492,23 +2492,25 @@ OBFH_PD_DEFINE(127);
                  : "eax", "edx", "ecx", "cc", "memory")
 #define OBFH_SF_ASM(guard, layout) ({ OBFH_SF_CAPTURE; OBFH_SF_EMIT(guard, layout); })
 #define OBFH_SF_VARIANT_COUNT 128u
-#define OBFH_SF_GROUP_0(index) __builtin_choose_expr((index) <= 3u, __builtin_choose_expr((index) <= 1u, __builtin_choose_expr((index) <= 0u, ({ OBFH_SF_SPEC_0(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_1(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 2u, ({ OBFH_SF_SPEC_2(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_3(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 5u, __builtin_choose_expr((index) <= 4u, ({ OBFH_SF_SPEC_4(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_5(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 6u, ({ OBFH_SF_SPEC_6(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_7(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_1(index) __builtin_choose_expr((index) <= 11u, __builtin_choose_expr((index) <= 9u, __builtin_choose_expr((index) <= 8u, ({ OBFH_SF_SPEC_8(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_9(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 10u, ({ OBFH_SF_SPEC_10(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_11(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 13u, __builtin_choose_expr((index) <= 12u, ({ OBFH_SF_SPEC_12(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_13(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 14u, ({ OBFH_SF_SPEC_14(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_15(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_2(index) __builtin_choose_expr((index) <= 19u, __builtin_choose_expr((index) <= 17u, __builtin_choose_expr((index) <= 16u, ({ OBFH_SF_SPEC_16(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_17(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 18u, ({ OBFH_SF_SPEC_18(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_19(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 21u, __builtin_choose_expr((index) <= 20u, ({ OBFH_SF_SPEC_20(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_21(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 22u, ({ OBFH_SF_SPEC_22(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_23(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_3(index) __builtin_choose_expr((index) <= 27u, __builtin_choose_expr((index) <= 25u, __builtin_choose_expr((index) <= 24u, ({ OBFH_SF_SPEC_24(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_25(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 26u, ({ OBFH_SF_SPEC_26(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_27(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 29u, __builtin_choose_expr((index) <= 28u, ({ OBFH_SF_SPEC_28(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_29(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 30u, ({ OBFH_SF_SPEC_30(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_31(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_4(index) __builtin_choose_expr((index) <= 35u, __builtin_choose_expr((index) <= 33u, __builtin_choose_expr((index) <= 32u, ({ OBFH_SF_SPEC_32(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_33(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 34u, ({ OBFH_SF_SPEC_34(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_35(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 37u, __builtin_choose_expr((index) <= 36u, ({ OBFH_SF_SPEC_36(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_37(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 38u, ({ OBFH_SF_SPEC_38(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_39(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_5(index) __builtin_choose_expr((index) <= 43u, __builtin_choose_expr((index) <= 41u, __builtin_choose_expr((index) <= 40u, ({ OBFH_SF_SPEC_40(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_41(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 42u, ({ OBFH_SF_SPEC_42(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_43(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 45u, __builtin_choose_expr((index) <= 44u, ({ OBFH_SF_SPEC_44(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_45(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 46u, ({ OBFH_SF_SPEC_46(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_47(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_6(index) __builtin_choose_expr((index) <= 51u, __builtin_choose_expr((index) <= 49u, __builtin_choose_expr((index) <= 48u, ({ OBFH_SF_SPEC_48(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_49(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 50u, ({ OBFH_SF_SPEC_50(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_51(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 53u, __builtin_choose_expr((index) <= 52u, ({ OBFH_SF_SPEC_52(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_53(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 54u, ({ OBFH_SF_SPEC_54(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_55(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_7(index) __builtin_choose_expr((index) <= 59u, __builtin_choose_expr((index) <= 57u, __builtin_choose_expr((index) <= 56u, ({ OBFH_SF_SPEC_56(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_57(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 58u, ({ OBFH_SF_SPEC_58(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_59(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 61u, __builtin_choose_expr((index) <= 60u, ({ OBFH_SF_SPEC_60(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_61(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 62u, ({ OBFH_SF_SPEC_62(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_63(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_8(index) __builtin_choose_expr((index) <= 67u, __builtin_choose_expr((index) <= 65u, __builtin_choose_expr((index) <= 64u, ({ OBFH_SF_SPEC_64(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_65(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 66u, ({ OBFH_SF_SPEC_66(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_67(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 69u, __builtin_choose_expr((index) <= 68u, ({ OBFH_SF_SPEC_68(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_69(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 70u, ({ OBFH_SF_SPEC_70(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_71(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_9(index) __builtin_choose_expr((index) <= 75u, __builtin_choose_expr((index) <= 73u, __builtin_choose_expr((index) <= 72u, ({ OBFH_SF_SPEC_72(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_73(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 74u, ({ OBFH_SF_SPEC_74(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_75(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 77u, __builtin_choose_expr((index) <= 76u, ({ OBFH_SF_SPEC_76(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_77(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 78u, ({ OBFH_SF_SPEC_78(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_79(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_10(index) __builtin_choose_expr((index) <= 83u, __builtin_choose_expr((index) <= 81u, __builtin_choose_expr((index) <= 80u, ({ OBFH_SF_SPEC_80(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_81(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 82u, ({ OBFH_SF_SPEC_82(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_83(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 85u, __builtin_choose_expr((index) <= 84u, ({ OBFH_SF_SPEC_84(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_85(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 86u, ({ OBFH_SF_SPEC_86(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_87(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_11(index) __builtin_choose_expr((index) <= 91u, __builtin_choose_expr((index) <= 89u, __builtin_choose_expr((index) <= 88u, ({ OBFH_SF_SPEC_88(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_89(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 90u, ({ OBFH_SF_SPEC_90(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_91(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 93u, __builtin_choose_expr((index) <= 92u, ({ OBFH_SF_SPEC_92(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_93(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 94u, ({ OBFH_SF_SPEC_94(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_95(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_12(index) __builtin_choose_expr((index) <= 99u, __builtin_choose_expr((index) <= 97u, __builtin_choose_expr((index) <= 96u, ({ OBFH_SF_SPEC_96(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_97(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 98u, ({ OBFH_SF_SPEC_98(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_99(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 101u, __builtin_choose_expr((index) <= 100u, ({ OBFH_SF_SPEC_100(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_101(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 102u, ({ OBFH_SF_SPEC_102(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_103(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_13(index) __builtin_choose_expr((index) <= 107u, __builtin_choose_expr((index) <= 105u, __builtin_choose_expr((index) <= 104u, ({ OBFH_SF_SPEC_104(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_105(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 106u, ({ OBFH_SF_SPEC_106(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_107(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 109u, __builtin_choose_expr((index) <= 108u, ({ OBFH_SF_SPEC_108(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_109(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 110u, ({ OBFH_SF_SPEC_110(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_111(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_14(index) __builtin_choose_expr((index) <= 115u, __builtin_choose_expr((index) <= 113u, __builtin_choose_expr((index) <= 112u, ({ OBFH_SF_SPEC_112(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_113(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 114u, ({ OBFH_SF_SPEC_114(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_115(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 117u, __builtin_choose_expr((index) <= 116u, ({ OBFH_SF_SPEC_116(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_117(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 118u, ({ OBFH_SF_SPEC_118(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_119(OBFH_SF_EMIT); }))))
-#define OBFH_SF_GROUP_15(index) __builtin_choose_expr((index) <= 123u, __builtin_choose_expr((index) <= 121u, __builtin_choose_expr((index) <= 120u, ({ OBFH_SF_SPEC_120(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_121(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 122u, ({ OBFH_SF_SPEC_122(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_123(OBFH_SF_EMIT); }))), __builtin_choose_expr((index) <= 125u, __builtin_choose_expr((index) <= 124u, ({ OBFH_SF_SPEC_124(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_125(OBFH_SF_EMIT); })), __builtin_choose_expr((index) <= 126u, ({ OBFH_SF_SPEC_126(OBFH_SF_EMIT); }), ({ OBFH_SF_SPEC_127(OBFH_SF_EMIT); }))))
-#define OBFH_SF_SELECT(index) ({ OBFH_SF_CAPTURE; __builtin_choose_expr((index) <= 63u, __builtin_choose_expr((index) <= 31u, __builtin_choose_expr((index) <= 15u, __builtin_choose_expr((index) <= 7u, OBFH_SF_GROUP_0(index), OBFH_SF_GROUP_1(index)), __builtin_choose_expr((index) <= 23u, OBFH_SF_GROUP_2(index), OBFH_SF_GROUP_3(index))), __builtin_choose_expr((index) <= 47u, __builtin_choose_expr((index) <= 39u, OBFH_SF_GROUP_4(index), OBFH_SF_GROUP_5(index)), __builtin_choose_expr((index) <= 55u, OBFH_SF_GROUP_6(index), OBFH_SF_GROUP_7(index)))), __builtin_choose_expr((index) <= 95u, __builtin_choose_expr((index) <= 79u, __builtin_choose_expr((index) <= 71u, OBFH_SF_GROUP_8(index), OBFH_SF_GROUP_9(index)), __builtin_choose_expr((index) <= 87u, OBFH_SF_GROUP_10(index), OBFH_SF_GROUP_11(index))), __builtin_choose_expr((index) <= 111u, __builtin_choose_expr((index) <= 103u, OBFH_SF_GROUP_12(index), OBFH_SF_GROUP_13(index)), __builtin_choose_expr((index) <= 119u, OBFH_SF_GROUP_14(index), OBFH_SF_GROUP_15(index))))); (void)0; })
+#define OBFH_SF_GROUP_0(index, emit) __builtin_choose_expr((index) <= 3u, __builtin_choose_expr((index) <= 1u, __builtin_choose_expr((index) <= 0u, ({ OBFH_SF_SPEC_0(emit); }), ({ OBFH_SF_SPEC_1(emit); })), __builtin_choose_expr((index) <= 2u, ({ OBFH_SF_SPEC_2(emit); }), ({ OBFH_SF_SPEC_3(emit); }))), __builtin_choose_expr((index) <= 5u, __builtin_choose_expr((index) <= 4u, ({ OBFH_SF_SPEC_4(emit); }), ({ OBFH_SF_SPEC_5(emit); })), __builtin_choose_expr((index) <= 6u, ({ OBFH_SF_SPEC_6(emit); }), ({ OBFH_SF_SPEC_7(emit); }))))
+#define OBFH_SF_GROUP_1(index, emit) __builtin_choose_expr((index) <= 11u, __builtin_choose_expr((index) <= 9u, __builtin_choose_expr((index) <= 8u, ({ OBFH_SF_SPEC_8(emit); }), ({ OBFH_SF_SPEC_9(emit); })), __builtin_choose_expr((index) <= 10u, ({ OBFH_SF_SPEC_10(emit); }), ({ OBFH_SF_SPEC_11(emit); }))), __builtin_choose_expr((index) <= 13u, __builtin_choose_expr((index) <= 12u, ({ OBFH_SF_SPEC_12(emit); }), ({ OBFH_SF_SPEC_13(emit); })), __builtin_choose_expr((index) <= 14u, ({ OBFH_SF_SPEC_14(emit); }), ({ OBFH_SF_SPEC_15(emit); }))))
+#define OBFH_SF_GROUP_2(index, emit) __builtin_choose_expr((index) <= 19u, __builtin_choose_expr((index) <= 17u, __builtin_choose_expr((index) <= 16u, ({ OBFH_SF_SPEC_16(emit); }), ({ OBFH_SF_SPEC_17(emit); })), __builtin_choose_expr((index) <= 18u, ({ OBFH_SF_SPEC_18(emit); }), ({ OBFH_SF_SPEC_19(emit); }))), __builtin_choose_expr((index) <= 21u, __builtin_choose_expr((index) <= 20u, ({ OBFH_SF_SPEC_20(emit); }), ({ OBFH_SF_SPEC_21(emit); })), __builtin_choose_expr((index) <= 22u, ({ OBFH_SF_SPEC_22(emit); }), ({ OBFH_SF_SPEC_23(emit); }))))
+#define OBFH_SF_GROUP_3(index, emit) __builtin_choose_expr((index) <= 27u, __builtin_choose_expr((index) <= 25u, __builtin_choose_expr((index) <= 24u, ({ OBFH_SF_SPEC_24(emit); }), ({ OBFH_SF_SPEC_25(emit); })), __builtin_choose_expr((index) <= 26u, ({ OBFH_SF_SPEC_26(emit); }), ({ OBFH_SF_SPEC_27(emit); }))), __builtin_choose_expr((index) <= 29u, __builtin_choose_expr((index) <= 28u, ({ OBFH_SF_SPEC_28(emit); }), ({ OBFH_SF_SPEC_29(emit); })), __builtin_choose_expr((index) <= 30u, ({ OBFH_SF_SPEC_30(emit); }), ({ OBFH_SF_SPEC_31(emit); }))))
+#define OBFH_SF_GROUP_4(index, emit) __builtin_choose_expr((index) <= 35u, __builtin_choose_expr((index) <= 33u, __builtin_choose_expr((index) <= 32u, ({ OBFH_SF_SPEC_32(emit); }), ({ OBFH_SF_SPEC_33(emit); })), __builtin_choose_expr((index) <= 34u, ({ OBFH_SF_SPEC_34(emit); }), ({ OBFH_SF_SPEC_35(emit); }))), __builtin_choose_expr((index) <= 37u, __builtin_choose_expr((index) <= 36u, ({ OBFH_SF_SPEC_36(emit); }), ({ OBFH_SF_SPEC_37(emit); })), __builtin_choose_expr((index) <= 38u, ({ OBFH_SF_SPEC_38(emit); }), ({ OBFH_SF_SPEC_39(emit); }))))
+#define OBFH_SF_GROUP_5(index, emit) __builtin_choose_expr((index) <= 43u, __builtin_choose_expr((index) <= 41u, __builtin_choose_expr((index) <= 40u, ({ OBFH_SF_SPEC_40(emit); }), ({ OBFH_SF_SPEC_41(emit); })), __builtin_choose_expr((index) <= 42u, ({ OBFH_SF_SPEC_42(emit); }), ({ OBFH_SF_SPEC_43(emit); }))), __builtin_choose_expr((index) <= 45u, __builtin_choose_expr((index) <= 44u, ({ OBFH_SF_SPEC_44(emit); }), ({ OBFH_SF_SPEC_45(emit); })), __builtin_choose_expr((index) <= 46u, ({ OBFH_SF_SPEC_46(emit); }), ({ OBFH_SF_SPEC_47(emit); }))))
+#define OBFH_SF_GROUP_6(index, emit) __builtin_choose_expr((index) <= 51u, __builtin_choose_expr((index) <= 49u, __builtin_choose_expr((index) <= 48u, ({ OBFH_SF_SPEC_48(emit); }), ({ OBFH_SF_SPEC_49(emit); })), __builtin_choose_expr((index) <= 50u, ({ OBFH_SF_SPEC_50(emit); }), ({ OBFH_SF_SPEC_51(emit); }))), __builtin_choose_expr((index) <= 53u, __builtin_choose_expr((index) <= 52u, ({ OBFH_SF_SPEC_52(emit); }), ({ OBFH_SF_SPEC_53(emit); })), __builtin_choose_expr((index) <= 54u, ({ OBFH_SF_SPEC_54(emit); }), ({ OBFH_SF_SPEC_55(emit); }))))
+#define OBFH_SF_GROUP_7(index, emit) __builtin_choose_expr((index) <= 59u, __builtin_choose_expr((index) <= 57u, __builtin_choose_expr((index) <= 56u, ({ OBFH_SF_SPEC_56(emit); }), ({ OBFH_SF_SPEC_57(emit); })), __builtin_choose_expr((index) <= 58u, ({ OBFH_SF_SPEC_58(emit); }), ({ OBFH_SF_SPEC_59(emit); }))), __builtin_choose_expr((index) <= 61u, __builtin_choose_expr((index) <= 60u, ({ OBFH_SF_SPEC_60(emit); }), ({ OBFH_SF_SPEC_61(emit); })), __builtin_choose_expr((index) <= 62u, ({ OBFH_SF_SPEC_62(emit); }), ({ OBFH_SF_SPEC_63(emit); }))))
+#define OBFH_SF_GROUP_8(index, emit) __builtin_choose_expr((index) <= 67u, __builtin_choose_expr((index) <= 65u, __builtin_choose_expr((index) <= 64u, ({ OBFH_SF_SPEC_64(emit); }), ({ OBFH_SF_SPEC_65(emit); })), __builtin_choose_expr((index) <= 66u, ({ OBFH_SF_SPEC_66(emit); }), ({ OBFH_SF_SPEC_67(emit); }))), __builtin_choose_expr((index) <= 69u, __builtin_choose_expr((index) <= 68u, ({ OBFH_SF_SPEC_68(emit); }), ({ OBFH_SF_SPEC_69(emit); })), __builtin_choose_expr((index) <= 70u, ({ OBFH_SF_SPEC_70(emit); }), ({ OBFH_SF_SPEC_71(emit); }))))
+#define OBFH_SF_GROUP_9(index, emit) __builtin_choose_expr((index) <= 75u, __builtin_choose_expr((index) <= 73u, __builtin_choose_expr((index) <= 72u, ({ OBFH_SF_SPEC_72(emit); }), ({ OBFH_SF_SPEC_73(emit); })), __builtin_choose_expr((index) <= 74u, ({ OBFH_SF_SPEC_74(emit); }), ({ OBFH_SF_SPEC_75(emit); }))), __builtin_choose_expr((index) <= 77u, __builtin_choose_expr((index) <= 76u, ({ OBFH_SF_SPEC_76(emit); }), ({ OBFH_SF_SPEC_77(emit); })), __builtin_choose_expr((index) <= 78u, ({ OBFH_SF_SPEC_78(emit); }), ({ OBFH_SF_SPEC_79(emit); }))))
+#define OBFH_SF_GROUP_10(index, emit) __builtin_choose_expr((index) <= 83u, __builtin_choose_expr((index) <= 81u, __builtin_choose_expr((index) <= 80u, ({ OBFH_SF_SPEC_80(emit); }), ({ OBFH_SF_SPEC_81(emit); })), __builtin_choose_expr((index) <= 82u, ({ OBFH_SF_SPEC_82(emit); }), ({ OBFH_SF_SPEC_83(emit); }))), __builtin_choose_expr((index) <= 85u, __builtin_choose_expr((index) <= 84u, ({ OBFH_SF_SPEC_84(emit); }), ({ OBFH_SF_SPEC_85(emit); })), __builtin_choose_expr((index) <= 86u, ({ OBFH_SF_SPEC_86(emit); }), ({ OBFH_SF_SPEC_87(emit); }))))
+#define OBFH_SF_GROUP_11(index, emit) __builtin_choose_expr((index) <= 91u, __builtin_choose_expr((index) <= 89u, __builtin_choose_expr((index) <= 88u, ({ OBFH_SF_SPEC_88(emit); }), ({ OBFH_SF_SPEC_89(emit); })), __builtin_choose_expr((index) <= 90u, ({ OBFH_SF_SPEC_90(emit); }), ({ OBFH_SF_SPEC_91(emit); }))), __builtin_choose_expr((index) <= 93u, __builtin_choose_expr((index) <= 92u, ({ OBFH_SF_SPEC_92(emit); }), ({ OBFH_SF_SPEC_93(emit); })), __builtin_choose_expr((index) <= 94u, ({ OBFH_SF_SPEC_94(emit); }), ({ OBFH_SF_SPEC_95(emit); }))))
+#define OBFH_SF_GROUP_12(index, emit) __builtin_choose_expr((index) <= 99u, __builtin_choose_expr((index) <= 97u, __builtin_choose_expr((index) <= 96u, ({ OBFH_SF_SPEC_96(emit); }), ({ OBFH_SF_SPEC_97(emit); })), __builtin_choose_expr((index) <= 98u, ({ OBFH_SF_SPEC_98(emit); }), ({ OBFH_SF_SPEC_99(emit); }))), __builtin_choose_expr((index) <= 101u, __builtin_choose_expr((index) <= 100u, ({ OBFH_SF_SPEC_100(emit); }), ({ OBFH_SF_SPEC_101(emit); })), __builtin_choose_expr((index) <= 102u, ({ OBFH_SF_SPEC_102(emit); }), ({ OBFH_SF_SPEC_103(emit); }))))
+#define OBFH_SF_GROUP_13(index, emit) __builtin_choose_expr((index) <= 107u, __builtin_choose_expr((index) <= 105u, __builtin_choose_expr((index) <= 104u, ({ OBFH_SF_SPEC_104(emit); }), ({ OBFH_SF_SPEC_105(emit); })), __builtin_choose_expr((index) <= 106u, ({ OBFH_SF_SPEC_106(emit); }), ({ OBFH_SF_SPEC_107(emit); }))), __builtin_choose_expr((index) <= 109u, __builtin_choose_expr((index) <= 108u, ({ OBFH_SF_SPEC_108(emit); }), ({ OBFH_SF_SPEC_109(emit); })), __builtin_choose_expr((index) <= 110u, ({ OBFH_SF_SPEC_110(emit); }), ({ OBFH_SF_SPEC_111(emit); }))))
+#define OBFH_SF_GROUP_14(index, emit) __builtin_choose_expr((index) <= 115u, __builtin_choose_expr((index) <= 113u, __builtin_choose_expr((index) <= 112u, ({ OBFH_SF_SPEC_112(emit); }), ({ OBFH_SF_SPEC_113(emit); })), __builtin_choose_expr((index) <= 114u, ({ OBFH_SF_SPEC_114(emit); }), ({ OBFH_SF_SPEC_115(emit); }))), __builtin_choose_expr((index) <= 117u, __builtin_choose_expr((index) <= 116u, ({ OBFH_SF_SPEC_116(emit); }), ({ OBFH_SF_SPEC_117(emit); })), __builtin_choose_expr((index) <= 118u, ({ OBFH_SF_SPEC_118(emit); }), ({ OBFH_SF_SPEC_119(emit); }))))
+#define OBFH_SF_GROUP_15(index, emit) __builtin_choose_expr((index) <= 123u, __builtin_choose_expr((index) <= 121u, __builtin_choose_expr((index) <= 120u, ({ OBFH_SF_SPEC_120(emit); }), ({ OBFH_SF_SPEC_121(emit); })), __builtin_choose_expr((index) <= 122u, ({ OBFH_SF_SPEC_122(emit); }), ({ OBFH_SF_SPEC_123(emit); }))), __builtin_choose_expr((index) <= 125u, __builtin_choose_expr((index) <= 124u, ({ OBFH_SF_SPEC_124(emit); }), ({ OBFH_SF_SPEC_125(emit); })), __builtin_choose_expr((index) <= 126u, ({ OBFH_SF_SPEC_126(emit); }), ({ OBFH_SF_SPEC_127(emit); }))))
+#define OBFH_SF_SELECT_EMIT(index, emit) ({ OBFH_SF_CAPTURE; __builtin_choose_expr((index) <= 63u, __builtin_choose_expr((index) <= 31u, __builtin_choose_expr((index) <= 15u, __builtin_choose_expr((index) <= 7u, OBFH_SF_GROUP_0(index, emit), OBFH_SF_GROUP_1(index, emit)), __builtin_choose_expr((index) <= 23u, OBFH_SF_GROUP_2(index, emit), OBFH_SF_GROUP_3(index, emit))), __builtin_choose_expr((index) <= 47u, __builtin_choose_expr((index) <= 39u, OBFH_SF_GROUP_4(index, emit), OBFH_SF_GROUP_5(index, emit)), __builtin_choose_expr((index) <= 55u, OBFH_SF_GROUP_6(index, emit), OBFH_SF_GROUP_7(index, emit)))), __builtin_choose_expr((index) <= 95u, __builtin_choose_expr((index) <= 79u, __builtin_choose_expr((index) <= 71u, OBFH_SF_GROUP_8(index, emit), OBFH_SF_GROUP_9(index, emit)), __builtin_choose_expr((index) <= 87u, OBFH_SF_GROUP_10(index, emit), OBFH_SF_GROUP_11(index, emit))), __builtin_choose_expr((index) <= 111u, __builtin_choose_expr((index) <= 103u, OBFH_SF_GROUP_12(index, emit), OBFH_SF_GROUP_13(index, emit)), __builtin_choose_expr((index) <= 119u, OBFH_SF_GROUP_14(index, emit), OBFH_SF_GROUP_15(index, emit))))); (void)0; })
+
+#define OBFH_SF_SELECT(index) OBFH_SF_SELECT_EMIT(index, OBFH_SF_EMIT)
 
 // Fixed variant pool: selection changes the emitted layout, not the pool size.
 #define OBFH_SF_SPEC_0(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C))
@@ -3071,6 +3073,43 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
         0;                                                                             \
     }))
 
+// Guard outputs are part of local condition transport. Skipped bodies stay skipped.
+// Each expression describes EAX at label 9 in the corresponding native guard.
+#define OBFH_SF_GUARD_0_VALUE(x) ((x) * (x))
+#define OBFH_SF_GUARD_1_VALUE(x) ((x) * ((x) + 1u))
+#define OBFH_SF_GUARD_2_VALUE(x) (((x) * (x)) ^ (x))
+#define OBFH_SF_GUARD_3_VALUE(x) (x)
+#define OBFH_SF_GUARD_4_VALUE(x) ((x) + __obfh_sf_mask)
+#define OBFH_SF_GUARD_5_VALUE(x) (x)
+#define OBFH_SF_GUARD_6_VALUE(x) (x)
+#define OBFH_SF_GUARD_7_VALUE(x) ((x) * ((x)-1u))
+#define OBFH_SF_GUARD_8_VALUE(x) (~0u)
+#define OBFH_SF_GUARD_9_VALUE(x) ((x) + __obfh_sf_mask)
+#define OBFH_SF_GUARD_10_VALUE(x) (0u)
+#define OBFH_SF_GUARD_11_VALUE(x) ((x)*__obfh_sf_factor)
+#define OBFH_SF_GUARD_12_VALUE(x) (((x) + __obfh_sf_key_a) * __obfh_sf_factor)
+#define OBFH_SF_GUARD_13_VALUE(x) ((unsigned int)__obfh_sf_key_a * (unsigned int)__obfh_sf_key_a)
+#define OBFH_SF_GUARD_14_VALUE(x) (x)
+#define OBFH_SF_FLOW_EMIT(guard, layout) ({                                                                              \
+    unsigned int __obfh_link_input = (unsigned int)__obfh_cookie ^ __obfh_flow_hash;                                     \
+    unsigned int __obfh_link_rotated = __obfh_link_input ^ __obfh_sf_salt;                                               \
+    __obfh_link_rotated = (__obfh_link_rotated << __obfh_sf_rotate) | (__obfh_link_rotated >> (32u - __obfh_sf_rotate)); \
+    unsigned int __obfh_link_expected = guard##_VALUE(__obfh_link_rotated) ^ __obfh_link_input;                          \
+    unsigned int __obfh_link_value = __obfh_link_input;                                                                  \
+    __obfh_asm__("xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9: xorl %[link_input], %%eax;"    \
+                 : "+a"(__obfh_link_value)                                                                               \
+                 : [link_input] "m"(__obfh_link_input), OBFH_SF_INPUTS                                                   \
+                 : "edx", "ecx", "cc", "memory");                                                                        \
+    __obfh_flow_state ^= __obfh_link_value;                                                                              \
+    __obfh_flow_tag ^= __obfh_link_expected;                                                                             \
+    __obfh_cookie ^= (ULONG_PTR)__obfh_link_value;                                                                       \
+})
+#define OBFH_P_PROXY ({                                                                                                                                                             \
+    enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
+           __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
+    OBFH_SF_SELECT_EMIT(__obfh_sf_variant, OBFH_SF_FLOW_EMIT);                                                                                                                      \
+})
+
 // Local condition transport: disjoint input tags and path-specific permutations.
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_BEFORE unsigned int __obfh_before_state = __obfh_flow_state, __obfh_before_tag = __obfh_flow_tag;
@@ -3176,13 +3215,14 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
                         "rorl %[revrot], %%edx; xorl %[key], %%edx; imull %[mul], %%edx; addl %[negadd], %%edx;"))));     \
         OBFH_P_TRACE(s, p);                                                                                               \
     })
-#define OBFH_P_FINISH_ASM(instructions)           \
-    ({                                            \
-        __obfh_flow_result = __obfh_flow_state;   \
-        __obfh_asm__(instructions                 \
-                     : "+a"(__obfh_flow_result)   \
-                     : [tag] "m"(__obfh_flow_tag) \
-                     : "ecx", "cc", "memory");    \
+#define OBFH_P_FINISH_ASM(instructions)                                                                   \
+    ({                                                                                                    \
+        __obfh_flow_result = (__obfh_flow_hash & 2u) ? __obfh_flow_tag : __obfh_flow_state;               \
+        unsigned int __obfh_finish_other = (__obfh_flow_hash & 2u) ? __obfh_flow_state : __obfh_flow_tag; \
+        __obfh_asm__(instructions                                                                         \
+                     : "+a"(__obfh_flow_result)                                                           \
+                     : [tag] "r"(__obfh_finish_other)                                                     \
+                     : "ecx", "cc", "memory");                                                            \
     })
 #define OBFH_P_EXIT_0 OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; addl $1, %%eax;")
 #define OBFH_P_EXIT_1 OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
@@ -3239,7 +3279,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
         OBFH_P_TABLE(t, c, d);            \
     b:                                    \
         OBFH_P_STEP(s, 1);                \
-        OBFH_P_TABLE(t, c, d);            \
+        OBFH_P_TABLE(t, d, c);            \
     c:                                    \
         OBFH_P_STEP(t, 0);                \
         goto done;                        \
@@ -3248,23 +3288,25 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     done:                                 \
         __obfh_flow_state;                \
     })
-#define OBFH_P_GRAPH_2(s, t, last)        \
-    ({                                    \
-        __label__ a, b, c, d, join, done; \
-        OBFH_P_MASK(s, a, b);             \
-    b:                                    \
-        OBFH_P_STEP(s, 1);                \
-        OBFH_P_MASK(t, c, d);             \
-    c:                                    \
-        OBFH_P_STEP(t, 0);                \
-        goto done;                        \
-    a:                                    \
-        OBFH_P_STEP(s, 0);                \
-        OBFH_P_MASK(t, c, d);             \
-    d:                                    \
-        OBFH_P_STEP(t, 1);                \
-    done:                                 \
-        __obfh_flow_state;                \
+#define OBFH_P_GRAPH_2(s, t, last)                                                           \
+    ({                                                                                       \
+        __label__ a, b, c, d, join, done;                                                    \
+        OBFH_P_MASK(s, a, b);                                                                \
+    b:                                                                                       \
+        OBFH_P_STEP(s, 1);                                                                   \
+        OBFH_P_MASK(t, c, d);                                                                \
+    c:                                                                                       \
+        OBFH_P_STEP(t, 0);                                                                   \
+        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit ^ 5u); }), ((void)0)); \
+        goto done;                                                                           \
+    a:                                                                                       \
+        OBFH_P_STEP(s, 0);                                                                   \
+        OBFH_P_MASK(t, d, c);                                                                \
+    d:                                                                                       \
+        OBFH_P_STEP(t, 1);                                                                   \
+        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));      \
+    done:                                                                                    \
+        __obfh_flow_state;                                                                   \
     })
 #define OBFH_P_GRAPH_3(s, t, last)                                                           \
     ({                                                                                       \
@@ -3371,7 +3413,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
         __VA_ARGS__;                                                                                                  \
         OBFH_P_GRAPH(__obfh_flow_first, 0, 1, !CFLOW_V2);                                                             \
         __builtin_choose_expr(CFLOW_V2, ({ OBFH_P_GRAPH(__obfh_flow_second, 2, 3, 1); }), ((void)0));                 \
-        __builtin_choose_expr(CFLOW_V2 ? __obfh_flow_second != 3 : __obfh_flow_first != 3,                            \
+        __builtin_choose_expr(CFLOW_V2 ? __obfh_flow_second < 2 : __obfh_flow_first < 2,                              \
                               ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));                                     \
         __obfh_flow_result;                                                                                           \
     })
@@ -5274,11 +5316,10 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 // ============================================================================
 
 #if NO_CFLOW != 1
-// Each intercepted if inserts its selected template between condition transport stages.
-#define if(...) if (({                                                                         \
-                        enum { __obfh_if_site = RND(1, 65535) };                               \
-                        STACK_PROXY_FUNCTIONS;                                                 \
-                        OBFH_FLOW_CONDITION((__VA_ARGS__), __obfh_if_site, BREAK_STACK_CFLOW); \
+// Each intercepted if links its selected proxy guard to encoded condition state.
+#define if(...) if (({                                                                                       \
+                        enum { __obfh_if_site = RND(1, 65535) };                                             \
+                        OBFH_FLOW_CONDITION((__VA_ARGS__), __obfh_if_site, OBFH_P_PROXY; BREAK_STACK_CFLOW); \
                     }))
 
 // Keep if separate from its parentheses during macro rescan to avoid another CFLOW layer.

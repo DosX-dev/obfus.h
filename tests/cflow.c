@@ -16,6 +16,11 @@ void obfh_test_if_junk_visit(unsigned int route) { InterlockedIncrement(&if_junk
 void obfh_test_flow_visit(void) { InterlockedIncrement(&visits); }
 void obfh_test_flow_route(unsigned int route) { InterlockedIncrement(&routes[route]); }
 static volatile LONG stage_routes[8][4][2], stage_errors, exit_routes[8][2];
+static volatile LONG linked_visits;
+void obfh_test_flow_proxy(unsigned int expected, unsigned int actual) {
+    if (expected != actual) InterlockedIncrement(&stage_errors);
+    InterlockedIncrement(&linked_visits);
+}
 void obfh_test_flow_exit(unsigned int style, unsigned int before_state, unsigned int before_tag, unsigned int after_state) {
     if (style >= 8 || after_state > 1 || after_state != (unsigned int)(before_state == before_tag)) {
         InterlockedIncrement(&stage_errors);
@@ -456,6 +461,7 @@ int main(void) {
     LONG after_gate = visits;
     CHECK(gate_result == 10 && after_gate - before_gate == 5);
     CHECK(proxy_visits > 0);
+    CHECK(linked_visits > 0);
     for (int variant = 0; variant < (CFLOW_V2 ? 8 : 4); ++variant) {
         CHECK(transport_layouts[variant] > 0);
         CHECK(transport_tests[variant] > 0);

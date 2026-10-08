@@ -35,7 +35,8 @@ async function check(name, action) {
     return true;
 }
 const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8');
+const headerFile = path.resolve(process.argv.find(value => value.startsWith('--header='))?.slice(9) ?? path.join(root, 'include', 'obfus.h'));
+const source = fs.readFileSync(headerFile, 'utf8');
 const selectedArch = process.argv.find(value => value.startsWith('--arch='))?.slice(7);
 const selectedConfig = process.argv.find(value => value.startsWith('--config='))?.slice(9);
 const selectedConfigs = selectedConfig?.split(',');
@@ -236,7 +237,8 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
     const traced = source
         .replace('OBFH_CFLOW_SELECT(__obfh_break_index);', 'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);')
-        .replace(/STACK_PROXY_FUNCTIONS;(\s*\\\r?\n\s*OBFH_FLOW_CONDITION)/, 'obfh_test_proxy_if_visit(); STACK_PROXY_FUNCTIONS;$1')
+        .replace('OBFH_P_PROXY; BREAK_STACK_CFLOW', 'obfh_test_proxy_if_visit(); OBFH_P_PROXY; BREAK_STACK_CFLOW')
+        .replace('__obfh_flow_state ^= __obfh_link_value;', 'obfh_test_flow_proxy(__obfh_link_expected, __obfh_link_value); __obfh_flow_state ^= __obfh_link_value;')
         .replace(/#define OBFH_P_FINISH\(style\)[\s\S]*?(?=\r?\n#define)/,
             '#define OBFH_P_FINISH(style) ({ unsigned int __obfh_exit_before_state=__obfh_flow_state, __obfh_exit_before_tag=__obfh_flow_tag; OBFH_P_EXIT_SELECT_0(style); obfh_test_flow_exit((style)&7u,__obfh_exit_before_state,__obfh_exit_before_tag,__obfh_flow_result); })\n');
     assert(source.includes('#define OBFH_P_TRACE'), 'local flow trace hooks missing');
@@ -248,6 +250,7 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
     for (const seed of [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF]) {
         await execute(await compile(compiler, directory, `${arch}-cflow-${mode}-seed-${seed}.exe`, file, [...flags, `OBFH_BUILD_SEED=${seed}u`]), 'CFLOW_PASS');
+        await execute(await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-${seed}.exe`, path.join(__dirname, 'cflow_proxy.c'), [...flags.filter(flag => flag !== 'OBFH_TEST_FLOW_TRACE=1'), `OBFH_BUILD_SEED=${seed}u`]), 'FLOW_PROXY_PASS');
     }
     const ifMutant = traced.replace(/#define if\((?:cond|\.\.\.)\)[\s\S]*?(?=\r?\n\r?\n)/, '#define if(...) if (__VA_ARGS__)');
     assert(ifMutant !== traced, 'if bypass target missing');
@@ -281,6 +284,21 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     fs.writeFileSync(header, traced + '\n#undef OBFH_FLOW_CONDITION\n' + tokenMutant);
     const tokenResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags), []);
     assert(tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'), 'discarded condition transport was not detected');
+    const proxyEmit = traced.match(/#define OBFH_SF_FLOW_EMIT\(guard,\s*layout\)[\s\S]*?(?=\r?\n#define)/)?.[0];
+    assert(proxyEmit, 'linked proxy guard mutation target missing');
+    const strippedProxy = proxyEmit.replace(/__obfh_asm__\([\s\S]*?: "edx", "ecx", "cc", "memory"\);/, '(void)0;');
+    assert(strippedProxy !== proxyEmit, 'native guard removal target missing');
+    fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_EMIT\n' + strippedProxy + '\n');
+    const proxyResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-bypass.exe`, file, flags), []);
+    assert(proxyResult.status === 1 && proxyResult.stderr.includes('cflow failure'), 'removed native proxy guard was not detected');
+    // The oracle uses ordinary C keywords and no instrumentation callbacks.
+    const oracleProxy = strippedProxy.replace('obfh_test_flow_proxy(__obfh_link_expected, __obfh_link_value); ', '');
+    fs.writeFileSync(header, source + '\n#undef OBFH_SF_FLOW_EMIT\n' + oracleProxy + '\n');
+    const proxyOracle = path.join(traceRoot, 'tests', 'cflow_proxy.c');
+    fs.copyFileSync(path.join(__dirname, 'cflow_proxy.c'), proxyOracle);
+    const proxyOracleResult = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-oracle.exe`, proxyOracle,
+        flags.filter(flag => flag !== 'OBFH_TEST_FLOW_TRACE=1')), []);
+    assert(proxyOracleResult.status === 1 && !proxyOracleResult.stdout.includes('FLOW_PROXY_PASS'), 'guard removal preserved the untraced condition-state contract');
     const permutation = traced.match(/#define OBFH_P_PERMUTE\(s,\s*p,\s*instructions\)[\s\S]*?(?=\r?\n#define)/)?.[0];
     assert(permutation, 'stage mutation target missing');
     fs.writeFileSync(header, traced + '\n#undef OBFH_P_PERMUTE\n#define OBFH_P_PERMUTE(s,p,instructions) ((void)0)\n');
@@ -880,7 +898,7 @@ async function main() {
             clearInterval(progress);
         }
         for (const action of finalizers) action();
-        await performCheck('header remained unchanged during the run', async () => assert(fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8') === source, 'header changed while the suite was running; rerun against an immutable header'));
+        await performCheck('header remained unchanged during the run', async () => assert(fs.readFileSync(headerFile, 'utf8') === source, 'header changed while the suite was running; rerun against an immutable header'));
     } catch (error) {
         if (pool) {
             try { await pool.drain(); } catch { /* Tasks already recorded their failures. */ }

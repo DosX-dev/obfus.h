@@ -8,6 +8,8 @@ Requires Node.js 18+ and the Windows TCC distribution containing both `tcc.exe` 
 
 `node tests/run.js --only-custom` checks inline string/memory operations and CRT adapters, including integer parsing against the native CRT, allocation failure, argument side effects, guarded bounded lengths, reverse/duplicate operations, locale variation and mixed native/protected tokenization across threads. `custom_extra.c` supplies the new conversion and string-extension cases. The tokenizer retains CRT-managed state for interoperability. Protected bounded-length adapters are available even where the bundled TCC import library lacks the safe-length exports; NO_OBF adds no such exports.
 
+For an experimental header, pass `--header=path/to/obfus.h`; it is frozen and checked for changes exactly like the default header.
+
 The runner freezes the header and test C sources into its artifact directory before compiling. Ordinary builds use that snapshot; instrumented and mutant builds retain their own private headers. `header-sha256.txt` identifies the tested header. A final check still reports if the workspace header changed during the run. This keeps automatic formatting from changing a compiler input midway through a build.
 
 `PHANTOM_NOP` adds compile-time byte variation: each location emits either no bytes or one `0x90`, selected by source position and build seed without consuming `__COUNTER__`. It becomes a no-op with `NO_OBF=1`. Ordinary helpers and native decoy templates contain a placement outside their prologues; this changes bytes, rather than adding a new barrier to decompilation. The stack-proxy and `.pdata` checks verify native execution and unwind compatibility after these insertions.
@@ -32,6 +34,8 @@ Coverage replaces the former manual examples:
 | String/WinAPI regressions                   | Full-header file/memory/thread/event/window calls, long strings, guarded formatting and path boundaries                                                              |
 
 The VM tests instrument actual calls to `Obfh_VirtualMachine`, so replacing protected arithmetic with normal C cannot pass just because results agree. The runner also builds a deliberately mutated header with `VM_ADD` bypassed and requires the test to fail. Branch tests additionally trace interpreter entries and actual instructions, and reject ordinary-C replacements of each of VM_IF, VM_ELSE_IF and VM_ELSE. They cover side effects, fractional/pointer/NaN conditions, short circuiting, unbraced nesting, recursion and concurrent calls. These temporary mutants never modify the real header.
+
+`cflow_proxy.c` forces every existing proxy guard/layout variant through the linked CFLOW emitter, checks both truth values, unsigned edge/random inputs, live values, unchanged stack pointers and parallel calls. The focused CFLOW run checks both modes and five seeds per architecture. A native-guard removal mutant must fail; this complements stage and keyword bypass controls. Proxy bodies remain skipped. Their live guard output transforms local condition state and influences route selection. Split crossed paths have separate final recoveries; no additional proxy pool or stack-edit form is introduced.
 
 `integration.c` exercises valid inputs, guard bytes/pages and concurrent protected calls. Deliberate undefined-behavior crash modes have been removed: an expected access violation does not establish a library contract. Fault rejection and negative-control tests remain in the VM, CFLOW and cache suites.
 
