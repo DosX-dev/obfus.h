@@ -20,7 +20,13 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             await check(`${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`, async () => {
                 const flags = ['VIRT=1', 'NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`];
                 const stem = `${arch}-vm-kernel-${mode}-${seed}`;
-                const exe = await compile(compiler, directory, stem + '.exe', file, flags);
+                const seedRoot = path.join(root, stem);
+                fs.mkdirSync(path.join(seedRoot, 'include'), { recursive: true });
+                fs.mkdirSync(path.join(seedRoot, 'tests'), { recursive: true });
+                fs.writeFileSync(path.join(seedRoot, 'include', 'obfus.h'), traced);
+                const seedFile = path.join(seedRoot, 'tests', 'vm_kernel.c');
+                fs.copyFileSync(file, seedFile);
+                const exe = await compile(compiler, directory, stem + '.exe', seedFile, flags);
                 await execute(exe, 'KERNEL_PASS');
                 const errors = [3, 4, 5, 7, 2, 6, 1, 6, 6, 6, 1, 1, 8, 4];
                 for (let fault = 1; fault <= errors.length; ++fault) {

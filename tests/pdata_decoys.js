@@ -92,7 +92,7 @@ function measure(output, binary, assert) {
 }
 module.exports = { fixture, measure };
 
-module.exports.runSuite = async function ({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
+module.exports.runSuite = async function ({ arch, compiler, directory, source, check, compile, execute, run, assert, afterChecks = action => action() }) {
     const fs = require('fs'), path = require('path');
     const root = path.join(directory, arch + '-pdata');
     fs.mkdirSync(path.join(root, 'include'), { recursive: true });
@@ -146,5 +146,5 @@ module.exports.runSuite = async function ({ arch, compiler, directory, source, c
         const exe = await compile(compiler, directory, 'x64-pdata-multi.exe', file, flags, [extraSource]);
         const result = await execute(exe, 'PDATA_PASS'); measure(result.stdout, fs.readFileSync(exe), assert);
     });
-    fs.writeFileSync(path.join(root, 'coverage.json'), JSON.stringify([...builds].map(([name, data]) => ({ name, count: data.count, families: [...new Set(data.entries.map(e => e.family))], frames: [...new Set(data.entries.map(e => e.frame))] })), null, 2));
+    afterChecks(() => fs.writeFileSync(path.join(root, 'coverage.json'), JSON.stringify([...builds].map(([name, data]) => ({ name, count: data.count, families: [...new Set(data.entries.map(e => e.family))], frames: [...new Set(data.entries.map(e => e.frame))] })), null, 2)));
 };

@@ -8,10 +8,36 @@ const stackProxy = require('./stack_proxy');
 const pdataDecoys = require('./pdata_decoys');
 const vmKernel = require('./vm_kernel');
 const compactAsm = require('./compact_asm');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const { CheckPool, workerCount } = require('./runner_pool');
+const taskContext = new AsyncLocalStorage();
+const finalizers = [];
+let pool, checkIndex = 0;
+const order = new Map();
+function checkGroup(name) {
+    const arch = name.split('/')[0];
+    for (const family of ['stack proxies', 'anti-debug', 'constant data', 'CFLOW pool', 'public break', 'pdata'])
+        if (name.includes('/' + family)) return arch + '/' + family;
+    if (/all junk sites|junk bytes vary/.test(name)) return arch + '/junk';
+    return name;
+}
+async function check(name, action) {
+    const id = checkIndex++; order.set(name, id);
+    if (!pool) return performCheck(name, action);
+    pool.add(checkGroup(name), async () => {
+        await performCheck(name, async () => {
+            const cwd = path.join(artifactDirectory, 'tasks', String(id));
+            fs.mkdirSync(cwd, { recursive: true });
+            await taskContext.run({ cwd }, action);
+        });
+    });
+    return true;
+}
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8');
 const selectedArch = process.argv.find(value => value.startsWith('--arch='))?.slice(7);
 const selectedConfig = process.argv.find(value => value.startsWith('--config='))?.slice(9);
+const selectedConfigs = selectedConfig?.split(',');
 const results = [];
 let artifactDirectory;
 let snapshotRoot;
@@ -29,7 +55,7 @@ const configs = {
     'math-vm': ['VIRT=1', 'virt_std=1', 'NO_ANTIDEBUG=1'],
 };
 function assert(condition, message) { if (!condition) throw new Error(message); }
-async function check(name, action) {
+async function performCheck(name, action) {
     const started = Date.now();
     try { await action(); const durationMs = Date.now() - started; results.push({ name, pass: true, durationMs }); console.log(`PASS ${name}${durationMs >= 1000 ? ` (${(durationMs / 1000).toFixed(1)}s)` : ""}`); return true; }
     catch (error) { results.push({ name, pass: false, durationMs: Date.now() - started, error: error.message }); console.error(`FAIL ${name}: ${error.message}`); if (error.suiteDeadline) throw error; return false; }
@@ -60,7 +86,7 @@ function timeoutOption(name, fallback) {
 }
 const testTimeout = timeoutOption('test-timeout-ms', 30000);
 const buildTimeout = timeoutOption('build-timeout-ms', 45000);
-const suiteDeadline = Date.now() + timeoutOption('suite-timeout-ms', 1800000);
+const suiteDeadline = Date.now() + timeoutOption('suite-timeout-ms', 3600000);
 const activeChildren = new Set();
 function killTree(pid) {
     if (process.platform === 'win32') {
@@ -75,7 +101,7 @@ async function run(command, args, options = {}) {
     if (remaining <= 0) { const error = new Error('suite timeout exceeded'); error.suiteDeadline = true; throw error; }
     const timeout = Math.min(options.timeout ?? testTimeout, remaining);
     return new Promise((resolve, reject) => {
-        const child = spawn(command, args, { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+        const child = spawn(command, args, { cwd: taskContext.getStore()?.cwd ?? root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
         if (child.pid) activeChildren.add(child.pid);
         const started = Date.now();
         let stdout = '', stderr = '', failure, phase = '';
@@ -91,7 +117,7 @@ async function run(command, args, options = {}) {
         child.stderr.on('data', data => collect('stderr', data));
         child.stdin.on('error', () => { });
         child.stdin.end(options.input ?? '');
-        const progress = setInterval(async () => console.log(`RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`), 5000);
+        const progress = pool ? undefined : setInterval(async () => console.log(`RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`), 5000);
         const timer = setTimeout(async () => {
             failure = new Error(`timeout ${timeout}ms: ${path.basename(command)}${phase ? ' [' + phase + ']' : ''}`);
             failure.code = 'ETIMEDOUT'; failure.suiteDeadline = remaining <= (options.timeout ?? testTimeout);
@@ -119,7 +145,7 @@ async function discover() {
 }
 async function compile(compiler, directory, name, file, flags, extra = []) {
     const output = path.join(directory, name);
-    const result = await run(compiler, ['-w', ...flags.map(flag => '-D' + flag), snapshotFile(file), '-o', output, ...extra], { timeout: buildTimeout });
+    const result = await run(compiler, ['-w', ...flags.map(flag => '-D' + flag), snapshotFile(file), '-o', output, ...extra.map(value => path.isAbsolute(value) ? snapshotFile(value) : value)], { timeout: buildTimeout });
     assert(result.status === 0, `compile ${path.basename(file)} exit=${result.status}: ${result.stderr || result.stdout}`);
     assert(fs.existsSync(output), 'compiler did not produce output');
     return output;
@@ -256,7 +282,7 @@ async function main() {
         assert(process.platform === 'win32', 'This suite exercises real Windows x86/x64 executables.');
         const compilers = await discover();
         assert(!selectedArch || ['x64', 'x86'].includes(selectedArch), 'unknown architecture');
-        assert(!selectedConfig || Object.hasOwn(configs, selectedConfig), 'unknown configuration');
+        assert(!selectedConfigs || selectedConfigs.every(config => Object.hasOwn(configs, config)), 'unknown configuration');
         directory = fs.mkdtempSync(path.join(os.tmpdir(), 'obfh-js-suite-'));
         artifactDirectory = directory;
         snapshotRoot = path.join(directory, 'snapshot');
@@ -268,7 +294,11 @@ async function main() {
         });
         fs.writeFileSync(path.join(directory, 'header-sha256.txt'), require('node:crypto').createHash('sha256').update(source).digest('hex') + '\n');
         console.log(`Artifacts: ${directory}`);
+        const workers = process.argv.includes('--serial') ? 1 : workerCount(os.availableParallelism?.() ?? os.cpus().length, os.freemem(), os.totalmem());
+        pool = new CheckPool(workers);
+        console.log(`Automatic parallelism: ${workers} workers (CPU and available RAM).`);
         await check('source: compact ASM matches readable fragments on both architectures', async () => compactAsm.verify(source, { x64: compilers.x64, x86: compilers.x86 }));
+        await check('runner: parallel queue ordering and failure cleanup', require('./runner_pool.test').verify);
         await check('binary scanner: skipped CPUID bytes versus live CPUID', async () => {
             const code = Buffer.from([0x0f, 0x84, 2, 0, 0, 0, 0x0f, 0xa2, 0x90]);
             assert(!withoutSkippedPayload(code, 0).liveBytes.includes(Buffer.from([0x0f, 0xa2])), 'skipped payload counted as live code');
@@ -357,7 +387,7 @@ async function main() {
             if (process.argv.includes('--only-custom')) {
                 if (selectedArch && selectedArch !== arch) continue;
                 for (const config of ['plain', 'default', 'vm-no-cflow', 'advanced']) {
-                    if (selectedConfig && selectedConfig !== config) continue;
+                    if (selectedConfigs && !selectedConfigs.includes(config)) continue;
                     for (const seed of ['plain', 'vm-no-cflow'].includes(config) ? [0] : [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF]) {
                         await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
                             const flags = [...configs[config], `OBFH_BUILD_SEED=${seed}u`];
@@ -394,14 +424,14 @@ async function main() {
                 if (process.argv.includes('--only-vm')) continue;
             }
             if (process.argv.includes('--only-pdata') || process.argv.includes('--only-integration') || !process.argv.some(arg => arg.startsWith('--only-'))) {
-                await pdataDecoys.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                await pdataDecoys.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert, afterChecks: action => finalizers.push(action) });
                 if (process.argv.includes('--only-pdata')) continue;
             }
             if (process.argv.includes('--only-flow-tokens')) {
                 for (const mode of [0, 1]) await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () => checkFlowTransport(arch, compiler, directory, mode));
                 continue;
             }
-            if (!process.argv.includes('--only-integration')) {
+            if (!process.argv.includes('--only-integration') && !process.argv.includes('--only-configs')) {
                 const proxyRoot = path.join(directory, arch + '-stack-proxy');
                 fs.mkdirSync(path.join(proxyRoot, 'include'), { recursive: true });
                 fs.mkdirSync(path.join(proxyRoot, 'tests'), { recursive: true });
@@ -721,7 +751,7 @@ async function main() {
                 if (process.argv.includes('--only-branches')) continue;
             }
             for (const [config, flags] of Object.entries(configs)) {
-                if (selectedConfig && selectedConfig !== config) continue;
+                if (selectedConfigs && !selectedConfigs.includes(config)) continue;
                 const label = `${arch}/${config}`;
                 for (const [file, marker] of [['vm', 'VM_PASS'], ['vm_branches', 'BRANCH_PASS'], ['numeric', 'NUMERIC_PASS'], ['algorithms', 'ALGORITHMS_PASS'], ['wrappers', 'regressions passed'], ['window', 'WINDOW_PASS'], ['path_limits', 'PATHS_PASS'], ['protection', 'PROTECTION_PASS']]) {
                     await check(`${label}/${file}`, async () => await execute(await compile(compiler, directory, `${arch}-${config}-${file}.exe`, path.join(__dirname, file + '.c'), flags, ['-luser32', '-lgdi32']), marker));
@@ -834,12 +864,17 @@ async function main() {
                 await check(`${arch}/math string and pointer arguments/${flags.length ? 'VM' : 'normal'}`, async () => await execute(await compile(compiler, directory, `${arch}-math-${flags.length}.exe`, path.join(__dirname, 'math.c'), flags), 'Math string/pointer arguments passed'));
             }
         }
-        await check('header remained unchanged during the run', async () => assert(fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8') === source, 'header changed while the suite was running; rerun against an immutable header'));
+        const progress = setInterval(() => console.log(`RUN suite: ${results.length}/${checkIndex} checks completed; ${activeChildren.size} child processes active`), 10000);
+        try { await pool.drain(); } finally { clearInterval(progress); }
+        for (const action of finalizers) action();
+        await performCheck('header remained unchanged during the run', async () => assert(fs.readFileSync(path.join(root, 'include', 'obfus.h'), 'utf8') === source, 'header changed while the suite was running; rerun against an immutable header'));
     } catch (error) {
+        if (pool) { try { await pool.drain(); } catch { } }
         results.push({ name: 'suite setup', pass: false, error: error.message }); console.error(error.message);
     }
+    results.sort((a, b) => (order.get(a.name) ?? Infinity) - (order.get(b.name) ?? Infinity));
     const failed = results.filter(result => !result.pass);
-    if (directory) fs.writeFileSync(path.join(directory, 'results.json'), JSON.stringify({ results, passed: results.length - failed.length, failed: failed.length }, null, 2));
+    if (directory) fs.writeFileSync(path.join(directory, 'results.json'), JSON.stringify({ parallelism: pool && { workers: pool.limit, peak: pool.peak }, results, passed: results.length - failed.length, failed: failed.length }, null, 2));
     console.log(`\n${failed.length ? 'FAIL' : 'PASS'}: ${results.length - failed.length}/${results.length} checks; ${failed.length} failures.`);
     console.log('Verdict applies to the tested compiler builds and Windows environment; invalid C remains invalid.');
     if (directory) console.log(`Logs and binaries: ${directory}`);
