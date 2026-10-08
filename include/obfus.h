@@ -143,6 +143,33 @@
 #define wcscspn_custom(...) wcscspn(__VA_ARGS__)
 #define wcspbrk_custom(...) wcspbrk(__VA_ARGS__)
 
+#define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
+#define strtol_custom(...) strtol(__VA_ARGS__)
+#define strtoul_custom(...) strtoul(__VA_ARGS__)
+#define atoi_custom(...) atoi(__VA_ARGS__)
+#define atol_custom(...) atol(__VA_ARGS__)
+#define strdup_custom(...) strdup(__VA_ARGS__)
+#define wcsdup_custom(...) wcsdup(__VA_ARGS__)
+#define strrev_custom(...) strrev(__VA_ARGS__)
+#define wcsrev_custom(...) wcsrev(__VA_ARGS__)
+#define strtok_custom(...) strtok(__VA_ARGS__)
+
+static inline size_t obfh_editor_strnlen_s(const char *text, size_t count) {
+    size_t length = 0;
+    if (text) while (length < count && text[length]) ++length;
+    return length;
+}
+#define strnlen_s_custom(...) obfh_editor_strnlen_s(__VA_ARGS__)
+#define strnlen_s(...) strnlen_s_custom(__VA_ARGS__)
+
+static inline size_t obfh_editor_wcsnlen_s(const wchar_t *text, size_t count) {
+    size_t length = 0;
+    if (text) while (length < count && text[length]) ++length;
+    return length;
+}
+#define wcsnlen_s_custom(...) obfh_editor_wcsnlen_s(__VA_ARGS__)
+#define wcsnlen_s(...) wcsnlen_s_custom(__VA_ARGS__)
+
 // Search, output and platform aliases.
 #define bsearch_custom(...) bsearch(__VA_ARGS__)
 #define printf_custom(...) printf(__VA_ARGS__)
@@ -4892,6 +4919,204 @@ __obfh_strlen_done:                                                          \
 })
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
+// Integer conversion uses native locale classification and Windows CRT limits.
+#define OBFH_INTEGER_PARSE(input, ending, radix, mode)                                                                                     \
+    ({                                                                                                                                     \
+        __label__ __obfh_parse_space, __obfh_parse_sign, __obfh_parse_base, __obfh_parse_loop, __obfh_parse_finish, __obfh_parse_end;      \
+        struct {                                                                                                                           \
+            const char *text;                                                                                                              \
+            char **end;                                                                                                                    \
+            int base;                                                                                                                      \
+        } __obfh_parse_args = {(input), (ending), (radix)};                                                                                \
+        const unsigned char *__obfh_parse_p = (const unsigned char *)__obfh_parse_args.text;                                               \
+        unsigned long __obfh_parse_value = 0, __obfh_parse_limit, __obfh_parse_cutoff, __obfh_parse_tail;                                  \
+        enum { __obfh_parse_form = RND(0, 1) };                                                                                            \
+        unsigned int __obfh_parse_digit, __obfh_parse_negative = 0, __obfh_parse_any = 0, __obfh_parse_overflow = 0;                       \
+        int *__obfh_parse_errno = _errno();                                                                                                \
+        *__obfh_parse_errno = (mode) == 2 && !__obfh_parse_args.text ? *__obfh_parse_errno : 0;                                            \
+        OBFH_INLINE_EXIT(!__obfh_parse_args.text ||                                                                                        \
+                             (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36)),                      \
+                         __obfh_parse_end);                                                                                                \
+    __obfh_parse_space:                                                                                                                    \
+        OBFH_INLINE_EXIT(!(isspace)(*__obfh_parse_p), __obfh_parse_sign);                                                                  \
+        ++__obfh_parse_p;                                                                                                                  \
+        goto __obfh_parse_space;                                                                                                           \
+    __obfh_parse_sign:                                                                                                                     \
+        __obfh_parse_negative = *__obfh_parse_p == '-';                                                                                    \
+        __obfh_parse_p += (*__obfh_parse_p == '+' || *__obfh_parse_p == '-');                                                              \
+        OBFH_INLINE_EXIT((__obfh_parse_args.base && __obfh_parse_args.base != 16) || __obfh_parse_p[0] != '0' ||                           \
+                             (__obfh_parse_p[1] != 'x' && __obfh_parse_p[1] != 'X'),                                                       \
+                         __obfh_parse_base);                                                                                               \
+        __obfh_parse_args.base = 16;                                                                                                       \
+        __obfh_parse_p += 2;                                                                                                               \
+    __obfh_parse_base:                                                                                                                     \
+        __obfh_parse_args.base = __obfh_parse_args.base ? __obfh_parse_args.base : (*__obfh_parse_p == '0' ? 8 : 10);                      \
+        __obfh_parse_limit = (mode) == 0 ? (__obfh_parse_negative ? (unsigned long)LONG_MAX + 1ul : (unsigned long)LONG_MAX) : ULONG_MAX;  \
+        __obfh_parse_cutoff = (mode) == 2 ? 0 : __obfh_parse_limit / (unsigned int)__obfh_parse_args.base;                                 \
+        __obfh_parse_tail = (mode) == 2 ? 0 : __obfh_parse_limit % (unsigned int)__obfh_parse_args.base;                                   \
+        PHANTOM_NOP;                                                                                                                       \
+    __obfh_parse_loop:                                                                                                                     \
+        __obfh_parse_digit = *__obfh_parse_p;                                                                                              \
+        __obfh_parse_digit = __builtin_choose_expr(                                                                                        \
+            __obfh_parse_form,                                                                                                             \
+            __obfh_parse_digit >= '0' && __obfh_parse_digit <= '9'   ? __obfh_parse_digit - '0'                                            \
+            : __obfh_parse_digit >= 'A' && __obfh_parse_digit <= 'Z' ? __obfh_parse_digit - 'A' + 10u                                      \
+            : __obfh_parse_digit >= 'a' && __obfh_parse_digit <= 'z' ? __obfh_parse_digit - 'a' + 10u                                      \
+                                                                     : 36u,                                                                \
+            (__obfh_parse_digit - (unsigned int)'0' < 10u                                                                                  \
+                 ? __obfh_parse_digit - '0'                                                                                                \
+                 : ((__obfh_parse_digit | 32u) - (unsigned int)'a' < 26u ? (__obfh_parse_digit | 32u) - 'a' + 10u : 36u)));                \
+        OBFH_INLINE_EXIT(__obfh_parse_digit >= (unsigned int)__obfh_parse_args.base, __obfh_parse_finish);                                 \
+        __obfh_parse_any = 1;                                                                                                              \
+        __obfh_parse_overflow |= __obfh_parse_value > __obfh_parse_cutoff ||                                                               \
+                                 (__obfh_parse_value == __obfh_parse_cutoff && __obfh_parse_digit > __obfh_parse_tail);                    \
+        __obfh_parse_value = (mode) == 2 || !__obfh_parse_overflow                                                                         \
+                                 ? __obfh_parse_value * (unsigned int)__obfh_parse_args.base + __obfh_parse_digit                          \
+                                 : __obfh_parse_limit;                                                                                     \
+        ++__obfh_parse_p;                                                                                                                  \
+        goto __obfh_parse_loop;                                                                                                            \
+    __obfh_parse_finish:                                                                                                                   \
+        OBFH_INLINE_EXIT(!__obfh_parse_any, __obfh_parse_end);                                                                             \
+        *__obfh_parse_errno = (mode) != 2 && __obfh_parse_overflow ? ERANGE : 0;                                                           \
+        __obfh_parse_value = __obfh_parse_negative ? 0ul - __obfh_parse_value : __obfh_parse_value;                                        \
+        goto __obfh_parse_end;                                                                                                             \
+    __obfh_parse_end:                                                                                                                      \
+        *__obfh_parse_errno = (!__obfh_parse_args.text && (mode) != 2) ||                                                                  \
+                                      (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36))              \
+                                  ? EINVAL                                                                                                 \
+                                  : *__obfh_parse_errno;                                                                                   \
+        __obfh_parse_args.end                                                                                                              \
+            ? (void)(*__obfh_parse_args.end = (char *)(__obfh_parse_any ? __obfh_parse_p : (const unsigned char *)__obfh_parse_args.text)) \
+            : (void)0;                                                                                                                     \
+        __obfh_parse_value;                                                                                                                \
+    })
+#define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
+#define strtol_custom(...) ((long)OBFH_INTEGER_PARSE_ARGS(0, __VA_ARGS__))
+#define strtol(...) strtol_custom(__VA_ARGS__)
+
+#define strtoul_custom(...) OBFH_INTEGER_PARSE_ARGS(1, __VA_ARGS__)
+#define strtoul(...) strtoul_custom(__VA_ARGS__)
+
+#define atoi_custom(text) ((int)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
+#define atoi(...) atoi_custom(__VA_ARGS__)
+
+#define atol_custom(text) ((long)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
+#define atol(...) atol_custom(__VA_ARGS__)
+
+#define strdup_custom(input)                                                                                                               \
+    ({                                                                                                                                     \
+        __label__ __obfh_dup_done;                                                                                                         \
+        const char *__obfh_dup_source = (input);                                                                                           \
+        size_t __obfh_dup_length = __obfh_dup_source ? strlen(__obfh_dup_source) : 0;                                                      \
+        char *__obfh_dup_result = NULL;                                                                                                    \
+        OBFH_INLINE_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done);           \
+        __obfh_dup_result = (char *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result));                                         \
+        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done);                                                                             \
+        memcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u);                                                              \
+    __obfh_dup_done:                                                                                                                       \
+        __obfh_dup_result;                                                                                                                 \
+    })
+#define strdup(...) strdup_custom(__VA_ARGS__)
+#define _strdup(...) strdup_custom(__VA_ARGS__)
+
+#define wcsdup_custom(input)                                                                                                               \
+    ({                                                                                                                                     \
+        __label__ __obfh_dup_done;                                                                                                         \
+        const wchar_t *__obfh_dup_source = (input);                                                                                        \
+        size_t __obfh_dup_length = __obfh_dup_source ? wcslen(__obfh_dup_source) : 0;                                                      \
+        wchar_t *__obfh_dup_result = NULL;                                                                                                 \
+        OBFH_INLINE_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done);           \
+        __obfh_dup_result = (wchar_t *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result));                                      \
+        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done);                                                                             \
+        wmemcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u);                                                             \
+    __obfh_dup_done:                                                                                                                       \
+        __obfh_dup_result;                                                                                                                 \
+    })
+#define wcsdup(...) wcsdup_custom(__VA_ARGS__)
+#define _wcsdup(...) wcsdup_custom(__VA_ARGS__)
+
+#define strnlen_s_custom(...)                                                                                                              \
+    ({                                                                                                                                     \
+        __label__ __obfh_safe_length_loop, __obfh_safe_length_done;                                                                        \
+        struct {                                                                                                                           \
+            const char *text;                                                                                                              \
+            size_t count;                                                                                                                  \
+        } __obfh_safe_length_args = {__VA_ARGS__};                                                                                         \
+        size_t __obfh_safe_length_value = 0;                                                                                               \
+        BREAK_STACK_CFLOW;                                                                                                                 \
+        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done);                                                          \
+    __obfh_safe_length_loop:                                                                                                               \
+        OBFH_INLINE_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count ||                                                      \
+                             !__obfh_safe_length_args.text[__obfh_safe_length_value],                                                      \
+                         __obfh_safe_length_done);                                                                                         \
+        ++__obfh_safe_length_value;                                                                                                        \
+        goto __obfh_safe_length_loop;                                                                                                      \
+    __obfh_safe_length_done:                                                                                                               \
+        __obfh_safe_length_value;                                                                                                          \
+    })
+#define strnlen_s(...) strnlen_s_custom(__VA_ARGS__)
+
+#define wcsnlen_s_custom(...)                                                                                                              \
+    ({                                                                                                                                     \
+        __label__ __obfh_safe_length_loop, __obfh_safe_length_done;                                                                        \
+        struct {                                                                                                                           \
+            const wchar_t *text;                                                                                                           \
+            size_t count;                                                                                                                  \
+        } __obfh_safe_length_args = {__VA_ARGS__};                                                                                         \
+        size_t __obfh_safe_length_value = 0;                                                                                               \
+        BREAK_STACK_CFLOW;                                                                                                                 \
+        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done);                                                          \
+    __obfh_safe_length_loop:                                                                                                               \
+        OBFH_INLINE_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count ||                                                      \
+                             !__obfh_safe_length_args.text[__obfh_safe_length_value],                                                      \
+                         __obfh_safe_length_done);                                                                                         \
+        ++__obfh_safe_length_value;                                                                                                        \
+        goto __obfh_safe_length_loop;                                                                                                      \
+    __obfh_safe_length_done:                                                                                                               \
+        __obfh_safe_length_value;                                                                                                          \
+    })
+#define wcsnlen_s(...) wcsnlen_s_custom(__VA_ARGS__)
+
+#define strrev_custom(input)                                                                                                               \
+    ({                                                                                                                                     \
+        __label__ __obfh_reverse_loop, __obfh_reverse_done;                                                                                \
+        char *__obfh_reverse_text = (input);                                                                                               \
+        size_t __obfh_reverse_left = 0, __obfh_reverse_right = strlen(__obfh_reverse_text);                                                \
+        PHANTOM_NOP;                                                                                                                       \
+    __obfh_reverse_loop:                                                                                                                   \
+        OBFH_INLINE_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right,                     \
+                         __obfh_reverse_done);                                                                                             \
+        char __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left];                                                              \
+        __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right];                                              \
+        __obfh_reverse_text[__obfh_reverse_right] = __obfh_reverse_value;                                                                  \
+        ++__obfh_reverse_left;                                                                                                             \
+        goto __obfh_reverse_loop;                                                                                                          \
+    __obfh_reverse_done:                                                                                                                   \
+        __obfh_reverse_text;                                                                                                               \
+    })
+#define strrev(...) strrev_custom(__VA_ARGS__)
+#define _strrev(...) strrev_custom(__VA_ARGS__)
+
+#define wcsrev_custom(input)                                                                                                               \
+    ({                                                                                                                                     \
+        __label__ __obfh_reverse_loop, __obfh_reverse_done;                                                                                \
+        wchar_t *__obfh_reverse_text = (input);                                                                                            \
+        size_t __obfh_reverse_left = 0, __obfh_reverse_right = wcslen(__obfh_reverse_text);                                                \
+        PHANTOM_NOP;                                                                                                                       \
+    __obfh_reverse_loop:                                                                                                                   \
+        OBFH_INLINE_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right,                     \
+                         __obfh_reverse_done);                                                                                             \
+        wchar_t __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left];                                                           \
+        __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right];                                              \
+        __obfh_reverse_text[__obfh_reverse_right] = __obfh_reverse_value;                                                                  \
+        ++__obfh_reverse_left;                                                                                                             \
+        goto __obfh_reverse_loop;                                                                                                          \
+    __obfh_reverse_done:                                                                                                                   \
+        __obfh_reverse_text;                                                                                                               \
+    })
+#define wcsrev(...) wcsrev_custom(__VA_ARGS__)
+#define _wcsrev(...) wcsrev_custom(__VA_ARGS__)
+
 // API cache publication precedes invocation, allowing callback reentry.
 typedef struct {
     PVOID volatile encoded;
@@ -5859,24 +6084,6 @@ static char *getFreeName_proxy(char *name) {
 }
 #define free(...) OBFH_CRT_COMPACT_CALL(getFreeName_proxy, void (*)(void *), __VA_ARGS__)
 
-static char *getAtoiName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _i, name[4] = _0),
-        (name[4] = _0, name[3] = _i, name[2] = _o, name[1] = _t, name[0] = _a));
-    PHANTOM_NOP;
-    return name;
-}
-#define atoi(...) OBFH_CRT_COMPACT_CALL(getAtoiName_proxy, int (*)(const char *), __VA_ARGS__)
-
-static char *getAtolName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _l, name[4] = _0),
-        (name[4] = _0, name[3] = _l, name[2] = _o, name[1] = _t, name[0] = _a));
-    PHANTOM_NOP;
-    return name;
-}
-#define atol(...) OBFH_CRT_COMPACT_CALL(getAtolName_proxy, long (*)(const char *), __VA_ARGS__)
-
 static char *getAtofName_proxy(char *name) {
     OBFH_NAME_ORDER(
         (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _f, name[4] = _0),
@@ -5885,24 +6092,6 @@ static char *getAtofName_proxy(char *name) {
     return name;
 }
 #define atof(...) OBFH_CRT_COMPACT_CALL(getAtofName_proxy, double (*)(const char *), __VA_ARGS__)
-
-static char *getStrtolName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _l, name[6] = _0),
-        (name[6] = _0, name[5] = _l, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-    return name;
-}
-#define strtol(...) OBFH_CRT_COMPACT_CALL(getStrtolName_proxy, long (*)(const char *, char **, int), __VA_ARGS__)
-
-static char *getStrtoulName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _u, name[6] = _l, name[7] = _0),
-        (name[7] = _0, name[6] = _l, name[5] = _u, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
-    PHANTOM_NOP;
-    return name;
-}
-#define strtoul(...) OBFH_CRT_COMPACT_CALL(getStrtoulName_proxy, unsigned long (*)(const char *, char **, int), __VA_ARGS__)
 
 static char *getStrtodName_proxy(char *name) {
     OBFH_NAME_ORDER(
@@ -6198,7 +6387,8 @@ static char *getStrtokName_proxy(char *name) {
 #endif
     return name;
 }
-#define strtok(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
+#define strtok_custom(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
+#define strtok(...) strtok_custom(__VA_ARGS__)
 
 static char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;

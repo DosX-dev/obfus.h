@@ -354,6 +354,23 @@ async function main() {
         fs.writeFileSync(failureFile, fs.readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8')
             .replace('/* REGISTER_PROBES */', '#if ANTIDEBUG_V2 == 1\n' + setup).replace('/* PROCESS_PROBE */', processProbe));
         for (const [arch, compiler] of Object.entries(compilers)) {
+            if (process.argv.includes('--only-custom')) {
+                if (selectedArch && selectedArch !== arch) continue;
+                for (const config of ['plain', 'default', 'vm-no-cflow', 'advanced']) {
+                    if (selectedConfig && selectedConfig !== config) continue;
+                    for (const seed of ['plain', 'vm-no-cflow'].includes(config) ? [0] : [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF]) {
+                        await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
+                            const flags = [...configs[config], `OBFH_BUILD_SEED=${seed}u`];
+                            for (const [fixture, marker] of [['custom_extra', 'CUSTOM_EXTRA_PASS'], ['custom_copy', 'CUSTOM_COPY_PASS'], ['custom_wide', 'CUSTOM_WIDE_PASS'], ['crt_proxies', 'CRT_ATEXIT_PASS']])
+                                await execute(await compile(compiler, directory, `${arch}-${config}-${fixture}-${seed}.exe`, path.join(__dirname, fixture + '.c'), flags), marker);
+                        });
+                    }
+                }
+                await check(`${arch}/custom extensions editor view`, async () => {
+                    await execute(await compile(compiler, directory, `${arch}-custom-extra-editor.exe`, path.join(__dirname, 'custom_extra.c'), ['__INTELLISENSE__=1'], ['-U__TINYC__']), 'CUSTOM_EXTRA_PASS');
+                });
+                continue;
+            }
             for (const seed of [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF]) {
                 if (selectedArch && selectedArch !== arch) continue;
                 await check(`${arch}/local API names + buffer guards/seed ${seed}`, async () => await execute(await compile(compiler, directory, `${arch}-api-names-${seed}.exe`, path.join(__dirname, "api_names.c"), [`OBFH_BUILD_SEED=${seed}u`], ["-luser32", "-lgdi32", "-ladvapi32"]), "NAMES_PASS"));
@@ -745,6 +762,8 @@ async function main() {
                     await execute(copyControl, 'CUSTOM_COPY_PASS');
                     const wideControl = await compile(compiler, directory, `${arch}-${config}-custom-wide.exe`, path.join(__dirname, 'custom_wide.c'), flags);
                     await execute(wideControl, 'CUSTOM_WIDE_PASS');
+                    const extraControl = await compile(compiler, directory, `${arch}-${config}-custom-extra.exe`, path.join(__dirname, 'custom_extra.c'), flags);
+                    await execute(extraControl, 'CUSTOM_EXTRA_PASS');
                     const chars = await run(exe, ['chars'], { input: 'Q' });
                     assert(chars.status === 0 && chars.stdout === 'Z', 'getchar/putchar/EOF contract failed');
                     const errors = await run(exe, ['perror']);
