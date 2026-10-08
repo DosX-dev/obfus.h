@@ -1,8 +1,8 @@
 // Real Windows debugger fixture. The protected child must detect this host and
 // stay in its remote response without executing invalid instructions.
-#include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include <windows.h>
 
 int main(int argc, char **argv) {
     if (argc != 2) return 1;
@@ -41,11 +41,15 @@ int main(int argc, char **argv) {
         if (used + 1 < sizeof output && PeekNamedPipe(reader, NULL, 0, NULL, &available, NULL) && available) {
             DWORD capacity = (DWORD)(sizeof output - used - 1);
             if (ReadFile(reader, output + used, available < capacity ? available : capacity, &got, NULL)) {
-                used += got; output[used] = 0;
+                used += got;
+                output[used] = 0;
             }
         }
         if (!detected_at && strstr(output, "ACTUAL_DETECTED")) detected_at = GetTickCount();
-        if (failed || exited || strstr(output, "RESPONSE_RETURNED")) { failed = 1; break; }
+        if (failed || exited || strstr(output, "RESPONSE_RETURNED")) {
+            failed = 1;
+            break;
+        }
         if (detected_at && GetTickCount() - detected_at >= 500) break;
     }
     if (!detected_at) failed = 1;
@@ -58,8 +62,13 @@ int main(int argc, char **argv) {
             ContinueDebugEvent(event.dwProcessId, event.dwThreadId, DBG_CONTINUE);
         }
     }
-    CloseHandle(reader); CloseHandle(process.hThread); CloseHandle(process.hProcess);
-    if (failed || !exited) { fprintf(stderr, "debugger child failed: %s\n", output); return 6; }
+    CloseHandle(reader);
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    if (failed || !exited) {
+        fprintf(stderr, "debugger child failed: %s\n", output);
+        return 6;
+    }
     puts("ANTIDEBUG_REAL_DEBUGGER_PASS");
     return 0;
 }

@@ -171,34 +171,9 @@ static int exercise(int report) {
 }
 static DWORD WINAPI run_worker(void *unused) { return exercise(0); }
 
-// Deliberate undefined behaviour. Guard pages make failures reproducible.
-static int unsafe_case(const char *mode) {
-    SYSTEM_INFO info;
-    GetSystemInfo(&info);
-    DWORD old;
-    char *memory = VirtualAlloc(NULL, info.dwPageSize * 2, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!memory) return 2;
-    if (strcmp(mode, "unsafe-uaf") == 0) {
-        VirtualFree(memory, 0, MEM_RELEASE);
-        *(volatile char *)memory = 42;  // Intentional use after free.
-    } else {
-        VirtualProtect(memory + info.dwPageSize, info.dwPageSize, PAGE_NOACCESS, &old);
-        char *too_small = memory + info.dwPageSize - 4;
-        if (strcmp(mode, "unsafe-overflow") == 0)
-            strcpy(too_small, "intentional overflow");
-        else if (strcmp(mode, "unsafe-format") == 0)
-            sprintf(too_small, "%s", "intentional overflow");
-        else {
-            VirtualFree(memory, 0, MEM_RELEASE);
-            return 2;
-        }
-    }
-    return 3;  // A mode reaching here did not trigger the intended guard fault.
-}
-int main(int argc, char **argv) {
+int main(void) {
     test_phase("startup", 0);
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-    if (argc > 1) return unsafe_case(argv[1]);
 #if !NO_OBF
     CHECK(export_boundaries() == 0);
 #endif

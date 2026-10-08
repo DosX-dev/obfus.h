@@ -33,7 +33,7 @@ Coverage replaces the former manual examples:
 
 The VM tests instrument actual calls to `Obfh_VirtualMachine`, so replacing protected arithmetic with normal C cannot pass just because results agree. The runner also builds a deliberately mutated header with `VM_ADD` bypassed and requires the test to fail. Branch tests additionally trace interpreter entries and actual instructions, and reject ordinary-C replacements of each of VM_IF, VM_ELSE_IF and VM_ELSE. They cover side effects, fractional/pointer/NaN conditions, short circuiting, unbraced nesting, recursion and concurrent calls. These temporary mutants never modify the real header.
 
-`integration.c` contains deliberate overflow, unbounded formatting and use-after-free modes. Each runs in a separate child process and must produce the expected access violation in both plain and protected builds. They are crash controls; invalid C is not made safe by obfuscation. Normal stress cases use valid inputs and guard bytes/pages.
+`integration.c` exercises valid inputs, guard bytes/pages and concurrent protected calls. Deliberate undefined-behavior crash modes have been removed: an expected access violation does not establish a library contract. Fault rejection and negative-control tests remain in the VM, CFLOW and cache suites.
 
 `failures.c.in` mocks all thread-setup/wait/exit-code branches using the current header's setup block. `math.c` bridges `nan` and `remquo` to UCRT because old msvcrt does not export them; UCRT is required. Old decompiler snapshots are removed: structural binary checks do not claim immunity to every decompiler.
 

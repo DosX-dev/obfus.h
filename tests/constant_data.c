@@ -1,4 +1,5 @@
 #include <stdio.h>
+
 #include "../include/obfus.h"
 enum { data_counter_before = __COUNTER__ };
 OBFH_DATA_JUNK(test_counter, OBFH_SECTION_ATTRIBUTE);
@@ -9,12 +10,13 @@ enum { data_counter_after = __COUNTER__ };
 #undef printf
 #undef puts
 #undef fflush
-#define DUMP_DATA(name) do { \
-    if (printf("JUNK %s %u ", #name, (unsigned int)sizeof(__obfh_data_##name)) < 0) return 6; \
-    for (unsigned int n = 0; n < sizeof(__obfh_data_##name); ++n) \
-        if (printf("%02x", (unsigned int)__obfh_data_##name[n]) < 0) return 6; \
-    if (puts("") < 0) return 6; \
-} while (0)
+#define DUMP_DATA(name)                                                                           \
+    do {                                                                                          \
+        if (printf("JUNK %s %u ", #name, (unsigned int)sizeof(__obfh_data_##name)) < 0) return 6; \
+        for (unsigned int n = 0; n < sizeof(__obfh_data_##name); ++n)                             \
+            if (printf("%02x", (unsigned int)__obfh_data_##name[n]) < 0) return 6;                \
+        if (puts("") < 0) return 6;                                                               \
+    } while (0)
 int main(void) {
     if (data_counter_after != data_counter_before + 1) return 7;
     if (_a != 'a' || sizeof(_a) != 1 || sizeof(_s_a) != 2 || _s_a[0] != 'a' || _s_a[1] != 0) return 1;
