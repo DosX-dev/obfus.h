@@ -541,36 +541,92 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
           [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops),                         \
           [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u)                                  \
         : "rax", "rcx", "rdx", "cc", "memory")
-#define OBFH_PD_DEFINE(site)                                                                                                                                                                     \
-    static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used));                                                                                                                 \
-    static void __obfh_pdata_decoy_##site(void) {                                                                                                                                                \
-        enum {                                                                                                                                                                                   \
-            __obfh_pd_kind = OBFH_PD_DRAW(site, 1u) & 15u,                                                                                                                                       \
-            __obfh_pd_frame = 48u + 16u * (OBFH_PD_DRAW(site, 2u) % 14u),                                                                                                                        \
-            __obfh_pd_slot = 8u + 8u * (OBFH_PD_DRAW(site, 3u) % 5u),                                                                                                                            \
-            __obfh_pd_key = OBFH_PD_DRAW(site, 4u),                                                                                                                                              \
-            __obfh_pd_key2 = OBFH_PD_DRAW(site, 5u),                                                                                                                                             \
-            __obfh_pd_mul = OBFH_PD_DRAW(site, 6u) | 1u,                                                                                                                                         \
-            __obfh_pd_rotate = 1u + (OBFH_PD_DRAW(site, 7u) % 31u),                                                                                                                              \
-            __obfh_pd_loops = 2u + (OBFH_PD_DRAW(site, 8u) % 6u)                                                                                                                                 \
-        };                                                                                                                                                                                       \
-        __builtin_choose_expr(__obfh_pd_kind < 8u,                                                                                                                                               \
-                              __builtin_choose_expr(__obfh_pd_kind < 4u,                                                                                                                         \
-                                                    __builtin_choose_expr(__obfh_pd_kind < 2u,                                                                                                   \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 1u, ({ OBFH_PD_ASM(OBFH_PD_BODY_0); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_1); })),    \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 3u, ({ OBFH_PD_ASM(OBFH_PD_BODY_2); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_3); }))),   \
-                                                    __builtin_choose_expr(__obfh_pd_kind < 6u,                                                                                                   \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 5u, ({ OBFH_PD_ASM(OBFH_PD_BODY_4); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_5); })),    \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 7u, ({ OBFH_PD_ASM(OBFH_PD_BODY_6); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_7); })))),  \
-                              __builtin_choose_expr(__obfh_pd_kind < 12u,                                                                                                                        \
-                                                    __builtin_choose_expr(__obfh_pd_kind < 10u,                                                                                                  \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 9u, ({ OBFH_PD_ASM(OBFH_PD_BODY_8); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_9); })),    \
-                                                                          __builtin_choose_expr(                                                                                                 \
-                                                                              __obfh_pd_kind < 11u, ({ OBFH_PD_ASM(OBFH_PD_BODY_10); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_11); }))),                  \
-                                                    __builtin_choose_expr(__obfh_pd_kind < 14u,                                                                                                  \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 13u, ({ OBFH_PD_ASM(OBFH_PD_BODY_12); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_13); })), \
-                                                                          __builtin_choose_expr(                                                                                                 \
-                                                                              __obfh_pd_kind < 15u, ({ OBFH_PD_ASM(OBFH_PD_BODY_14); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_15); })))));                \
+#if NO_CFLOW != 1
+#define OBFH_PD_LIVE_ENABLED 1
+#else
+#define OBFH_PD_LIVE_ENABLED 0
+#endif
+// Some existing native carriers also transport live CFLOW state.
+// Their prologue/epilogue stays identical; RDX/R8 supply the remaining ladder.
+// Scatter the live nodes over the existing minimum-sized pool reproducibly.
+enum {
+    __obfh_pd_live_stride = 1u + 2u * (OBFH_PD_DRAW(0u, 101u) & 7u),
+    __obfh_pd_live_shift = OBFH_PD_DRAW(0u, 102u) % 86u,
+    __obfh_pd_live_inverse = __obfh_pd_live_stride == 1u ? 1u : __obfh_pd_live_stride == 3u ? 29u
+                                                            : __obfh_pd_live_stride == 5u   ? 69u
+                                                            : __obfh_pd_live_stride == 7u   ? 37u
+                                                            : __obfh_pd_live_stride == 9u   ? 67u
+                                                            : __obfh_pd_live_stride == 11u  ? 47u
+                                                            : __obfh_pd_live_stride == 13u  ? 53u
+                                                                                            : 23u
+};
+#define OBFH_PD_LIVE_STRIDE __obfh_pd_live_stride
+#define OBFH_PD_LIVE_SHIFT __obfh_pd_live_shift
+#define OBFH_PD_LIVE_INVERSE __obfh_pd_live_inverse
+#define OBFH_PD_LIVE_SITE(node) (((unsigned int)(node)*OBFH_PD_LIVE_STRIDE + OBFH_PD_LIVE_SHIFT) % 86u)
+#define OBFH_PD_LIVE_INDEX(site) ((((unsigned int)(site) + 86u - OBFH_PD_LIVE_SHIFT) * OBFH_PD_LIVE_INVERSE) % 86u)
+#define OBFH_PD_LIVE_PRE_0 OBFH_PD_BODY_0
+#define OBFH_PD_LIVE_PRE_1 OBFH_PD_BODY_1
+#define OBFH_PD_LIVE_PRE_2 OBFH_PD_BODY_2
+#define OBFH_PD_LIVE_PRE_3 OBFH_PD_BODY_3
+#define OBFH_PD_LIVE_PRE_4 OBFH_PD_BODY_4
+#define OBFH_PD_LIVE_PRE_5 OBFH_PD_BODY_6
+#define OBFH_PD_LIVE_PRE_6 OBFH_PD_BODY_7
+#define OBFH_PD_LIVE_PRE_7 OBFH_PD_BODY_10
+#define OBFH_PD_LIVE_ASM(pre)                                                                                    \
+    __obfh_asm__(                                                                                                \
+        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame];"                               \
+        "movq %%rdx, -8(%%rbp); movq %%r8, -16(%%rbp); movl %%ecx, %%eax;" pre                                   \
+        "cmpq $0, -8(%%rbp); je 1f; movl %%eax, %%ecx; movq -16(%%rbp), %%rdx;"                                  \
+        "xorl %%r8d, %%r8d; call *-8(%%rbp); 1:"                                                                 \
+        "testl $1, %%eax; jz 2f; xorl %[even_key], %%eax; imull %[mul], %%eax; addl %[even_add], %%eax; jmp 3f;" \
+        "2: imull %[mul], %%eax; addl %[even_add], %%eax; xorl %[even_key], %%eax; 3:"                           \
+        ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;"                  \
+        :                                                                                                        \
+        : [frame] "i"(__obfh_pd_frame), [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2),                    \
+          [mul] "i"(__obfh_pd_mul), [rotate] "i"(__obfh_pd_rotate),                                              \
+          [even_key] "i"(__obfh_pd_key2 & ~1u), [even_add] "i"(__obfh_pd_key & ~1u),                             \
+          [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u)                                                   \
+        : "rax", "rcx", "rdx", "r8", "cc", "memory")
+#define OBFH_PD_LIVE_SELECT(kind)                                                                                                                                               \
+    __builtin_choose_expr((kind) < 4u,                                                                                                                                          \
+                          __builtin_choose_expr((kind) < 2u,                                                                                                                    \
+                                                __builtin_choose_expr((kind) == 0u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_0); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_1); })),  \
+                                                __builtin_choose_expr((kind) == 2u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_2); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_3); }))), \
+                          __builtin_choose_expr((kind) < 6u,                                                                                                                    \
+                                                __builtin_choose_expr((kind) == 4u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_4); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_5); })),  \
+                                                __builtin_choose_expr((kind) == 6u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_6); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_7); }))))
+#define OBFH_PD_DEFINE(site)                                                                                                                                                                                           \
+    static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used));                                                                                                                                       \
+    static void __obfh_pdata_decoy_##site(void) {                                                                                                                                                                      \
+        enum {                                                                                                                                                                                                         \
+            __obfh_pd_kind = OBFH_PD_DRAW(site, 1u) & 15u,                                                                                                                                                             \
+            __obfh_pd_frame = 48u + 16u * (OBFH_PD_DRAW(site, 2u) % 14u),                                                                                                                                              \
+            __obfh_pd_slot = 8u + 8u * (OBFH_PD_DRAW(site, 3u) % 5u),                                                                                                                                                  \
+            __obfh_pd_key = OBFH_PD_DRAW(site, 4u),                                                                                                                                                                    \
+            __obfh_pd_key2 = OBFH_PD_DRAW(site, 5u),                                                                                                                                                                   \
+            __obfh_pd_mul = OBFH_PD_DRAW(site, 6u) | 1u,                                                                                                                                                               \
+            __obfh_pd_rotate = 1u + (OBFH_PD_DRAW(site, 7u) % 31u),                                                                                                                                                    \
+            __obfh_pd_loops = 2u + (OBFH_PD_DRAW(site, 8u) % 6u)                                                                                                                                                       \
+        };                                                                                                                                                                                                             \
+        __builtin_choose_expr(OBFH_PD_LIVE_INDEX(site) < 16u && OBFH_PD_LIVE_ENABLED, OBFH_PD_LIVE_SELECT(__obfh_pd_kind & 7u),                                                                                        \
+                              __builtin_choose_expr(__obfh_pd_kind < 8u,                                                                                                                                               \
+                                                    __builtin_choose_expr(__obfh_pd_kind < 4u,                                                                                                                         \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 2u,                                                                                                   \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 1u, ({ OBFH_PD_ASM(OBFH_PD_BODY_0); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_1); })),    \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 3u, ({ OBFH_PD_ASM(OBFH_PD_BODY_2); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_3); }))),   \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 6u,                                                                                                   \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 5u, ({ OBFH_PD_ASM(OBFH_PD_BODY_4); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_5); })),    \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 7u, ({ OBFH_PD_ASM(OBFH_PD_BODY_6); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_7); })))),  \
+                                                    __builtin_choose_expr(__obfh_pd_kind < 12u,                                                                                                                        \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 10u,                                                                                                  \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 9u, ({ OBFH_PD_ASM(OBFH_PD_BODY_8); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_9); })),    \
+                                                                                                __builtin_choose_expr(                                                                                                 \
+                                                                                                    __obfh_pd_kind < 11u, ({ OBFH_PD_ASM(OBFH_PD_BODY_10); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_11); }))),                  \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 14u,                                                                                                  \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 13u, ({ OBFH_PD_ASM(OBFH_PD_BODY_12); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_13); })), \
+                                                                                                __builtin_choose_expr(                                                                                                 \
+                                                                                                    __obfh_pd_kind < 15u, ({ OBFH_PD_ASM(OBFH_PD_BODY_14); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_15); }))))));               \
     }
 OBFH_PD_DEFINE(0);
 OBFH_PD_DEFINE(1);
@@ -3075,6 +3131,81 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 
 // Guard outputs are part of local condition transport. Skipped bodies stay skipped.
 // Each expression describes EAX at label 9 in the corresponding native guard.
+// A live ladder is selected at a subset of intercepted if sites. All nodes
+// are existing x64 native carriers; disabled modes keep their previous bodies.
+#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+// The third argument becomes the next node's second argument; NULL ends a ladder.
+typedef unsigned int (*OBFH_PD_LIVE_FN)(unsigned int, void *, void *);
+#define OBFH_PD_LIVE_ADDRESS(site) ((OBFH_PD_LIVE_FN)((unsigned char *)__obfh_pdata_decoy_##site + 11))
+static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
+    OBFH_PD_LIVE_ADDRESS(0), OBFH_PD_LIVE_ADDRESS(1), OBFH_PD_LIVE_ADDRESS(2), OBFH_PD_LIVE_ADDRESS(3),
+    OBFH_PD_LIVE_ADDRESS(4), OBFH_PD_LIVE_ADDRESS(5), OBFH_PD_LIVE_ADDRESS(6), OBFH_PD_LIVE_ADDRESS(7),
+    OBFH_PD_LIVE_ADDRESS(8), OBFH_PD_LIVE_ADDRESS(9), OBFH_PD_LIVE_ADDRESS(10), OBFH_PD_LIVE_ADDRESS(11),
+    OBFH_PD_LIVE_ADDRESS(12), OBFH_PD_LIVE_ADDRESS(13), OBFH_PD_LIVE_ADDRESS(14), OBFH_PD_LIVE_ADDRESS(15),
+    OBFH_PD_LIVE_ADDRESS(16), OBFH_PD_LIVE_ADDRESS(17), OBFH_PD_LIVE_ADDRESS(18), OBFH_PD_LIVE_ADDRESS(19),
+    OBFH_PD_LIVE_ADDRESS(20), OBFH_PD_LIVE_ADDRESS(21), OBFH_PD_LIVE_ADDRESS(22), OBFH_PD_LIVE_ADDRESS(23),
+    OBFH_PD_LIVE_ADDRESS(24), OBFH_PD_LIVE_ADDRESS(25), OBFH_PD_LIVE_ADDRESS(26), OBFH_PD_LIVE_ADDRESS(27),
+    OBFH_PD_LIVE_ADDRESS(28), OBFH_PD_LIVE_ADDRESS(29), OBFH_PD_LIVE_ADDRESS(30), OBFH_PD_LIVE_ADDRESS(31),
+    OBFH_PD_LIVE_ADDRESS(32), OBFH_PD_LIVE_ADDRESS(33), OBFH_PD_LIVE_ADDRESS(34), OBFH_PD_LIVE_ADDRESS(35),
+    OBFH_PD_LIVE_ADDRESS(36), OBFH_PD_LIVE_ADDRESS(37), OBFH_PD_LIVE_ADDRESS(38), OBFH_PD_LIVE_ADDRESS(39),
+    OBFH_PD_LIVE_ADDRESS(40), OBFH_PD_LIVE_ADDRESS(41), OBFH_PD_LIVE_ADDRESS(42), OBFH_PD_LIVE_ADDRESS(43),
+    OBFH_PD_LIVE_ADDRESS(44), OBFH_PD_LIVE_ADDRESS(45), OBFH_PD_LIVE_ADDRESS(46), OBFH_PD_LIVE_ADDRESS(47),
+    OBFH_PD_LIVE_ADDRESS(48), OBFH_PD_LIVE_ADDRESS(49), OBFH_PD_LIVE_ADDRESS(50), OBFH_PD_LIVE_ADDRESS(51),
+    OBFH_PD_LIVE_ADDRESS(52), OBFH_PD_LIVE_ADDRESS(53), OBFH_PD_LIVE_ADDRESS(54), OBFH_PD_LIVE_ADDRESS(55),
+    OBFH_PD_LIVE_ADDRESS(56), OBFH_PD_LIVE_ADDRESS(57), OBFH_PD_LIVE_ADDRESS(58), OBFH_PD_LIVE_ADDRESS(59),
+    OBFH_PD_LIVE_ADDRESS(60), OBFH_PD_LIVE_ADDRESS(61), OBFH_PD_LIVE_ADDRESS(62), OBFH_PD_LIVE_ADDRESS(63),
+    OBFH_PD_LIVE_ADDRESS(64), OBFH_PD_LIVE_ADDRESS(65), OBFH_PD_LIVE_ADDRESS(66), OBFH_PD_LIVE_ADDRESS(67),
+    OBFH_PD_LIVE_ADDRESS(68), OBFH_PD_LIVE_ADDRESS(69), OBFH_PD_LIVE_ADDRESS(70), OBFH_PD_LIVE_ADDRESS(71),
+    OBFH_PD_LIVE_ADDRESS(72), OBFH_PD_LIVE_ADDRESS(73), OBFH_PD_LIVE_ADDRESS(74), OBFH_PD_LIVE_ADDRESS(75),
+    OBFH_PD_LIVE_ADDRESS(76), OBFH_PD_LIVE_ADDRESS(77), OBFH_PD_LIVE_ADDRESS(78), OBFH_PD_LIVE_ADDRESS(79),
+    OBFH_PD_LIVE_ADDRESS(80), OBFH_PD_LIVE_ADDRESS(81), OBFH_PD_LIVE_ADDRESS(82), OBFH_PD_LIVE_ADDRESS(83),
+    OBFH_PD_LIVE_ADDRESS(84), OBFH_PD_LIVE_ADDRESS(85)};
+#define OBFH_PD_LIVE_NODE(node) obfh_pd_live_entries[OBFH_PD_LIVE_SITE(node)]
+#define OBFH_PD_LIVE_PARAMETERS(stage, site)                  \
+    enum { __obfh_lkind##stage = OBFH_PD_DRAW(site, 1u) & 7u, \
+           __obfh_lkey##stage = OBFH_PD_DRAW(site, 4u),       \
+           __obfh_ladd##stage = OBFH_PD_DRAW(site, 5u),       \
+           __obfh_lmul##stage = OBFH_PD_DRAW(site, 6u) | 1u,  \
+           __obfh_lrot##stage = 1u + (OBFH_PD_DRAW(site, 7u) % 31u) }
+#define OBFH_PD_LIVE_ROL(x, n) (((unsigned int)(x) << (n)) | ((unsigned int)(x) >> (32u - (n))))
+#define OBFH_PD_LIVE_ROR(x, n) (((unsigned int)(x) >> (n)) | ((unsigned int)(x) << (32u - (n))))
+#define OBFH_PD_LIVE_SWAP(x) ((((unsigned int)(x)&255u) << 24) | (((unsigned int)(x)&65280u) << 8) | (((unsigned int)(x) >> 8) & 65280u) | ((unsigned int)(x) >> 24))
+#define OBFH_PD_LIVE_PRE(stage, x)                                                                                                                                                                                                                                \
+    (__obfh_lkind##stage == 0u ? (((unsigned int)(x) ^ __obfh_lkey##stage) * __obfh_lmul##stage + __obfh_ladd##stage) : __obfh_lkind##stage == 1u ? ((OBFH_PD_LIVE_ROL(x, __obfh_lrot##stage) ^ __obfh_lkey##stage) + __obfh_ladd##stage)                         \
+                                                                                                                    : __obfh_lkind##stage == 2u   ? (((unsigned int)(x) + __obfh_lkey##stage) ^ (((unsigned int)(x) + __obfh_lkey##stage) >> __obfh_lrot##stage)) \
+                                                                                                                    : __obfh_lkind##stage == 3u   ? ((OBFH_PD_LIVE_SWAP(x) ^ __obfh_lkey##stage) + __obfh_ladd##stage)                                            \
+                                                                                                                    : __obfh_lkind##stage == 4u   ? ((~(unsigned int)(x) + __obfh_lkey##stage) ^ __obfh_ladd##stage)                                              \
+                                                                                                                    : __obfh_lkind##stage == 5u   ? (((unsigned int)(x) ^ ((unsigned int)(x) >> 13)) * __obfh_lmul##stage)                                        \
+                                                                                                                    : __obfh_lkind##stage == 6u   ? OBFH_PD_LIVE_SWAP(OBFH_PD_LIVE_ROR(x, __obfh_lrot##stage) + __obfh_lkey##stage)                               \
+                                                                                                                                                  : (OBFH_PD_LIVE_ROL((unsigned int)(x)-__obfh_lkey##stage, __obfh_lrot##stage) ^ __obfh_ladd##stage))
+// The two post routes preserve parity, so their images remain disjoint.
+#define OBFH_PD_LIVE_POST(stage, x) \
+    (((unsigned int)(x)&1u) ? (((unsigned int)(x) ^ (__obfh_ladd##stage & ~1u)) * __obfh_lmul##stage + (__obfh_lkey##stage & ~1u)) : (((unsigned int)(x)*__obfh_lmul##stage + (__obfh_lkey##stage & ~1u)) ^ (__obfh_ladd##stage & ~1u)))
+#define OBFH_P_CHAIN(true_tag) ({                                                                                                                      \
+    enum { __obfh_lnode0 = (__obfh_flow_hash >> 3) & 15u,                                                                                              \
+           __obfh_lnode1 = (__obfh_lnode0 + (((__obfh_flow_hash >> 11) & 7u) * 2u + 1u)) & 15u,                                                        \
+           __obfh_lnode2 = (__obfh_lnode0 + 8u) & 15u,                                                                                                 \
+           __obfh_lsite0 = OBFH_PD_LIVE_SITE(__obfh_lnode0),                                                                                           \
+           __obfh_lsite1 = OBFH_PD_LIVE_SITE(__obfh_lnode1),                                                                                           \
+           __obfh_lsite2 = OBFH_PD_LIVE_SITE(__obfh_lnode2) };                                                                                         \
+    OBFH_PD_LIVE_PARAMETERS(0, __obfh_lsite0);                                                                                                         \
+    OBFH_PD_LIVE_PARAMETERS(1, __obfh_lsite1);                                                                                                         \
+    OBFH_PD_LIVE_PARAMETERS(2, __obfh_lsite2);                                                                                                         \
+    enum { __obfh_ltag0 = OBFH_PD_LIVE_PRE(0, true_tag),                                                                                               \
+           __obfh_ltag1 = OBFH_PD_LIVE_PRE(1, __obfh_ltag0),                                                                                           \
+           __obfh_ltag2 = OBFH_PD_LIVE_PRE(2, __obfh_ltag1),                                                                                           \
+           __obfh_ltag3 = OBFH_PD_LIVE_POST(2, __obfh_ltag2),                                                                                          \
+           __obfh_ltag4 = OBFH_PD_LIVE_POST(1, __obfh_ltag3),                                                                                          \
+           __obfh_ltag5 = OBFH_PD_LIVE_POST(0, __obfh_ltag4) };                                                                                        \
+    __obfh_flow_tag = __obfh_ltag5;                                                                                                                    \
+    __obfh_flow_state = obfh_pd_live_entries[__obfh_lsite0](__obfh_flow_state,                                                                         \
+                                                            (void *)obfh_pd_live_entries[__obfh_lsite1], (void *)obfh_pd_live_entries[__obfh_lsite2]); \
+    __obfh_cookie ^= (ULONG_PTR)__obfh_flow_state;                                                                                                     \
+})
+#else
+#define OBFH_P_CHAIN(true_tag) ((void)0)
+#endif
+
 #define OBFH_SF_GUARD_0_VALUE(x) ((x) * (x))
 #define OBFH_SF_GUARD_1_VALUE(x) ((x) * ((x) + 1u))
 #define OBFH_SF_GUARD_2_VALUE(x) (((x) * (x)) ^ (x))
@@ -3107,6 +3238,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #define OBFH_P_PROXY ({                                                                                                                                                             \
     enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
            __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
+    __builtin_choose_expr((__obfh_sf_variant & 3u) == 0u, OBFH_P_CHAIN(__obfh_true_tag), ((void)0));                                                                                \
     OBFH_SF_SELECT_EMIT(__obfh_sf_variant, OBFH_SF_FLOW_EMIT);                                                                                                                      \
 })
 

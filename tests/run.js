@@ -8,6 +8,7 @@ const stackProxy = require('./stack_proxy');
 const pdataDecoys = require('./pdata_decoys');
 const vmKernel = require('./vm_kernel');
 const compactAsm = require('./compact_asm');
+const cflowChain = require('./cflow_chain');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { CheckPool, workerCount } = require('./runner_pool');
 const taskContext = new AsyncLocalStorage();
@@ -449,6 +450,10 @@ async function main() {
                     await execute(await compile(compiler, directory, `${arch}-random-constants-${seed}.exe`, path.join(__dirname, 'random_constants.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'RANDOM_CONSTANTS_PASS');
             });
             if (process.argv.includes('--only-preprocessor')) continue;
+            if (process.argv.includes('--only-chain') || !process.argv.some(arg => arg.startsWith('--only-'))) {
+                await cflowChain.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                if (process.argv.includes('--only-chain')) continue;
+            }
             if (process.argv.includes('--only-vm') || !process.argv.some(arg => arg.startsWith('--only-'))) {
                 await vmKernel.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
                 if (process.argv.includes('--only-vm')) continue;
