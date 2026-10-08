@@ -22,7 +22,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
                 const stem = `${arch}-vm-kernel-${mode}-${seed}`;
                 const exe = await compile(compiler, directory, stem + '.exe', file, flags);
                 await execute(exe, 'KERNEL_PASS');
-                const errors = [3, 4, 5, 7, 2, 6, 1, 6, 6, 6, 1, 1];
+                const errors = [3, 4, 5, 7, 2, 6, 1, 6, 6, 6, 1, 1, 8, 4];
                 for (let fault = 1; fault <= errors.length; ++fault) {
                     const result = await run(exe, [String(fault)]);
                     assert((result.status >>> 0) === ((0xE0BF0000 | errors[fault - 1]) >>> 0),
@@ -43,6 +43,9 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
                 .replace('study_step(op, at);', 'study_step(op, at); if (op == OBFH_V_LOAD_B) continue;')],
             ['flags', traced.replace('unsigned int f = obfh_v_flags(&c);', 'unsigned int f = 0;')],
             ['jump', traced.replace('if (obfh_v_flags(&c) & (1u << flag))', 'if (0)')],
+            ['pair', traced.replace('obfh_v_write(&c, a, operands[1]);', '(void)operands[1];')],
+            ['copy-return', traced.replace('a = d;', 'a = (d + 1u) & 3u;')],
+            ['layout', traced.replace('field_decoders[(key >> 29) & 3u]', 'field_decoders[0]')],
         ];
         for (const [name, mutant] of mutants) {
             assert(mutant !== traced, 'VM mutation target missing: ' + name);

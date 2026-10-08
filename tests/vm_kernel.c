@@ -36,7 +36,7 @@ static long double variant_0(unsigned int operation, long double a, long double 
     };
     current_variant = 0;
     const unsigned int *p = OBFH_V_PROGRAM_0;
-    return Obfh_VirtualMachine(p, 5, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 4, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_1(unsigned int operation, long double a, long double b) {
     enum {
@@ -48,7 +48,7 @@ static long double variant_1(unsigned int operation, long double a, long double 
     };
     current_variant = 1;
     const unsigned int *p = OBFH_V_PROGRAM_1;
-    return Obfh_VirtualMachine(p, 7, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 6, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_2(unsigned int operation, long double a, long double b) {
     enum {
@@ -60,7 +60,7 @@ static long double variant_2(unsigned int operation, long double a, long double 
     };
     current_variant = 2;
     const unsigned int *p = OBFH_V_PROGRAM_2;
-    return Obfh_VirtualMachine(p, 12, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 11, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_3(unsigned int operation, long double a, long double b) {
     enum {
@@ -72,7 +72,7 @@ static long double variant_3(unsigned int operation, long double a, long double 
     };
     current_variant = 3;
     const unsigned int *p = OBFH_V_PROGRAM_3;
-    return Obfh_VirtualMachine(p, 11, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 10, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_4(unsigned int operation, long double a, long double b) {
     enum {
@@ -84,7 +84,7 @@ static long double variant_4(unsigned int operation, long double a, long double 
     };
     current_variant = 4;
     const unsigned int *p = OBFH_V_PROGRAM_4;
-    return Obfh_VirtualMachine(p, 13, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 12, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_5(unsigned int operation, long double a, long double b) {
     enum {
@@ -96,7 +96,7 @@ static long double variant_5(unsigned int operation, long double a, long double 
     };
     current_variant = 5;
     const unsigned int *p = OBFH_V_PROGRAM_5;
-    return Obfh_VirtualMachine(p, 12, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 11, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_6(unsigned int operation, long double a, long double b) {
     enum {
@@ -108,7 +108,7 @@ static long double variant_6(unsigned int operation, long double a, long double 
     };
     current_variant = 6;
     const unsigned int *p = OBFH_V_PROGRAM_6;
-    return Obfh_VirtualMachine(p, 9, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 8, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 static long double variant_7(unsigned int operation, long double a, long double b) {
     enum {
@@ -120,7 +120,7 @@ static long double variant_7(unsigned int operation, long double a, long double 
     };
     current_variant = 7;
     const unsigned int *p = OBFH_V_PROGRAM_7;
-    return Obfh_VirtualMachine(p, 16, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
+    return Obfh_VirtualMachine(p, 15, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
 #undef __obfh_voperation
 static long double (*variants[])(unsigned int, long double, long double) = {variant_0, variant_1, variant_2, variant_3,
@@ -204,6 +204,12 @@ static int failure(unsigned int mode) {
         case 12:
             len = 0;
             break;
+        case 13:
+            p[0] = OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, 0, 0, 0, 0), 0);
+            break;
+        case 14:
+            p[0] = OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_COPY_RETURN, 1, 0, 0, 0), 0);
+            break;
         default:
             return 92;
     }
@@ -215,11 +221,11 @@ static int route(unsigned int v, long double a, long double b, long double resul
 #define PC(n) expected[count++] = (n)
     switch (v) {
         case 0:
-            for (unsigned int p = 0; p < 5; ++p)
+            for (unsigned int p = 0; p < 4; ++p)
                 PC(p);
             break;
         case 1:
-            for (unsigned int p = 0; p < 7; ++p)
+            for (unsigned int p = 0; p < 6; ++p)
                 PC(p);
             break;
         case 2:
@@ -302,6 +308,12 @@ static int route(unsigned int v, long double a, long double b, long double resul
             }
     }
 #undef PC
+    if (v >= 2) {
+        unsigned int removed = v == 4 ? 5 : 1, out = 0;
+        for (unsigned int i = 0; i < count; ++i)
+            if (expected[i] != removed) expected[out++] = expected[i] > removed ? expected[i] - 1 : expected[i];
+        count = out;
+    }
     if (count != trace_count)
         return 0;
     for (unsigned int i = 0; i < count; ++i)
@@ -382,8 +394,8 @@ int main(int argc, char **argv) {
         }
     for (unsigned int v = 0; v < 8; v++)
         for (unsigned int pc = 0; pc < 16; pc++) {
-            const unsigned int lengths[] = {5, 7, 12, 11, 13, 12, 9, 16};
-            if (pc >= lengths[v] || (pc == 7 && (v == 2 || v == 3)))
+            const unsigned int lengths[] = {4, 6, 11, 10, 12, 11, 8, 15};
+            if (pc >= lengths[v] || (pc == 6 && (v == 2 || v == 3)))
                 continue;
             for (unsigned int op = 0; op < 13; ++op)
                 if (!operation_paths[v][op][pc]) {
@@ -427,6 +439,24 @@ int main(int argc, char **argv) {
         if (Obfh_VirtualMachine(program, 3, __obfh_vkey, obfh_vm_encode(0, SALT_NUM1, 0), obfh_vm_encode(0, SALT_NUM2, 0)) != 0)
             return 7;
     }
+    /* Force every physical format independently of the seeded template selection. */
+#define FORMAT_CASE(layout)                                                                    \
+    {                                                                                          \
+        enum { __obfh_vkey = 0x11223344u | ((layout) << 29) };                                 \
+        const unsigned int program[] = {                                                       \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, 0, 1, 0, 0), 0),                \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_ADD, 2, 0, 1, 0), 1),                      \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_COPY_RETURN, 3, 2, 0, 0), 2)};             \
+        trace_count = 0;                                                                       \
+        if (Obfh_VirtualMachine(program, 3, __obfh_vkey, obfh_vm_encode(-1.25L, SALT_NUM1, 1), \
+                                obfh_vm_encode(3.75L, SALT_NUM2, 1)) != 2.5L ||                \
+            trace_count != 3) return 9;                                                        \
+    }
+    FORMAT_CASE(0u);
+    FORMAT_CASE(1u);
+    FORMAT_CASE(2u);
+    FORMAT_CASE(3u);
+#undef FORMAT_CASE
     puts("KERNEL_PASS");
     return 0;
 }

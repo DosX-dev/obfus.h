@@ -314,7 +314,7 @@ async function main() {
             assert(source.includes('0x0f, 0x01, 0xf9'), 'actual RDTSCP missing');
             assert(source.includes('MEM_CLEANER__JUST_FOR_FUN'), 'working-set feature removed');
             assert(!source.includes('FARPROC fallback') && !source.includes('(FARPROC)(vprintf)'), 'native CRT fallback leaked');
-            const resolver = source.slice(source.indexOf('FARPROC obfh_crt_resolve'), source.indexOf('// printf', source.indexOf('FARPROC obfh_crt_resolve')));
+            const resolver = source.slice(source.indexOf('static FARPROC obfh_crt_lookup(const char *name) {'), source.indexOf('// printf', source.indexOf('static FARPROC obfh_crt_lookup(const char *name) {')));
             assert(resolver.includes('LoadLibraryA_proxy('), 'CRT loader chain bypassed');
             assert(source.includes('return value < (int)FALSE ? -value : value;'), 'custom abs replaced');
         });
@@ -643,7 +643,7 @@ async function main() {
                     await execute(client, 'MULTI_DLL_PASS', [dll]);
                 });
                 if (process.argv.includes('--only-platform')) continue;
-                await check(`${arch}/CRT cache concurrency, lifetime and capacity`, async () => {
+                await check(`${arch}/CRT per-site cache concurrency, lifetime and variable names`, async () => {
                     const traceRoot = path.join(directory, arch + '-cache');
                     fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
                     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
@@ -654,7 +654,7 @@ async function main() {
                     const file = path.join(traceRoot, 'tests', 'cache.c');
                     fs.copyFileSync(path.join(__dirname, 'cache.c'), file);
                     await execute(await compile(compiler, directory, arch + '-cache.exe', file, ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']), 'CACHE_PASS');
-                    const mutant = traced.replace('FARPROC cached = obfh_crt_cached(name);', 'FARPROC cached = NULL;');
+                    const mutant = traced.replace('if (i > length) {', 'if (0) {');
                     assert(mutant !== traced, 'CRT cache bypass target missing');
                     fs.writeFileSync(path.join(traceRoot, 'include', 'obfus.h'), mutant);
                     const result = await run(await compile(compiler, directory, arch + '-cache-bypass.exe', file, ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']), []);
