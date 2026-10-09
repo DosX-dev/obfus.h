@@ -7,6 +7,19 @@ const { spawnSync } = require('node:child_process');
 const begin = '// BEGIN COMPACT ASM CACHE';
 const end = '// END COMPACT ASM CACHE';
 
+// Fold only literal register indices. Captured entropy and bit selection stay intact.
+function compactRegisters(text) {
+    return text.replace(/\.short 0x89\+256\*\(0xc0\+8\*(\d+)\+(\d+)\)\+\(\((%c\[\w+\])>>(\d+)\)&1\)\*\(2\+1792\*\((\d+)-(\d+)\)\);/g,
+        (whole, src, dst, key, bit, deltaDst, deltaSrc) => {
+            if (dst !== deltaDst || src !== deltaSrc) throw new Error('MOV index mismatch');
+            return `.short ${0x89 + 256 * (0xc0 + 8 * Number(src) + Number(dst))}+((${key}>>${bit})&1)*${2 + 1792 * (dst - src)};`;
+        }).replace(/\.short 0x39\+256\*\(0xc0\+8\*(\d+)\+(\d+)\)\+\(\((%c\[\w+\])>>(\d+)\)&1\)\*1792\*\((\d+)-(\d+)\);/g,
+            (whole, src, dst, key, bit, deltaDst, deltaSrc) => {
+                if (dst !== deltaDst || src !== deltaSrc) throw new Error('CMP index mismatch');
+                return `.short ${0x39 + 256 * (0xc0 + 8 * Number(src) + Number(dst))}+((${key}>>${bit})&1)*${1792 * (dst - src)};`;
+            });
+}
+
 // Use the preprocessor to expand only the string fragments, never the runtime.
 // This developer tool is not part of building an application with obfus.h.
 function generate(source, compilers) {
@@ -17,7 +30,8 @@ function generate(source, compilers) {
         if (match[1].includes('LAYOUT')) continue;
         macros.set(match[1], match[2] ? match[2].slice(1, -1).split(',').map(value => value.trim()) : null);
     }
-    let fixture = helpers + '\n';
+    const shared = source.slice(source.indexOf('// BEGIN SHORT ASM FORMS'), source.indexOf('// END SHORT ASM FORMS'));
+    let fixture = shared + '\n' + helpers + '\n';
     let index = 0;
     for (const [name, parameters] of macros) {
         const argumentsText = parameters ? '(' + parameters.map(value => JSON.stringify('obfh_placeholder_' + value)).join(',') + ')' : '';
@@ -39,7 +53,8 @@ function generate(source, compilers) {
                 const value = values.get(index++);
                 const literals = [...value.matchAll(/"(?:[^"\\]|\\.)*"/g)].map(match => match[0]);
                 if (value.replace(/"(?:[^"\\]|\\.)*"/g, '').trim()) continue; // x64-only helper on x86
-                const literal = literals.map(text => JSON.parse(text)).join('');
+                const literal = compactRegisters(literals.map(text => JSON.parse(text)).join(''))
+                    .replace(/\s*([,;:])\s*/g, '$1');
                 const body = literal.split(/(obfh_placeholder_\w+)/).filter(Boolean).map(text => text.startsWith('obfh_placeholder_') ? text.slice('obfh_placeholder_'.length) : JSON.stringify(text)).join(' ');
                 blocks.push('#undef ' + name, '#define ' + name + (parameters ? '(' + parameters.join(', ') + ')' : '') + ' ' + body);
             }

@@ -8,12 +8,18 @@
 #define CHECK_INPUT(name, reg, index, key) \
     static int name(void) { \
         unsigned int stack, actual; \
-        __asm__ __volatile__("movl %%esp, %[stack]; " \
-                             OBFH_CFLOW_INPUT(reg, index) \
-                             "movl " reg ", %[actual];" \
+        OBFH_INPUT_CORE(in, 123u, 11u, key); \
+        OBFH_INPUT_EAX(in, 123u); \
+        OBFH_INPUT_OTHER(in, 123u, 1); \
+        OBFH_INPUT_OTHER(in, 123u, 2); \
+        __asm__ __volatile__("movl %%esp, %[stack]; " OBFH_CFLOW_INPUT(reg, index) "movl " reg ", %[actual];" \
                              : [stack] "=m"(stack), [actual] "=m"(actual) \
                              : [junk_key] "i"(key), \
-                               [junk_salt] "i"(123), [junk_rotate] "i"(11) \
+                               [junk_salt] "i"(123), [junk_rotate] "i"(11), \
+                               [i0a] "i"(in_0a), [i0b] "i"(in_0b), \
+                               [i1a] "i"(in_1a), [i1b] "i"(in_1b), \
+                               [i2a] "i"(in_2a), [i2b] "i"(in_2b), \
+                               [it] "i"(in_o ? (unsigned)in_x >> 24 : (unsigned)in_r >> 16) \
                              : "eax", "ecx", "edx", "cc"); \
         unsigned int value = stack ^ 123u; \
         return actual == ((value << 11) | (value >> 21)); \

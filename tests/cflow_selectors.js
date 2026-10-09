@@ -10,13 +10,13 @@ function fixture(header) {
     const cases = [];
     for (let shift = 0; shift < 4; ++shift) {
         const seen = new Set();
-        for (let n = 0; seen.size < 72 && n < 100000; ++n) {
+        for (let n = 0; seen.size < 144 && n < 100000; ++n) {
             let hash = Math.imul(n + 1, 0x9e3779b9) >>> 0;
             hash = (hash ^ (hash >>> 16)) >>> 0;
             const polarity = (hash >>> (shift + 20)) & 1;
             const form = [(hash >>> (shift + 22)) % 3, (hash >>> (shift + 26)) % 3,
-                (hash >>> (shift + 25)) & 1, polarity,
-                (hash >>> (shift + 6)) & 1].join('/');
+            (hash >>> (shift + 25)) & 1, polarity,
+            (hash >>> (shift + 6)) & 1, (hash >>> 15) & 1].join('/');
             if (seen.has(form)) continue;
             seen.add(form);
             for (const kind of ['MASK', 'TABLE']) {
@@ -28,7 +28,7 @@ function fixture(header) {
                 cases.push({ id, shift, polarity });
             }
         }
-        if (seen.size !== 72) throw new Error('Missing selector combination');
+        if (seen.size !== 144) throw new Error('Missing selector combination');
     }
     code += 'int main(void) { unsigned values[]={0,1,2,0x7fffffffu,0x80000000u,0xffffffffu};\n';
     for (const { id, shift, polarity } of cases) {
