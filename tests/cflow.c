@@ -31,29 +31,66 @@ void obfh_test_flow_exit(unsigned int style, unsigned int before_state, unsigned
 static unsigned rotate(unsigned x, unsigned r) { return (x << r) | (x >> (32 - r)); }
 static void reference(unsigned *x, unsigned *y, unsigned style, unsigned k, unsigned m, unsigned a, unsigned r,
                       unsigned donor, unsigned donor_style, unsigned donor_mul, unsigned donor_add, unsigned donor_rot) {
-    static const unsigned unary[4][2]={{0,3},{2,1},{1,0},{3,2}};
-    unsigned remaining[4]={0,1,2,3}, order[4], rank=(k>>8)%12u, count=4;
-    for(unsigned i=0;i<4;++i) {
-        unsigned divisor = i==0 ? 6 : i==1 ? 2 : 1;
-        unsigned pick=rank/divisor; rank%=divisor;
-        unsigned token=remaining[pick];
-        order[i]=token<2 ? unary[style][token] : token+2;
-        for(unsigned j=pick;j+1<count;++j)remaining[j]=remaining[j+1];
+    static const unsigned unary[4][2] = {{0, 3}, {2, 1}, {1, 0}, {3, 2}};
+    unsigned remaining[4] = {0, 1, 2, 3}, order[4], rank = (k >> 8) % 12u, count = 4;
+    for (unsigned i = 0; i < 4; ++i) {
+        unsigned divisor = i == 0 ? 6 : i == 1 ? 2
+                                               : 1;
+        unsigned pick = rank / divisor;
+        rank %= divisor;
+        unsigned token = remaining[pick];
+        order[i] = token < 2 ? unary[style][token] : token + 2;
+        for (unsigned j = pick; j + 1 < count; ++j) remaining[j] = remaining[j + 1];
         --count;
     }
-    for(unsigned i=0;i<4;++i) {
-        unsigned op=i==0 ? unary[donor_style][(donor>>8)%12u/6u] : order[i];
-        if(op>=4) {
-            unsigned *target=((op==4) ^ !!(k & (1u<<19))) ? y : x;
-            unsigned *other=target==x ? y : x;
-            if(k & (1u<<(16+op))) { *target+=2u*(*other); *other*=3u; }
-            else *target=2u*(*other)-*target;
+    for (unsigned i = 0; i < 4; ++i) {
+        unsigned op = i == 0 ? unary[donor_style][(donor >> 8) % 12u / 6u] : order[i];
+        if (op >= 4) {
+            unsigned *target = ((op == 4) ^ !!(k & (1u << 19))) ? y : x;
+            unsigned *other = target == x ? y : x;
+            unsigned form = 0;
+#ifdef OBFH_TEST_COUPLED_PRIMITIVES
+            form = (k >> (22 + 2 * (op - 4))) & 3u;
+#endif
+            if (form) {
+                unsigned variant = (k >> (26 + op - 4)) & 1u, combine = (k >> (28 + op - 4)) & 1u;
+                if (form == 1 || (form == 3 && variant))
+                    *target ^= *other;
+                else
+                    *target -= *other;
+                if (form == 3)
+                    *other ^= *target;
+                else if (variant)
+                    *other -= *target;
+                else
+                    *other += *target;
+                if ((form == 1) ^ combine)
+                    *target ^= *other;
+                else
+                    *target += *other;
+            } else if (k & (1u << (16 + op))) {
+                *target += 2u * (*other);
+                *other *= 3u;
+            } else
+                *target = 2u * (*other) - *target;
         } else {
-            switch(op) {
-            case 0: *x^=(i==0?donor:k); *y^=(i==0?donor:k); break;
-            case 1: *x*=(i==0?donor_mul:m); *y*=(i==0?donor_mul:m); break;
-            case 2: *x+=(i==0?donor_add:a); *y+=(i==0?donor_add:a); break;
-            case 3: *x=rotate(*x,i==0?donor_rot:r); *y=rotate(*y,i==0?donor_rot:r); break;
+            switch (op) {
+                case 0:
+                    *x ^= (i == 0 ? donor : k);
+                    *y ^= (i == 0 ? donor : k);
+                    break;
+                case 1:
+                    *x *= (i == 0 ? donor_mul : m);
+                    *y *= (i == 0 ? donor_mul : m);
+                    break;
+                case 2:
+                    *x += (i == 0 ? donor_add : a);
+                    *y += (i == 0 ? donor_add : a);
+                    break;
+                case 3:
+                    *x = rotate(*x, i == 0 ? donor_rot : r);
+                    *y = rotate(*y, i == 0 ? donor_rot : r);
+                    break;
             }
         }
     }
@@ -71,9 +108,9 @@ void obfh_test_flow_stage(unsigned int layout, unsigned int stage, unsigned int 
         return;
     }
 
-    unsigned x=before_state,y=before_tag;
-    reference(&x,&y,style,key,mul,add,rotate,donor,donor_style,donor_mul,donor_add,donor_rot);
-    if(x!=after_state || y!=after_tag || (before_state==before_tag)!=(after_state==after_tag))
+    unsigned x = before_state, y = before_tag;
+    reference(&x, &y, style, key, mul, add, rotate, donor, donor_style, donor_mul, donor_add, donor_rot);
+    if (x != after_state || y != after_tag || (before_state == before_tag) != (after_state == after_tag))
         InterlockedIncrement(&stage_errors);
     InterlockedIncrement(&stage_routes[layout][stage][branch]);
 }

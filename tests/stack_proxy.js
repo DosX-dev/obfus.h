@@ -68,14 +68,14 @@ int main(void) {
 `;
 }
 function measure(stdout, seed, assert) {
-    const rows = [...stdout.matchAll(/^PROXY (\d+) (\d+) (\d+) (\d+)\r?$/gm)].map(m => m.slice(1).map(Number));
+    const rows = [...stdout.matchAll(/^PROXY (\d+) (\d+) (\d+) (\d+)\r?$/gm)].map((m) => m.slice(1).map(Number));
     assert(rows.length === count, 'proxy trace incomplete');
     const histogram = Array(variantCount).fill(0);
     rows.forEach(([site, id, variant, line], index) => {
         let value = (id ^ seed ^ line ^ 0x53504631) >>> 0;
         value = Math.imul(value ^ (value >>> 16), 2246822507) >>> 0;
         value = Math.imul(value ^ (value >>> 13), 3266489909) >>> 0;
-        assert(site === index && variant === (value % variantCount), 'proxy selector disagrees with uint32 reference');
+        assert(site === index && variant === value % variantCount, 'proxy selector disagrees with uint32 reference');
         histogram[variant]++;
     });
     return { histogram, rows };

@@ -19,7 +19,7 @@
                                [i0a] "i"(in_0a), [i0b] "i"(in_0b), \
                                [i1a] "i"(in_1a), [i1b] "i"(in_1b), \
                                [i2a] "i"(in_2a), [i2b] "i"(in_2b), \
-                               [it] "i"(in_o ? (unsigned)in_x >> 24 : (unsigned)in_r >> 16) \
+                               [it] "i"(in_o ? (unsigned)in_x >> 24 : (unsigned)in_r >> 16), [il] "i"(in_n) \
                              : "eax", "ecx", "edx", "cc"); \
         unsigned int value = stack ^ 123u; \
         return actual == ((value << 11) | (value >> 21)); \

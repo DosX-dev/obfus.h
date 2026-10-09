@@ -45,18 +45,28 @@ int main(void) {
 }
 
 function measurements(stdout, seed, assert) {
-    const rows = [...stdout.matchAll(/^SITE (\d+) (\d+) (\d+)\r?$/gm)].map(m => m.slice(1).map(Number));
+    const rows = [...stdout.matchAll(/^SITE (\d+) (\d+) (\d+)\r?$/gm)].map((m) => m.slice(1).map(Number));
     assert(rows.length === siteCount, 'public selector output is incomplete');
     const histogram = Array(128).fill(0);
-    let repeats = 0, heavyCount = 0;
+    let repeats = 0,
+        heavyCount = 0;
     rows.forEach(([site, counter, index], i) => {
-        assert(site === i && index === expectedIndex(counter, seed), 'public selector differs from uint32 reference at site ' + i);
+        assert(
+            site === i && index === expectedIndex(counter, seed),
+            'public selector differs from uint32 reference at site ' + i
+        );
         assert(i === 0 || counter > rows[i - 1][1], 'counter was not captured independently for each call');
         histogram[index]++;
         if (heavy.has(index)) heavyCount++;
         if (i && index === rows[i - 1][2]) repeats++;
     });
-    return { rows, histogram, distinctTemplates: histogram.filter(Boolean).length, adjacentRepeats: repeats, heavyCount };
+    return {
+        rows,
+        histogram,
+        distinctTemplates: histogram.filter(Boolean).length,
+        adjacentRepeats: repeats,
+        heavyCount
+    };
 }
 
 function extraIndex(index) {

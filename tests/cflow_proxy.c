@@ -18,17 +18,27 @@
                                      : \
                                      : "memory")
 #endif
+#ifdef OBFH_SF_FLOW_COMMIT
+#define PROXY_DECLARE_COMMIT unsigned int __obfh_live_actual, __obfh_live_expected, __obfh_live_input;
+#define PROXY_COMMIT OBFH_SF_FLOW_COMMIT
+#else
+#define PROXY_DECLARE_COMMIT
+#define PROXY_COMMIT ((void)0)
+#endif
 #define DEFINE_PROXY(index) \
     static int proxy_##index(unsigned int value, unsigned int truth) { \
-        unsigned int __obfh_flow_hash = 0x6c89d137u; \
+        enum { __obfh_flow_hash = 0x6c89d137u }; \
         unsigned int __obfh_flow_state = value, __obfh_flow_tag = truth ? value : value ^ 0x13579bdfu; \
         ULONG_PTR __obfh_cookie = (ULONG_PTR)&value ^ value; \
         ULONG_PTR before, after; \
         unsigned long long live = ((unsigned long long)value << 32) | ~value; \
         SP(before); \
         { \
+            PROXY_DECLARE_COMMIT \
             OBFH_SF_CAPTURE; \
+            OBFH_SF_FLOW_PREPARE; \
             OBFH_SF_SPEC_##index(OBFH_SF_FLOW_EMIT); \
+            PROXY_COMMIT; \
         } \
         SP(after); \
         return before != after || (unsigned int)(__obfh_flow_state == __obfh_flow_tag) != truth || \

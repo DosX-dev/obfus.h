@@ -45,29 +45,29 @@ CARRIER(leaf_i, OBFH_SF_LEAF_I)
 CARRIER(leaf_j, OBFH_SF_LEAF_J)
 CARRIER(leaf_k, OBFH_SF_LEAF_K)
 CARRIER(leaf_l, OBFH_SF_LEAF_L)
-CARRIER(frame_a, OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_EPILOGUE)
-CARRIER(frame_b, OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE_ALT)
-CARRIER(frame_c, OBFH_SF_FRAME_ALT("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
-CARRIER(frame_d, OBFH_SF_FRAME_ALT("sf_frame_d") OBFH_SF_BODY_D OBFH_SF_EPILOGUE_ALT)
+CARRIER(frame_a, OBFH_SF_FRAME("__obfh_sf_frame_a") OBFH_SF_BODY_A OBFH_SF_EPILOGUE)
+CARRIER(frame_b, OBFH_SF_FRAME("__obfh_sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE_ALT)
+CARRIER(frame_c, OBFH_SF_FRAME_ALT("__obfh_sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
+CARRIER(frame_d, OBFH_SF_FRAME_ALT("__obfh_sf_frame_d") OBFH_SF_BODY_D OBFH_SF_EPILOGUE_ALT)
 CARRIER(link_chain,
-        OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "0") OBFH_SF_EPILOGUE
-        "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_CALL_AT("3f", "1") OBFH_SF_EPILOGUE_ALT
-        "3:" OBFH_SF_FRAME_ALT("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
+        OBFH_SF_FRAME("__obfh_sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "0") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME("__obfh_sf_frame_b") OBFH_SF_BODY_B OBFH_SF_CALL_AT("3f", "1") OBFH_SF_EPILOGUE_ALT
+        "3:" OBFH_SF_FRAME_ALT("__obfh_sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
 CARRIER(link_shared,
-        OBFH_SF_FRAME_ALT("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "0") OBFH_SF_CALL_AT("3f", "1") OBFH_SF_EPILOGUE
-        "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_CALL_AT("3f", "2") OBFH_SF_EPILOGUE
-        "3:" OBFH_SF_FRAME("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE_ALT)
+        OBFH_SF_FRAME_ALT("__obfh_sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "0") OBFH_SF_CALL_AT("3f", "1") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME("__obfh_sf_frame_b") OBFH_SF_BODY_B OBFH_SF_CALL_AT("3f", "2") OBFH_SF_EPILOGUE
+        "3:" OBFH_SF_FRAME("__obfh_sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE_ALT)
 CARRIER(link_tail,
-        OBFH_SF_FRAME("sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "3") OBFH_SF_EPILOGUE
-        "2:" OBFH_SF_FRAME_ALT("sf_frame_b") OBFH_SF_BODY_B
+        OBFH_SF_FRAME("__obfh_sf_frame_a") OBFH_SF_BODY_A OBFH_SF_CALL_AT("2f", "3") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME_ALT("__obfh_sf_frame_b") OBFH_SF_BODY_B
         "leave; jmp 3f;"
-        "3:" OBFH_SF_FRAME("sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
+        "3:" OBFH_SF_FRAME("__obfh_sf_frame_c") OBFH_SF_BODY_C OBFH_SF_EPILOGUE)
 CARRIER(link_gate,
-        OBFH_SF_FRAME("sf_frame_a") OBFH_SF_ARGS OBFH_SF_CALL_AT("2f", "4") OBFH_SF_EPILOGUE
-        "2:" OBFH_SF_FRAME("sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE)
+        OBFH_SF_FRAME("__obfh_sf_frame_a") OBFH_SF_ARGS OBFH_SF_CALL_AT("2f", "4") OBFH_SF_EPILOGUE
+        "2:" OBFH_SF_FRAME("__obfh_sf_frame_b") OBFH_SF_BODY_B OBFH_SF_EPILOGUE)
 
 CARRIER(link_eight,
-        OBFH_SF_FRAME("sf_frame_c")
+        OBFH_SF_FRAME("__obfh_sf_frame_c")
             OBFH_SF_LAYOUT_28(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_B))
 
 int main(void) {

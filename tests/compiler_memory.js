@@ -134,11 +134,16 @@ function quoteArgument(value) {
 function run(executable, args, stdin = 'ignore') {
     return new Promise((resolve, reject) => {
         const child = spawn(executable, args, { windowsHide: true, stdio: [stdin, 'pipe', 'pipe'] });
-        let stdout = '', stderr = '';
+        let stdout = '',
+            stderr = '';
         child.stdout.setEncoding('utf8');
         child.stderr.setEncoding('utf8');
-        child.stdout.on('data', data => { stdout += data; });
-        child.stderr.on('data', data => { stderr += data; });
+        child.stdout.on('data', (data) => {
+            stdout += data;
+        });
+        child.stderr.on('data', (data) => {
+            stderr += data;
+        });
         child.once('error', reject);
         child.once('close', (code, signal) => {
             if (code !== 0) reject(new Error(`${path.basename(executable)} failed (${code ?? signal}): ${stderr}`));
@@ -152,27 +157,47 @@ function readErrors(file) {
     try {
         const buffer = Buffer.alloc(1024 * 1024);
         return buffer.subarray(0, fs.readSync(fd, buffer, 0, buffer.length, 0)).toString('utf8');
-    } finally { fs.closeSync(fd); }
+    } finally {
+        fs.closeSync(fd);
+    }
 }
 
 async function profile(command, stdoutPath = null, limitMib = null, { compiler = command?.[0] } = {}) {
     if (process.platform !== 'win32') throw new Error('Windows process counters are required.');
-    if (!Array.isArray(command) || command.length === 0 || command.some(value => typeof value !== 'string' || value.includes('\0')))
+    if (
+        !Array.isArray(command) ||
+        command.length === 0 ||
+        command.some((value) => typeof value !== 'string' || value.includes('\0'))
+    )
         throw new Error('A nonempty compiler command of strings is required.');
     if (typeof compiler !== 'string' || !compiler || compiler.includes('\0'))
         throw new Error('A TCC compiler is required to build the native monitor.');
-    if (limitMib !== null && (!Number.isSafeInteger(limitMib) || limitMib <= 0 || !Number.isSafeInteger(limitMib * 1024 * 1024)))
+    if (
+        limitMib !== null &&
+        (!Number.isSafeInteger(limitMib) || limitMib <= 0 || !Number.isSafeInteger(limitMib * 1024 * 1024))
+    )
         throw new Error('Memory limit must be a positive integer in MiB.');
     const tempRoot = path.resolve(os.tmpdir());
     const directory = fs.mkdtempSync(path.join(tempRoot, 'obfh-memory-'));
     try {
-        const source = path.join(directory, 'monitor.c'), monitor = path.join(directory, 'monitor.exe');
+        const source = path.join(directory, 'monitor.c'),
+            monitor = path.join(directory, 'monitor.exe');
         const errors = path.join(directory, 'stderr.log');
         const output = stdoutPath === null ? path.join(directory, 'stdout.log') : path.resolve(stdoutPath);
         fs.writeFileSync(source, monitorSource);
         await run(compiler, ['-w', source, '-o', monitor, '-lpsapi', '-lshell32']);
-        const metrics = JSON.parse(await run(monitor, [command.map(quoteArgument).join(' '), output, errors,
-        String(limitMib === null ? 0 : limitMib * 1024 * 1024)], 'inherit'));
+        const metrics = JSON.parse(
+            await run(
+                monitor,
+                [
+                    command.map(quoteArgument).join(' '),
+                    output,
+                    errors,
+                    String(limitMib === null ? 0 : limitMib * 1024 * 1024)
+                ],
+                'inherit'
+            )
+        );
         return { command: [...command], ...metrics, limit_mib: limitMib, stderr: readErrors(errors) };
     } finally {
         // Delete only the exact directory owned by this invocation.
@@ -184,14 +209,19 @@ async function profile(command, stdoutPath = null, limitMib = null, { compiler =
 }
 
 async function main(args) {
-    let stdoutPath = null, jsonPath = null, limitMib = null, index = 0;
+    let stdoutPath = null,
+        jsonPath = null,
+        limitMib = null,
+        index = 0;
     const usage = 'node tests/compiler_memory.js [--stdout file] [--json file] [--limit-mib N] -- tcc.exe [arguments]';
     while (index < args.length && args[index].startsWith('--')) {
         const flag = args[index++];
         if (flag === '--') break;
-        if (flag === '--help') { console.log(usage); return; }
-        if (!['--stdout', '--json', '--limit-mib'].includes(flag) || index === args.length)
-            throw new Error(usage);
+        if (flag === '--help') {
+            console.log(usage);
+            return;
+        }
+        if (!['--stdout', '--json', '--limit-mib'].includes(flag) || index === args.length) throw new Error(usage);
         const value = args[index++];
         if (flag === '--stdout') stdoutPath = value;
         if (flag === '--json') jsonPath = value;
@@ -205,7 +235,8 @@ async function main(args) {
 }
 
 module.exports = { profile };
-if (require.main === module) main(process.argv.slice(2)).catch(error => {
-    console.error(error.message);
-    process.exitCode = 1;
-});
+if (require.main === module)
+    main(process.argv.slice(2)).catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
