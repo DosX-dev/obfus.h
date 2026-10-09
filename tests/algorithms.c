@@ -4,12 +4,12 @@
 #include <windows.h>
 
 #include "../include/obfus.h"
-#define CHECK(x)                                                      \
-    do {                                                              \
-        if (!(x)) {                                                   \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "algorithm failure line %d\n", __LINE__); \
-            return 1;                                                 \
-        }                                                             \
+            return 1; \
+        } \
     } while (0)
 static int fib(int n) {
     if (n <= 2)

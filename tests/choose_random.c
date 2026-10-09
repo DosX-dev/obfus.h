@@ -9,21 +9,21 @@
 #undef fflush
 
 // Exactly one RND expansion: the counter immediately follows 'before'.
-#define DIRECT(n)                                                                                       \
-    do {                                                                                                \
-        enum { before = __COUNTER__,                                                                    \
-               line = __LINE__ };                                                                       \
-        int chosen = __builtin_choose_expr(RND(0, 7) < 4, 17, 31);                                      \
+#define DIRECT(n) \
+    do { \
+        enum { before = __COUNTER__, \
+               line = __LINE__ }; \
+        int chosen = __builtin_choose_expr(RND(0, 7) < 4, 17, 31); \
         unsigned int value = ((before + 1u + line + (unsigned int)OBFH_BUILD_SEED) * 2654435761u) % 8u; \
-        if (chosen != (value < 4 ? 17 : 31)) return n + 1;                                              \
-        seen |= chosen == 17 ? 1 : 2;                                                                   \
-        if (printf("DIRECT %d %u %d\n", n, value, chosen) < 0) return 90;                               \
+        if (chosen != (value < 4 ? 17 : 31)) return n + 1; \
+        seen |= chosen == 17 ? 1 : 2; \
+        if (printf("DIRECT %d %u %d\n", n, value, chosen) < 0) return 90; \
     } while (0)
-#define CAPTURED(n)                                                         \
-    do {                                                                    \
-        enum { value = RND(0, 7) };                                         \
-        int chosen = __builtin_choose_expr(value < 4, 17, 31);              \
-        if (chosen != (value < 4 ? 17 : 31)) return n + 40;                 \
+#define CAPTURED(n) \
+    do { \
+        enum { value = RND(0, 7) }; \
+        int chosen = __builtin_choose_expr(value < 4, 17, 31); \
+        if (chosen != (value < 4 ? 17 : 31)) return n + 40; \
         if (printf("CAPTURED %d %u %d\n", n, value, chosen) < 0) return 91; \
     } while (0)
 int main(void) {

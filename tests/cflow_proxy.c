@@ -9,30 +9,30 @@
 #undef break
 #if defined(__x86_64__)
 #define SP(out) __asm__ __volatile__("movq %%rsp, %0" \
-                                     : "=r"(out)      \
-                                     :                \
+                                     : "=r"(out) \
+                                     : \
                                      : "memory")
 #else
 #define SP(out) __asm__ __volatile__("movl %%esp, %0" \
-                                     : "=r"(out)      \
-                                     :                \
+                                     : "=r"(out) \
+                                     : \
                                      : "memory")
 #endif
-#define DEFINE_PROXY(index)                                                                            \
-    static int proxy_##index(unsigned int value, unsigned int truth) {                                 \
-        unsigned int __obfh_flow_hash = 0x6c89d137u;                                                   \
+#define DEFINE_PROXY(index) \
+    static int proxy_##index(unsigned int value, unsigned int truth) { \
+        unsigned int __obfh_flow_hash = 0x6c89d137u; \
         unsigned int __obfh_flow_state = value, __obfh_flow_tag = truth ? value : value ^ 0x13579bdfu; \
-        ULONG_PTR __obfh_cookie = (ULONG_PTR)&value ^ value;                                           \
-        ULONG_PTR before, after;                                                                       \
-        unsigned long long live = ((unsigned long long)value << 32) | ~value;                          \
-        SP(before);                                                                                    \
-        {                                                                                              \
-            OBFH_SF_CAPTURE;                                                                           \
-            OBFH_SF_SPEC_##index(OBFH_SF_FLOW_EMIT);                                                   \
-        }                                                                                              \
-        SP(after);                                                                                     \
-        return before != after || (unsigned int)(__obfh_flow_state == __obfh_flow_tag) != truth ||     \
-               live != (((unsigned long long)value << 32) | ~value);                                   \
+        ULONG_PTR __obfh_cookie = (ULONG_PTR)&value ^ value; \
+        ULONG_PTR before, after; \
+        unsigned long long live = ((unsigned long long)value << 32) | ~value; \
+        SP(before); \
+        { \
+            OBFH_SF_CAPTURE; \
+            OBFH_SF_SPEC_##index(OBFH_SF_FLOW_EMIT); \
+        } \
+        SP(after); \
+        return before != after || (unsigned int)(__obfh_flow_state == __obfh_flow_tag) != truth || \
+               live != (((unsigned long long)value << 32) | ~value); \
     }
 
 DEFINE_PROXY(0)

@@ -9,6 +9,7 @@ const pdataDecoys = require('./pdata_decoys');
 const vmKernel = require('./vm_kernel');
 const compactAsm = require('./compact_asm');
 const cflowChain = require('./cflow_chain');
+const cflowWeave = require('./cflow_weave');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { CheckPool, workerCount } = require('./runner_pool');
 const taskContext = new AsyncLocalStorage();
@@ -438,6 +439,20 @@ async function main() {
             }
             if (selectedArch && selectedArch !== arch) continue;
             console.log(`${arch}: ${(await run(compiler, ['-v'])).stdout.trim()}`);
+            await check(`${arch}/CFLOW equal-width input encodings`, async () => {
+                await execute(await compile(compiler, directory, `${arch}-cflow-encoding.exe`, path.join(__dirname, 'cflow_encoding.c'), ['NO_CFLOW=1', 'NO_ANTIDEBUG=1']), 'CFLOW_ENCODING_PASS');
+            });
+            await cflowWeave.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+            await check(`${arch}/return interception and dangling else`, async () => {
+                for (const flags of [[], ['CFLOW_V2=1'], ['NO_CFLOW=1'], ['NO_OBF=1']])
+                    await execute(await compile(compiler, directory, `${arch}-returns-${flags.join('-') || 'default'}.exe`, path.join(__dirname, 'returns.c'), ['NO_ANTIDEBUG=1', ...flags]), 'RETURN_PASS');
+                await execute(await compile(compiler, directory, `${arch}-returns-editor.exe`, path.join(__dirname, 'returns.c'), ['__INTELLISENSE__=1'], ['-U__TINYC__']), 'RETURN_PASS');
+            });
+            await check(`${arch}/false else guard transport/all seeds`, async () => {
+                for (const seed of [0, 1, 2, 0xDEADBEEF, 0xFFFFFFFF])
+                    for (const flags of [[], ['CFLOW_V2=1'], ['NO_PDATA_DECOYS=1']])
+                        await execute(await compile(compiler, directory, `${arch}-else-guard-${seed}-${flags.join('-') || 'default'}.exe`, path.join(__dirname, 'else_guard.c'), ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`, ...flags]), 'ELSE_GUARD_PASS');
+            });
             await check(`${arch}/IntelliSense interface and real compiler isolation`, async () => {
                 const file = path.join(__dirname, 'editor_view.c');
                 await execute(await compile(compiler, directory, `${arch}-editor-view.exe`, file, ['__INTELLISENSE__=1', 'EXPECT_EDITOR=1'], ['-U__TINYC__']), 'EDITOR_VIEW_PASS');

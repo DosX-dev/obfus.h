@@ -5,12 +5,12 @@
 #include <windows.h>
 
 #include "../include/obfus.h"
-#define CHECK(x)                                           \
-    do {                                                   \
-        if (!(x)) {                                        \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "failed line %d\n", __LINE__); \
-            return 1;                                      \
-        }                                                  \
+            return 1; \
+        } \
     } while (0)
 DWORD WINAPI worker(void *p) { return *(DWORD *)p; }
 int main(void) {

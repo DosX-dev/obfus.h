@@ -45,12 +45,15 @@ int main(int argc,char **argv){
     for(i=0;i<count;i++){
         unsigned char *fn=(unsigned char *)carriers[i]+11;DWORD64 image=0,est=0;PVOID data=NULL;
         PRUNTIME_FUNCTION entry=lookup((DWORD64)(uintptr_t)fn,&image,NULL);
-        unsigned frame,span;int offsets[7];
+        unsigned frame,span,epilogue;int offsets[7];
         if(!entry||image+entry->BeginAddress!=(DWORD64)(uintptr_t)fn)return 85;
         if(fn[0]!=0x55||fn[1]!=0x48||fn[2]!=0x89||fn[3]!=0xE5||fn[4]!=0x48||fn[5]!=0x81||fn[6]!=0xEC)return 86;
         frame=*(unsigned *)(fn+7);span=(unsigned)(image+entry->EndAddress-(DWORD64)(uintptr_t)fn);
-        if(span<24||fn[span-11]!=0x48||fn[span-10]!=0x81||fn[span-9]!=0xC4||*(unsigned *)(fn+span-8)!=frame||fn[span-4]!=0x5D||fn[span-3]!=0xC3)return 87;
-        offsets[0]=0;offsets[1]=1;offsets[2]=4;offsets[3]=11;offsets[4]=span-11;offsets[5]=span-4;offsets[6]=span-3;
+        /* A shared epilogue may precede another reachable body in the same range. */
+        for(epilogue=11;epilogue+9<=span;epilogue++)
+            if(fn[epilogue]==0x48&&fn[epilogue+1]==0x81&&fn[epilogue+2]==0xC4&&*(unsigned *)(fn+epilogue+3)==frame&&fn[epilogue+7]==0x5D&&fn[epilogue+8]==0xC3)break;
+        if(span<24||epilogue+9>span)return 87;
+        offsets[0]=0;offsets[1]=1;offsets[2]=4;offsets[3]=11;offsets[4]=epilogue;offsets[5]=epilogue+7;offsets[6]=epilogue+8;
         for(k=0;k<7;k++){
             CONTEXT c;unsigned char *blob=(unsigned char *)&c;unsigned z;
             for(z=0;z<sizeof(c);z++)blob[z]=0;

@@ -28,133 +28,151 @@ void obfh_test_flow_exit(unsigned int style, unsigned int before_state, unsigned
     }
     InterlockedIncrement(&exit_routes[style][after_state]);
 }
-static unsigned int stage_reference(unsigned int v, unsigned int k, unsigned int m, unsigned int a, unsigned int r, unsigned int style) {
-    if (style == 0) {
-        v = (v ^ k) * m + a;
-        return (v << r) | (v >> (32u - r));
+static unsigned rotate(unsigned x, unsigned r) { return (x << r) | (x >> (32 - r)); }
+static void reference(unsigned *x, unsigned *y, unsigned style, unsigned k, unsigned m, unsigned a, unsigned r,
+                      unsigned donor, unsigned donor_style, unsigned donor_mul, unsigned donor_add, unsigned donor_rot) {
+    static const unsigned unary[4][2]={{0,3},{2,1},{1,0},{3,2}};
+    unsigned remaining[4]={0,1,2,3}, order[4], rank=(k>>8)%12u, count=4;
+    for(unsigned i=0;i<4;++i) {
+        unsigned divisor = i==0 ? 6 : i==1 ? 2 : 1;
+        unsigned pick=rank/divisor; rank%=divisor;
+        unsigned token=remaining[pick];
+        order[i]=token<2 ? unary[style][token] : token+2;
+        for(unsigned j=pick;j+1<count;++j)remaining[j]=remaining[j+1];
+        --count;
     }
-    if (style == 1) {
-        v += a;
-        v = (v << r) | (v >> (32u - r));
-        return (v ^ k) * m;
+    for(unsigned i=0;i<4;++i) {
+        unsigned op=i==0 ? unary[donor_style][(donor>>8)%12u/6u] : order[i];
+        if(op>=4) {
+            unsigned *target=((op==4) ^ !!(k & (1u<<19))) ? y : x;
+            unsigned *other=target==x ? y : x;
+            if(k & (1u<<(16+op))) { *target+=2u*(*other); *other*=3u; }
+            else *target=2u*(*other)-*target;
+        } else {
+            switch(op) {
+            case 0: *x^=(i==0?donor:k); *y^=(i==0?donor:k); break;
+            case 1: *x*=(i==0?donor_mul:m); *y*=(i==0?donor_mul:m); break;
+            case 2: *x+=(i==0?donor_add:a); *y+=(i==0?donor_add:a); break;
+            case 3: *x=rotate(*x,i==0?donor_rot:r); *y=rotate(*y,i==0?donor_rot:r); break;
+            }
+        }
     }
-    if (style == 2) {
-        v = v * m ^ k;
-        return ((v >> r) | (v << (32u - r))) - a;
-    }
-    v = (v << r) | (v >> (32u - r));
-    return (v ^ k) * m - a;
 }
 void obfh_test_flow_stage(unsigned int layout, unsigned int stage, unsigned int branch,
                           unsigned int before_state, unsigned int before_tag,
                           unsigned int after_state, unsigned int after_tag,
                           unsigned int key, unsigned int mul, unsigned int add,
-                          unsigned int rotate, unsigned int style) {
-    if (layout >= 8 || stage >= 4 || branch >= 2 || rotate == 0 || rotate >= 32 || !(mul & 1u) || style >= 4) {
+                          unsigned int rotate, unsigned int style, unsigned int donor,
+                          unsigned int donor_style, unsigned int donor_mul,
+                          unsigned int donor_add, unsigned int donor_rot) {
+    if (layout >= 8 || stage >= 4 || branch >= 2 || rotate == 0 || rotate >= 32 || !(mul & 1u) || style >= 4 ||
+        donor_style >= 4 || !(donor_mul & 1u) || donor_rot == 0 || donor_rot >= 32) {
         InterlockedIncrement(&stage_errors);
         return;
     }
-    if (after_state != stage_reference(before_state, key, mul, add, rotate, style) ||
-        after_tag != stage_reference(before_tag, key, mul, add, rotate, style) ||
-        (before_state == before_tag) != (after_state == after_tag)) InterlockedIncrement(&stage_errors);
+
+    unsigned x=before_state,y=before_tag;
+    reference(&x,&y,style,key,mul,add,rotate,donor,donor_style,donor_mul,donor_add,donor_rot);
+    if(x!=after_state || y!=after_tag || (before_state==before_tag)!=(after_state==after_tag))
+        InterlockedIncrement(&stage_errors);
     InterlockedIncrement(&stage_routes[layout][stage][branch]);
 }
 
-#define BODY            \
-    int result = 0;     \
-    if (a)              \
-        if (b)          \
+#define BODY \
+    int result = 0; \
+    if (a) \
+        if (b) \
             result = 3; \
-        else            \
+        else \
             result = 4; \
-    else if (b)         \
-        result = 5;     \
-    else                \
-        result = 6;     \
+    else if (b) \
+        result = 5; \
+    else \
+        result = 6; \
     return result;
 static int native(double a, double b) { BODY }
-#define LOOP_BODY                                \
-    int result = 0, i = 0, cases = 0;            \
-    if (outer)                                   \
+#define LOOP_BODY \
+    int result = 0, i = 0, cases = 0; \
+    if (outer) \
         for (int j = 0; j < 2; ++j) result += 1; \
-    else                                         \
-        result = 7;                              \
-    if (outer) switch (++cases) {                \
-            case 1:                              \
-                result += 3;                     \
-                break;                           \
-            default:                             \
-                result += 4;                     \
-        }                                        \
-    else                                         \
-        result += 11;                            \
-    for (; i < 8; ++i) {                         \
-        if (i == 2) continue;                    \
-        if (i == 5) break;                       \
-        result += i;                             \
-    }                                            \
-    int count = 3;                               \
-    do {                                         \
-        result++;                                \
-    } while (--count);                           \
-    while (i-- > 0) {                            \
-        if (i == 2) continue;                    \
-        result += i;                             \
-    }                                            \
-    for (;;) {                                   \
-        result++;                                \
-        break;                                   \
-    }                                            \
-    switch ((unsigned long long)0x80000000u) {   \
-        case 0x80000000ull:                      \
-            result += 13;                        \
-            break;                               \
-        default:                                 \
-            result = -1;                         \
-    }                                            \
-    switch (-2) {                                \
-        case -2:                                 \
-            result += 17;                        \
-            break;                               \
-    }                                            \
+    else \
+        result = 7; \
+    if (outer) switch (++cases) { \
+            case 1: \
+                result += 3; \
+                break; \
+            default: \
+                result += 4; \
+        } \
+    else \
+        result += 11; \
+    for (; i < 8; ++i) { \
+        if (i == 2) continue; \
+        if (i == 5) break; \
+        result += i; \
+    } \
+    int count = 3; \
+    do { \
+        result++; \
+    } while (--count); \
+    while (i-- > 0) { \
+        if (i == 2) continue; \
+        result += i; \
+    } \
+    for (;;) { \
+        result++; \
+        break; \
+    } \
+    switch ((unsigned long long)0x80000000u) { \
+        case 0x80000000ull: \
+            result += 13; \
+            break; \
+        default: \
+            result = -1; \
+    } \
+    switch (-2) { \
+        case -2: \
+            result += 17; \
+            break; \
+    } \
     return result + cases;
 static int native_loops(int outer) { LOOP_BODY }
-#define ELSE_CONTROL_BODY                          \
-    int result = 0, evaluations = 0;               \
-    for (int i = 0; i < limit; ++i) {              \
-        if (++evaluations && i == 0)               \
-            result += 10;                          \
-        else if (i == 2)                           \
-            continue;                              \
-        else if (i == 6)                           \
-            break;                                 \
-        else {                                     \
-            if (i & 1)                             \
-                result += i;                       \
-            else                                   \
-                result += 2 * i;                   \
-        }                                          \
-    }                                              \
-    int j = 0;                                     \
-    do {                                           \
-        if (++j < 2)                               \
-            result += 1;                           \
-        else                                       \
-            break;                                 \
-        result += 3;                               \
-    } while (j < 4);                               \
-    switch (mode) {                                \
-        case 0:                                    \
-            if (result < 0)                        \
-                return -1;                         \
-            else                                   \
-                break;                             \
-        default:                                   \
-            if (result < 0)                        \
-                return -2;                         \
-            else                                   \
+#define ELSE_CONTROL_BODY \
+    int result = 0, evaluations = 0; \
+    for (int i = 0; i < limit; ++i) { \
+        if (++evaluations && i == 0) \
+            result += 10; \
+        else if (i == 2) \
+            continue; \
+        else if (i == 6) \
+            break; \
+        else { \
+            if (i & 1) \
+                result += i; \
+            else \
+                result += 2 * i; \
+        } \
+    } \
+    int j = 0; \
+    do { \
+        if (++j < 2) \
+            result += 1; \
+        else \
+            break; \
+        result += 3; \
+    } while (j < 4); \
+    switch (mode) { \
+        case 0: \
+            if (result < 0) \
+                return -1; \
+            else \
+                break; \
+        default: \
+            if (result < 0) \
+                return -2; \
+            else \
                 return result + 100 * evaluations; \
-    }                                              \
+    } \
     return result + 100 * evaluations;
 static int native_else_control(int limit, int mode) {
     ELSE_CONTROL_BODY
@@ -205,18 +223,18 @@ static int recursive(int n) {
 }
 #undef if
 #undef else
-#define CHECK(x)                                        \
-    do {                                                \
-        if (!(x)) {                                     \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "cflow failure: %s\n", #x); \
-            return 1;                                   \
-        }                                               \
+            return 1; \
+        } \
     } while (0)
-#define TRANSPORT_CHECK(site)                                                           \
-    do {                                                                                \
-        int side_effect = 0;                                                            \
-        CHECK(OBFH_FLOW_CONDITION((++side_effect, 0), site) == 0 && side_effect == 1);  \
-        side_effect = 0;                                                                \
+#define TRANSPORT_CHECK(site) \
+    do { \
+        int side_effect = 0; \
+        CHECK(OBFH_FLOW_CONDITION((++side_effect, 0), site) == 0 && side_effect == 1); \
+        side_effect = 0; \
         CHECK(OBFH_FLOW_CONDITION((++side_effect, -7), site) == 1 && side_effect == 1); \
     } while (0)
 /* Ordered NaN conditions must not acquire a compiler-sensitive logical NOT.

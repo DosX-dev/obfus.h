@@ -32,12 +32,12 @@ static unsigned int next(void) {
 }
 static int sign(int n) { return (n > 0) - (n < 0); }
 #include "../include/obfus.h"
-#define CHECK(x)                                         \
-    do {                                                 \
-        if (!(x)) {                                      \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "COPY_FAIL:%d\n", __LINE__); \
-            return 1;                                    \
-        }                                                \
+            return 1; \
+        } \
     } while (0)
 int main(void) {
     unsigned char a[320], b[320], source[160];

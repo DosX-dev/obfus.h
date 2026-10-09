@@ -4,17 +4,27 @@ const path = require('node:path');
 const pdata = require('./pdata_decoys');
 
 function trace(source) {
-    const start = source.indexOf('#define OBFH_PD_LIVE_ASM(');
+    const start = source.includes('#define OBFH_PD_LIVE_OPERANDS')
+        ? source.indexOf('#define OBFH_PD_LIVE_OPERANDS')
+        : source.indexOf('#define OBFH_PD_LIVE_ASM(');
     const end = source.indexOf('#define OBFH_PD_LIVE_SELECT(', start);
     if (start < 0 || end < start) throw new Error('live native carrier missing');
     let body = source.slice(start, end);
-    body = body.replace('"movq %%rdx, -8(%%rbp);', '"lock incl %[visit]; movq %%rdx, -8(%%rbp);')
-        .replace('jz 2f; xorl', 'jz 2f; lock incl %[odd]; xorl')
-        .replace('"2: imull', '"2: lock incl %[even]; imull')
-        .replace('[frame] "i"(__obfh_pd_frame),', '[visit] "m"(obfh_test_chain_entries[OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [odd] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site) + 1u]), [even] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [frame] "i"(__obfh_pd_frame),');
+    if (body.includes('#define OBFH_PD_LIVE_RETURN')) {
+        // Current post transforms preserve the input parity; count either
+        // completion route after its result, including branchless completion.
+        body = body.replaceAll('movl %%ecx, %%eax;', 'lock incl %[visit]; movl %%ecx, %%eax;')
+            .replace('#define OBFH_PD_LIVE_RETURN "', '#define OBFH_PD_LIVE_RETURN "testl $1, %%eax; jz 98f; lock incl %[odd]; jmp 99f; 98: lock incl %[even]; 99: ');
+    } else body = body.replaceAll('"movq %%rdx, -8(%%rbp);', '"lock incl %[visit]; movq %%rdx, -8(%%rbp);')
+        .replaceAll('jz 2f; xorl', 'jz 2f; lock incl %[odd]; xorl')
+        .replaceAll('"2: imull', '"2: lock incl %[even]; imull')
+        .replaceAll('[frame] "i"(__obfh_pd_frame),', '[visit] "m"(obfh_test_chain_entries[OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [odd] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site) + 1u]), [even] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [frame] "i"(__obfh_pd_frame),');
+    if (body.includes('#define OBFH_PD_LIVE_RETURN'))
+        body = body.replace('[frame] "i"(__obfh_pd_frame),', '[visit] "m"(obfh_test_chain_entries[OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [odd] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site) + 1u]), [even] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [frame] "i"(__obfh_pd_frame),');
     if (!body.includes('lock incl %[visit]') || !body.includes('[visit] "m"')) throw new Error('chain tracing target missing');
-    return (source.slice(0, start) + body + source.slice(end))
-        .replace('__obfh_pd_kind = OBFH_PD_DRAW(site, 1u)', '__obfh_pd_site = (site), __obfh_pd_kind = OBFH_PD_DRAW(site, 1u)');
+    const traced = source.slice(0, start) + body + source.slice(end);
+    return source.includes('__obfh_pd_site = (site)') ? traced
+        : traced.replace('__obfh_pd_kind = OBFH_PD_DRAW(site, 1u)', '__obfh_pd_site = (site), __obfh_pd_kind = OBFH_PD_DRAW(site, 1u)');
 }
 
 function unwindFixture() {
@@ -71,8 +81,18 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     }
     await check('x64/live CFLOW ladder/untraced deletion and wrong-transform controls', async () => {
         const mutants = [
-            ['child', source.replace('call *-8(%%rbp);', 'movl %%ecx, %%eax;')],
-            ['post', source.replace('addl %[even_add], %%eax;', 'subl %[even_add], %%eax;')],
+            ['child', source.replaceAll('call *-8(%%rbp);', 'movl %%ecx, %%eax;')
+                .replaceAll('call *-%c[next](%%rbp);', 'movl %%ecx, %%eax;')
+                .replaceAll('call *%%r11;', 'movl %%ecx, %%eax;')
+                .replaceAll('OBFH_PD_LIVE_EMIT(mem, 3, "(((256-%c[next])<<16)|0x55ff)")', 'OBFH_PD_LIVE_EMIT(mem, 2, "0xc889")')
+                .replaceAll('OBFH_PD_LIVE_EMIT(reg, 3, "0xd3ff41")', 'OBFH_PD_LIVE_EMIT(reg, 2, "0xc889")')
+                .replaceAll('OBFH_PD_LIVE_EMIT(arg, 3, "0xd3ff41")', 'OBFH_PD_LIVE_EMIT(arg, 2, "0xc889")')],
+            ['post', source.replaceAll('addl %[even_add], %%eax;', 'subl %[even_add], %%eax;')
+                .replaceAll('addl %[even_add], %%edx;', 'subl %[even_add], %%edx;')
+                .replaceAll('addl %[even_add], %%r9d;', 'subl %[even_add], %%r9d;')
+                .replaceAll('OBFH_PD_LIVE_IMM(branch, 1, "0x05", even_add)', 'OBFH_PD_LIVE_IMM(branch, 1, "0x2d", even_add)')
+                .replaceAll('OBFH_PD_LIVE_IMM(arg, 2, "0xc281", even_add)', 'OBFH_PD_LIVE_IMM(arg, 2, "0xea81", even_add)')
+                .replaceAll('OBFH_PD_LIVE_IMM(arg, 3, "0xc18141", even_add)', 'OBFH_PD_LIVE_IMM(arg, 3, "0xe98141", even_add)')],
             ['caller', source.replace(/__obfh_flow_state = obfh_pd_live_entries\[__obfh_lsite0\]\([\s\S]*?\);/, '(void)0;')],
         ];
         for (const [name, header] of mutants) {

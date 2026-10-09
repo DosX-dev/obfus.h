@@ -22,12 +22,12 @@ static int reference_recursive(int n) {
         return reference_recursive(n - 1) - n;
 }
 #include "../include/obfus.h"
-#define CHECK(x)                                                           \
-    do {                                                                   \
-        if (!(x)) {                                                        \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "branch failure line %d: %s\n", __LINE__, #x); \
-            return 1;                                                      \
-        }                                                                  \
+            return 1; \
+        } \
     } while (0)
 #if OBFH_TEST_BRANCH_TRACE
 static volatile LONG branch_calls, steps[OBFH_V_RETURN + 1], invalid_steps;

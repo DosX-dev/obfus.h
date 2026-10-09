@@ -374,13 +374,13 @@ typedef enum {
 } VAR_ADDR_SHIFT;
 
 // Mutate the address as a pointer-width integer, preserving the value type.
-#define RET_BY_VAR(value)                                                                                                                                                                                                                                    \
-    {                                                                                                                                                                                                                                                        \
-        enum { __obfh_ret_mode = RND(0, 2) };                                                                                                                                                                                                                \
-        volatile ULONG_PTR __obfh_ret_shift = (ULONG_PTR)OBFH_JUNK_WORD;                                                                                                                                                                                     \
-        __obfh_ret_shift ^= (ULONG_PTR)OBFH_JUNK_WORD << (sizeof(ULONG_PTR) == 8 ? 32 : 0);                                                                                                                                                                  \
+#define RET_BY_VAR(value) \
+    { \
+        enum { __obfh_ret_mode = RND(0, 2) }; \
+        volatile ULONG_PTR __obfh_ret_shift = (ULONG_PTR)OBFH_JUNK_WORD; \
+        __obfh_ret_shift ^= (ULONG_PTR)OBFH_JUNK_WORD << (sizeof(ULONG_PTR) == 8 ? 32 : 0); \
         ULONG_PTR __obfh_ret_address = __builtin_choose_expr(__obfh_ret_mode == 0, (ULONG_PTR) & (value) ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, (ULONG_PTR) & (value) + __obfh_ret_shift, (ULONG_PTR) & (value)-__obfh_ret_shift)); \
-        return *(__typeof__(&(value)))__builtin_choose_expr(__obfh_ret_mode == 0, __obfh_ret_address ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, __obfh_ret_address - __obfh_ret_shift, __obfh_ret_address + __obfh_ret_shift));         \
+        return *(__typeof__(&(value)))__builtin_choose_expr(__obfh_ret_mode == 0, __obfh_ret_address ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, __obfh_ret_address - __obfh_ret_shift, __obfh_ret_address + __obfh_ret_shift)); \
     }
 
 // Mix separate compile-time draws so the payload is not an affine byte pattern.
@@ -390,9 +390,9 @@ typedef enum {
 #define OBFH_MIX_B(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 13)) * 3266489909u)
 
 // Select stores at compile time; each use has its own captured parameters.
-#define OBFH_NAME_ORDER(forward, reverse) ({                      \
+#define OBFH_NAME_ORDER(forward, reverse) ({ \
     enum { __obfh_name_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; \
-    __builtin_choose_expr(__obfh_name_order, forward, reverse);   \
+    __builtin_choose_expr(__obfh_name_order, forward, reverse); \
 })
 
 #define OBFH_CRT_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER(forward, reverse)
@@ -404,14 +404,14 @@ typedef enum {
 // ============================================================================
 
 // Interleave retained random data; the original volatile objects keep their types.
-#define OBFH_DATA_JUNK(name, section)                                                                                       \
-    static volatile unsigned char __obfh_data_##name[8u + (OBFH_DATA_DRAW(0u) & 15u)] section __attribute__((used)) = {     \
+#define OBFH_DATA_JUNK(name, section) \
+    static volatile unsigned char __obfh_data_##name[8u + (OBFH_DATA_DRAW(0u) & 15u)] section __attribute__((used)) = { \
         (OBFH_DATA_DRAW(1u) & 255u), (OBFH_DATA_DRAW(2u) & 255u), (OBFH_DATA_DRAW(3u) & 255u), (OBFH_DATA_DRAW(4u) & 255u), \
         (OBFH_DATA_DRAW(5u) & 255u), (OBFH_DATA_DRAW(6u) & 255u), (OBFH_DATA_DRAW(7u) & 255u), (OBFH_DATA_DRAW(8u) & 255u)}
-#define OBFH_STRING_CONST(name, value)                          \
+#define OBFH_STRING_CONST(name, value) \
     static volatile char name[] OBFH_SECTION_ATTRIBUTE = value; \
     OBFH_DATA_JUNK(name, OBFH_SECTION_ATTRIBUTE)
-#define OBFH_CHAR_CONST(name, value, section)  \
+#define OBFH_CHAR_CONST(name, value, section) \
     static volatile char name section = value; \
     OBFH_DATA_JUNK(name, section)
 
@@ -489,11 +489,11 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 // Compile-time byte variation only: no runtime branch, register or flag changes.
 #define OBFH_PHANTOM_DRAW(site) \
     OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u))
-#define PHANTOM_NOP                                                       \
-    ({                                                                    \
-        enum { __obfh_phantom_site = __LINE__ };                          \
-        __obfh_asm__(".fill %c0, 1, 0x90;"                                \
-                     :                                                    \
+#define PHANTOM_NOP \
+    ({ \
+        enum { __obfh_phantom_site = __LINE__ }; \
+        __obfh_asm__(".fill %c0, 1, 0x90;" \
+                     : \
                      : "i"(OBFH_PHANTOM_DRAW(__obfh_phantom_site) & 1u)); \
     })
 
@@ -530,16 +530,16 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 #define OBFH_PD_BODY_13 "movl %[loops], %%edx; 1: roll %[rotate], %%eax; xorl %[key], %%eax; decl %%edx; jnz 1b;"
 #define OBFH_PD_BODY_14 "movl %%eax, %%edx; shll $5, %%eax; shrl $3, %%edx; xorl %%edx, %%eax; addl %[key], %%eax;"
 #define OBFH_PD_BODY_15 "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; xorl %[key], %%eax; addl %[key2], %%eax;"
-#define OBFH_PD_ASM(body)                                                                       \
-    __obfh_asm__(                                                                               \
-        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame]; "             \
-        "movl %%ecx, %%eax; movl %%eax, -%c[slot](%%rbp); " body                                \
+#define OBFH_PD_ASM(body) \
+    __obfh_asm__( \
+        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame]; " \
+        "movl %%ecx, %%eax; movl %%eax, -%c[slot](%%rbp); " body \
         ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;" \
-        :                                                                                       \
-        : [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot),                             \
-          [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), [mul] "i"(__obfh_pd_mul),       \
-          [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops),                         \
-          [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u)                                  \
+        : \
+        : [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot), \
+          [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), [mul] "i"(__obfh_pd_mul), \
+          [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops), \
+          [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u) \
         : "rax", "rcx", "rdx", "cc", "memory")
 #if NO_CFLOW != 1
 #define OBFH_PD_LIVE_ENABLED 1
@@ -573,60 +573,60 @@ enum {
 #define OBFH_PD_LIVE_PRE_5 OBFH_PD_BODY_6
 #define OBFH_PD_LIVE_PRE_6 OBFH_PD_BODY_7
 #define OBFH_PD_LIVE_PRE_7 OBFH_PD_BODY_10
-#define OBFH_PD_LIVE_ASM(pre)                                                                                    \
-    __obfh_asm__(                                                                                                \
-        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame];"                               \
-        "movq %%rdx, -8(%%rbp); movq %%r8, -16(%%rbp); movl %%ecx, %%eax;" pre                                   \
-        "cmpq $0, -8(%%rbp); je 1f; movl %%eax, %%ecx; movq -16(%%rbp), %%rdx;"                                  \
-        "xorl %%r8d, %%r8d; call *-8(%%rbp); 1:"                                                                 \
+#define OBFH_PD_LIVE_ASM(pre) \
+    __obfh_asm__( \
+        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame];" \
+        "movq %%rdx, -8(%%rbp); movq %%r8, -16(%%rbp); movl %%ecx, %%eax;" pre \
+        "cmpq $0, -8(%%rbp); je 1f; movl %%eax, %%ecx; movq -16(%%rbp), %%rdx;" \
+        "xorl %%r8d, %%r8d; call *-8(%%rbp); 1:" \
         "testl $1, %%eax; jz 2f; xorl %[even_key], %%eax; imull %[mul], %%eax; addl %[even_add], %%eax; jmp 3f;" \
-        "2: imull %[mul], %%eax; addl %[even_add], %%eax; xorl %[even_key], %%eax; 3:"                           \
-        ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;"                  \
-        :                                                                                                        \
-        : [frame] "i"(__obfh_pd_frame), [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2),                    \
-          [mul] "i"(__obfh_pd_mul), [rotate] "i"(__obfh_pd_rotate),                                              \
-          [even_key] "i"(__obfh_pd_key2 & ~1u), [even_add] "i"(__obfh_pd_key & ~1u),                             \
-          [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u)                                                   \
+        "2: imull %[mul], %%eax; addl %[even_add], %%eax; xorl %[even_key], %%eax; 3:" \
+        ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;" \
+        : \
+        : [frame] "i"(__obfh_pd_frame), [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), \
+          [mul] "i"(__obfh_pd_mul), [rotate] "i"(__obfh_pd_rotate), \
+          [even_key] "i"(__obfh_pd_key2 & ~1u), [even_add] "i"(__obfh_pd_key & ~1u), \
+          [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u) \
         : "rax", "rcx", "rdx", "r8", "cc", "memory")
-#define OBFH_PD_LIVE_SELECT(kind)                                                                                                                                               \
-    __builtin_choose_expr((kind) < 4u,                                                                                                                                          \
-                          __builtin_choose_expr((kind) < 2u,                                                                                                                    \
-                                                __builtin_choose_expr((kind) == 0u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_0); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_1); })),  \
+#define OBFH_PD_LIVE_SELECT(kind) \
+    __builtin_choose_expr((kind) < 4u, \
+                          __builtin_choose_expr((kind) < 2u, \
+                                                __builtin_choose_expr((kind) == 0u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_0); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_1); })), \
                                                 __builtin_choose_expr((kind) == 2u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_2); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_3); }))), \
-                          __builtin_choose_expr((kind) < 6u,                                                                                                                    \
-                                                __builtin_choose_expr((kind) == 4u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_4); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_5); })),  \
+                          __builtin_choose_expr((kind) < 6u, \
+                                                __builtin_choose_expr((kind) == 4u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_4); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_5); })), \
                                                 __builtin_choose_expr((kind) == 6u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_6); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_7); }))))
-#define OBFH_PD_DEFINE(site)                                                                                                                                                                                           \
-    static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used));                                                                                                                                       \
-    static void __obfh_pdata_decoy_##site(void) {                                                                                                                                                                      \
-        enum {                                                                                                                                                                                                         \
-            __obfh_pd_kind = OBFH_PD_DRAW(site, 1u) & 15u,                                                                                                                                                             \
-            __obfh_pd_frame = 48u + 16u * (OBFH_PD_DRAW(site, 2u) % 14u),                                                                                                                                              \
-            __obfh_pd_slot = 8u + 8u * (OBFH_PD_DRAW(site, 3u) % 5u),                                                                                                                                                  \
-            __obfh_pd_key = OBFH_PD_DRAW(site, 4u),                                                                                                                                                                    \
-            __obfh_pd_key2 = OBFH_PD_DRAW(site, 5u),                                                                                                                                                                   \
-            __obfh_pd_mul = OBFH_PD_DRAW(site, 6u) | 1u,                                                                                                                                                               \
-            __obfh_pd_rotate = 1u + (OBFH_PD_DRAW(site, 7u) % 31u),                                                                                                                                                    \
-            __obfh_pd_loops = 2u + (OBFH_PD_DRAW(site, 8u) % 6u)                                                                                                                                                       \
-        };                                                                                                                                                                                                             \
-        __builtin_choose_expr(OBFH_PD_LIVE_INDEX(site) < 16u && OBFH_PD_LIVE_ENABLED, OBFH_PD_LIVE_SELECT(__obfh_pd_kind & 7u),                                                                                        \
-                              __builtin_choose_expr(__obfh_pd_kind < 8u,                                                                                                                                               \
-                                                    __builtin_choose_expr(__obfh_pd_kind < 4u,                                                                                                                         \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 2u,                                                                                                   \
-                                                                                                __builtin_choose_expr(__obfh_pd_kind < 1u, ({ OBFH_PD_ASM(OBFH_PD_BODY_0); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_1); })),    \
-                                                                                                __builtin_choose_expr(__obfh_pd_kind < 3u, ({ OBFH_PD_ASM(OBFH_PD_BODY_2); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_3); }))),   \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 6u,                                                                                                   \
-                                                                                                __builtin_choose_expr(__obfh_pd_kind < 5u, ({ OBFH_PD_ASM(OBFH_PD_BODY_4); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_5); })),    \
-                                                                                                __builtin_choose_expr(__obfh_pd_kind < 7u, ({ OBFH_PD_ASM(OBFH_PD_BODY_6); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_7); })))),  \
-                                                    __builtin_choose_expr(__obfh_pd_kind < 12u,                                                                                                                        \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 10u,                                                                                                  \
-                                                                                                __builtin_choose_expr(__obfh_pd_kind < 9u, ({ OBFH_PD_ASM(OBFH_PD_BODY_8); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_9); })),    \
-                                                                                                __builtin_choose_expr(                                                                                                 \
-                                                                                                    __obfh_pd_kind < 11u, ({ OBFH_PD_ASM(OBFH_PD_BODY_10); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_11); }))),                  \
-                                                                          __builtin_choose_expr(__obfh_pd_kind < 14u,                                                                                                  \
+#define OBFH_PD_DEFINE(site) \
+    static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used)); \
+    static void __obfh_pdata_decoy_##site(void) { \
+        enum { \
+            __obfh_pd_kind = OBFH_PD_DRAW(site, 1u) & 15u, \
+            __obfh_pd_frame = 48u + 16u * (OBFH_PD_DRAW(site, 2u) % 14u), \
+            __obfh_pd_slot = 8u + 8u * (OBFH_PD_DRAW(site, 3u) % 5u), \
+            __obfh_pd_key = OBFH_PD_DRAW(site, 4u), \
+            __obfh_pd_key2 = OBFH_PD_DRAW(site, 5u), \
+            __obfh_pd_mul = OBFH_PD_DRAW(site, 6u) | 1u, \
+            __obfh_pd_rotate = 1u + (OBFH_PD_DRAW(site, 7u) % 31u), \
+            __obfh_pd_loops = 2u + (OBFH_PD_DRAW(site, 8u) % 6u) \
+        }; \
+        __builtin_choose_expr(OBFH_PD_LIVE_INDEX(site) < 16u && OBFH_PD_LIVE_ENABLED, OBFH_PD_LIVE_SELECT(__obfh_pd_kind & 7u), \
+                              __builtin_choose_expr(__obfh_pd_kind < 8u, \
+                                                    __builtin_choose_expr(__obfh_pd_kind < 4u, \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 2u, \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 1u, ({ OBFH_PD_ASM(OBFH_PD_BODY_0); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_1); })), \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 3u, ({ OBFH_PD_ASM(OBFH_PD_BODY_2); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_3); }))), \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 6u, \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 5u, ({ OBFH_PD_ASM(OBFH_PD_BODY_4); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_5); })), \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 7u, ({ OBFH_PD_ASM(OBFH_PD_BODY_6); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_7); })))), \
+                                                    __builtin_choose_expr(__obfh_pd_kind < 12u, \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 10u, \
+                                                                                                __builtin_choose_expr(__obfh_pd_kind < 9u, ({ OBFH_PD_ASM(OBFH_PD_BODY_8); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_9); })), \
+                                                                                                __builtin_choose_expr( \
+                                                                                                    __obfh_pd_kind < 11u, ({ OBFH_PD_ASM(OBFH_PD_BODY_10); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_11); }))), \
+                                                                          __builtin_choose_expr(__obfh_pd_kind < 14u, \
                                                                                                 __builtin_choose_expr(__obfh_pd_kind < 13u, ({ OBFH_PD_ASM(OBFH_PD_BODY_12); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_13); })), \
-                                                                                                __builtin_choose_expr(                                                                                                 \
-                                                                                                    __obfh_pd_kind < 15u, ({ OBFH_PD_ASM(OBFH_PD_BODY_14); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_15); }))))));               \
+                                                                                                __builtin_choose_expr( \
+                                                                                                    __obfh_pd_kind < 15u, ({ OBFH_PD_ASM(OBFH_PD_BODY_14); }), ({ OBFH_PD_ASM(OBFH_PD_BODY_15); })))))); \
     }
 OBFH_PD_DEFINE(0);
 OBFH_PD_DEFINE(1);
@@ -855,16 +855,16 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_RANDOM_INPUTS "i"(RND(1, 32767)), "i"(RND(1, 15)), "i"(RND(0, 255)), "i"(RND(1, 2147483646u))
 #define OBFH_CPUID_CLOBBERS "eax", "ebx", "ecx", "edx", "cc", "memory"
 #define OBFH_CFLOW_CLOBBERS "eax", "edx", "ecx", "cc", "memory"
-#define OBFH_JUNK_ASM(code) __obfh_asm__(code               \
-                                         :                  \
+#define OBFH_JUNK_ASM(code) __obfh_asm__(code \
+                                         : \
                                          : OBFH_JUNK_INPUTS \
                                          : OBFH_CPUID_CLOBBERS)
-#define OBFH_STACK_JUNK_ASM(code, ...) __obfh_asm__(code                     \
-                                                    :                        \
+#define OBFH_STACK_JUNK_ASM(code, ...) __obfh_asm__(code \
+                                                    : \
                                                     : OBFH_STACK_JUNK_INPUTS \
                                                     : __VA_ARGS__, "cc", "memory")
-#define OBFH_CFLOW_ASM(code) __obfh_asm__(code                       \
-                                          :                          \
+#define OBFH_CFLOW_ASM(code) __obfh_asm__(code \
+                                          : \
                                           : OBFH_CFLOW_RANDOM_INPUTS \
                                           : OBFH_CFLOW_CLOBBERS)
 
@@ -899,11 +899,11 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_PRED_ODD_SQUARE(r0) "imull " r0 ", " r0 "; orl $1, " r0 ";"
 
 // MOV direction varies at fixed width; only skipped data varies in payloads. Live code reads SP only.
-#define OBFH_CFLOW_NAMED_INPUTS                                        \
+#define OBFH_CFLOW_NAMED_INPUTS \
     [junk_salt] "i"(RND(1, 32767)), "i"(RND(1, 15)), "i"(RND(0, 255)), \
         [junk_key] "i"(OBFH_JUNK_WORD), OBFH_JUNK_RANDOM_INPUTS, [junk_rotate] "i"(RND(1, 31))
-#define OBFH_CFLOW_NAMED_ASM(code) __obfh_asm__(code                      \
-                                                :                         \
+#define OBFH_CFLOW_NAMED_ASM(code) __obfh_asm__(code \
+                                                : \
                                                 : OBFH_CFLOW_NAMED_INPUTS \
                                                 : OBFH_CFLOW_CLOBBERS)
 #define OBFH_CFLOW_INPUT(reg, index) ".short 0xe089+256*" index "+((%c[junk_key]>>5)&1)*(1792*" index "-7166); xorl %[junk_salt], " reg "; roll %[junk_rotate], " reg ";"
@@ -947,42 +947,42 @@ OBFH_PD_DEFINE(127);
 
 // One local set of immediate parameters per selection. Each operand retains
 // its old range and position; no runtime storage or shared helper is needed.
-#define OBFH_CFLOW_CAPTURE                   \
-    enum {                                   \
-        __obfh_cf_salt = RND(1, 32767),      \
-        __obfh_cf_pad = RND(1, 15),          \
-        __obfh_cf_byte = RND(0, 255),        \
+#define OBFH_CFLOW_CAPTURE \
+    enum { \
+        __obfh_cf_salt = RND(1, 32767), \
+        __obfh_cf_pad = RND(1, 15), \
+        __obfh_cf_byte = RND(0, 255), \
         __obfh_cf_key = RND(1, 2147483646u), \
-        __obfh_cf_word = OBFH_JUNK_WORD,     \
-        __obfh_cf_byte0 = OBFH_JUNK_BYTE,    \
-        __obfh_cf_byte1 = OBFH_JUNK_BYTE,    \
-        __obfh_cf_byte2 = OBFH_JUNK_BYTE,    \
-        __obfh_cf_byte3 = OBFH_JUNK_BYTE,    \
-        __obfh_cf_payload = OBFH_JUNK_WORD,  \
-        __obfh_cf_rotate = RND(1, 31)        \
+        __obfh_cf_word = OBFH_JUNK_WORD, \
+        __obfh_cf_byte0 = OBFH_JUNK_BYTE, \
+        __obfh_cf_byte1 = OBFH_JUNK_BYTE, \
+        __obfh_cf_byte2 = OBFH_JUNK_BYTE, \
+        __obfh_cf_byte3 = OBFH_JUNK_BYTE, \
+        __obfh_cf_payload = OBFH_JUNK_WORD, \
+        __obfh_cf_rotate = RND(1, 31) \
     }
 #define OBFH_CFLOW_LOCAL_RANDOM \
     "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload)
 #define OBFH_CFLOW_LOCAL_JUNK_INPUTS "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), OBFH_CFLOW_LOCAL_RANDOM
-#define OBFH_CFLOW_LOCAL_ASM(code)                                                                  \
-    __obfh_asm__(code                                                                               \
-                 :                                                                                  \
+#define OBFH_CFLOW_LOCAL_ASM(code) \
+    __obfh_asm__(code \
+                 : \
                  : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
                  : OBFH_CFLOW_CLOBBERS)
-#define OBFH_CFLOW_LOCAL_JUNK_ASM(code)         \
-    __obfh_asm__(code                           \
-                 :                              \
+#define OBFH_CFLOW_LOCAL_JUNK_ASM(code) \
+    __obfh_asm__(code \
+                 : \
                  : OBFH_CFLOW_LOCAL_JUNK_INPUTS \
                  : OBFH_CPUID_CLOBBERS)
-#define OBFH_CFLOW_LOCAL_STACK_ASM(code, ...)                        \
-    __obfh_asm__(code                                                \
-                 :                                                   \
+#define OBFH_CFLOW_LOCAL_STACK_ASM(code, ...) \
+    __obfh_asm__(code \
+                 : \
                  : "i"(__obfh_cf_salt), OBFH_CFLOW_LOCAL_JUNK_INPUTS \
                  : __VA_ARGS__, "cc", "memory")
-#define OBFH_CFLOW_LOCAL_NAMED_ASM(code)                                                                        \
-    __obfh_asm__(code                                                                                           \
-                 :                                                                                              \
-                 : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte),                    \
+#define OBFH_CFLOW_LOCAL_NAMED_ASM(code) \
+    __obfh_asm__(code \
+                 : \
+                 : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), \
                    [junk_key] "i"(__obfh_cf_word), OBFH_CFLOW_LOCAL_RANDOM, [junk_rotate] "i"(__obfh_cf_rotate) \
                  : OBFH_CFLOW_CLOBBERS)
 
@@ -1034,24 +1034,24 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_EXTRA_INDEX(index) OBFH_CFLOW_LIGHT_INDEX((OBFH_CFLOW_LIGHT_ORDINAL(index) + 37u) % 121u)
 #if CFLOW_V2
 // Capture once: the 128-way selector must not duplicate the mapping expression.
-#define OBFH_CFLOW_EXTRA(index) ({                               \
+#define OBFH_CFLOW_EXTRA(index) ({ \
     enum { __obfh_extra_index = OBFH_CFLOW_EXTRA_INDEX(index) }; \
-    OBFH_CFLOW_SELECT(__obfh_extra_index);                       \
-    (void)0;                                                     \
+    OBFH_CFLOW_SELECT(__obfh_extra_index); \
+    (void)0; \
 })
 #else
 #define OBFH_CFLOW_EXTRA(index) OBFH_CFLOW_SINGLE(index)
 #endif
 
-#define OBFH_CFLOW_EMIT(site, extra) ({                                                                                  \
-    enum { __obfh_break_id = (site),                                                                                     \
+#define OBFH_CFLOW_EMIT(site, extra) ({ \
+    enum { __obfh_break_id = (site), \
            __obfh_break_hash1 = OBFH_MIX_A((unsigned int)__obfh_break_id ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u), \
-           __obfh_break_hash2 = OBFH_MIX_B(__obfh_break_hash1),                                                          \
-           __obfh_break_slot = OBFH_CFLOW_SLOT(__obfh_break_hash2),                                                      \
-           __obfh_break_index = OBFH_CFLOW_WEIGHTED_INDEX(__obfh_break_slot) };                                          \
-    OBFH_CFLOW_SELECT(__obfh_break_index);                                                                               \
-    extra(__obfh_break_index);                                                                                           \
-    (void)0;                                                                                                             \
+           __obfh_break_hash2 = OBFH_MIX_B(__obfh_break_hash1), \
+           __obfh_break_slot = OBFH_CFLOW_SLOT(__obfh_break_hash2), \
+           __obfh_break_index = OBFH_CFLOW_WEIGHTED_INDEX(__obfh_break_slot) }; \
+    OBFH_CFLOW_SELECT(__obfh_break_index); \
+    extra(__obfh_break_index); \
+    (void)0; \
 })
 
 // Keep the string compound literal in caller scope and emit exactly one template.
@@ -1319,24 +1319,24 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_TEMPLATE_86 \
     OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD " 1: cpuid;")
 
-#define OBFH_CFLOW_TEMPLATE_87 ({                                                                                           \
-    enum { __obfh_break_salt = RND(1, 32767),                                                                               \
-           __obfh_break_gap = RND(1, 255) };                                                                                \
-    __obfh_asm__("movzbl %7, %%eax; xorl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0xE8; " OBFH_JUNK_PAYLOAD " 1:"     \
-                 :                                                                                                          \
+#define OBFH_CFLOW_TEMPLATE_87 ({ \
+    enum { __obfh_break_salt = RND(1, 32767), \
+           __obfh_break_gap = RND(1, 255) }; \
+    __obfh_asm__("movzbl %7, %%eax; xorl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0xE8; " OBFH_JUNK_PAYLOAD " 1:" \
+                 : \
                  : OBFH_CFLOW_LOCAL_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_gap) \
-                 : OBFH_CPUID_CLOBBERS);                                                                                    \
+                 : OBFH_CPUID_CLOBBERS); \
 })
 
-#define OBFH_CFLOW_TEMPLATE_88 ({                                                                                                                                          \
-    enum { __obfh_break_salt = RND(1, 32767),                                                                                                                              \
-           __obfh_break_case1 = RND(129, 191),                                                                                                                             \
-           __obfh_break_case2 = RND(257, 319) };                                                                                                                           \
-    __obfh_asm__("movzbl %7, %%eax; addl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD                                                          \
-                 " 1: cmpl %10, %%eax; jne 2f; .byte 0xFF, 0x25; " OBFH_JUNK_PAYLOAD " 2:"                                                                                 \
-                 :                                                                                                                                                         \
+#define OBFH_CFLOW_TEMPLATE_88 ({ \
+    enum { __obfh_break_salt = RND(1, 32767), \
+           __obfh_break_case1 = RND(129, 191), \
+           __obfh_break_case2 = RND(257, 319) }; \
+    __obfh_asm__("movzbl %7, %%eax; addl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD \
+                 " 1: cmpl %10, %%eax; jne 2f; .byte 0xFF, 0x25; " OBFH_JUNK_PAYLOAD " 2:" \
+                 : \
                  : OBFH_CFLOW_LOCAL_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_case1), "i"(__obfh_break_salt + __obfh_break_case2) \
-                 : OBFH_CPUID_CLOBBERS);                                                                                                                                   \
+                 : OBFH_CPUID_CLOBBERS); \
 })
 
 #define OBFH_CFLOW_TEMPLATE_89 \
@@ -1595,68 +1595,68 @@ OBFH_PD_DEFINE(127);
 // Self-contained fake functions: live guards skip all calls and stack edits.
 // Frames and calling conventions follow Windows TCC x86/x64. Numeric labels
 // stay inside each ASM expansion; no insertion refers to another call site.
-#define OBFH_SF_CAPTURE                                                                  \
-    enum {                                                                               \
-        __obfh_sf_mask = OBFH_JUNK_WORD,                                                 \
-        __obfh_sf_alu_a = RND(0, 4),                                                     \
-        __obfh_sf_alu_b = RND(0, 6),                                                     \
-        __obfh_sf_shift = RND(0, 4),                                                     \
-        __obfh_sf_phantom = OBFH_PHANTOM_DRAW(__LINE__),                                 \
-        __obfh_sf_salt = RND(1, 32767),                                                  \
-        __obfh_sf_rotate = RND(1, 31),                                                   \
-        __obfh_sf_frame_a = RND(2, 12) * 16u,                                            \
-        __obfh_sf_frame_b = RND(2, 12) * 16u,                                            \
-        __obfh_sf_frame_c = RND(2, 12) * 16u,                                            \
-        __obfh_sf_arg_a = RND(1, 65535),                                                 \
-        __obfh_sf_arg_b = RND(1, 65535),                                                 \
-        __obfh_sf_key_a = OBFH_JUNK_WORD,                                                \
-        __obfh_sf_key_b = OBFH_JUNK_WORD,                                                \
-        __obfh_sf_factor = RND(1, 32767) * 2u + 1u,                                      \
-        __obfh_sf_pad = RND(0, 7),                                                       \
-        __obfh_sf_loops = RND(1, 7),                                                     \
-        __obfh_sf_not_mask = ~(unsigned int)__obfh_sf_mask,                              \
-        __obfh_sf_frame_d = RND(2, 12) * 16u,                                            \
-        __obfh_sf_pad_b = RND(0, 15),                                                    \
-        __obfh_sf_noise_a = OBFH_JUNK_BYTE,                                              \
-        __obfh_sf_noise_b = OBFH_JUNK_BYTE,                                              \
-        __obfh_sf_local_a = RND(1, 3) * 4u,                                              \
-        __obfh_sf_local_b = RND(4, 7) * 4u,                                              \
-        __obfh_sf_leaf_frame = RND(2, 6) * 16u + 8u,                                     \
-        __obfh_sf_leaf_slot = RND(0, 6) * 4u,                                            \
+#define OBFH_SF_CAPTURE \
+    enum { \
+        __obfh_sf_mask = OBFH_JUNK_WORD, \
+        __obfh_sf_alu_a = RND(0, 4), \
+        __obfh_sf_alu_b = RND(0, 6), \
+        __obfh_sf_shift = RND(0, 4), \
+        __obfh_sf_phantom = OBFH_PHANTOM_DRAW(__LINE__), \
+        __obfh_sf_salt = RND(1, 32767), \
+        __obfh_sf_rotate = RND(1, 31), \
+        __obfh_sf_frame_a = RND(2, 12) * 16u, \
+        __obfh_sf_frame_b = RND(2, 12) * 16u, \
+        __obfh_sf_frame_c = RND(2, 12) * 16u, \
+        __obfh_sf_arg_a = RND(1, 65535), \
+        __obfh_sf_arg_b = RND(1, 65535), \
+        __obfh_sf_key_a = OBFH_JUNK_WORD, \
+        __obfh_sf_key_b = OBFH_JUNK_WORD, \
+        __obfh_sf_factor = RND(1, 32767) * 2u + 1u, \
+        __obfh_sf_pad = RND(0, 7), \
+        __obfh_sf_loops = RND(1, 7), \
+        __obfh_sf_not_mask = ~(unsigned int)__obfh_sf_mask, \
+        __obfh_sf_frame_d = RND(2, 12) * 16u, \
+        __obfh_sf_pad_b = RND(0, 15), \
+        __obfh_sf_noise_a = OBFH_JUNK_BYTE, \
+        __obfh_sf_noise_b = OBFH_JUNK_BYTE, \
+        __obfh_sf_local_a = RND(1, 3) * 4u, \
+        __obfh_sf_local_b = RND(4, 7) * 4u, \
+        __obfh_sf_leaf_frame = RND(2, 6) * 16u + 8u, \
+        __obfh_sf_leaf_slot = RND(0, 6) * 4u, \
         __obfh_sf_leaf_alu_a = __obfh_sf_alu_a == 0 ? 0x05 : __obfh_sf_alu_a == 1 ? 0x0d \
                                                          : __obfh_sf_alu_a == 2   ? 0x25 \
                                                          : __obfh_sf_alu_a == 3   ? 0x2d \
-                                                                                  : 0x35,  \
-        __obfh_sf_leaf_alu_b = 0xc2 + __obfh_sf_alu_b * 8,                               \
+                                                                                  : 0x35, \
+        __obfh_sf_leaf_alu_b = 0xc2 + __obfh_sf_alu_b * 8, \
         __obfh_sf_leaf_shift = __obfh_sf_shift == 0 ? 0xc0 : __obfh_sf_shift == 1 ? 0xc8 \
                                                          : __obfh_sf_shift == 2   ? 0xe0 \
                                                          : __obfh_sf_shift == 3   ? 0xe8 \
                                                                                   : 0xf8 \
     }
-#define OBFH_SF_INPUTS                             \
-    [sf_phantom] "i"(__obfh_sf_phantom),           \
-        [sf_salt] "i"(__obfh_sf_salt),             \
-        [sf_rotate] "i"(__obfh_sf_rotate),         \
-        [sf_frame_a] "i"(__obfh_sf_frame_a),       \
-        [sf_frame_b] "i"(__obfh_sf_frame_b),       \
-        [sf_frame_c] "i"(__obfh_sf_frame_c),       \
-        [sf_arg_a] "i"(__obfh_sf_arg_a),           \
-        [sf_arg_b] "i"(__obfh_sf_arg_b),           \
-        [sf_key_a] "i"(__obfh_sf_key_a),           \
-        [sf_key_b] "i"(__obfh_sf_key_b),           \
-        [sf_factor] "i"(__obfh_sf_factor),         \
-        [sf_pad] "i"(__obfh_sf_pad),               \
-        [sf_loops] "i"(__obfh_sf_loops),           \
-        [sf_mask] "i"(__obfh_sf_mask),             \
-        [sf_not_mask] "i"(__obfh_sf_not_mask),     \
-        [sf_frame_d] "i"(__obfh_sf_frame_d),       \
-        [sf_pad_b] "i"(__obfh_sf_pad_b),           \
-        [sf_noise_a] "i"(__obfh_sf_noise_a),       \
-        [sf_noise_b] "i"(__obfh_sf_noise_b),       \
-        [sf_local_a] "i"(__obfh_sf_local_a),       \
-        [sf_local_b] "i"(__obfh_sf_local_b),       \
+#define OBFH_SF_INPUTS \
+    [sf_phantom] "i"(__obfh_sf_phantom), \
+        [sf_salt] "i"(__obfh_sf_salt), \
+        [sf_rotate] "i"(__obfh_sf_rotate), \
+        [sf_frame_a] "i"(__obfh_sf_frame_a), \
+        [sf_frame_b] "i"(__obfh_sf_frame_b), \
+        [sf_frame_c] "i"(__obfh_sf_frame_c), \
+        [sf_arg_a] "i"(__obfh_sf_arg_a), \
+        [sf_arg_b] "i"(__obfh_sf_arg_b), \
+        [sf_key_a] "i"(__obfh_sf_key_a), \
+        [sf_key_b] "i"(__obfh_sf_key_b), \
+        [sf_factor] "i"(__obfh_sf_factor), \
+        [sf_pad] "i"(__obfh_sf_pad), \
+        [sf_loops] "i"(__obfh_sf_loops), \
+        [sf_mask] "i"(__obfh_sf_mask), \
+        [sf_not_mask] "i"(__obfh_sf_not_mask), \
+        [sf_frame_d] "i"(__obfh_sf_frame_d), \
+        [sf_pad_b] "i"(__obfh_sf_pad_b), \
+        [sf_noise_a] "i"(__obfh_sf_noise_a), \
+        [sf_noise_b] "i"(__obfh_sf_noise_b), \
+        [sf_local_a] "i"(__obfh_sf_local_a), \
+        [sf_local_b] "i"(__obfh_sf_local_b), \
         [sf_leaf_frame] "i"(__obfh_sf_leaf_frame), \
-        [sf_leaf_slot] "i"(__obfh_sf_leaf_slot),   \
+        [sf_leaf_slot] "i"(__obfh_sf_leaf_slot), \
         [sf_leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), \
         [sf_leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), \
         [sf_leaf_shift] "i"(__obfh_sf_leaf_shift)
@@ -1670,88 +1670,88 @@ OBFH_PD_DEFINE(127);
 // x86 uses explicit imm32 pushes so its sequence is always 18 bytes.
 #define OBFH_SF_LINK_BYTES(channel, size, value) \
     ".fill (((%c[sf_phantom] ^ %c[sf_key_a]) >> (12 + 3 * " channel ")) & 1), " size ", " value ";"
-#define OBFH_SF_LINK_GATE(span, channel)                                                                                   \
+#define OBFH_SF_LINK_GATE(span, channel) \
     OBFH_SF_LINK_BYTES(channel, "2", "0xc085 ^ ((((%c[sf_phantom] ^ %c[sf_key_a]) >> (14 + 3 * " channel ")) & 1) << 12)") \
-    OBFH_SF_LINK_BYTES(channel, "1", "0x74 | (((%c[sf_phantom] ^ %c[sf_key_a]) >> (13 + 3 * " channel ")) & 1)")           \
+    OBFH_SF_LINK_BYTES(channel, "1", "0x74 | (((%c[sf_phantom] ^ %c[sf_key_a]) >> (13 + 3 * " channel ")) & 1)") \
     OBFH_SF_LINK_BYTES(channel, "1", span)
 #if defined(__x86_64__)
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
 #define OBFH_SF_FRAME_HEAD(size) \
     "pushq %%rbp;" OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xe58948") OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x242c8d48")
-#define OBFH_SF_FRAME(size)                                                  \
-    OBFH_SF_FRAME_HEAD(size)                                                 \
-    OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8148")   \
-    OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]")     \
+#define OBFH_SF_FRAME(size) \
+    OBFH_SF_FRAME_HEAD(size) \
+    OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8148") \
+    OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
     OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24a48d48") \
     OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]")
-#define OBFH_SF_FRAME_ALT(size)                                                                                                                                \
+#define OBFH_SF_FRAME_ALT(size) \
     "pushq %%rbp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8148") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
         OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24a48d48") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 4, 0x24ac8d48; .long %c[" size "];"
-#define OBFH_SF_EPILOGUE_ALT                   \
-    OBFH_SF_BYTES("7", "0", "3", "0xec8948")   \
+#define OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_BYTES("7", "0", "3", "0xec8948") \
     OBFH_SF_BYTES("7", "1", "4", "0x00658d48") \
     "popq %%rbp; ret;"
-#define OBFH_SF_EPILOGUE                       \
-    OBFH_SF_BYTES("6", "0", "1", "0xc9")       \
+#define OBFH_SF_EPILOGUE \
+    OBFH_SF_BYTES("6", "0", "1", "0xc9") \
     OBFH_SF_BYTES("6", "1", "4", "0x5dec8948") \
     "ret;"
-#define OBFH_SF_ARGS                       \
+#define OBFH_SF_ARGS \
     OBFH_SF_BYTES("9", "0", "2", "0xc889") \
     OBFH_SF_BYTES("9", "1", "3", "0x00418d")
-#define OBFH_SF_CALL_ARGS                   \
-    OBFH_SF_BYTES("10", "0", "1", "0xb9")   \
+#define OBFH_SF_CALL_ARGS \
+    OBFH_SF_BYTES("10", "0", "1", "0xb9") \
     OBFH_SF_WORD("10", "0", "%c[sf_arg_a]") \
-    OBFH_SF_BYTES("10", "0", "1", "0xba")   \
+    OBFH_SF_BYTES("10", "0", "1", "0xba") \
     OBFH_SF_WORD("10", "0", "%c[sf_arg_b]") \
-    OBFH_SF_BYTES("10", "1", "1", "0xba")   \
+    OBFH_SF_BYTES("10", "1", "1", "0xba") \
     OBFH_SF_WORD("10", "1", "%c[sf_arg_b]") \
-    OBFH_SF_BYTES("10", "1", "1", "0xb9")   \
+    OBFH_SF_BYTES("10", "1", "1", "0xb9") \
     OBFH_SF_WORD("10", "1", "%c[sf_arg_a]")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
-#define OBFH_SF_LOCAL                               \
-    OBFH_SF_BYTES("8", "0", "2", "0x4589")          \
+#define OBFH_SF_LOCAL \
+    OBFH_SF_BYTES("8", "0", "2", "0x4589") \
     OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_a]") \
-    OBFH_SF_BYTES("8", "0", "2", "0x5589")          \
+    OBFH_SF_BYTES("8", "0", "2", "0x5589") \
     OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x5589")          \
+    OBFH_SF_BYTES("8", "1", "2", "0x5589") \
     OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x4589")          \
+    OBFH_SF_BYTES("8", "1", "2", "0x4589") \
     OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_a]")
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
 #define OBFH_SF_FRAME_HEAD(size) \
     "pushl %%ebp;" OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xe589") OBFH_SF_BYTES("(1 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x242c8d")
-#define OBFH_SF_FRAME(size)                                                \
-    OBFH_SF_FRAME_HEAD(size)                                               \
-    OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec81")   \
-    OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]")   \
+#define OBFH_SF_FRAME(size) \
+    OBFH_SF_FRAME_HEAD(size) \
+    OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec81") \
+    OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
     OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24a48d") \
     OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]")
-#define OBFH_SF_FRAME_ALT(size)                                                                                                                              \
+#define OBFH_SF_FRAME_ALT(size) \
     "pushl %%ebp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec81") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
         OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24a48d") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 3, 0x24ac8d; .long %c[" size "];"
-#define OBFH_SF_EPILOGUE_ALT                 \
-    OBFH_SF_BYTES("7", "0", "2", "0xec89")   \
+#define OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_BYTES("7", "0", "2", "0xec89") \
     OBFH_SF_BYTES("7", "1", "3", "0x00658d") \
     "popl %%ebp; ret;"
-#define OBFH_SF_EPILOGUE                     \
-    OBFH_SF_BYTES("6", "0", "1", "0xc9")     \
+#define OBFH_SF_EPILOGUE \
+    OBFH_SF_BYTES("6", "0", "1", "0xc9") \
     OBFH_SF_BYTES("6", "1", "3", "0x5dec89") \
     "ret;"
-#define OBFH_SF_ARGS                         \
+#define OBFH_SF_ARGS \
     OBFH_SF_BYTES("9", "0", "3", "0x0c558b") \
     OBFH_SF_BYTES("9", "0", "3", "0x08458b") \
     OBFH_SF_BYTES("9", "1", "3", "0x08458b") \
     OBFH_SF_BYTES("9", "1", "3", "0x0c558b")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("18", channel) ".byte 0x68; .long %c[sf_arg_b]; .byte 0x68; .long %c[sf_arg_a]; call " target "; addl $8, %%esp;"
-#define OBFH_SF_LOCAL                               \
-    OBFH_SF_BYTES("8", "0", "2", "0x4589")          \
+#define OBFH_SF_LOCAL \
+    OBFH_SF_BYTES("8", "0", "2", "0x4589") \
     OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_a]") \
-    OBFH_SF_BYTES("8", "0", "2", "0x5589")          \
+    OBFH_SF_BYTES("8", "0", "2", "0x5589") \
     OBFH_SF_BYTES("8", "0", "1", "-%c[sf_local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x5589")          \
+    OBFH_SF_BYTES("8", "1", "2", "0x5589") \
     OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x4589")          \
+    OBFH_SF_BYTES("8", "1", "2", "0x4589") \
     OBFH_SF_BYTES("8", "1", "1", "-%c[sf_local_a]")
 #endif
 #define OBFH_SF_CALL(target) OBFH_SF_CALL_AT(target, "0")
@@ -1802,328 +1802,328 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body ".fill ((%c[sf_phantom] >> " label ") & 1), 1, 0x90;"
 #define OBFH_SF_ENTRY(label, frame, body) label ": " OBFH_SF_FRAME(frame) body ".fill ((%c[sf_phantom] >> " label ") & 1), 1, 0x90;"
 // Physical order, finite link graphs, and shared/tail continuations vary.
-#define OBFH_SF_LAYOUT_0(a, b, c)       \
-    OBFH_SF_CALL_AT("1f", "0")          \
-    OBFH_SF_EPILOGUE                    \
-    OBFH_SF_GAP                         \
+#define OBFH_SF_LAYOUT_0(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY("2", "sf_frame_b", b) \
-    OBFH_SF_EPILOGUE                    \
-    OBFH_SF_GAP                         \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY("1", "sf_frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1")          \
+    OBFH_SF_CALL_AT("2b", "1") \
     OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_1(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_1(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
-    "leave; jmp 2f;" OBFH_SF_GAP            \
+    "leave; jmp 2f;" OBFH_SF_GAP \
         OBFH_SF_ENTRY("2", "sf_frame_b", b) \
             OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_2(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2f", "1")              \
-    OBFH_SF_CALL_AT("3b", "2")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_2(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_CALL_AT("3b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "3")              \
+    OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_3(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    "leave; jmp 3f;" OBFH_SF_GAP            \
+#define OBFH_SF_LAYOUT_3(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    "leave; jmp 3f;" OBFH_SF_GAP \
         OBFH_SF_ENTRY("3", "sf_frame_c", c) \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
     "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3b", "2") "5:" OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_4(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_4(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL_AT("3f", "1")              \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2b", "2")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    OBFH_SF_CALL_AT("3f", "1") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
     OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_5(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_5(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1")              \
-    OBFH_SF_CALL_AT("3b", "2")              \
+    OBFH_SF_CALL_AT("2b", "1") \
+    OBFH_SF_CALL_AT("3b", "2") \
     OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_6(a, b, c)                                            \
-    OBFH_SF_CALL_AT("1f", "0")                                               \
-    OBFH_SF_EPILOGUE                                                         \
-    OBFH_SF_GAP                                                              \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                      \
-    OBFH_SF_CALL_AT("2f", "1")                                               \
-    "leave; jmp 3f;" OBFH_SF_GAP                                             \
+#define OBFH_SF_LAYOUT_6(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    "leave; jmp 3f;" OBFH_SF_GAP \
         OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
-            OBFH_SF_ENTRY("3", "sf_frame_c", c)                              \
+            OBFH_SF_ENTRY("3", "sf_frame_c", c) \
                 OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_7(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL_AT("3b", "1")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_7(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3b", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "2")              \
-    OBFH_SF_CALL_AT("3b", "3")              \
+    OBFH_SF_CALL_AT("2b", "2") \
+    OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_8(a, b, c)           \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_CALL_AT("2f", "1")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("3b", "2")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_8(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("3b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "3")              \
+    OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_9(a, b, c)                                                     \
-    OBFH_SF_CALL_AT("1f", "0")                                                        \
-    OBFH_SF_EPILOGUE                                                                  \
-    OBFH_SF_GAP                                                                       \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)                                               \
-    OBFH_SF_EPILOGUE                                                                  \
-    OBFH_SF_GAP                                                                       \
-    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b)                                           \
+#define OBFH_SF_LAYOUT_9(a, b, c) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+        OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
     "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("3b", "1") "4:" OBFH_SF_EPILOGUE_ALT \
-        OBFH_SF_GAP                                                                   \
+        OBFH_SF_GAP \
             OBFH_SF_ENTRY("1", "sf_frame_a", a) "leave; jmp 2b;"
 
-#define OBFH_SF_LAYOUT_10(a, b, c, d)       \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_10(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "1")              \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2b", "2")              \
+    OBFH_SF_CALL_AT("3b", "1") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_11(a, b, c, d)       \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL_AT("3f", "1")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_11(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "2")              \
-    OBFH_SF_CALL_AT("3f", "3")              \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
+    OBFH_SF_CALL_AT("2b", "2") \
+    OBFH_SF_CALL_AT("3f", "3") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_12(a, b, c, d)       \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2f", "1")              \
-    OBFH_SF_CALL_AT("8f", "2")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL_AT("3f", "3")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_12(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_CALL_AT("8f", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3f", "3") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("8", "sf_frame_d", d)     \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("8", "sf_frame_d", d) \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_13(a, b, c, d)       \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2f", "1")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_13(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL_AT("3f", "2")              \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    "leave; jmp 8f;" OBFH_SF_GAP            \
+    OBFH_SF_CALL_AT("3f", "2") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    "leave; jmp 8f;" OBFH_SF_GAP \
         OBFH_SF_ENTRY("8", "sf_frame_d", d) \
             OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_14(a, b, c, d)       \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("8", "sf_frame_d", d)     \
-    OBFH_SF_CALL_AT("1f", "1")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_14(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("8", "sf_frame_d", d) \
+    OBFH_SF_CALL_AT("1f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2f", "2")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL_AT("3b", "3")              \
-    OBFH_SF_CALL_AT("8b", "4")              \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("3b", "3") \
+    OBFH_SF_CALL_AT("8b", "4") \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_15(a, b, c, d)                                                                                      \
-    OBFH_SF_CALL_AT("1f", "0")                                                                                             \
-    OBFH_SF_EPILOGUE                                                                                                       \
-    OBFH_SF_GAP                                                                                                            \
-    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a)                                                                                \
+#define OBFH_SF_LAYOUT_15(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
     "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("8f", "2") "5:" OBFH_SF_EPILOGUE_ALT \
-        OBFH_SF_GAP                                                                                                        \
-            OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                                            \
-                OBFH_SF_CALL_AT("3f", "3")                                                                                 \
-                    OBFH_SF_EPILOGUE                                                                                       \
-                        OBFH_SF_GAP                                                                                        \
-                            OBFH_SF_ENTRY("8", "sf_frame_d", d)                                                            \
-                                OBFH_SF_CALL_AT("3f", "4")                                                                 \
-                                    OBFH_SF_EPILOGUE                                                                       \
-                                        OBFH_SF_GAP                                                                        \
-                                            OBFH_SF_ENTRY("3", "sf_frame_c", c)                                            \
+        OBFH_SF_GAP \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+                OBFH_SF_CALL_AT("3f", "3") \
+                    OBFH_SF_EPILOGUE \
+                        OBFH_SF_GAP \
+                            OBFH_SF_ENTRY("8", "sf_frame_d", d) \
+                                OBFH_SF_CALL_AT("3f", "4") \
+                                    OBFH_SF_EPILOGUE \
+                                        OBFH_SF_GAP \
+                                            OBFH_SF_ENTRY("3", "sf_frame_c", c) \
                                                 OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_16(a, b, c, d)                                                       \
-    OBFH_SF_CALL_AT("1f", "0")                                                              \
-    OBFH_SF_EPILOGUE                                                                        \
-    OBFH_SF_GAP                                                                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                     \
-    OBFH_SF_CALL_AT("2f", "1")                                                              \
-    OBFH_SF_EPILOGUE                                                                        \
-    OBFH_SF_GAP                                                                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                     \
+#define OBFH_SF_LAYOUT_16(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
     "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL_AT("2b", "2") "4:" OBFH_SF_CALL_AT("3f", "3") \
-        OBFH_SF_EPILOGUE                                                                    \
-            OBFH_SF_GAP                                                                     \
-                OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c)                                     \
+        OBFH_SF_EPILOGUE \
+            OBFH_SF_GAP \
+                OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
                     OBFH_SF_EPILOGUE_ALT
 
-#define OBFH_SF_LAYOUT_17(a, b, c, d)                                                                                    \
-    OBFH_SF_CALL_AT("1f", "0")                                                                                           \
-    OBFH_SF_EPILOGUE                                                                                                     \
-    OBFH_SF_GAP                                                                                                          \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                                  \
+#define OBFH_SF_LAYOUT_17(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
     "cmpl %%edx, %%eax; jb 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "2") "5:" OBFH_SF_EPILOGUE \
-        OBFH_SF_GAP                                                                                                      \
-            OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP                                             \
-                OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c)                                                                  \
-                    OBFH_SF_CALL_AT("1b", "3")                                                                           \
+        OBFH_SF_GAP \
+            OBFH_SF_ENTRY("2", "sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
+                OBFH_SF_ENTRY_ALT("3", "sf_frame_c", c) \
+                    OBFH_SF_CALL_AT("1b", "3") \
                         OBFH_SF_EPILOGUE_ALT
 
-#define OBFH_SF_LAYOUT_18(a, b, c, d)       \
-    OBFH_SF_CALL_AT("3f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_18(a, b, c, d) \
+    OBFH_SF_CALL_AT("3f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
-    OBFH_SF_CALL_AT("1b", "1")              \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_CALL_AT("2b", "2")              \
+    OBFH_SF_CALL_AT("1b", "1") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_19(a, b, c, d)                                                                                  \
+#define OBFH_SF_LAYOUT_19(a, b, c, d) \
     "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("1f", "0") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "1") "5:" OBFH_SF_EPILOGUE \
-        OBFH_SF_GAP                                                                                                    \
-            OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                        \
-                OBFH_SF_CALL_AT("2f", "2")                                                                             \
-                    OBFH_SF_EPILOGUE                                                                                   \
-                        OBFH_SF_GAP                                                                                    \
-                            OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b)                                                    \
-    OBFH_SF_EPILOGUE_ALT                                                                                               \
-    OBFH_SF_GAP                                                                                                        \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)                                                                                \
-    OBFH_SF_CALL_AT("2b", "3")                                                                                         \
+        OBFH_SF_GAP \
+            OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+                OBFH_SF_CALL_AT("2f", "2") \
+                    OBFH_SF_EPILOGUE \
+                        OBFH_SF_GAP \
+                            OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_CALL_AT("2b", "3") \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_20(a, b, c, d)                                                                                  \
-    OBFH_SF_CALL_AT("1f", "0")                                                                                         \
-    OBFH_SF_EPILOGUE                                                                                                   \
-    OBFH_SF_GAP                                                                                                        \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)                                                                                \
-    OBFH_SF_CALL_AT("8f", "1")                                                                                         \
-    OBFH_SF_EPILOGUE                                                                                                   \
-    OBFH_SF_GAP                                                                                                        \
-    OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d)                                                                            \
-    OBFH_SF_CALL_AT("3f", "2")                                                                                         \
-    OBFH_SF_EPILOGUE_ALT                                                                                               \
-    OBFH_SF_GAP                                                                                                        \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)                                                                                \
+#define OBFH_SF_LAYOUT_20(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("8f", "1") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d) \
+    OBFH_SF_CALL_AT("3f", "2") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
     "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "3") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "4") "5:" OBFH_SF_EPILOGUE \
-        OBFH_SF_GAP                                                                                                    \
-            OBFH_SF_ENTRY("3", "sf_frame_c", c)                                                                        \
-                OBFH_SF_CALL_AT("1b", "5")                                                                             \
+        OBFH_SF_GAP \
+            OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+                OBFH_SF_CALL_AT("1b", "5") \
                     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_21(a, b, c, d)       \
-    OBFH_SF_CALL_AT("1f", "0")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("3", "sf_frame_c", c)     \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
+#define OBFH_SF_LAYOUT_21(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("3", "sf_frame_c", c) \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY_ALT("8", "sf_frame_d", d) \
-    OBFH_SF_CALL_AT("3b", "1")              \
-    OBFH_SF_EPILOGUE_ALT                    \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)     \
-    OBFH_SF_CALL_AT("8b", "2")              \
-    OBFH_SF_EPILOGUE                        \
-    OBFH_SF_GAP                             \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)     \
-    OBFH_SF_CALL_AT("2b", "3")              \
-    OBFH_SF_CALL_AT("3b", "4")              \
+    OBFH_SF_CALL_AT("3b", "1") \
+    OBFH_SF_EPILOGUE_ALT \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("8b", "2") \
+    OBFH_SF_EPILOGUE \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "3") \
+    OBFH_SF_CALL_AT("3b", "4") \
     OBFH_SF_EPILOGUE
 
 // Skipped native helpers: register-only and scratch-stack forms share no RBP frame.
@@ -2159,77 +2159,77 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LEAF_K OBFH_SF_LEAF_ARGS "movzbl %%al, %%ecx; shrl $8, %%eax; imull $%c[sf_factor], %%ecx; xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_L OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_ALU_A "jmp 7f; 6:" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
-#define OBFH_SF_LAYOUT_22(a, b, c, d)   \
-    OBFH_SF_CALL_AT("1f", "0")          \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP        \
-        OBFH_SF_LEAF_ENTRY("2", c)      \
-    OBFH_SF_GAP                         \
+#define OBFH_SF_LAYOUT_22(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("2", c) \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY("1", "sf_frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1")          \
+    OBFH_SF_CALL_AT("2b", "1") \
     OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_23(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0")        \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP  \
-        OBFH_SF_LEAF_ENTRY("1", c)    \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("1", c) \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("2", d)
-#define OBFH_SF_LAYOUT_24(a, b, c, d)                                                                                                  \
-    OBFH_SF_CALL_AT("1f", "0")                                                                                                         \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP                                                                                                       \
+#define OBFH_SF_LAYOUT_24(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP \
         OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) OBFH_SF_CALL_AT("3f", "1") OBFH_SF_CALL_AT("2f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-            OBFH_SF_LEAF_ENTRY("2", c)                                                                                                 \
+            OBFH_SF_LEAF_ENTRY("2", c) \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d)
-#define OBFH_SF_LAYOUT_25(a, b, c, d)   \
-    OBFH_SF_CALL_AT("1f", "0")          \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP    \
-        OBFH_SF_LEAF_ENTRY("3", d)      \
-    OBFH_SF_GAP                         \
+#define OBFH_SF_LAYOUT_25(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("3", d) \
+    OBFH_SF_GAP \
     OBFH_SF_ENTRY("1", "sf_frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1")          \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP        \
+    OBFH_SF_CALL_AT("2f", "1") \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP \
         OBFH_SF_ENTRY_ALT("2", "sf_frame_b", b) OBFH_SF_CALL_AT("3b", "2") OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_26(a, b, c, d)                                                             \
-    OBFH_SF_CALL_AT("1f", "0")                                                                    \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP                                                                  \
-        OBFH_SF_LEAF_ENTRY("2", c)                                                                \
-    OBFH_SF_GAP                                                                                   \
-    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a)                                                       \
+#define OBFH_SF_LAYOUT_26(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("2", c) \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY_ALT("1", "sf_frame_a", a) \
     "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "4:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("3", d)
-#define OBFH_SF_LAYOUT_27(a, b, c, d)      \
-    OBFH_SF_CALL_AT("2f", "0")             \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP       \
-        OBFH_SF_LEAF_ENTRY("1", c)         \
+#define OBFH_SF_LAYOUT_27(a, b, c, d) \
+    OBFH_SF_CALL_AT("2f", "0") \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("1", c) \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d) \
-    OBFH_SF_GAP                            \
-    OBFH_SF_ENTRY("2", "sf_frame_b", b)    \
-    OBFH_SF_CALL_AT("1b", "1")             \
-    OBFH_SF_CALL_AT("3b", "2")             \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("2", "sf_frame_b", b) \
+    OBFH_SF_CALL_AT("1b", "1") \
+    OBFH_SF_CALL_AT("3b", "2") \
     OBFH_SF_EPILOGUE
 
-#define OBFH_SF_LAYOUT_28(a, b, c, d)                  \
-    OBFH_SF_CALL_AT("1f", "0")                         \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP                       \
-        OBFH_SF_LEAF_ENTRY("2", c)                     \
-    OBFH_SF_GAP                                        \
-    OBFH_SF_ENTRY("1", "sf_frame_a", a)                \
-    OBFH_SF_CALL_AT("2b", "1")                         \
-    OBFH_SF_CALL_AT("3f", "2")                         \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP                   \
-        OBFH_SF_ENTRY_ALT("3", "sf_frame_b", b)        \
-            OBFH_SF_CALL_AT("8f", "3")                 \
-                OBFH_SF_CALL_AT("10f", "4")            \
-                    OBFH_SF_CALL_AT("11f", "5")        \
-                        OBFH_SF_EPILOGUE OBFH_SF_GAP   \
+#define OBFH_SF_LAYOUT_28(a, b, c, d) \
+    OBFH_SF_CALL_AT("1f", "0") \
+    OBFH_SF_EPILOGUE OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("2", c) \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("1", "sf_frame_a", a) \
+    OBFH_SF_CALL_AT("2b", "1") \
+    OBFH_SF_CALL_AT("3f", "2") \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_ENTRY_ALT("3", "sf_frame_b", b) \
+            OBFH_SF_CALL_AT("8f", "3") \
+                OBFH_SF_CALL_AT("10f", "4") \
+                    OBFH_SF_CALL_AT("11f", "5") \
+                        OBFH_SF_EPILOGUE OBFH_SF_GAP \
                             OBFH_SF_LEAF_ENTRY("8", d) \
-    OBFH_SF_GAP                                        \
-    OBFH_SF_LEAF_ENTRY("10", c)                        \
-    OBFH_SF_GAP                                        \
-    OBFH_SF_ENTRY("11", "sf_frame_d", a)               \
-    OBFH_SF_CALL_AT("13f", "1")                        \
-    OBFH_SF_CALL_AT("12f", "2")                        \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP                   \
-        OBFH_SF_LEAF_ENTRY("12", d)                    \
-    OBFH_SF_GAP                                        \
+    OBFH_SF_GAP \
+    OBFH_SF_LEAF_ENTRY("10", c) \
+    OBFH_SF_GAP \
+    OBFH_SF_ENTRY("11", "sf_frame_d", a) \
+    OBFH_SF_CALL_AT("13f", "1") \
+    OBFH_SF_CALL_AT("12f", "2") \
+    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_LEAF_ENTRY("12", d) \
+    OBFH_SF_GAP \
     OBFH_SF_LEAF_ENTRY("13", c)
 
 // Compact equivalent ASM fragments. Keep the readable layouts above.
@@ -2541,10 +2541,10 @@ OBFH_PD_DEFINE(127);
 // END COMPACT ASM CACHE
 
 // Shared source parameters stay local to each insertion; all guards/layouts remain.
-#define OBFH_SF_EMIT(guard, layout)                                                                      \
+#define OBFH_SF_EMIT(guard, layout) \
     __obfh_asm__(OBFH_SF_INPUT "xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9:" \
-                 :                                                                                       \
-                 : OBFH_SF_INPUTS                                                                        \
+                 : \
+                 : OBFH_SF_INPUTS \
                  : "eax", "edx", "ecx", "cc", "memory")
 #define OBFH_SF_ASM(guard, layout) ({ OBFH_SF_CAPTURE; OBFH_SF_EMIT(guard, layout); })
 #define OBFH_SF_VARIANT_COUNT 128u
@@ -2826,11 +2826,11 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_SPEC_127(emit) emit(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_K, OBFH_SF_LEAF_K))
 #define OBFH_SF_VARIANT_127 OBFH_SF_SPEC_127(OBFH_SF_ASM)
 
-#define STACK_PROXY_FUNCTIONS ({                                                                                                                                                    \
-    enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
+#define STACK_PROXY_FUNCTIONS ({ \
+    enum { __obfh_sf_id = __COUNTER__, \
            __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
-    OBFH_SF_SELECT(__obfh_sf_variant);                                                                                                                                              \
-    (void)0;                                                                                                                                                                        \
+    OBFH_SF_SELECT(__obfh_sf_variant); \
+    (void)0; \
 })
 
 // ============================================================================
@@ -2859,10 +2859,10 @@ static void obfh_junk_func() OBFH_DATA_CODE_SECTION_ATTRIBUTE {
     return;
 }
 
-#define __CRASH       \
-    __obfh_asm__(     \
+#define __CRASH \
+    __obfh_asm__( \
         ".byte 0xED;" \
-        "int $3;");   \
+        "int $3;"); \
     exit(1);
 
 #define TRUE ((((_9 + _7 + (RND(0, 1000) * _0))) / _8) - _1)
@@ -2875,21 +2875,21 @@ typedef struct {
 } OBFH_CRT_ENTRY;
 static FARPROC obfh_crt_lookup(const char *name);
 static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key);
-#define obfh_crt_resolve(name) ({                                                                                              \
-    enum { __obfh_crt_site = __COUNTER__,                                                                                      \
-           __obfh_crt_draw = OBFH_MIX_B(OBFH_JUNK_WORD ^ __obfh_crt_site) };                                                   \
-    static OBFH_CRT_ENTRY __obfh_crt_slot;                                                                                     \
-    const char *__obfh_cache_input = (name);                                                                                   \
+#define obfh_crt_resolve(name) ({ \
+    enum { __obfh_crt_site = __COUNTER__, \
+           __obfh_crt_draw = OBFH_MIX_B(OBFH_JUNK_WORD ^ __obfh_crt_site) }; \
+    static OBFH_CRT_ENTRY __obfh_crt_slot; \
+    const char *__obfh_cache_input = (name); \
     ULONG_PTR __obfh_crt_key = (ULONG_PTR)__obfh_crt_draw ^ ((ULONG_PTR)OBFH_BUILD_SEED << (sizeof(ULONG_PTR) == 8 ? 32 : 0)); \
-    obfh_crt_site(__obfh_cache_input, &__obfh_crt_slot, __obfh_crt_key);                                                       \
+    obfh_crt_site(__obfh_cache_input, &__obfh_crt_slot, __obfh_crt_key); \
 })
 #define OBFH_CRT_TARGET(type, name) ((type)obfh_crt_resolve(name))
 #define OBFH_CRT_PROXY_ENTER \
-    STACK_PROXY_FUNCTIONS;   \
+    STACK_PROXY_FUNCTIONS; \
     BREAK_STACK_CFLOW
 #define OBFH_CRT_PROXY_RETURN(value) \
-    PHANTOM_NOP;                     \
-    STACK_PROXY_FUNCTIONS;           \
+    PHANTOM_NOP; \
+    STACK_PROXY_FUNCTIONS; \
     RET_BY_VAR(value)
 static void *malloc_proxy(size_t size) {
     OBFH_CRT_PROXY_ENTER;
@@ -3106,39 +3106,39 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 // Instruction starts and their following bytes belong only to skipped regions.
 #define OBFH_FLOW_OPCODE(kind) \
     ((((kind)&4u ? 0xF3660FFFu : 0xE9E8898Bu) >> (((kind)&3u) * 8u)) & 255u)
-#define OBFH_FLOW_DEAD_BYTES                                                                \
-    ({                                                                                      \
-        enum { __obfh_dead_kind = OBFH_JUNK_BYTE & 7u };                                    \
-        __obfh_asm__(".byte %c0, %c1, %c2, %c3; .long %c4; .fill %c5, 1, %c6;"              \
-                     :                                                                      \
-                     : "i"(OBFH_FLOW_OPCODE(__obfh_dead_kind)),                             \
-                       "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE),       \
+#define OBFH_FLOW_DEAD_BYTES \
+    ({ \
+        enum { __obfh_dead_kind = OBFH_JUNK_BYTE & 7u }; \
+        __obfh_asm__(".byte %c0, %c1, %c2, %c3; .long %c4; .fill %c5, 1, %c6;" \
+                     : \
+                     : "i"(OBFH_FLOW_OPCODE(__obfh_dead_kind)), \
+                       "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), \
                        "i"(OBFH_JUNK_WORD), "i"(OBFH_JUNK_BYTE & 7u), "i"(OBFH_JUNK_BYTE)); \
     })
 
 // Distinct tags stay distinct through the existing bijective live ladder.
 // Other sites use scalar transport, whose implementation retains BREAK_STACK_CFLOW.
 // Completion consumes the transported result instead of returning a C constant.
-#define OBFH_FLOW_ELSE_GUARD                                                                                                                   \
-    (({                                                                                                                                        \
-        enum { __obfh_else_site = __COUNTER__,                                                                                                 \
-               __obfh_flow_hash = OBFH_MIX_B(OBFH_MIX_A((unsigned int)OBFH_BUILD_SEED ^                                                        \
+#define OBFH_FLOW_ELSE_GUARD \
+    (({ \
+        enum { __obfh_else_site = __COUNTER__, \
+               __obfh_flow_hash = OBFH_MIX_B(OBFH_MIX_A((unsigned int)OBFH_BUILD_SEED ^ \
                                                         (unsigned int)__obfh_else_site ^ (unsigned int)__LINE__ * 2654435761u ^ 0x454C5345u)), \
-               __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u),                                                                  \
-               __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u) };                                       \
-        OBFH_FLOW_ELSE_TRANSPORT;                                                                                                              \
+               __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u), \
+               __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u) }; \
+        OBFH_FLOW_ELSE_TRANSPORT; \
     }))
 
 #if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
-#define OBFH_FLOW_ELSE_TRANSPORT                                                                  \
-    __builtin_choose_expr(OBFH_PD_LIVE_ENABLED && ((__obfh_flow_hash & 15u) == 0u), ({            \
-                              unsigned int __obfh_flow_state = __obfh_false_tag;                  \
+#define OBFH_FLOW_ELSE_TRANSPORT \
+    __builtin_choose_expr(OBFH_PD_LIVE_ENABLED && ((__obfh_flow_hash & 15u) == 0u), ({ \
+                              unsigned int __obfh_flow_state = __obfh_false_tag; \
                               unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
-                              ULONG_PTR __obfh_cookie = 0;                                        \
-                              OBFH_P_CHAIN(__obfh_true_tag);                                      \
-                              OBFH_P_FINISH((__obfh_flow_hash >> 16) & 7u);                       \
-                              __obfh_flow_result;                                                 \
-                          }),                                                                     \
+                              ULONG_PTR __obfh_cookie = 0; \
+                              OBFH_P_CHAIN(__obfh_true_tag); \
+                              OBFH_P_FINISH((__obfh_flow_hash >> 16) & 7u); \
+                              __obfh_flow_result; \
+                          }), \
                           ((unsigned int)obfh_uintptr_proxy(__obfh_false_tag) == __obfh_true_tag))
 #else
 #define OBFH_FLOW_ELSE_TRANSPORT \
@@ -3177,46 +3177,46 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     OBFH_PD_LIVE_ADDRESS(80), OBFH_PD_LIVE_ADDRESS(81), OBFH_PD_LIVE_ADDRESS(82), OBFH_PD_LIVE_ADDRESS(83),
     OBFH_PD_LIVE_ADDRESS(84), OBFH_PD_LIVE_ADDRESS(85)};
 #define OBFH_PD_LIVE_NODE(node) obfh_pd_live_entries[OBFH_PD_LIVE_SITE(node)]
-#define OBFH_PD_LIVE_PARAMETERS(stage, site)                  \
+#define OBFH_PD_LIVE_PARAMETERS(stage, site) \
     enum { __obfh_lkind##stage = OBFH_PD_DRAW(site, 1u) & 7u, \
-           __obfh_lkey##stage = OBFH_PD_DRAW(site, 4u),       \
-           __obfh_ladd##stage = OBFH_PD_DRAW(site, 5u),       \
-           __obfh_lmul##stage = OBFH_PD_DRAW(site, 6u) | 1u,  \
+           __obfh_lkey##stage = OBFH_PD_DRAW(site, 4u), \
+           __obfh_ladd##stage = OBFH_PD_DRAW(site, 5u), \
+           __obfh_lmul##stage = OBFH_PD_DRAW(site, 6u) | 1u, \
            __obfh_lrot##stage = 1u + (OBFH_PD_DRAW(site, 7u) % 31u) }
 #define OBFH_PD_LIVE_ROL(x, n) (((unsigned int)(x) << (n)) | ((unsigned int)(x) >> (32u - (n))))
 #define OBFH_PD_LIVE_ROR(x, n) (((unsigned int)(x) >> (n)) | ((unsigned int)(x) << (32u - (n))))
 #define OBFH_PD_LIVE_SWAP(x) ((((unsigned int)(x)&255u) << 24) | (((unsigned int)(x)&65280u) << 8) | (((unsigned int)(x) >> 8) & 65280u) | ((unsigned int)(x) >> 24))
-#define OBFH_PD_LIVE_PRE(stage, x)                                                                                                                                                                                                                                \
-    (__obfh_lkind##stage == 0u ? (((unsigned int)(x) ^ __obfh_lkey##stage) * __obfh_lmul##stage + __obfh_ladd##stage) : __obfh_lkind##stage == 1u ? ((OBFH_PD_LIVE_ROL(x, __obfh_lrot##stage) ^ __obfh_lkey##stage) + __obfh_ladd##stage)                         \
+#define OBFH_PD_LIVE_PRE(stage, x) \
+    (__obfh_lkind##stage == 0u ? (((unsigned int)(x) ^ __obfh_lkey##stage) * __obfh_lmul##stage + __obfh_ladd##stage) : __obfh_lkind##stage == 1u ? ((OBFH_PD_LIVE_ROL(x, __obfh_lrot##stage) ^ __obfh_lkey##stage) + __obfh_ladd##stage) \
                                                                                                                     : __obfh_lkind##stage == 2u   ? (((unsigned int)(x) + __obfh_lkey##stage) ^ (((unsigned int)(x) + __obfh_lkey##stage) >> __obfh_lrot##stage)) \
-                                                                                                                    : __obfh_lkind##stage == 3u   ? ((OBFH_PD_LIVE_SWAP(x) ^ __obfh_lkey##stage) + __obfh_ladd##stage)                                            \
-                                                                                                                    : __obfh_lkind##stage == 4u   ? ((~(unsigned int)(x) + __obfh_lkey##stage) ^ __obfh_ladd##stage)                                              \
-                                                                                                                    : __obfh_lkind##stage == 5u   ? (((unsigned int)(x) ^ ((unsigned int)(x) >> 13)) * __obfh_lmul##stage)                                        \
-                                                                                                                    : __obfh_lkind##stage == 6u   ? OBFH_PD_LIVE_SWAP(OBFH_PD_LIVE_ROR(x, __obfh_lrot##stage) + __obfh_lkey##stage)                               \
+                                                                                                                    : __obfh_lkind##stage == 3u   ? ((OBFH_PD_LIVE_SWAP(x) ^ __obfh_lkey##stage) + __obfh_ladd##stage) \
+                                                                                                                    : __obfh_lkind##stage == 4u   ? ((~(unsigned int)(x) + __obfh_lkey##stage) ^ __obfh_ladd##stage) \
+                                                                                                                    : __obfh_lkind##stage == 5u   ? (((unsigned int)(x) ^ ((unsigned int)(x) >> 13)) * __obfh_lmul##stage) \
+                                                                                                                    : __obfh_lkind##stage == 6u   ? OBFH_PD_LIVE_SWAP(OBFH_PD_LIVE_ROR(x, __obfh_lrot##stage) + __obfh_lkey##stage) \
                                                                                                                                                   : (OBFH_PD_LIVE_ROL((unsigned int)(x)-__obfh_lkey##stage, __obfh_lrot##stage) ^ __obfh_ladd##stage))
 // The two post routes preserve parity, so their images remain disjoint.
 #define OBFH_PD_LIVE_POST(stage, x) \
     (((unsigned int)(x)&1u) ? (((unsigned int)(x) ^ (__obfh_ladd##stage & ~1u)) * __obfh_lmul##stage + (__obfh_lkey##stage & ~1u)) : (((unsigned int)(x)*__obfh_lmul##stage + (__obfh_lkey##stage & ~1u)) ^ (__obfh_ladd##stage & ~1u)))
-#define OBFH_P_CHAIN(true_tag) ({                                                                                                                      \
-    enum { __obfh_lnode0 = (__obfh_flow_hash >> 3) & 15u,                                                                                              \
-           __obfh_lnode1 = (__obfh_lnode0 + (((__obfh_flow_hash >> 11) & 7u) * 2u + 1u)) & 15u,                                                        \
-           __obfh_lnode2 = (__obfh_lnode0 + 8u) & 15u,                                                                                                 \
-           __obfh_lsite0 = OBFH_PD_LIVE_SITE(__obfh_lnode0),                                                                                           \
-           __obfh_lsite1 = OBFH_PD_LIVE_SITE(__obfh_lnode1),                                                                                           \
-           __obfh_lsite2 = OBFH_PD_LIVE_SITE(__obfh_lnode2) };                                                                                         \
-    OBFH_PD_LIVE_PARAMETERS(0, __obfh_lsite0);                                                                                                         \
-    OBFH_PD_LIVE_PARAMETERS(1, __obfh_lsite1);                                                                                                         \
-    OBFH_PD_LIVE_PARAMETERS(2, __obfh_lsite2);                                                                                                         \
-    enum { __obfh_ltag0 = OBFH_PD_LIVE_PRE(0, true_tag),                                                                                               \
-           __obfh_ltag1 = OBFH_PD_LIVE_PRE(1, __obfh_ltag0),                                                                                           \
-           __obfh_ltag2 = OBFH_PD_LIVE_PRE(2, __obfh_ltag1),                                                                                           \
-           __obfh_ltag3 = OBFH_PD_LIVE_POST(2, __obfh_ltag2),                                                                                          \
-           __obfh_ltag4 = OBFH_PD_LIVE_POST(1, __obfh_ltag3),                                                                                          \
-           __obfh_ltag5 = OBFH_PD_LIVE_POST(0, __obfh_ltag4) };                                                                                        \
-    __obfh_flow_tag = __obfh_ltag5;                                                                                                                    \
-    __obfh_flow_state = obfh_pd_live_entries[__obfh_lsite0](__obfh_flow_state,                                                                         \
+#define OBFH_P_CHAIN(true_tag) ({ \
+    enum { __obfh_lnode0 = (__obfh_flow_hash >> 3) & 15u, \
+           __obfh_lnode1 = (__obfh_lnode0 + (((__obfh_flow_hash >> 11) & 7u) * 2u + 1u)) & 15u, \
+           __obfh_lnode2 = (__obfh_lnode0 + 8u) & 15u, \
+           __obfh_lsite0 = OBFH_PD_LIVE_SITE(__obfh_lnode0), \
+           __obfh_lsite1 = OBFH_PD_LIVE_SITE(__obfh_lnode1), \
+           __obfh_lsite2 = OBFH_PD_LIVE_SITE(__obfh_lnode2) }; \
+    OBFH_PD_LIVE_PARAMETERS(0, __obfh_lsite0); \
+    OBFH_PD_LIVE_PARAMETERS(1, __obfh_lsite1); \
+    OBFH_PD_LIVE_PARAMETERS(2, __obfh_lsite2); \
+    enum { __obfh_ltag0 = OBFH_PD_LIVE_PRE(0, true_tag), \
+           __obfh_ltag1 = OBFH_PD_LIVE_PRE(1, __obfh_ltag0), \
+           __obfh_ltag2 = OBFH_PD_LIVE_PRE(2, __obfh_ltag1), \
+           __obfh_ltag3 = OBFH_PD_LIVE_POST(2, __obfh_ltag2), \
+           __obfh_ltag4 = OBFH_PD_LIVE_POST(1, __obfh_ltag3), \
+           __obfh_ltag5 = OBFH_PD_LIVE_POST(0, __obfh_ltag4) }; \
+    __obfh_flow_tag = __obfh_ltag5; \
+    __obfh_flow_state = obfh_pd_live_entries[__obfh_lsite0](__obfh_flow_state, \
                                                             (void *)obfh_pd_live_entries[__obfh_lsite1], (void *)obfh_pd_live_entries[__obfh_lsite2]); \
-    __obfh_cookie ^= (ULONG_PTR)__obfh_flow_state;                                                                                                     \
+    __obfh_cookie ^= (ULONG_PTR)__obfh_flow_state; \
 })
 #else
 #define OBFH_P_CHAIN(true_tag) ((void)0)
@@ -3237,39 +3237,39 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_SF_GUARD_12_VALUE(x) (((x) + __obfh_sf_key_a) * __obfh_sf_factor)
 #define OBFH_SF_GUARD_13_VALUE(x) ((unsigned int)__obfh_sf_key_a * (unsigned int)__obfh_sf_key_a)
 #define OBFH_SF_GUARD_14_VALUE(x) (x)
-#define OBFH_SF_FLOW_EMIT(guard, layout) ({                                                                              \
-    unsigned int __obfh_link_input = (unsigned int)__obfh_cookie ^ __obfh_flow_hash;                                     \
-    unsigned int __obfh_link_rotated = __obfh_link_input ^ __obfh_sf_salt;                                               \
+#define OBFH_SF_FLOW_EMIT(guard, layout) ({ \
+    unsigned int __obfh_link_input = (unsigned int)__obfh_cookie ^ __obfh_flow_hash; \
+    unsigned int __obfh_link_rotated = __obfh_link_input ^ __obfh_sf_salt; \
     __obfh_link_rotated = (__obfh_link_rotated << __obfh_sf_rotate) | (__obfh_link_rotated >> (32u - __obfh_sf_rotate)); \
-    unsigned int __obfh_link_expected = guard##_VALUE(__obfh_link_rotated) ^ __obfh_link_input;                          \
-    unsigned int __obfh_link_value = __obfh_link_input;                                                                  \
-    __obfh_asm__("xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9: xorl %[link_input], %%eax;"    \
-                 : "+a"(__obfh_link_value)                                                                               \
-                 : [link_input] "m"(__obfh_link_input), OBFH_SF_INPUTS                                                   \
-                 : "edx", "ecx", "cc", "memory");                                                                        \
-    __obfh_flow_state ^= __obfh_link_value;                                                                              \
-    __obfh_flow_tag ^= __obfh_link_expected;                                                                             \
-    __obfh_cookie ^= (ULONG_PTR)__obfh_link_value;                                                                       \
+    unsigned int __obfh_link_expected = guard##_VALUE(__obfh_link_rotated) ^ __obfh_link_input; \
+    unsigned int __obfh_link_value = __obfh_link_input; \
+    __obfh_asm__("xorl $%c[sf_salt], %%eax; roll $%c[sf_rotate], %%eax;" guard layout "9: xorl %[link_input], %%eax;" \
+                 : "+a"(__obfh_link_value) \
+                 : [link_input] "m"(__obfh_link_input), OBFH_SF_INPUTS \
+                 : "edx", "ecx", "cc", "memory"); \
+    __obfh_flow_state ^= __obfh_link_value; \
+    __obfh_flow_tag ^= __obfh_link_expected; \
+    __obfh_cookie ^= (ULONG_PTR)__obfh_link_value; \
 })
-#define OBFH_P_PROXY ({                                                                                                                                                             \
-    enum { __obfh_sf_id = __COUNTER__,                                                                                                                                              \
+#define OBFH_P_PROXY ({ \
+    enum { __obfh_sf_id = __COUNTER__, \
            __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
-    __builtin_choose_expr((__obfh_sf_variant & 3u) == 0u, OBFH_P_CHAIN(__obfh_true_tag), ((void)0));                                                                                \
-    OBFH_SF_SELECT_EMIT(__obfh_sf_variant, OBFH_SF_FLOW_EMIT);                                                                                                                      \
+    __builtin_choose_expr((__obfh_sf_variant & 3u) == 0u, OBFH_P_CHAIN(__obfh_true_tag), ((void)0)); \
+    OBFH_SF_SELECT_EMIT(__obfh_sf_variant, OBFH_SF_FLOW_EMIT); \
 })
 
 // Local condition transport: disjoint input tags and path-specific permutations.
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_BEFORE unsigned int __obfh_before_state = __obfh_flow_state, __obfh_before_tag = __obfh_flow_tag;
-#define OBFH_P_TRACE(s, p)                                               \
+#define OBFH_P_TRACE(s, p) \
     obfh_test_flow_stage(__obfh_flow_layout, s, p, __obfh_before_state, __obfh_before_tag, __obfh_flow_state, \
                          __obfh_flow_tag, __obfh_k##s##p, __obfh_m##s##p, __obfh_a##s##p, __obfh_r##s##p, \
                          __obfh_style##s##p, _X##s##p, _H##s##p, _E##s##p, _A##s##p, _Y##s##p); \
-    __builtin_choose_expr((s) == 0, ({                                   \
-                              obfh_test_flow_visit();                    \
-                              obfh_test_flow_route(__obfh_flow_first);   \
+    __builtin_choose_expr((s) == 0, ({ \
+                              obfh_test_flow_visit(); \
+                              obfh_test_flow_route(__obfh_flow_first); \
                               obfh_test_transport_visit(__obfh_flow_layout, __obfh_flow_exit, __obfh_flow_hash & 1u); \
-                          }),                                            \
+                          }), \
                           ((void)0))
 #else
 #define OBFH_P_BEFORE
@@ -3287,97 +3287,136 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_CMOV_PREFIX ""
 #endif
 // Local address representation is selected once; no runtime dispatcher.
-#define OBFH_P_SELECTOR_META(s)                                          \
+#define OBFH_P_SELECTOR_META(s) \
     enum { __obfh_address_form##s = (__obfh_flow_hash >> ((s) + 22)) % 3u, \
            __obfh_address_xor##s = __obfh_address_form##s == 0 ? __obfh_flow_key : 0, \
-           __obfh_address_bias##s = __obfh_address_form##s == 1 ? -(int)__obfh_flow_key : \
-               (__obfh_address_form##s == 2 ? (int)__obfh_flow_key : 0), \
+           __obfh_address_bias##s = __obfh_address_form##s == 1 ? -(int)__obfh_flow_key : (__obfh_address_form##s == 2 ? (int)__obfh_flow_key : 0), \
            __obfh_shift_form##s = (__obfh_flow_hash >> ((s) + 26)) % 3u, \
            __obfh_index_form##s = (__obfh_flow_hash >> ((s) + 25)) & 1u, \
-           __obfh_bitcode##s = 0xc1u | ((__obfh_shift_form##s == 0 ? 0xe9u : \
-               (__obfh_shift_form##s == 1 ? 0xc9u : 0xc1u)) << 8) |      \
-               ((__obfh_shift_form##s == 2 ? ((32u - (s)) & 31u) : (s)) << 16) };
-#define OBFH_P_ADDRESS(shift, label)                                     \
-    (((ULONG_PTR)&&label ^ (ULONG_PTR)__obfh_address_xor##shift) + (ULONG_PTR)(LONG)__obfh_address_bias##shift)
-#define OBFH_P_MASK_TEXT                                                 \
-    "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD             \
-                     " %[one], %[target]; "                              \
-                     "and" OBFH_P_WORD " %[flip], %[target]; mov" OBFH_P_WORD " %[target], " OBFH_P_CX \
-                     "; "                                                \
-                     "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX \
-                     "; "                                                \
-                     "cmpl %[tag], %%eax; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],0xd1; " \
-                     ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_TEXT                                                \
-                                                                         \
-            "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
-            "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE \
-            "), %[target]; .byte " OBFH_P_CMOV_PREFIX "0xf7,%c[index_op]; " \
-            "mov" OBFH_P_WORD " %c[next](%[table], " OBFH_P_CX ", " OBFH_P_SCALE "), " OBFH_P_CX \
-            "; "                                                         \
-            "cmpl %[tag], %%eax; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],0xd1; " \
-            ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
+           __obfh_bitcode##s = 0xc1u | ((__obfh_shift_form##s == 0 ? 0xe9u : (__obfh_shift_form##s == 1 ? 0xc9u : 0xc1u)) << 8) | \
+                               ((__obfh_shift_form##s == 2 ? ((32u - (s)) & 31u) : (s)) << 16), \
+           __obfh_sel_order##s = (__obfh_flow_hash >> ((s) + 6)) & 1u, \
+           __obfh_sel_decode##s = __obfh_address_form##s == 0 ? 0xf2 : (__obfh_address_form##s == 1 ? 0xc2 : 0xea), \
+           __obfh_sel_cmov##s = 0x44u + ((__obfh_flow_hash >> ((s) + 20)) & 1u) };
+#define OBFH_P_ADDRESS(shift, label) \
+    (((ULONG_PTR) && label ^ (ULONG_PTR)__obfh_address_xor##shift) + (ULONG_PTR)(LONG)__obfh_address_bias##shift)
+#define OBFH_P_MASK_TEXT \
+    "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD \
+    " %[one], %[target]; " \
+    "and" OBFH_P_WORD " %[flip], %[target]; mov" OBFH_P_WORD " %[target], " OBFH_P_CX \
+    "; " \
+    "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX \
+    "; " \
+    "cmpl %[tag], %%eax; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],%c[cmovreg]; " \
+    ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_TEXT \
+    "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD \
+    " %[one], %[target]; " \
+    "and" OBFH_P_WORD " %[flip], %[target]; mov" OBFH_P_WORD " %[target], " OBFH_P_CX \
+    "; " \
+    "xor" OBFH_P_WORD " %[one], " OBFH_P_CX "; xor" OBFH_P_WORD " %[zero], %[target]" \
+    "; " \
+    "cmpl %%eax, %[tag]; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],%c[cmovreg]; " \
+    ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_TEXT \
+\
+    "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
+    "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE \
+    "), %[target]; .byte " OBFH_P_CMOV_PREFIX "0xf7,%c[index_op]; " \
+    "mov" OBFH_P_WORD " %c[next](%[table], " OBFH_P_CX ", " OBFH_P_SCALE "), " OBFH_P_CX \
+    "; " \
+    "cmpl %[tag], %%eax; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],0xd1; " \
+    ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_ALT_TEXT \
+\
+    "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
+    "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE \
+    "), %[target]; .byte " OBFH_P_CMOV_PREFIX "0xf7,%c[index_op]; " \
+    "mov" OBFH_P_WORD " %c[next](%[table], " OBFH_P_CX ", " OBFH_P_SCALE "), " OBFH_P_CX \
+    "; " \
+    "cmpl %%eax, %[tag]; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],0xd1; " \
+    ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
 // BEGIN GENERATED CFLOW SELECTORS
+// clang-format off
 #if defined(__x86_64__)
-#define OBFH_P_MASK_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %[flip], %[target]; movq %[target], %%rcx; xorq %[zero], %[target]; xorq %[one], %%rcx; cmpl %[tag], %%eax; .byte 0x48,0x0f,%c[cmov],0xd1; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %[flip], %[target]; movq %[target], %%rcx; xorq %[zero], %[target]; xorq %[one], %%rcx; cmpl %[tag], %%eax; .byte 0x48,0x0f,%c[cmov],%c[cmovreg]; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %[flip], %[target]; movq %[target], %%rdx; xorq %[zero], %[target]; xorq %[one], %%rdx; cmpl %[tag], %%eax; .byte 0x48,0x0f,%c[cmov],%c[cmovreg]; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %[flip], %[target]; movq %[target], %%rcx; xorq %[one], %%rcx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .byte 0x48,0x0f,%c[cmov],%c[cmovreg]; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %[flip], %[target]; movq %[target], %%rdx; xorq %[one], %%rdx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .byte 0x48,0x0f,%c[cmov],%c[cmovreg]; .byte 0x48,0x81,%c[decode]; .long %c[key];"
 #define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movq (%[table], %%rcx, 8), %[target]; .byte 0x48,0xf7,%c[index_op]; movq %c[next](%[table], %%rcx, 8), %%rcx; cmpl %[tag], %%eax; .byte 0x48,0x0f,%c[cmov],0xd1; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movq (%[table], %%rcx, 8), %[target]; .byte 0x48,0xf7,%c[index_op]; movq %c[next](%[table], %%rcx, 8), %%rcx; cmpl %%eax, %[tag]; .byte 0x48,0x0f,%c[cmov],0xd1; .byte 0x48,0x81,%c[decode]; .long %c[key];"
 #else
-#define OBFH_P_MASK_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %[flip], %[target]; movl %[target], %%ecx; xorl %[zero], %[target]; xorl %[one], %%ecx; cmpl %[tag], %%eax; .byte 0x0f,%c[cmov],0xd1; .byte 0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %[flip], %[target]; movl %[target], %%ecx; xorl %[zero], %[target]; xorl %[one], %%ecx; cmpl %[tag], %%eax; .byte 0x0f,%c[cmov],%c[cmovreg]; .byte 0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %[flip], %[target]; movl %[target], %%edx; xorl %[zero], %[target]; xorl %[one], %%edx; cmpl %[tag], %%eax; .byte 0x0f,%c[cmov],%c[cmovreg]; .byte 0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %[flip], %[target]; movl %[target], %%ecx; xorl %[one], %%ecx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov],%c[cmovreg]; .byte 0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %[flip], %[target]; movl %[target], %%edx; xorl %[one], %%edx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov],%c[cmovreg]; .byte 0x81,%c[decode]; .long %c[key];"
 #define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl (%[table], %%ecx, 4), %[target]; .byte 0xf7,%c[index_op]; movl %c[next](%[table], %%ecx, 4), %%ecx; cmpl %[tag], %%eax; .byte 0x0f,%c[cmov],0xd1; .byte 0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl (%[table], %%ecx, 4), %[target]; .byte 0xf7,%c[index_op]; movl %c[next](%[table], %%ecx, 4), %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov],0xd1; .byte 0x81,%c[decode]; .long %c[key];"
 #endif
+// clang-format on
 // END GENERATED CFLOW SELECTORS
-#define OBFH_P_MASK(shift, label_false, label_true)                      \
-    ({                                                                   \
-        ULONG_PTR __obfh_target;                                         \
+#define OBFH_P_MASK_ASM(shift, instructions, output, scratch, swapped) \
+    __obfh_asm__(instructions \
+                 : [target] output(__obfh_target) \
+                 : "a"(__obfh_flow_state), \
+                   [tag] "m"(__obfh_flow_tag), [flip] "m"(__obfh_cookie_mask), [zero] "m"(__obfh_target_zero), \
+                   [one] "m"(__obfh_target_one), [key] "i"(__obfh_flow_key), [decode] "i"((__obfh_sel_decode##shift) - (swapped)), [cmovreg] "i"((swapped) ? 0xca : 0xd1), [cmov] "i"(__obfh_sel_cmov##shift) \
+                 : scratch, "cc", "memory");
+#define OBFH_P_MASK(shift, label_false, label_true) \
+    ({ \
+        ULONG_PTR __obfh_target; \
         ULONG_PTR __obfh_target_zero = OBFH_P_ADDRESS(shift, label_false); \
         ULONG_PTR __obfh_target_one = OBFH_P_ADDRESS(shift, label_true); \
         ULONG_PTR __obfh_cookie_mask = 0 - (ULONG_PTR)((__obfh_cookie >> (shift)) & 1u); \
-        __obfh_asm__(OBFH_P_MASK_INSTRUCTIONS                            \
-                     : [target] "=&d"(__obfh_target)                     \
-                     : "a"(__obfh_flow_state),                           \
-                       [tag] "m"(__obfh_flow_tag), [flip] "m"(__obfh_cookie_mask), [zero] "m"(__obfh_target_zero), \
-                       [one] "m"(__obfh_target_one), [key] "i"(__obfh_flow_key), [decode] "i"(__obfh_address_form##shift == 0 ? 0xf2 : (__obfh_address_form##shift == 1 ? 0xc2 : 0xea)), [cmov] "i"(0x44u + ((__obfh_flow_hash >> ((shift) + 20)) & 1u)) \
-                     : "ecx", "cc", "memory");                           \
-        goto *(void *)__obfh_target;                                     \
+        __builtin_choose_expr(__obfh_sel_order##shift, \
+                              ({ OBFH_P_MASK_ASM(shift, OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS, "=&c", "edx", 1); }), \
+                              ({ OBFH_P_MASK_ASM(shift, OBFH_P_MASK_INSTRUCTIONS, "=&d", "ecx", 0); })); \
+        goto *(void *)__obfh_target; \
     })
-#define OBFH_P_TABLE(shift, label_false, label_true)                     \
-    ({                                                                   \
+#define OBFH_P_TABLE_ASM(shift, instructions) \
+    __obfh_asm__(instructions \
+                 : [target] "=&d"(__obfh_target) \
+                 : "a"(__obfh_flow_state), \
+                   [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [bitcode] "i"(__obfh_bitcode##shift), \
+                   [index_op] "i"(__obfh_index_form##shift ? 0xd9 : 0xd1), \
+                   [next] "i"((__obfh_index_form##shift ? 1 : 2) * sizeof(ULONG_PTR)), \
+                   [table] "r"(__obfh_targets), [key] "i"(__obfh_flow_key), [decode] "i"(__obfh_sel_decode##shift), [cmov] "i"(__obfh_sel_cmov##shift) \
+                 : "ecx", "cc", "memory");
+#define OBFH_P_TABLE(shift, label_false, label_true) \
+    ({ \
         ULONG_PTR __obfh_targets[2] = {OBFH_P_ADDRESS(shift, label_false), \
                                        OBFH_P_ADDRESS(shift, label_true)}, \
-                  __obfh_target;                                         \
-        __obfh_asm__(OBFH_P_TABLE_INSTRUCTIONS                           \
-                     : [target] "=&d"(__obfh_target)                     \
-            : "a"(__obfh_flow_state),                                    \
-              [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [bitcode] "i"(__obfh_bitcode##shift), \
-              [index_op] "i"(__obfh_index_form##shift ? 0xd9 : 0xd1),    \
-              [next] "i"((__obfh_index_form##shift ? 1 : 2) * sizeof(ULONG_PTR)), \
-              [table] "r"(__obfh_targets), [key] "i"(__obfh_flow_key), [decode] "i"(__obfh_address_form##shift == 0 ? 0xf2 : (__obfh_address_form##shift == 1 ? 0xc2 : 0xea)), [cmov] "i"(0x44u + ((__obfh_flow_hash >> ((shift) + 20)) & 1u)) \
-            : "ecx", "cc", "memory");                                    \
-        goto *(void *)__obfh_target;                                     \
+                  __obfh_target; \
+        __builtin_choose_expr(__obfh_sel_order##shift, \
+                              ({ OBFH_P_TABLE_ASM(shift, OBFH_P_TABLE_ALT_INSTRUCTIONS); }), \
+                              ({ OBFH_P_TABLE_ASM(shift, OBFH_P_TABLE_INSTRUCTIONS); })); \
+        goto *(void *)__obfh_target; \
     })
 // Pair transport: every component is bijective and preserves equality in both directions.
 // Reflections y <- 2*x-y bind the coordinates; neither is an independent tag pipeline.
 // Select physical roles at compile time; no exchange instruction is needed.
-#define OBFH_P_SLOT(id, n, prior, key, mul, add, rot)                    \
+#define OBFH_P_SLOT(id, n, prior, key, mul, add, rot) \
     enum { _C##id##n = ((n & 1) ? ((_Q##id >> (2 * ((n - 1) / 2))) & 3u) : (_C##id##prior)), \
            _O##id##n = ((n & 1) ? ((n <= 2) ? (_N##id) : (_C##id##n < 2 ? (_C##id##n ? _G##id : _F##id) : _C##id##n + 2u)) : (_O##id##prior)), \
            _B##id##n = (_O##id##n < 4 ? (((_K##id >> ((n - 1) / 2)) ^ (n - 1)) & 1u) \
-                                      : ((_O##id##n == 4) ^ !!(_T##id & 32u))) ^ !!(_T##id & 16u), \
-           _D##id##n = _O##id##n == 0 ? (_B##id##n ? _f##id : _c##id)    \
-                     : _O##id##n == 1 ? (_B##id##n ? _h##id : _e##id)    \
-                     : _O##id##n == 2 ? (_B##id##n ? _u##id : _i##id)    \
-                     : _O##id##n == 3 ? (_B##id##n ? _w##id : _l##id)    \
-                     : (_K##id & (1u << (16 + _O##id##n)))               \
-                       ? ((n & 1) ? (_B##id##n ? 0x0342148du : 0x0350048du) \
-                                  : (_B##id##n ? 0x0340048du : 0x0352148du)) \
-                       : ((n & 1) ? (_B##id##n ? 0x0200daf7u : 0x0200d8f7u) \
-                                  : (_B##id##n ? 0x0342148du : 0x0350048du)), \
-           _V##id##n = _O##id##n == 0 ? (key) : _O##id##n == 1 ? (mul)   \
-                     : _O##id##n == 2 ? ((_T##id & (_B##id##n ? 2u : 1u)) ? 0u - (add) : (add)) \
-                     : _O##id##n == 3 ? ((_T##id & (_B##id##n ? 8u : 4u)) ? 32u - (rot) : (rot)) : 0u }
+                                      : ((_O##id##n == 4) ^ !!(_T##id & 32u))) ^ \
+                       !!(_T##id & 16u), \
+           _D##id##n = _O##id##n == 0   ? (_B##id##n ? _f##id : _c##id) \
+                       : _O##id##n == 1 ? (_B##id##n ? _h##id : _e##id) \
+                       : _O##id##n == 2 ? (_B##id##n ? _u##id : _i##id) \
+                       : _O##id##n == 3 ? (_B##id##n ? _w##id : _l##id) \
+                       : (_K##id & (1u << (16 + _O##id##n))) \
+                           ? ((n & 1) ? (_B##id##n ? 0x0342148du : 0x0350048du) \
+                                      : (_B##id##n ? 0x0340048du : 0x0352148du)) \
+                           : ((n & 1) ? (_B##id##n ? 0x0200daf7u : 0x0200d8f7u) \
+                                      : (_B##id##n ? 0x0342148du : 0x0350048du)), \
+           _V##id##n = _O##id##n == 0 ? (key) : _O##id##n == 1 ? (mul) \
+                                            : _O##id##n == 2   ? ((_T##id & (_B##id##n ? 2u : 1u)) ? 0u - (add) : (add)) \
+                                            : _O##id##n == 3   ? ((_T##id & (_B##id##n ? 8u : 4u)) ? 32u - (rot) : (rot)) \
+                                                               : 0u }
 // Opcode [0..23], opcode width [24..25], immediate width [26..28].
 // Emit separately: TCC .fill values are limited to 32 bits.
-#define OBFH_P_INSTRUCTIONS                                              \
+#define OBFH_P_INSTRUCTIONS \
     ".fill 1, ((%c[d1] >> 24) & 3), %c[d1]; .fill 1, ((%c[d1] >> 26) & 7), %c[v1];\
      .fill 1, ((%c[d2] >> 24) & 3), %c[d2]; .fill 1, ((%c[d2] >> 26) & 7), %c[v2];\
      .fill 1, ((%c[d3] >> 24) & 3), %c[d3]; .fill 1, ((%c[d3] >> 26) & 7), %c[v3];\
@@ -3387,35 +3426,58 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
      .fill 1, ((%c[d7] >> 24) & 3), %c[d7]; .fill 1, ((%c[d7] >> 26) & 7), %c[v7];\
      .fill 1, ((%c[d8] >> 24) & 3), %c[d8]; .fill 1, ((%c[d8] >> 26) & 7), %c[v8];"
 #define OBFH_P_INPUT(id, n) [d##n] "i"(_D##id##n), [v##n] "i"(_V##id##n)
-#define OBFH_P_ROLE(s, p, reverse)                                       \
+#define OBFH_P_ROLE(s, p, reverse) \
     __builtin_choose_expr(!!(_T##s##p & 16u) ^ (reverse), __obfh_flow_tag, __obfh_flow_state)
-#define OBFH_P_ARGUMENTS(s, p)                                           \
+#define OBFH_P_ARGUMENTS(s, p) \
     OBFH_P_INPUT(s##p, 1), OBFH_P_INPUT(s##p, 2), OBFH_P_INPUT(s##p, 3), OBFH_P_INPUT(s##p, 4), \
-                      OBFH_P_INPUT(s##p, 5), OBFH_P_INPUT(s##p, 6), OBFH_P_INPUT(s##p, 7), OBFH_P_INPUT(s##p, 8)
-#define OBFH_P_PERMUTE(s, p, instructions)                               \
-    ({ __obfh_asm__(instructions                                         \
+        OBFH_P_INPUT(s##p, 5), OBFH_P_INPUT(s##p, 6), OBFH_P_INPUT(s##p, 7), OBFH_P_INPUT(s##p, 8)
+#define OBFH_P_PERMUTE(s, p, instructions) \
+    ({ __obfh_asm__(instructions \
                     : "+a"(OBFH_P_ROLE(s, p, 0)), "+d"(OBFH_P_ROLE(s, p, 1)) \
-                    : OBFH_P_ARGS_##s##p                                 \
+                    : OBFH_P_ARGS_##s##p \
                     : "cc", "memory"); })
 #define OBFH_P_PREPARE(s, p) OBFH_P_CACHE_##s##p
 #define OBFH_P_POOL(id, style, key, mul, add, rot, branch, donor, donorstyle, donormul, donoradd, donorrot) \
-    enum { _S##id = style, _K##id = key, _M##id = mul, _Z##id = add, _R##id = rot, _X##id = donor, _T##id = _K##id >> 14, _C##id##0 = 0, _O##id##0 = 0, \
-           _H##id = donorstyle, _E##id = donormul, _A##id = donoradd, _Y##id = donorrot, \
+    enum { _S##id = style, \
+           _K##id = key, \
+           _M##id = mul, \
+           _Z##id = add, \
+           _R##id = rot, \
+           _X##id = donor, \
+           _T##id = _K##id >> 14, \
+           _C##id##0 = 0, \
+           _O##id##0 = 0, \
+           _H##id = donorstyle, \
+           _E##id = donormul, \
+           _A##id = donoradd, \
+           _Y##id = donorrot, \
            _N##id = (0xb16cu >> (4 * _H##id + 2 * ((_X##id >> 8) % 12u / 6u))) & 3u, \
-           _F##id = _S##id == 0 ? 0 : _S##id == 1 ? 2 : _S##id == 2 ? 1 : 3, \
-           _G##id = _S##id == 0 ? 3 : _S##id == 1 ? 1 : _S##id == 2 ? 0 : 2, \
-           _J##id = (_K##id >> 8) % 12u,                                 \
-           _Q##id = ((_J##id < 8 ? 0xb1e16c9c78d8b4e4ull : 0x2d8d39c9ull) \
-                     >> (8 * (_J##id & 7u))) & 255u };                   \
-    enum { _c##id = 0x11000035u, _f##id = 0x1200f281u, _e##id = 0x1200c069u, _h##id = 0x1200d269u, \
-           _i##id = _T##id & 1u ? 0x1100002du : 0x11000005u, _u##id = _T##id & 2u ? 0x1200ea81u : 0x1200c281u, \
-           _l##id = _T##id & 4u ? 0x0600c8c1u : 0x0600c0c1u, _w##id = _T##id & 8u ? 0x0600cac1u : 0x0600c2c1u }; \
-    OBFH_P_SLOT(id, 1, 0, _X##id, _E##id, _A##id, _Y##id);               \
-    OBFH_P_SLOT(id, 2, 1, _X##id, _E##id, _A##id, _Y##id);               \
-    OBFH_P_SLOT(id, 3, 2, _K##id, _M##id, _Z##id, _R##id); OBFH_P_SLOT(id, 4, 3, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 5, 4, _K##id, _M##id, _Z##id, _R##id); OBFH_P_SLOT(id, 6, 5, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 7, 6, _K##id, _M##id, _Z##id, _R##id); OBFH_P_SLOT(id, 8, 7, _K##id, _M##id, _Z##id, _R##id);
+           _F##id = _S##id == 0 ? 0 : _S##id == 1 ? 2 \
+                                  : _S##id == 2   ? 1 \
+                                                  : 3, \
+           _G##id = _S##id == 0 ? 3 : _S##id == 1 ? 1 \
+                                  : _S##id == 2   ? 0 \
+                                                  : 2, \
+           _J##id = (_K##id >> 8) % 12u, \
+           _Q##id = ((_J##id < 8 ? 0xb1e16c9c78d8b4e4ull : 0x2d8d39c9ull) >> (8 * (_J##id & 7u))) & 255u }; \
+    enum { _c##id = 0x11000035u, \
+           _f##id = 0x1200f281u, \
+           _e##id = 0x1200c069u, \
+           _h##id = 0x1200d269u, \
+           _i##id = _T##id & 1u ? 0x1100002du : 0x11000005u, \
+           _u##id = _T##id & 2u ? 0x1200ea81u : 0x1200c281u, \
+           _l##id = _T##id & 4u ? 0x0600c8c1u : 0x0600c0c1u, \
+           _w##id = _T##id & 8u ? 0x0600cac1u : 0x0600c2c1u }; \
+    OBFH_P_SLOT(id, 1, 0, _X##id, _E##id, _A##id, _Y##id); \
+    OBFH_P_SLOT(id, 2, 1, _X##id, _E##id, _A##id, _Y##id); \
+    OBFH_P_SLOT(id, 3, 2, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 4, 3, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 5, 4, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 6, 5, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 7, 6, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 8, 7, _K##id, _M##id, _Z##id, _R##id);
 // Generated constant pools: regenerate from the readable macros with tests/cflow_weave_cache.js.
+// clang-format off
 #define OBFH_P_CACHE_00 enum{_S00=__obfh_style00,_K00=__obfh_k00,_M00=__obfh_m00,_Z00=__obfh_a00,_R00=__obfh_r00,_X00=__obfh_k10,_T00=_K00>>14,_H00=__obfh_style10,_E00=__obfh_m10,_A00=__obfh_a10,_Y00=__obfh_r10,_N00=(0xb16cu>>(4*_H00+2*((_X00>>8)%12u/6u)))&3u,_F00=_S00==0?0:_S00==1?2:_S00==2?1:3,_G00=_S00==0?3:_S00==1?1:_S00==2?0:2,_J00=(_K00>>8)%12u,_Q00=((_J00<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J00&7u)))&255u};enum{_c00=0x11000035u,_f00=0x1200f281u,_e00=0x1200c069u,_h00=0x1200d269u,_i00=_T00&1u?0x1100002du:0x11000005u,_u00=_T00&2u?0x1200ea81u:0x1200c281u,_l00=_T00&4u?0x0600c8c1u:0x0600c0c1u,_w00=_T00&8u?0x0600cac1u:0x0600c2c1u};enum{_B001=(_N00<4?(((_K00>>0)^0)&1u):((_N00==4)^!!(_T00&32u)))^!!(_T00&16u),_D001=_N00==0?(_B001?_f00:_c00):_N00==1?(_B001?_h00:_e00):_N00==2?(_B001?_u00:_i00):_N00==3?(_B001?_w00:_l00):(_K00&(1u<<(16+_N00)))?(_B001?0x0342148du:0x0350048du):(_B001?0x0200daf7u:0x0200d8f7u),_V001=_N00==0?(_X00):_N00==1?(_E00):_N00==2?((_T00&(_B001?2u:1u))?0u-(_A00):(_A00)):_N00==3?((_T00&(_B001?8u:4u))?32u-(_Y00):(_Y00)):0u};enum{_B002=(_N00<4?(((_K00>>0)^1)&1u):((_N00==4)^!!(_T00&32u)))^!!(_T00&16u),_D002=_N00==0?(_B002?_f00:_c00):_N00==1?(_B002?_h00:_e00):_N00==2?(_B002?_u00:_i00):_N00==3?(_B002?_w00:_l00):(_K00&(1u<<(16+_N00)))?(_B002?0x0340048du:0x0352148du):(_B002?0x0342148du:0x0350048du),_V002=_N00==0?(_X00):_N00==1?(_E00):_N00==2?((_T00&(_B002?2u:1u))?0u-(_A00):(_A00)):_N00==3?((_T00&(_B002?8u:4u))?32u-(_Y00):(_Y00)):0u};enum{_C003=((_Q00>>(2*1))&3u),_O003=(_C003<2?(_C003?_G00:_F00):_C003+2u),_B003=(_O003<4?(((_K00>>1)^2)&1u):((_O003==4)^!!(_T00&32u)))^!!(_T00&16u),_D003=_O003==0?(_B003?_f00:_c00):_O003==1?(_B003?_h00:_e00):_O003==2?(_B003?_u00:_i00):_O003==3?(_B003?_w00:_l00):(_K00&(1u<<(16+_O003)))?(_B003?0x0342148du:0x0350048du):(_B003?0x0200daf7u:0x0200d8f7u),_V003=_O003==0?(_K00):_O003==1?(_M00):_O003==2?((_T00&(_B003?2u:1u))?0u-(_Z00):(_Z00)):_O003==3?((_T00&(_B003?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B004=(_O003<4?(((_K00>>1)^3)&1u):((_O003==4)^!!(_T00&32u)))^!!(_T00&16u),_D004=_O003==0?(_B004?_f00:_c00):_O003==1?(_B004?_h00:_e00):_O003==2?(_B004?_u00:_i00):_O003==3?(_B004?_w00:_l00):(_K00&(1u<<(16+_O003)))?(_B004?0x0340048du:0x0352148du):(_B004?0x0342148du:0x0350048du),_V004=_O003==0?(_K00):_O003==1?(_M00):_O003==2?((_T00&(_B004?2u:1u))?0u-(_Z00):(_Z00)):_O003==3?((_T00&(_B004?8u:4u))?32u-(_R00):(_R00)):0u};enum{_C005=((_Q00>>(2*2))&3u),_O005=(_C005<2?(_C005?_G00:_F00):_C005+2u),_B005=(_O005<4?(((_K00>>2)^4)&1u):((_O005==4)^!!(_T00&32u)))^!!(_T00&16u),_D005=_O005==0?(_B005?_f00:_c00):_O005==1?(_B005?_h00:_e00):_O005==2?(_B005?_u00:_i00):_O005==3?(_B005?_w00:_l00):(_K00&(1u<<(16+_O005)))?(_B005?0x0342148du:0x0350048du):(_B005?0x0200daf7u:0x0200d8f7u),_V005=_O005==0?(_K00):_O005==1?(_M00):_O005==2?((_T00&(_B005?2u:1u))?0u-(_Z00):(_Z00)):_O005==3?((_T00&(_B005?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B006=(_O005<4?(((_K00>>2)^5)&1u):((_O005==4)^!!(_T00&32u)))^!!(_T00&16u),_D006=_O005==0?(_B006?_f00:_c00):_O005==1?(_B006?_h00:_e00):_O005==2?(_B006?_u00:_i00):_O005==3?(_B006?_w00:_l00):(_K00&(1u<<(16+_O005)))?(_B006?0x0340048du:0x0352148du):(_B006?0x0342148du:0x0350048du),_V006=_O005==0?(_K00):_O005==1?(_M00):_O005==2?((_T00&(_B006?2u:1u))?0u-(_Z00):(_Z00)):_O005==3?((_T00&(_B006?8u:4u))?32u-(_R00):(_R00)):0u};enum{_C007=((_Q00>>(2*3))&3u),_O007=(_C007<2?(_C007?_G00:_F00):_C007+2u),_B007=(_O007<4?(((_K00>>3)^6)&1u):((_O007==4)^!!(_T00&32u)))^!!(_T00&16u),_D007=_O007==0?(_B007?_f00:_c00):_O007==1?(_B007?_h00:_e00):_O007==2?(_B007?_u00:_i00):_O007==3?(_B007?_w00:_l00):(_K00&(1u<<(16+_O007)))?(_B007?0x0342148du:0x0350048du):(_B007?0x0200daf7u:0x0200d8f7u),_V007=_O007==0?(_K00):_O007==1?(_M00):_O007==2?((_T00&(_B007?2u:1u))?0u-(_Z00):(_Z00)):_O007==3?((_T00&(_B007?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B008=(_O007<4?(((_K00>>3)^7)&1u):((_O007==4)^!!(_T00&32u)))^!!(_T00&16u),_D008=_O007==0?(_B008?_f00:_c00):_O007==1?(_B008?_h00:_e00):_O007==2?(_B008?_u00:_i00):_O007==3?(_B008?_w00:_l00):(_K00&(1u<<(16+_O007)))?(_B008?0x0340048du:0x0352148du):(_B008?0x0342148du:0x0350048du),_V008=_O007==0?(_K00):_O007==1?(_M00):_O007==2?((_T00&(_B008?2u:1u))?0u-(_Z00):(_Z00)):_O007==3?((_T00&(_B008?8u:4u))?32u-(_R00):(_R00)):0u};
 #define OBFH_P_ARGS_00 [d1] "i"(_D001), [v1] "i"(_V001), [d2] "i"(_D002), [v2] "i"(_V002), [d3] "i"(_D003), [v3] "i"(_V003), [d4] "i"(_D004), [v4] "i"(_V004), [d5] "i"(_D005), [v5] "i"(_V005), [d6] "i"(_D006), [v6] "i"(_V006), [d7] "i"(_D007), [v7] "i"(_V007), [d8] "i"(_D008), [v8] "i"(_V008)
 #define OBFH_P_CACHE_01 enum{_S01=__obfh_style01,_K01=__obfh_k01,_M01=__obfh_m01,_Z01=__obfh_a01,_R01=__obfh_r01,_X01=__obfh_k10,_T01=_K01>>14,_H01=__obfh_style10,_E01=__obfh_m10,_A01=__obfh_a10,_Y01=__obfh_r10,_N01=(0xb16cu>>(4*_H01+2*((_X01>>8)%12u/6u)))&3u,_F01=_S01==0?0:_S01==1?2:_S01==2?1:3,_G01=_S01==0?3:_S01==1?1:_S01==2?0:2,_J01=(_K01>>8)%12u,_Q01=((_J01<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J01&7u)))&255u};enum{_c01=0x11000035u,_f01=0x1200f281u,_e01=0x1200c069u,_h01=0x1200d269u,_i01=_T01&1u?0x1100002du:0x11000005u,_u01=_T01&2u?0x1200ea81u:0x1200c281u,_l01=_T01&4u?0x0600c8c1u:0x0600c0c1u,_w01=_T01&8u?0x0600cac1u:0x0600c2c1u};enum{_B011=(_N01<4?(((_K01>>0)^0)&1u):((_N01==4)^!!(_T01&32u)))^!!(_T01&16u),_D011=_N01==0?(_B011?_f01:_c01):_N01==1?(_B011?_h01:_e01):_N01==2?(_B011?_u01:_i01):_N01==3?(_B011?_w01:_l01):(_K01&(1u<<(16+_N01)))?(_B011?0x0342148du:0x0350048du):(_B011?0x0200daf7u:0x0200d8f7u),_V011=_N01==0?(_X01):_N01==1?(_E01):_N01==2?((_T01&(_B011?2u:1u))?0u-(_A01):(_A01)):_N01==3?((_T01&(_B011?8u:4u))?32u-(_Y01):(_Y01)):0u};enum{_B012=(_N01<4?(((_K01>>0)^1)&1u):((_N01==4)^!!(_T01&32u)))^!!(_T01&16u),_D012=_N01==0?(_B012?_f01:_c01):_N01==1?(_B012?_h01:_e01):_N01==2?(_B012?_u01:_i01):_N01==3?(_B012?_w01:_l01):(_K01&(1u<<(16+_N01)))?(_B012?0x0340048du:0x0352148du):(_B012?0x0342148du:0x0350048du),_V012=_N01==0?(_X01):_N01==1?(_E01):_N01==2?((_T01&(_B012?2u:1u))?0u-(_A01):(_A01)):_N01==3?((_T01&(_B012?8u:4u))?32u-(_Y01):(_Y01)):0u};enum{_C013=((_Q01>>(2*1))&3u),_O013=(_C013<2?(_C013?_G01:_F01):_C013+2u),_B013=(_O013<4?(((_K01>>1)^2)&1u):((_O013==4)^!!(_T01&32u)))^!!(_T01&16u),_D013=_O013==0?(_B013?_f01:_c01):_O013==1?(_B013?_h01:_e01):_O013==2?(_B013?_u01:_i01):_O013==3?(_B013?_w01:_l01):(_K01&(1u<<(16+_O013)))?(_B013?0x0342148du:0x0350048du):(_B013?0x0200daf7u:0x0200d8f7u),_V013=_O013==0?(_K01):_O013==1?(_M01):_O013==2?((_T01&(_B013?2u:1u))?0u-(_Z01):(_Z01)):_O013==3?((_T01&(_B013?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B014=(_O013<4?(((_K01>>1)^3)&1u):((_O013==4)^!!(_T01&32u)))^!!(_T01&16u),_D014=_O013==0?(_B014?_f01:_c01):_O013==1?(_B014?_h01:_e01):_O013==2?(_B014?_u01:_i01):_O013==3?(_B014?_w01:_l01):(_K01&(1u<<(16+_O013)))?(_B014?0x0340048du:0x0352148du):(_B014?0x0342148du:0x0350048du),_V014=_O013==0?(_K01):_O013==1?(_M01):_O013==2?((_T01&(_B014?2u:1u))?0u-(_Z01):(_Z01)):_O013==3?((_T01&(_B014?8u:4u))?32u-(_R01):(_R01)):0u};enum{_C015=((_Q01>>(2*2))&3u),_O015=(_C015<2?(_C015?_G01:_F01):_C015+2u),_B015=(_O015<4?(((_K01>>2)^4)&1u):((_O015==4)^!!(_T01&32u)))^!!(_T01&16u),_D015=_O015==0?(_B015?_f01:_c01):_O015==1?(_B015?_h01:_e01):_O015==2?(_B015?_u01:_i01):_O015==3?(_B015?_w01:_l01):(_K01&(1u<<(16+_O015)))?(_B015?0x0342148du:0x0350048du):(_B015?0x0200daf7u:0x0200d8f7u),_V015=_O015==0?(_K01):_O015==1?(_M01):_O015==2?((_T01&(_B015?2u:1u))?0u-(_Z01):(_Z01)):_O015==3?((_T01&(_B015?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B016=(_O015<4?(((_K01>>2)^5)&1u):((_O015==4)^!!(_T01&32u)))^!!(_T01&16u),_D016=_O015==0?(_B016?_f01:_c01):_O015==1?(_B016?_h01:_e01):_O015==2?(_B016?_u01:_i01):_O015==3?(_B016?_w01:_l01):(_K01&(1u<<(16+_O015)))?(_B016?0x0340048du:0x0352148du):(_B016?0x0342148du:0x0350048du),_V016=_O015==0?(_K01):_O015==1?(_M01):_O015==2?((_T01&(_B016?2u:1u))?0u-(_Z01):(_Z01)):_O015==3?((_T01&(_B016?8u:4u))?32u-(_R01):(_R01)):0u};enum{_C017=((_Q01>>(2*3))&3u),_O017=(_C017<2?(_C017?_G01:_F01):_C017+2u),_B017=(_O017<4?(((_K01>>3)^6)&1u):((_O017==4)^!!(_T01&32u)))^!!(_T01&16u),_D017=_O017==0?(_B017?_f01:_c01):_O017==1?(_B017?_h01:_e01):_O017==2?(_B017?_u01:_i01):_O017==3?(_B017?_w01:_l01):(_K01&(1u<<(16+_O017)))?(_B017?0x0342148du:0x0350048du):(_B017?0x0200daf7u:0x0200d8f7u),_V017=_O017==0?(_K01):_O017==1?(_M01):_O017==2?((_T01&(_B017?2u:1u))?0u-(_Z01):(_Z01)):_O017==3?((_T01&(_B017?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B018=(_O017<4?(((_K01>>3)^7)&1u):((_O017==4)^!!(_T01&32u)))^!!(_T01&16u),_D018=_O017==0?(_B018?_f01:_c01):_O017==1?(_B018?_h01:_e01):_O017==2?(_B018?_u01:_i01):_O017==3?(_B018?_w01:_l01):(_K01&(1u<<(16+_O017)))?(_B018?0x0340048du:0x0352148du):(_B018?0x0342148du:0x0350048du),_V018=_O017==0?(_K01):_O017==1?(_M01):_O017==2?((_T01&(_B018?2u:1u))?0u-(_Z01):(_Z01)):_O017==3?((_T01&(_B018?8u:4u))?32u-(_R01):(_R01)):0u};
@@ -3432,12 +3494,15 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_ARGS_30 [d1] "i"(_D301), [v1] "i"(_V301), [d2] "i"(_D302), [v2] "i"(_V302), [d3] "i"(_D303), [v3] "i"(_V303), [d4] "i"(_D304), [v4] "i"(_V304), [d5] "i"(_D305), [v5] "i"(_V305), [d6] "i"(_D306), [v6] "i"(_V306), [d7] "i"(_D307), [v7] "i"(_V307), [d8] "i"(_D308), [v8] "i"(_V308)
 #define OBFH_P_CACHE_31 enum{_S31=__obfh_style31,_K31=__obfh_k31,_M31=__obfh_m31,_Z31=__obfh_a31,_R31=__obfh_r31,_X31=__obfh_k20,_T31=_K31>>14,_H31=__obfh_style20,_E31=__obfh_m20,_A31=__obfh_a20,_Y31=__obfh_r20,_N31=(0xb16cu>>(4*_H31+2*((_X31>>8)%12u/6u)))&3u,_F31=_S31==0?0:_S31==1?2:_S31==2?1:3,_G31=_S31==0?3:_S31==1?1:_S31==2?0:2,_J31=(_K31>>8)%12u,_Q31=((_J31<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J31&7u)))&255u};enum{_c31=0x11000035u,_f31=0x1200f281u,_e31=0x1200c069u,_h31=0x1200d269u,_i31=_T31&1u?0x1100002du:0x11000005u,_u31=_T31&2u?0x1200ea81u:0x1200c281u,_l31=_T31&4u?0x0600c8c1u:0x0600c0c1u,_w31=_T31&8u?0x0600cac1u:0x0600c2c1u};enum{_B311=(_N31<4?(((_K31>>0)^0)&1u):((_N31==4)^!!(_T31&32u)))^!!(_T31&16u),_D311=_N31==0?(_B311?_f31:_c31):_N31==1?(_B311?_h31:_e31):_N31==2?(_B311?_u31:_i31):_N31==3?(_B311?_w31:_l31):(_K31&(1u<<(16+_N31)))?(_B311?0x0342148du:0x0350048du):(_B311?0x0200daf7u:0x0200d8f7u),_V311=_N31==0?(_X31):_N31==1?(_E31):_N31==2?((_T31&(_B311?2u:1u))?0u-(_A31):(_A31)):_N31==3?((_T31&(_B311?8u:4u))?32u-(_Y31):(_Y31)):0u};enum{_B312=(_N31<4?(((_K31>>0)^1)&1u):((_N31==4)^!!(_T31&32u)))^!!(_T31&16u),_D312=_N31==0?(_B312?_f31:_c31):_N31==1?(_B312?_h31:_e31):_N31==2?(_B312?_u31:_i31):_N31==3?(_B312?_w31:_l31):(_K31&(1u<<(16+_N31)))?(_B312?0x0340048du:0x0352148du):(_B312?0x0342148du:0x0350048du),_V312=_N31==0?(_X31):_N31==1?(_E31):_N31==2?((_T31&(_B312?2u:1u))?0u-(_A31):(_A31)):_N31==3?((_T31&(_B312?8u:4u))?32u-(_Y31):(_Y31)):0u};enum{_C313=((_Q31>>(2*1))&3u),_O313=(_C313<2?(_C313?_G31:_F31):_C313+2u),_B313=(_O313<4?(((_K31>>1)^2)&1u):((_O313==4)^!!(_T31&32u)))^!!(_T31&16u),_D313=_O313==0?(_B313?_f31:_c31):_O313==1?(_B313?_h31:_e31):_O313==2?(_B313?_u31:_i31):_O313==3?(_B313?_w31:_l31):(_K31&(1u<<(16+_O313)))?(_B313?0x0342148du:0x0350048du):(_B313?0x0200daf7u:0x0200d8f7u),_V313=_O313==0?(_K31):_O313==1?(_M31):_O313==2?((_T31&(_B313?2u:1u))?0u-(_Z31):(_Z31)):_O313==3?((_T31&(_B313?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B314=(_O313<4?(((_K31>>1)^3)&1u):((_O313==4)^!!(_T31&32u)))^!!(_T31&16u),_D314=_O313==0?(_B314?_f31:_c31):_O313==1?(_B314?_h31:_e31):_O313==2?(_B314?_u31:_i31):_O313==3?(_B314?_w31:_l31):(_K31&(1u<<(16+_O313)))?(_B314?0x0340048du:0x0352148du):(_B314?0x0342148du:0x0350048du),_V314=_O313==0?(_K31):_O313==1?(_M31):_O313==2?((_T31&(_B314?2u:1u))?0u-(_Z31):(_Z31)):_O313==3?((_T31&(_B314?8u:4u))?32u-(_R31):(_R31)):0u};enum{_C315=((_Q31>>(2*2))&3u),_O315=(_C315<2?(_C315?_G31:_F31):_C315+2u),_B315=(_O315<4?(((_K31>>2)^4)&1u):((_O315==4)^!!(_T31&32u)))^!!(_T31&16u),_D315=_O315==0?(_B315?_f31:_c31):_O315==1?(_B315?_h31:_e31):_O315==2?(_B315?_u31:_i31):_O315==3?(_B315?_w31:_l31):(_K31&(1u<<(16+_O315)))?(_B315?0x0342148du:0x0350048du):(_B315?0x0200daf7u:0x0200d8f7u),_V315=_O315==0?(_K31):_O315==1?(_M31):_O315==2?((_T31&(_B315?2u:1u))?0u-(_Z31):(_Z31)):_O315==3?((_T31&(_B315?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B316=(_O315<4?(((_K31>>2)^5)&1u):((_O315==4)^!!(_T31&32u)))^!!(_T31&16u),_D316=_O315==0?(_B316?_f31:_c31):_O315==1?(_B316?_h31:_e31):_O315==2?(_B316?_u31:_i31):_O315==3?(_B316?_w31:_l31):(_K31&(1u<<(16+_O315)))?(_B316?0x0340048du:0x0352148du):(_B316?0x0342148du:0x0350048du),_V316=_O315==0?(_K31):_O315==1?(_M31):_O315==2?((_T31&(_B316?2u:1u))?0u-(_Z31):(_Z31)):_O315==3?((_T31&(_B316?8u:4u))?32u-(_R31):(_R31)):0u};enum{_C317=((_Q31>>(2*3))&3u),_O317=(_C317<2?(_C317?_G31:_F31):_C317+2u),_B317=(_O317<4?(((_K31>>3)^6)&1u):((_O317==4)^!!(_T31&32u)))^!!(_T31&16u),_D317=_O317==0?(_B317?_f31:_c31):_O317==1?(_B317?_h31:_e31):_O317==2?(_B317?_u31:_i31):_O317==3?(_B317?_w31:_l31):(_K31&(1u<<(16+_O317)))?(_B317?0x0342148du:0x0350048du):(_B317?0x0200daf7u:0x0200d8f7u),_V317=_O317==0?(_K31):_O317==1?(_M31):_O317==2?((_T31&(_B317?2u:1u))?0u-(_Z31):(_Z31)):_O317==3?((_T31&(_B317?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B318=(_O317<4?(((_K31>>3)^7)&1u):((_O317==4)^!!(_T31&32u)))^!!(_T31&16u),_D318=_O317==0?(_B318?_f31:_c31):_O317==1?(_B318?_h31:_e31):_O317==2?(_B318?_u31:_i31):_O317==3?(_B318?_w31:_l31):(_K31&(1u<<(16+_O317)))?(_B318?0x0340048du:0x0352148du):(_B318?0x0342148du:0x0350048du),_V318=_O317==0?(_K31):_O317==1?(_M31):_O317==2?((_T31&(_B318?2u:1u))?0u-(_Z31):(_Z31)):_O317==3?((_T31&(_B318?8u:4u))?32u-(_R31):(_R31)):0u};
 #define OBFH_P_ARGS_31 [d1] "i"(_D311), [v1] "i"(_V311), [d2] "i"(_D312), [v2] "i"(_V312), [d3] "i"(_D313), [v3] "i"(_V313), [d4] "i"(_D314), [v4] "i"(_V314), [d5] "i"(_D315), [v5] "i"(_V315), [d6] "i"(_D316), [v6] "i"(_V316), [d7] "i"(_D317), [v7] "i"(_V317), [d8] "i"(_D318), [v8] "i"(_V318)
+// clang-format on
 // V1 has one graph: do not instantiate the unused second-stage constants.
 #if CFLOW_V2
-#define OBFH_P_SECOND_PREPARE                                            \
-    OBFH_P_SELECTOR_META(2); OBFH_P_SELECTOR_META(3); OBFH_P_PREPARE(2, 0); \
-    OBFH_P_PREPARE(2, 1);                                                \
-    OBFH_P_PREPARE(3, 0);                                                \
+#define OBFH_P_SECOND_PREPARE \
+    OBFH_P_SELECTOR_META(2); \
+    OBFH_P_SELECTOR_META(3); \
+    OBFH_P_PREPARE(2, 0); \
+    OBFH_P_PREPARE(2, 1); \
+    OBFH_P_PREPARE(3, 0); \
     OBFH_P_PREPARE(3, 1);
 #define OBFH_P_SECOND_GRAPH OBFH_P_GRAPH(__obfh_flow_second, 2, 3, 1)
 #else
@@ -3445,227 +3510,231 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_SECOND_GRAPH ((void)0)
 #endif
 // Reuse four skipped bytes per insertion at existing graph jumps. No new jump.
-#define OBFH_P_GAP(shift, part, split)                                   \
-    __obfh_asm__(".fill 1,%c0,%c1;" : :                                  \
-                 "i"((CFLOW_V2 ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
-                 "i"(__obfh_flow_hash ^ (0x9e3779b9u * ((shift) + 1u))))
+#define OBFH_P_GAP(shift, part, split) \
+    __obfh_asm__(".fill 1,%c0,%c1;" \
+                 : \
+                 : "i"((CFLOW_V2 ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
+                   "i"(__obfh_flow_hash ^ (0x9e3779b9u * ((shift) + 1u))))
 
-#define OBFH_P_STEP(s, p)                                                \
-    ({                                                                   \
-        OBFH_P_BEFORE                                                    \
-        OBFH_P_PERMUTE(s, p, OBFH_P_INSTRUCTIONS);                       \
-        OBFH_P_TRACE(s, p);                                              \
+#define OBFH_P_STEP(s, p) \
+    ({ \
+        OBFH_P_BEFORE \
+        OBFH_P_PERMUTE(s, p, OBFH_P_INSTRUCTIONS); \
+        OBFH_P_TRACE(s, p); \
     })
-#define OBFH_P_FINISH_ASM(instructions)                                  \
-    ({                                                                   \
+#define OBFH_P_FINISH_ASM(instructions) \
+    ({ \
         __obfh_flow_result = (__obfh_flow_hash & 2u) ? __obfh_flow_tag : __obfh_flow_state; \
         unsigned int __obfh_finish_other = (__obfh_flow_hash & 2u) ? __obfh_flow_state : __obfh_flow_tag; \
-        __obfh_asm__(instructions                                        \
-                     : "+a"(__obfh_flow_result)                          \
-                     : [tag] "r"(__obfh_finish_other)                    \
-                     : "ecx", "cc", "memory");                           \
+        __obfh_asm__(instructions \
+                     : "+a"(__obfh_flow_result) \
+                     : [tag] "r"(__obfh_finish_other) \
+                     : "ecx", "cc", "memory"); \
     })
 #define OBFH_P_EXIT_0 OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; addl $1, %%eax;")
 #define OBFH_P_EXIT_1 OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
 #define OBFH_P_EXIT_2 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; movl $0, %%eax; movl $1, %%ecx; cmovel %%ecx, %%eax;")
 #define OBFH_P_EXIT_3 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax;")
-#define OBFH_P_EXIT_4                                                    \
+#define OBFH_P_EXIT_4 \
     OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; notl %%eax; andl $1, %%eax;")
 #define OBFH_P_EXIT_5 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
-#define OBFH_P_EXIT_6                                                    \
-    OBFH_P_FINISH_ASM(                                                   \
+#define OBFH_P_EXIT_6 \
+    OBFH_P_FINISH_ASM( \
         "xorl %[tag], %%eax; movl %%eax, %%ecx; negl %%ecx; orl %%ecx, %%eax; shrl $31, %%eax; xorl $1, %%eax;")
-#define OBFH_P_EXIT_7                                                    \
+#define OBFH_P_EXIT_7 \
     OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jz 9f; movl $0, %%eax; 9:")
 #define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6, OBFH_P_EXIT_7)
-#define OBFH_P_EXIT_SELECT_5(style)                                      \
+#define OBFH_P_EXIT_SELECT_5(style) \
     __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5, OBFH_P_EXIT_SELECT_6(style))
-#define OBFH_P_EXIT_SELECT_4(style)                                      \
+#define OBFH_P_EXIT_SELECT_4(style) \
     __builtin_choose_expr(((style)&7u) == 4u, OBFH_P_EXIT_4, OBFH_P_EXIT_SELECT_5(style))
-#define OBFH_P_EXIT_SELECT_3(style)                                      \
+#define OBFH_P_EXIT_SELECT_3(style) \
     __builtin_choose_expr(((style)&7u) == 3u, OBFH_P_EXIT_3, OBFH_P_EXIT_SELECT_4(style))
-#define OBFH_P_EXIT_SELECT_2(style)                                      \
+#define OBFH_P_EXIT_SELECT_2(style) \
     __builtin_choose_expr(((style)&7u) == 2u, OBFH_P_EXIT_2, OBFH_P_EXIT_SELECT_3(style))
-#define OBFH_P_EXIT_SELECT_1(style)                                      \
+#define OBFH_P_EXIT_SELECT_1(style) \
     __builtin_choose_expr(((style)&7u) == 1u, OBFH_P_EXIT_1, OBFH_P_EXIT_SELECT_2(style))
-#define OBFH_P_EXIT_SELECT_0(style)                                      \
+#define OBFH_P_EXIT_SELECT_0(style) \
     __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0, OBFH_P_EXIT_SELECT_1(style))
 #define OBFH_P_FINISH(style) OBFH_P_EXIT_SELECT_0(style)
 // Graph families: sequential diamonds, split selectors, crossed paths, split exits.
-#define OBFH_P_GRAPH_0(s, t, last)                                       \
-    ({                                                                   \
-        __label__ a, b, c, d, join, done;                                \
-        OBFH_P_MASK(s, a, b);                                            \
-    a:                                                                   \
-        OBFH_P_STEP(s, 0);                                               \
-        goto join;                                                       \
-        OBFH_P_GAP(s, 0, 1);                                             \
-    b:                                                                   \
-        OBFH_P_STEP(s, 1);                                               \
-    join:                                                                \
-        OBFH_P_MASK(t, c, d);                                            \
-    c:                                                                   \
-        OBFH_P_STEP(t, 0);                                               \
-        goto done;                                                       \
-        OBFH_P_GAP(s, 1, 1);                                             \
-    d:                                                                   \
-        OBFH_P_STEP(t, 1);                                               \
-    done:                                                                \
-        __obfh_flow_state;                                               \
+#define OBFH_P_GRAPH_0(s, t, last) \
+    ({ \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_MASK(s, a, b); \
+    a: \
+        OBFH_P_STEP(s, 0); \
+        goto join; \
+        OBFH_P_GAP(s, 0, 1); \
+    b: \
+        OBFH_P_STEP(s, 1); \
+    join: \
+        OBFH_P_MASK(t, c, d); \
+    c: \
+        OBFH_P_STEP(t, 0); \
+        goto done; \
+        OBFH_P_GAP(s, 1, 1); \
+    d: \
+        OBFH_P_STEP(t, 1); \
+    done: \
+        __obfh_flow_state; \
     })
-#define OBFH_P_GRAPH_1(s, t, last)                                       \
-    ({                                                                   \
-        __label__ a, b, c, d, join, done;                                \
-        OBFH_P_TABLE(s, a, b);                                           \
-    a:                                                                   \
-        OBFH_P_STEP(s, 0);                                               \
-        OBFH_P_TABLE(t, c, d);                                           \
-    b:                                                                   \
-        OBFH_P_STEP(s, 1);                                               \
-        OBFH_P_TABLE(t, d, c);                                           \
-    c:                                                                   \
-        OBFH_P_STEP(t, 0);                                               \
-        goto done;                                                       \
-        OBFH_P_GAP(s, 0, 0);                                             \
-    d:                                                                   \
-        OBFH_P_STEP(t, 1);                                               \
-    done: __obfh_flow_state;                                             \
+#define OBFH_P_GRAPH_1(s, t, last) \
+    ({ \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_TABLE(s, a, b); \
+    a: \
+        OBFH_P_STEP(s, 0); \
+        OBFH_P_TABLE(t, c, d); \
+    b: \
+        OBFH_P_STEP(s, 1); \
+        OBFH_P_TABLE(t, d, c); \
+    c: \
+        OBFH_P_STEP(t, 0); \
+        goto done; \
+        OBFH_P_GAP(s, 0, 0); \
+    d: \
+        OBFH_P_STEP(t, 1); \
+    done: \
+        __obfh_flow_state; \
     })
-#define OBFH_P_GRAPH_2(s, t, last)                                       \
-    ({                                                                   \
-        __label__ a, b, c, d, join, done;                                \
-        OBFH_P_MASK(s, a, b);                                            \
-    b:                                                                   \
-        OBFH_P_STEP(s, 1);                                               \
-        OBFH_P_MASK(t, c, d);                                            \
-    c:                                                                   \
-        OBFH_P_STEP(t, 0);                                               \
+#define OBFH_P_GRAPH_2(s, t, last) \
+    ({ \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_MASK(s, a, b); \
+    b: \
+        OBFH_P_STEP(s, 1); \
+        OBFH_P_MASK(t, c, d); \
+    c: \
+        OBFH_P_STEP(t, 0); \
         __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit ^ 5u); }), ((void)0)); \
-        goto done;                                                       \
-        OBFH_P_GAP(s, 0, 0);                                             \
-    a:                                                                   \
-        OBFH_P_STEP(s, 0);                                               \
-        OBFH_P_MASK(t, d, c);                                            \
-    d:                                                                   \
-        OBFH_P_STEP(t, 1);                                               \
+        goto done; \
+        OBFH_P_GAP(s, 0, 0); \
+    a: \
+        OBFH_P_STEP(s, 0); \
+        OBFH_P_MASK(t, d, c); \
+    d: \
+        OBFH_P_STEP(t, 1); \
         __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0)); \
-    done:                                                                \
-        __obfh_flow_state;                                               \
+    done: \
+        __obfh_flow_state; \
     })
-#define OBFH_P_GRAPH_3(s, t, last)                                       \
-    ({                                                                   \
-        __label__ a, b, c, d, join, done;                                \
-        OBFH_P_TABLE(s, a, b);                                           \
-    a:                                                                   \
-        OBFH_P_STEP(s, 0);                                               \
-        OBFH_P_TABLE(t, c, d);                                           \
-    d:                                                                   \
-        OBFH_P_STEP(t, 1);                                               \
+#define OBFH_P_GRAPH_3(s, t, last) \
+    ({ \
+        __label__ a, b, c, d, join, done; \
+        OBFH_P_TABLE(s, a, b); \
+    a: \
+        OBFH_P_STEP(s, 0); \
+        OBFH_P_TABLE(t, c, d); \
+    d: \
+        OBFH_P_STEP(t, 1); \
         __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit ^ 3u); }), ((void)0)); \
-        goto done;                                                       \
-        OBFH_P_GAP(s, 0, 0);                                             \
-    b:                                                                   \
-        OBFH_P_STEP(s, 1);                                               \
-        OBFH_P_TABLE(t, c, d);                                           \
-    c:                                                                   \
-        OBFH_P_STEP(t, 0);                                               \
+        goto done; \
+        OBFH_P_GAP(s, 0, 0); \
+    b: \
+        OBFH_P_STEP(s, 1); \
+        OBFH_P_TABLE(t, c, d); \
+    c: \
+        OBFH_P_STEP(t, 0); \
         __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0)); \
-    done:                                                                \
-        __obfh_flow_state;                                               \
+    done: \
+        __obfh_flow_state; \
     })
-#define OBFH_P_GRAPH(f, s, t, last)                                      \
-    __builtin_choose_expr(                                               \
-        (f) == 0, OBFH_P_GRAPH_0(s, t, last),                            \
-        __builtin_choose_expr((f) == 1, OBFH_P_GRAPH_1(s, t, last),      \
+#define OBFH_P_GRAPH(f, s, t, last) \
+    __builtin_choose_expr( \
+        (f) == 0, OBFH_P_GRAPH_0(s, t, last), \
+        __builtin_choose_expr((f) == 1, OBFH_P_GRAPH_1(s, t, last), \
                               __builtin_choose_expr((f) == 2, OBFH_P_GRAPH_2(s, t, last), OBFH_P_GRAPH_3(s, t, last))))
 // Capture the condition once; all later stages use only local encoded state.
-#define OBFH_FLOW_CONDITION(condition, site_value, ...)                  \
-    ({                                                                   \
-        enum {                                                           \
-            __obfh_flow_site = (site_value),                             \
-            __obfh_flow_hash =                                           \
+#define OBFH_FLOW_CONDITION(condition, site_value, ...) \
+    ({ \
+        enum { \
+            __obfh_flow_site = (site_value), \
+            __obfh_flow_hash = \
                 OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u)), \
             __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u), \
-            __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu,              \
-            __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u,            \
+            __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu, \
+            __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u, \
             __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u), \
             __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u), \
             __obfh_flow_first = CFLOW_V2 ? (__obfh_flow_layout == 0 || __obfh_flow_layout == 2   ? 0 \
                                             : __obfh_flow_layout == 1 || __obfh_flow_layout == 4 ? 1 \
                                             : __obfh_flow_layout == 5 || __obfh_flow_layout == 6 ? 2 \
                                                                                                  : 3) \
-                                         : __obfh_flow_layout,           \
+                                         : __obfh_flow_layout, \
             __obfh_flow_second = __obfh_flow_layout == 0 || __obfh_flow_layout == 5   ? 1 \
                                  : __obfh_flow_layout == 1 || __obfh_flow_layout == 3 ? 0 \
                                  : __obfh_flow_layout == 2 || __obfh_flow_layout == 6 ? 3 \
                                                                                       : 2, \
-            __obfh_k00 = OBFH_MIX_A(__obfh_flow_hash ^ 2654435769u),     \
-            __obfh_m00 = ((__obfh_k00 >> 17) & 65535u) | 1u,             \
-            __obfh_a00 = OBFH_MIX_B(__obfh_k00 ^ 0x85ebca6bu),           \
-            __obfh_r00 = ((__obfh_k00 >> 27) % 31u) + 1u,                \
-            __obfh_style00 = (__obfh_k00 >> 11) & 3u,                    \
-            __obfh_k01 = OBFH_MIX_A(__obfh_flow_hash ^ 3532493122u),     \
-            __obfh_m01 = ((__obfh_k01 >> 17) & 65535u) | 1u,             \
-            __obfh_a01 = OBFH_MIX_B(__obfh_k01 ^ 0x85ebca6bu),           \
-            __obfh_r01 = ((__obfh_k01 >> 27) % 31u) + 1u,                \
-            __obfh_style01 = (__obfh_k01 >> 11) & 3u,                    \
-            __obfh_k10 = OBFH_MIX_A(__obfh_flow_hash ^ 2671344829u),     \
-            __obfh_m10 = ((__obfh_k10 >> 17) & 65535u) | 1u,             \
-            __obfh_a10 = OBFH_MIX_B(__obfh_k10 ^ 0x85ebca6bu),           \
-            __obfh_r10 = ((__obfh_k10 >> 27) % 31u) + 1u,                \
-            __obfh_style10 = (__obfh_k10 >> 11) & 3u,                    \
-            __obfh_k11 = OBFH_MIX_A(__obfh_flow_hash ^ 3549402182u),     \
-            __obfh_m11 = ((__obfh_k11 >> 17) & 65535u) | 1u,             \
-            __obfh_a11 = OBFH_MIX_B(__obfh_k11 ^ 0x85ebca6bu),           \
-            __obfh_r11 = ((__obfh_k11 >> 27) % 31u) + 1u,                \
-            __obfh_style11 = (__obfh_k11 >> 11) & 3u,                    \
-            __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u),     \
-            __obfh_m20 = ((__obfh_k20 >> 17) & 65535u) | 1u,             \
-            __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu),           \
-            __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u,                \
-            __obfh_style20 = (__obfh_k20 >> 11) & 3u,                    \
-            __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u),     \
-            __obfh_m21 = ((__obfh_k21 >> 17) & 65535u) | 1u,             \
-            __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu),           \
-            __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u,                \
-            __obfh_style21 = (__obfh_k21 >> 11) & 3u,                    \
-            __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u),     \
-            __obfh_m30 = ((__obfh_k30 >> 17) & 65535u) | 1u,             \
-            __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu),           \
-            __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u,                \
-            __obfh_style30 = (__obfh_k30 >> 11) & 3u,                    \
-            __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u),     \
-            __obfh_m31 = ((__obfh_k31 >> 17) & 65535u) | 1u,             \
-            __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu),           \
-            __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u,                \
-            __obfh_style31 = (__obfh_k31 >> 11) & 3u                     \
-        };                                                               \
-        OBFH_P_SELECTOR_META(0); OBFH_P_SELECTOR_META(1); OBFH_P_PREPARE(0, 0); \
-        OBFH_P_PREPARE(0, 1);                                            \
-        OBFH_P_PREPARE(1, 0);                                            \
-        OBFH_P_PREPARE(1, 1);                                            \
-        OBFH_P_SECOND_PREPARE                                            \
+            __obfh_k00 = OBFH_MIX_A(__obfh_flow_hash ^ 2654435769u), \
+            __obfh_m00 = ((__obfh_k00 >> 17) & 65535u) | 1u, \
+            __obfh_a00 = OBFH_MIX_B(__obfh_k00 ^ 0x85ebca6bu), \
+            __obfh_r00 = ((__obfh_k00 >> 27) % 31u) + 1u, \
+            __obfh_style00 = (__obfh_k00 >> 11) & 3u, \
+            __obfh_k01 = OBFH_MIX_A(__obfh_flow_hash ^ 3532493122u), \
+            __obfh_m01 = ((__obfh_k01 >> 17) & 65535u) | 1u, \
+            __obfh_a01 = OBFH_MIX_B(__obfh_k01 ^ 0x85ebca6bu), \
+            __obfh_r01 = ((__obfh_k01 >> 27) % 31u) + 1u, \
+            __obfh_style01 = (__obfh_k01 >> 11) & 3u, \
+            __obfh_k10 = OBFH_MIX_A(__obfh_flow_hash ^ 2671344829u), \
+            __obfh_m10 = ((__obfh_k10 >> 17) & 65535u) | 1u, \
+            __obfh_a10 = OBFH_MIX_B(__obfh_k10 ^ 0x85ebca6bu), \
+            __obfh_r10 = ((__obfh_k10 >> 27) % 31u) + 1u, \
+            __obfh_style10 = (__obfh_k10 >> 11) & 3u, \
+            __obfh_k11 = OBFH_MIX_A(__obfh_flow_hash ^ 3549402182u), \
+            __obfh_m11 = ((__obfh_k11 >> 17) & 65535u) | 1u, \
+            __obfh_a11 = OBFH_MIX_B(__obfh_k11 ^ 0x85ebca6bu), \
+            __obfh_r11 = ((__obfh_k11 >> 27) % 31u) + 1u, \
+            __obfh_style11 = (__obfh_k11 >> 11) & 3u, \
+            __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u), \
+            __obfh_m20 = ((__obfh_k20 >> 17) & 65535u) | 1u, \
+            __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu), \
+            __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u, \
+            __obfh_style20 = (__obfh_k20 >> 11) & 3u, \
+            __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u), \
+            __obfh_m21 = ((__obfh_k21 >> 17) & 65535u) | 1u, \
+            __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu), \
+            __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u, \
+            __obfh_style21 = (__obfh_k21 >> 11) & 3u, \
+            __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u), \
+            __obfh_m30 = ((__obfh_k30 >> 17) & 65535u) | 1u, \
+            __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu), \
+            __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u, \
+            __obfh_style30 = (__obfh_k30 >> 11) & 3u, \
+            __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u), \
+            __obfh_m31 = ((__obfh_k31 >> 17) & 65535u) | 1u, \
+            __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu), \
+            __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u, \
+            __obfh_style31 = (__obfh_k31 >> 11) & 3u \
+        }; \
+        OBFH_P_SELECTOR_META(0); \
+        OBFH_P_SELECTOR_META(1); \
+        OBFH_P_PREPARE(0, 0); \
+        OBFH_P_PREPARE(0, 1); \
+        OBFH_P_PREPARE(1, 0); \
+        OBFH_P_PREPARE(1, 1); \
+        OBFH_P_SECOND_PREPARE \
         /* Random polarity permutes tags, never negates the user expression. */ \
-        unsigned int __obfh_flow_state = (condition)                     \
+        unsigned int __obfh_flow_state = (condition) \
                                              ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag) \
                                              : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag); \
-        __builtin_choose_expr(__obfh_flow_hash & 1u, (void)0,            \
+        __builtin_choose_expr(__obfh_flow_hash & 1u, (void)0, \
                               (void)(__obfh_flow_state ^= __obfh_false_tag ^ __obfh_true_tag)); \
         unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
         ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash; \
-        __obfh_asm__(                                                    \
+        __obfh_asm__( \
             "jmp 7f; .byte %c[byte], %c[extra]; .fill %c[gap],1,%c[byte]; 7:" \
-            : "+a"(                                                      \
-                __obfh_flow_state)                                       \
-            : [byte] "i"(OBFH_FLOW_OPCODE(OBFH_JUNK_BYTE & 7u)),         \
+            : "+a"( \
+                __obfh_flow_state) \
+            : [byte] "i"(OBFH_FLOW_OPCODE(OBFH_JUNK_BYTE & 7u)), \
               [extra] "i"(OBFH_JUNK_BYTE), [payload] "i"(OBFH_JUNK_WORD), [gap] "i"(OBFH_JUNK_BYTE & 7u) \
-            : "memory");                                                 \
-        __VA_ARGS__;                                                     \
-        OBFH_P_GRAPH(__obfh_flow_first, 0, 1, !CFLOW_V2);                \
-        OBFH_P_SECOND_GRAPH;                                             \
+            : "memory"); \
+        __VA_ARGS__; \
+        OBFH_P_GRAPH(__obfh_flow_first, 0, 1, !CFLOW_V2); \
+        OBFH_P_SECOND_GRAPH; \
         __builtin_choose_expr(CFLOW_V2 ? __obfh_flow_second < 2 : __obfh_flow_first < 2, \
                               ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0)); \
-        __obfh_flow_result;                                              \
+        __obfh_flow_result; \
     })
 
 #endif /* CFLOW helpers; kernel precedes keyword interception. */
@@ -4206,440 +4275,440 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
 #define OBFH_INLINE_EXIT(condition, label) ((condition) ? ({ goto label; }) : (void)0)
 
 // Inline kernels retain entry protection and native internal control flow.
-#define memchr_custom(...) ({                                                                                                       \
-    __label__ __obfh_memchr_loop, __obfh_memchr_found, __obfh_memchr_done;                                                          \
-    struct {                                                                                                                        \
-        const void *__obfh_memchr_memory;                                                                                           \
-        int __obfh_memchr_value;                                                                                                    \
-        size_t __obfh_memchr_count;                                                                                                 \
-    } __obfh_memchr_args = {__VA_ARGS__};                                                                                           \
-    unsigned char __obfh_memchr_wanted = (unsigned char)__obfh_memchr_args.__obfh_memchr_value;                                     \
-    void *__obfh_memchr_result = NULL;                                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                              \
-    PHANTOM_NOP;                                                                                                                    \
-__obfh_memchr_loop:                                                                                                                 \
-    OBFH_INLINE_EXIT(!__obfh_memchr_args.__obfh_memchr_count, __obfh_memchr_done);                                                  \
+#define memchr_custom(...) ({ \
+    __label__ __obfh_memchr_loop, __obfh_memchr_found, __obfh_memchr_done; \
+    struct { \
+        const void *__obfh_memchr_memory; \
+        int __obfh_memchr_value; \
+        size_t __obfh_memchr_count; \
+    } __obfh_memchr_args = {__VA_ARGS__}; \
+    unsigned char __obfh_memchr_wanted = (unsigned char)__obfh_memchr_args.__obfh_memchr_value; \
+    void *__obfh_memchr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_memchr_loop: \
+    OBFH_INLINE_EXIT(!__obfh_memchr_args.__obfh_memchr_count, __obfh_memchr_done); \
     OBFH_INLINE_EXIT(*(const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory == __obfh_memchr_wanted, __obfh_memchr_found); \
-    __obfh_memchr_args.__obfh_memchr_memory = (const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory + 1;                   \
-    --__obfh_memchr_args.__obfh_memchr_count;                                                                                       \
-    goto __obfh_memchr_loop;                                                                                                        \
-__obfh_memchr_found:                                                                                                                \
-    __obfh_memchr_result = (void *)__obfh_memchr_args.__obfh_memchr_memory;                                                         \
-__obfh_memchr_done:;                                                                                                                \
-    __obfh_memchr_result;                                                                                                           \
+    __obfh_memchr_args.__obfh_memchr_memory = (const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory + 1; \
+    --__obfh_memchr_args.__obfh_memchr_count; \
+    goto __obfh_memchr_loop; \
+__obfh_memchr_found: \
+    __obfh_memchr_result = (void *)__obfh_memchr_args.__obfh_memchr_memory; \
+__obfh_memchr_done:; \
+    __obfh_memchr_result; \
 })
 #define memchr(...) memchr_custom(__VA_ARGS__)
 
-#define strspn_custom(...) ({                                                                                         \
-    __label__ __obfh_strspn_loop, __obfh_strspn_match, __obfh_strspn_select, __obfh_strspn_done;                      \
-    struct {                                                                                                          \
-        const char *__obfh_strspn_text;                                                                               \
-        const char *__obfh_strspn_set;                                                                                \
-    } __obfh_strspn_args = {__VA_ARGS__};                                                                             \
-    const unsigned char *__obfh_strspn_cursor = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text;         \
-    const unsigned char *__obfh_strspn_member;                                                                        \
-    BREAK_STACK_CFLOW;                                                                                                \
-    PHANTOM_NOP;                                                                                                      \
-__obfh_strspn_loop:                                                                                                   \
-    OBFH_INLINE_EXIT(!*__obfh_strspn_cursor, __obfh_strspn_done);                                                     \
-    __obfh_strspn_member = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_set;                               \
-__obfh_strspn_match:                                                                                                  \
+#define strspn_custom(...) ({ \
+    __label__ __obfh_strspn_loop, __obfh_strspn_match, __obfh_strspn_select, __obfh_strspn_done; \
+    struct { \
+        const char *__obfh_strspn_text; \
+        const char *__obfh_strspn_set; \
+    } __obfh_strspn_args = {__VA_ARGS__}; \
+    const unsigned char *__obfh_strspn_cursor = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text; \
+    const unsigned char *__obfh_strspn_member; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strspn_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_strspn_cursor, __obfh_strspn_done); \
+    __obfh_strspn_member = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_set; \
+__obfh_strspn_match: \
     OBFH_INLINE_EXIT(!*__obfh_strspn_member || *__obfh_strspn_member == *__obfh_strspn_cursor, __obfh_strspn_select); \
-    ++__obfh_strspn_member;                                                                                           \
-    goto __obfh_strspn_match;                                                                                         \
-__obfh_strspn_select:                                                                                                 \
-    OBFH_INLINE_EXIT(!*__obfh_strspn_member, __obfh_strspn_done);                                                     \
-    ++__obfh_strspn_cursor;                                                                                           \
-    goto __obfh_strspn_loop;                                                                                          \
-__obfh_strspn_done:;                                                                                                  \
-    (size_t)(__obfh_strspn_cursor - (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text);                    \
+    ++__obfh_strspn_member; \
+    goto __obfh_strspn_match; \
+__obfh_strspn_select: \
+    OBFH_INLINE_EXIT(!*__obfh_strspn_member, __obfh_strspn_done); \
+    ++__obfh_strspn_cursor; \
+    goto __obfh_strspn_loop; \
+__obfh_strspn_done:; \
+    (size_t)(__obfh_strspn_cursor - (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text); \
 })
 #define strspn(...) strspn_custom(__VA_ARGS__)
 
-#define strcspn_custom(...) ({                                                                                            \
-    __label__ __obfh_strcspn_loop, __obfh_strcspn_match, __obfh_strcspn_select, __obfh_strcspn_done;                      \
-    struct {                                                                                                              \
-        const char *__obfh_strcspn_text;                                                                                  \
-        const char *__obfh_strcspn_set;                                                                                   \
-    } __obfh_strcspn_args = {__VA_ARGS__};                                                                                \
-    const unsigned char *__obfh_strcspn_cursor = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text;          \
-    const unsigned char *__obfh_strcspn_member;                                                                           \
-    BREAK_STACK_CFLOW;                                                                                                    \
-    PHANTOM_NOP;                                                                                                          \
-__obfh_strcspn_loop:                                                                                                      \
-    OBFH_INLINE_EXIT(!*__obfh_strcspn_cursor, __obfh_strcspn_done);                                                       \
-    __obfh_strcspn_member = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_set;                                \
-__obfh_strcspn_match:                                                                                                     \
+#define strcspn_custom(...) ({ \
+    __label__ __obfh_strcspn_loop, __obfh_strcspn_match, __obfh_strcspn_select, __obfh_strcspn_done; \
+    struct { \
+        const char *__obfh_strcspn_text; \
+        const char *__obfh_strcspn_set; \
+    } __obfh_strcspn_args = {__VA_ARGS__}; \
+    const unsigned char *__obfh_strcspn_cursor = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text; \
+    const unsigned char *__obfh_strcspn_member; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strcspn_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_strcspn_cursor, __obfh_strcspn_done); \
+    __obfh_strcspn_member = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_set; \
+__obfh_strcspn_match: \
     OBFH_INLINE_EXIT(!*__obfh_strcspn_member || *__obfh_strcspn_member == *__obfh_strcspn_cursor, __obfh_strcspn_select); \
-    ++__obfh_strcspn_member;                                                                                              \
-    goto __obfh_strcspn_match;                                                                                            \
-__obfh_strcspn_select:                                                                                                    \
-    OBFH_INLINE_EXIT(*__obfh_strcspn_member, __obfh_strcspn_done);                                                        \
-    ++__obfh_strcspn_cursor;                                                                                              \
-    goto __obfh_strcspn_loop;                                                                                             \
-__obfh_strcspn_done:;                                                                                                     \
-    (size_t)(__obfh_strcspn_cursor - (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text);                     \
+    ++__obfh_strcspn_member; \
+    goto __obfh_strcspn_match; \
+__obfh_strcspn_select: \
+    OBFH_INLINE_EXIT(*__obfh_strcspn_member, __obfh_strcspn_done); \
+    ++__obfh_strcspn_cursor; \
+    goto __obfh_strcspn_loop; \
+__obfh_strcspn_done:; \
+    (size_t)(__obfh_strcspn_cursor - (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text); \
 })
 #define strcspn(...) strcspn_custom(__VA_ARGS__)
 
-#define strpbrk_custom(...) ({                                                                                            \
-    __label__ __obfh_strpbrk_loop, __obfh_strpbrk_match, __obfh_strpbrk_select, __obfh_strpbrk_done;                      \
-    struct {                                                                                                              \
-        const char *__obfh_strpbrk_text;                                                                                  \
-        const char *__obfh_strpbrk_set;                                                                                   \
-    } __obfh_strpbrk_args = {__VA_ARGS__};                                                                                \
-    const unsigned char *__obfh_strpbrk_cursor = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_text;          \
-    const unsigned char *__obfh_strpbrk_member;                                                                           \
-    BREAK_STACK_CFLOW;                                                                                                    \
-    PHANTOM_NOP;                                                                                                          \
-__obfh_strpbrk_loop:                                                                                                      \
-    OBFH_INLINE_EXIT(!*__obfh_strpbrk_cursor, __obfh_strpbrk_done);                                                       \
-    __obfh_strpbrk_member = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_set;                                \
-__obfh_strpbrk_match:                                                                                                     \
+#define strpbrk_custom(...) ({ \
+    __label__ __obfh_strpbrk_loop, __obfh_strpbrk_match, __obfh_strpbrk_select, __obfh_strpbrk_done; \
+    struct { \
+        const char *__obfh_strpbrk_text; \
+        const char *__obfh_strpbrk_set; \
+    } __obfh_strpbrk_args = {__VA_ARGS__}; \
+    const unsigned char *__obfh_strpbrk_cursor = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_text; \
+    const unsigned char *__obfh_strpbrk_member; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strpbrk_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_strpbrk_cursor, __obfh_strpbrk_done); \
+    __obfh_strpbrk_member = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_set; \
+__obfh_strpbrk_match: \
     OBFH_INLINE_EXIT(!*__obfh_strpbrk_member || *__obfh_strpbrk_member == *__obfh_strpbrk_cursor, __obfh_strpbrk_select); \
-    ++__obfh_strpbrk_member;                                                                                              \
-    goto __obfh_strpbrk_match;                                                                                            \
-__obfh_strpbrk_select:                                                                                                    \
-    OBFH_INLINE_EXIT(*__obfh_strpbrk_member, __obfh_strpbrk_done);                                                        \
-    ++__obfh_strpbrk_cursor;                                                                                              \
-    goto __obfh_strpbrk_loop;                                                                                             \
-__obfh_strpbrk_done:;                                                                                                     \
-    (char *)(*__obfh_strpbrk_cursor ? (char *)__obfh_strpbrk_cursor : NULL);                                              \
+    ++__obfh_strpbrk_member; \
+    goto __obfh_strpbrk_match; \
+__obfh_strpbrk_select: \
+    OBFH_INLINE_EXIT(*__obfh_strpbrk_member, __obfh_strpbrk_done); \
+    ++__obfh_strpbrk_cursor; \
+    goto __obfh_strpbrk_loop; \
+__obfh_strpbrk_done:; \
+    (char *)(*__obfh_strpbrk_cursor ? (char *)__obfh_strpbrk_cursor : NULL); \
 })
 #define strpbrk(...) strpbrk_custom(__VA_ARGS__)
 
-#define memcmp_custom(...) ({                                                                                                                                        \
-    __label__ __obfh_memcmp_loop, __obfh_memcmp_done;                                                                                                                \
-    struct {                                                                                                                                                         \
-        const void *__obfh_memcmp_left;                                                                                                                              \
-        const void *__obfh_memcmp_right;                                                                                                                             \
-        size_t __obfh_memcmp_count;                                                                                                                                  \
-    } __obfh_memcmp_args = {__VA_ARGS__};                                                                                                                            \
-    int __obfh_memcmp_result = 0;                                                                                                                                    \
-    BREAK_STACK_CFLOW;                                                                                                                                               \
-    PHANTOM_NOP;                                                                                                                                                     \
-__obfh_memcmp_loop:                                                                                                                                                  \
-    OBFH_INLINE_EXIT(!__obfh_memcmp_args.__obfh_memcmp_count, __obfh_memcmp_done);                                                                                   \
+#define memcmp_custom(...) ({ \
+    __label__ __obfh_memcmp_loop, __obfh_memcmp_done; \
+    struct { \
+        const void *__obfh_memcmp_left; \
+        const void *__obfh_memcmp_right; \
+        size_t __obfh_memcmp_count; \
+    } __obfh_memcmp_args = {__VA_ARGS__}; \
+    int __obfh_memcmp_result = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_memcmp_loop: \
+    OBFH_INLINE_EXIT(!__obfh_memcmp_args.__obfh_memcmp_count, __obfh_memcmp_done); \
     __obfh_memcmp_result = (int)*(const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_left - (int)*(const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_right; \
-    OBFH_INLINE_EXIT(__obfh_memcmp_result, __obfh_memcmp_done);                                                                                                      \
-    __obfh_memcmp_args.__obfh_memcmp_left = (const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_left + 1;                                                        \
-    __obfh_memcmp_args.__obfh_memcmp_right = (const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_right + 1;                                                      \
-    --__obfh_memcmp_args.__obfh_memcmp_count;                                                                                                                        \
-    goto __obfh_memcmp_loop;                                                                                                                                         \
-__obfh_memcmp_done:;                                                                                                                                                 \
-    __obfh_memcmp_result;                                                                                                                                            \
+    OBFH_INLINE_EXIT(__obfh_memcmp_result, __obfh_memcmp_done); \
+    __obfh_memcmp_args.__obfh_memcmp_left = (const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_left + 1; \
+    __obfh_memcmp_args.__obfh_memcmp_right = (const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_right + 1; \
+    --__obfh_memcmp_args.__obfh_memcmp_count; \
+    goto __obfh_memcmp_loop; \
+__obfh_memcmp_done:; \
+    __obfh_memcmp_result; \
 })
 #define memcmp(...) memcmp_custom(__VA_ARGS__)
 
-#define strncmp_custom(...) ({                                                                                                                                            \
-    __label__ __obfh_strncmp_loop, __obfh_strncmp_done;                                                                                                                   \
-    struct {                                                                                                                                                              \
-        const char *__obfh_strncmp_left;                                                                                                                                  \
-        const char *__obfh_strncmp_right;                                                                                                                                 \
-        size_t __obfh_strncmp_count;                                                                                                                                      \
-    } __obfh_strncmp_args = {__VA_ARGS__};                                                                                                                                \
-    int __obfh_strncmp_result = 0;                                                                                                                                        \
-    BREAK_STACK_CFLOW;                                                                                                                                                    \
-    PHANTOM_NOP;                                                                                                                                                          \
-__obfh_strncmp_loop:                                                                                                                                                      \
-    OBFH_INLINE_EXIT(!__obfh_strncmp_args.__obfh_strncmp_count, __obfh_strncmp_done);                                                                                     \
+#define strncmp_custom(...) ({ \
+    __label__ __obfh_strncmp_loop, __obfh_strncmp_done; \
+    struct { \
+        const char *__obfh_strncmp_left; \
+        const char *__obfh_strncmp_right; \
+        size_t __obfh_strncmp_count; \
+    } __obfh_strncmp_args = {__VA_ARGS__}; \
+    int __obfh_strncmp_result = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strncmp_loop: \
+    OBFH_INLINE_EXIT(!__obfh_strncmp_args.__obfh_strncmp_count, __obfh_strncmp_done); \
     __obfh_strncmp_result = (int)*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_left - (int)*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_right; \
-    OBFH_INLINE_EXIT(__obfh_strncmp_result || !*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_left, __obfh_strncmp_done);                                     \
-    ++__obfh_strncmp_args.__obfh_strncmp_left;                                                                                                                            \
-    ++__obfh_strncmp_args.__obfh_strncmp_right;                                                                                                                           \
-    --__obfh_strncmp_args.__obfh_strncmp_count;                                                                                                                           \
-    goto __obfh_strncmp_loop;                                                                                                                                             \
-__obfh_strncmp_done:;                                                                                                                                                     \
-    __obfh_strncmp_result;                                                                                                                                                \
+    OBFH_INLINE_EXIT(__obfh_strncmp_result || !*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_left, __obfh_strncmp_done); \
+    ++__obfh_strncmp_args.__obfh_strncmp_left; \
+    ++__obfh_strncmp_args.__obfh_strncmp_right; \
+    --__obfh_strncmp_args.__obfh_strncmp_count; \
+    goto __obfh_strncmp_loop; \
+__obfh_strncmp_done:; \
+    __obfh_strncmp_result; \
 })
 #define strncmp(...) strncmp_custom(__VA_ARGS__)
 
-#define strstr_custom(...) ({                                                                                              \
-    __label__ __obfh_strstr_loop, __obfh_strstr_match, __obfh_strstr_advance, __obfh_strstr_found, __obfh_strstr_done;     \
-    struct {                                                                                                               \
-        const char *__obfh_strstr_text;                                                                                    \
-        const char *__obfh_strstr_pattern;                                                                                 \
-    } __obfh_strstr_args = {__VA_ARGS__};                                                                                  \
-    const char *__obfh_strstr_a;                                                                                           \
-    const char *__obfh_strstr_b;                                                                                           \
-    unsigned char __obfh_strstr_first = (unsigned char)*__obfh_strstr_args.__obfh_strstr_pattern;                          \
-    char *__obfh_strstr_result = NULL;                                                                                     \
-    BREAK_STACK_CFLOW;                                                                                                     \
-    PHANTOM_NOP;                                                                                                           \
-    OBFH_INLINE_EXIT(!__obfh_strstr_first, __obfh_strstr_found);                                                           \
-__obfh_strstr_loop:                                                                                                        \
-    OBFH_INLINE_EXIT(!*__obfh_strstr_args.__obfh_strstr_text, __obfh_strstr_done);                                         \
+#define strstr_custom(...) ({ \
+    __label__ __obfh_strstr_loop, __obfh_strstr_match, __obfh_strstr_advance, __obfh_strstr_found, __obfh_strstr_done; \
+    struct { \
+        const char *__obfh_strstr_text; \
+        const char *__obfh_strstr_pattern; \
+    } __obfh_strstr_args = {__VA_ARGS__}; \
+    const char *__obfh_strstr_a; \
+    const char *__obfh_strstr_b; \
+    unsigned char __obfh_strstr_first = (unsigned char)*__obfh_strstr_args.__obfh_strstr_pattern; \
+    char *__obfh_strstr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    OBFH_INLINE_EXIT(!__obfh_strstr_first, __obfh_strstr_found); \
+__obfh_strstr_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_strstr_args.__obfh_strstr_text, __obfh_strstr_done); \
     OBFH_INLINE_EXIT((unsigned char)*__obfh_strstr_args.__obfh_strstr_text != __obfh_strstr_first, __obfh_strstr_advance); \
-    __obfh_strstr_a = __obfh_strstr_args.__obfh_strstr_text + 1;                                                           \
-    __obfh_strstr_b = __obfh_strstr_args.__obfh_strstr_pattern + 1;                                                        \
-__obfh_strstr_match:                                                                                                       \
-    OBFH_INLINE_EXIT(!*__obfh_strstr_b, __obfh_strstr_found);                                                              \
-    OBFH_INLINE_EXIT(*__obfh_strstr_a != *__obfh_strstr_b, __obfh_strstr_advance);                                         \
-    ++__obfh_strstr_a;                                                                                                     \
-    ++__obfh_strstr_b;                                                                                                     \
-    goto __obfh_strstr_match;                                                                                              \
-__obfh_strstr_advance:                                                                                                     \
-    ++__obfh_strstr_args.__obfh_strstr_text;                                                                               \
-    goto __obfh_strstr_loop;                                                                                               \
-__obfh_strstr_found:                                                                                                       \
-    __obfh_strstr_result = (char *)__obfh_strstr_args.__obfh_strstr_text;                                                  \
-__obfh_strstr_done:;                                                                                                       \
-    __obfh_strstr_result;                                                                                                  \
+    __obfh_strstr_a = __obfh_strstr_args.__obfh_strstr_text + 1; \
+    __obfh_strstr_b = __obfh_strstr_args.__obfh_strstr_pattern + 1; \
+__obfh_strstr_match: \
+    OBFH_INLINE_EXIT(!*__obfh_strstr_b, __obfh_strstr_found); \
+    OBFH_INLINE_EXIT(*__obfh_strstr_a != *__obfh_strstr_b, __obfh_strstr_advance); \
+    ++__obfh_strstr_a; \
+    ++__obfh_strstr_b; \
+    goto __obfh_strstr_match; \
+__obfh_strstr_advance: \
+    ++__obfh_strstr_args.__obfh_strstr_text; \
+    goto __obfh_strstr_loop; \
+__obfh_strstr_found: \
+    __obfh_strstr_result = (char *)__obfh_strstr_args.__obfh_strstr_text; \
+__obfh_strstr_done:; \
+    __obfh_strstr_result; \
 })
 #define strstr(...) strstr_custom(__VA_ARGS__)
 
 // Local copying, character search and wide-string kernels.
 // REP copy/fill and backward word/SSE2 loads accept unaligned addresses.
 // Backward moves of 64+ bytes require SSE2 on x86/x64; byte tails never change DF.
-#define strchr_custom(...) ({                                                                            \
-    __label__ __obfh_strchr_loop, __obfh_strchr_found, __obfh_strchr_done;                               \
-    struct {                                                                                             \
-        const char *text;                                                                                \
-        int character;                                                                                   \
-    } __obfh_strchr_args = {__VA_ARGS__};                                                                \
-    const char *__obfh_strchr_cursor = __obfh_strchr_args.text;                                          \
-    unsigned char __obfh_strchr_wanted = (unsigned char)__obfh_strchr_args.character;                    \
-    char *__obfh_strchr_result = NULL;                                                                   \
-    BREAK_STACK_CFLOW;                                                                                   \
-    PHANTOM_NOP;                                                                                         \
-__obfh_strchr_loop:                                                                                      \
+#define strchr_custom(...) ({ \
+    __label__ __obfh_strchr_loop, __obfh_strchr_found, __obfh_strchr_done; \
+    struct { \
+        const char *text; \
+        int character; \
+    } __obfh_strchr_args = {__VA_ARGS__}; \
+    const char *__obfh_strchr_cursor = __obfh_strchr_args.text; \
+    unsigned char __obfh_strchr_wanted = (unsigned char)__obfh_strchr_args.character; \
+    char *__obfh_strchr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strchr_loop: \
     OBFH_INLINE_EXIT((unsigned char)*__obfh_strchr_cursor == __obfh_strchr_wanted, __obfh_strchr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_strchr_cursor, __obfh_strchr_done);                                        \
-    ++__obfh_strchr_cursor;                                                                              \
-    goto __obfh_strchr_loop;                                                                             \
-__obfh_strchr_found:                                                                                     \
-    __obfh_strchr_result = (char *)__obfh_strchr_cursor;                                                 \
-__obfh_strchr_done:;                                                                                     \
-    __obfh_strchr_result;                                                                                \
+    OBFH_INLINE_EXIT(!*__obfh_strchr_cursor, __obfh_strchr_done); \
+    ++__obfh_strchr_cursor; \
+    goto __obfh_strchr_loop; \
+__obfh_strchr_found: \
+    __obfh_strchr_result = (char *)__obfh_strchr_cursor; \
+__obfh_strchr_done:; \
+    __obfh_strchr_result; \
 })
 
 #define strchr(...) strchr_custom(__VA_ARGS__)
 
-#define strrchr_custom(...) ({                                                                              \
-    __label__ __obfh_strrchr_loop, __obfh_strrchr_found, __obfh_strrchr_done;                               \
-    struct {                                                                                                \
-        const char *text;                                                                                   \
-        int character;                                                                                      \
-    } __obfh_strrchr_args = {__VA_ARGS__};                                                                  \
-    const char *__obfh_strrchr_cursor = __obfh_strrchr_args.text;                                           \
-    unsigned char __obfh_strrchr_wanted = (unsigned char)__obfh_strrchr_args.character;                     \
-    char *__obfh_strrchr_result = NULL;                                                                     \
-    BREAK_STACK_CFLOW;                                                                                      \
-    PHANTOM_NOP;                                                                                            \
-__obfh_strrchr_loop:                                                                                        \
+#define strrchr_custom(...) ({ \
+    __label__ __obfh_strrchr_loop, __obfh_strrchr_found, __obfh_strrchr_done; \
+    struct { \
+        const char *text; \
+        int character; \
+    } __obfh_strrchr_args = {__VA_ARGS__}; \
+    const char *__obfh_strrchr_cursor = __obfh_strrchr_args.text; \
+    unsigned char __obfh_strrchr_wanted = (unsigned char)__obfh_strrchr_args.character; \
+    char *__obfh_strrchr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strrchr_loop: \
     OBFH_INLINE_EXIT((unsigned char)*__obfh_strrchr_cursor == __obfh_strrchr_wanted, __obfh_strrchr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done);                                         \
-    ++__obfh_strrchr_cursor;                                                                                \
-    goto __obfh_strrchr_loop;                                                                               \
-__obfh_strrchr_found:                                                                                       \
-    __obfh_strrchr_result = (char *)__obfh_strrchr_cursor;                                                  \
-    OBFH_INLINE_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done);                                         \
-    ++__obfh_strrchr_cursor;                                                                                \
-    goto __obfh_strrchr_loop;                                                                               \
-__obfh_strrchr_done:;                                                                                       \
-    __obfh_strrchr_result;                                                                                  \
+    OBFH_INLINE_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done); \
+    ++__obfh_strrchr_cursor; \
+    goto __obfh_strrchr_loop; \
+__obfh_strrchr_found: \
+    __obfh_strrchr_result = (char *)__obfh_strrchr_cursor; \
+    OBFH_INLINE_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done); \
+    ++__obfh_strrchr_cursor; \
+    goto __obfh_strrchr_loop; \
+__obfh_strrchr_done:; \
+    __obfh_strrchr_result; \
 })
 
 #define strrchr(...) strrchr_custom(__VA_ARGS__)
 
-#define wcschr_custom(...) ({                                                             \
-    __label__ __obfh_wcschr_loop, __obfh_wcschr_found, __obfh_wcschr_done;                \
-    struct {                                                                              \
-        const wchar_t *text;                                                              \
-        wchar_t character;                                                                \
-    } __obfh_wcschr_args = {__VA_ARGS__};                                                 \
-    const wchar_t *__obfh_wcschr_cursor = __obfh_wcschr_args.text;                        \
-    wchar_t __obfh_wcschr_wanted = (wchar_t)__obfh_wcschr_args.character;                 \
-    wchar_t *__obfh_wcschr_result = NULL;                                                 \
-    BREAK_STACK_CFLOW;                                                                    \
-    PHANTOM_NOP;                                                                          \
-__obfh_wcschr_loop:                                                                       \
+#define wcschr_custom(...) ({ \
+    __label__ __obfh_wcschr_loop, __obfh_wcschr_found, __obfh_wcschr_done; \
+    struct { \
+        const wchar_t *text; \
+        wchar_t character; \
+    } __obfh_wcschr_args = {__VA_ARGS__}; \
+    const wchar_t *__obfh_wcschr_cursor = __obfh_wcschr_args.text; \
+    wchar_t __obfh_wcschr_wanted = (wchar_t)__obfh_wcschr_args.character; \
+    wchar_t *__obfh_wcschr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcschr_loop: \
     OBFH_INLINE_EXIT(*__obfh_wcschr_cursor == __obfh_wcschr_wanted, __obfh_wcschr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_wcschr_cursor, __obfh_wcschr_done);                         \
-    ++__obfh_wcschr_cursor;                                                               \
-    goto __obfh_wcschr_loop;                                                              \
-__obfh_wcschr_found:                                                                      \
-    __obfh_wcschr_result = (wchar_t *)__obfh_wcschr_cursor;                               \
-__obfh_wcschr_done:;                                                                      \
-    __obfh_wcschr_result;                                                                 \
+    OBFH_INLINE_EXIT(!*__obfh_wcschr_cursor, __obfh_wcschr_done); \
+    ++__obfh_wcschr_cursor; \
+    goto __obfh_wcschr_loop; \
+__obfh_wcschr_found: \
+    __obfh_wcschr_result = (wchar_t *)__obfh_wcschr_cursor; \
+__obfh_wcschr_done:; \
+    __obfh_wcschr_result; \
 })
 #define wcschr(...) wcschr_custom(__VA_ARGS__)
 
-#define wcsrchr_custom(...) ({                                                               \
-    __label__ __obfh_wcsrchr_loop, __obfh_wcsrchr_found, __obfh_wcsrchr_done;                \
-    struct {                                                                                 \
-        const wchar_t *text;                                                                 \
-        wchar_t character;                                                                   \
-    } __obfh_wcsrchr_args = {__VA_ARGS__};                                                   \
-    const wchar_t *__obfh_wcsrchr_cursor = __obfh_wcsrchr_args.text;                         \
-    wchar_t __obfh_wcsrchr_wanted = (wchar_t)__obfh_wcsrchr_args.character;                  \
-    wchar_t *__obfh_wcsrchr_result = NULL;                                                   \
-    BREAK_STACK_CFLOW;                                                                       \
-    PHANTOM_NOP;                                                                             \
-__obfh_wcsrchr_loop:                                                                         \
+#define wcsrchr_custom(...) ({ \
+    __label__ __obfh_wcsrchr_loop, __obfh_wcsrchr_found, __obfh_wcsrchr_done; \
+    struct { \
+        const wchar_t *text; \
+        wchar_t character; \
+    } __obfh_wcsrchr_args = {__VA_ARGS__}; \
+    const wchar_t *__obfh_wcsrchr_cursor = __obfh_wcsrchr_args.text; \
+    wchar_t __obfh_wcsrchr_wanted = (wchar_t)__obfh_wcsrchr_args.character; \
+    wchar_t *__obfh_wcsrchr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcsrchr_loop: \
     OBFH_INLINE_EXIT(*__obfh_wcsrchr_cursor == __obfh_wcsrchr_wanted, __obfh_wcsrchr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done);                          \
-    ++__obfh_wcsrchr_cursor;                                                                 \
-    goto __obfh_wcsrchr_loop;                                                                \
-__obfh_wcsrchr_found:                                                                        \
-    __obfh_wcsrchr_result = (wchar_t *)__obfh_wcsrchr_cursor;                                \
-    OBFH_INLINE_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done);                          \
-    ++__obfh_wcsrchr_cursor;                                                                 \
-    goto __obfh_wcsrchr_loop;                                                                \
-__obfh_wcsrchr_done:;                                                                        \
-    __obfh_wcsrchr_result;                                                                   \
+    OBFH_INLINE_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done); \
+    ++__obfh_wcsrchr_cursor; \
+    goto __obfh_wcsrchr_loop; \
+__obfh_wcsrchr_found: \
+    __obfh_wcsrchr_result = (wchar_t *)__obfh_wcsrchr_cursor; \
+    OBFH_INLINE_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done); \
+    ++__obfh_wcsrchr_cursor; \
+    goto __obfh_wcsrchr_loop; \
+__obfh_wcsrchr_done:; \
+    __obfh_wcsrchr_result; \
 })
 #define wcsrchr(...) wcsrchr_custom(__VA_ARGS__)
 
-#define strcpy_custom(...) ({                                    \
-    __label__ __obfh_strcpy_copy, __obfh_strcpy_done;            \
-    struct {                                                     \
-        char *destination;                                       \
-        const char *text;                                        \
-    } __obfh_strcpy_args = {__VA_ARGS__};                        \
+#define strcpy_custom(...) ({ \
+    __label__ __obfh_strcpy_copy, __obfh_strcpy_done; \
+    struct { \
+        char *destination; \
+        const char *text; \
+    } __obfh_strcpy_args = {__VA_ARGS__}; \
     char *__obfh_strcpy_target = __obfh_strcpy_args.destination; \
-    const char *__obfh_strcpy_source = __obfh_strcpy_args.text;  \
-    char __obfh_strcpy_value;                                    \
-    BREAK_STACK_CFLOW;                                           \
-    PHANTOM_NOP;                                                 \
-__obfh_strcpy_copy:                                              \
-    __obfh_strcpy_value = *__obfh_strcpy_source;                 \
-    *__obfh_strcpy_target++ = __obfh_strcpy_value;               \
-    OBFH_INLINE_EXIT(!__obfh_strcpy_value, __obfh_strcpy_done);  \
-    ++__obfh_strcpy_source;                                      \
-    goto __obfh_strcpy_copy;                                     \
-__obfh_strcpy_done:;                                             \
-    __obfh_strcpy_args.destination;                              \
+    const char *__obfh_strcpy_source = __obfh_strcpy_args.text; \
+    char __obfh_strcpy_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strcpy_copy: \
+    __obfh_strcpy_value = *__obfh_strcpy_source; \
+    *__obfh_strcpy_target++ = __obfh_strcpy_value; \
+    OBFH_INLINE_EXIT(!__obfh_strcpy_value, __obfh_strcpy_done); \
+    ++__obfh_strcpy_source; \
+    goto __obfh_strcpy_copy; \
+__obfh_strcpy_done:; \
+    __obfh_strcpy_args.destination; \
 })
 
 #define strcpy(...) strcpy_custom(__VA_ARGS__)
 
-#define strcat_custom(...) ({                                             \
+#define strcat_custom(...) ({ \
     __label__ __obfh_strcat_scan, __obfh_strcat_copy, __obfh_strcat_done; \
-    struct {                                                              \
-        char *destination;                                                \
-        const char *text;                                                 \
-    } __obfh_strcat_args = {__VA_ARGS__};                                 \
-    char *__obfh_strcat_target = __obfh_strcat_args.destination;          \
-    const char *__obfh_strcat_source = __obfh_strcat_args.text;           \
-    char __obfh_strcat_value;                                             \
-    BREAK_STACK_CFLOW;                                                    \
-    PHANTOM_NOP;                                                          \
-__obfh_strcat_scan:                                                       \
-    OBFH_INLINE_EXIT(!*__obfh_strcat_target, __obfh_strcat_copy);         \
-    ++__obfh_strcat_target;                                               \
-    goto __obfh_strcat_scan;                                              \
-__obfh_strcat_copy:                                                       \
-    __obfh_strcat_value = *__obfh_strcat_source;                          \
-    *__obfh_strcat_target++ = __obfh_strcat_value;                        \
-    OBFH_INLINE_EXIT(!__obfh_strcat_value, __obfh_strcat_done);           \
-    ++__obfh_strcat_source;                                               \
-    goto __obfh_strcat_copy;                                              \
-__obfh_strcat_done:;                                                      \
-    __obfh_strcat_args.destination;                                       \
+    struct { \
+        char *destination; \
+        const char *text; \
+    } __obfh_strcat_args = {__VA_ARGS__}; \
+    char *__obfh_strcat_target = __obfh_strcat_args.destination; \
+    const char *__obfh_strcat_source = __obfh_strcat_args.text; \
+    char __obfh_strcat_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strcat_scan: \
+    OBFH_INLINE_EXIT(!*__obfh_strcat_target, __obfh_strcat_copy); \
+    ++__obfh_strcat_target; \
+    goto __obfh_strcat_scan; \
+__obfh_strcat_copy: \
+    __obfh_strcat_value = *__obfh_strcat_source; \
+    *__obfh_strcat_target++ = __obfh_strcat_value; \
+    OBFH_INLINE_EXIT(!__obfh_strcat_value, __obfh_strcat_done); \
+    ++__obfh_strcat_source; \
+    goto __obfh_strcat_copy; \
+__obfh_strcat_done:; \
+    __obfh_strcat_args.destination; \
 })
 
 #define strcat(...) strcat_custom(__VA_ARGS__)
 
-#define strncpy_custom(...) ({                                               \
+#define strncpy_custom(...) ({ \
     __label__ __obfh_strncpy_copy, __obfh_strncpy_fill, __obfh_strncpy_done; \
-    struct {                                                                 \
-        char *destination;                                                   \
-        const char *text;                                                    \
-        size_t count;                                                        \
-    } __obfh_strncpy_args = {__VA_ARGS__};                                   \
-    char *__obfh_strncpy_target = __obfh_strncpy_args.destination;           \
-    const char *__obfh_strncpy_source = __obfh_strncpy_args.text;            \
-    char __obfh_strncpy_value;                                               \
-    BREAK_STACK_CFLOW;                                                       \
-    PHANTOM_NOP;                                                             \
-__obfh_strncpy_copy:                                                         \
-    OBFH_INLINE_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done);       \
-    __obfh_strncpy_value = *__obfh_strncpy_source;                           \
-    *__obfh_strncpy_target++ = __obfh_strncpy_value;                         \
-    --__obfh_strncpy_args.count;                                             \
-    OBFH_INLINE_EXIT(!__obfh_strncpy_value, __obfh_strncpy_fill);            \
-    ++__obfh_strncpy_source;                                                 \
-    goto __obfh_strncpy_copy;                                                \
-__obfh_strncpy_fill:                                                         \
-    OBFH_INLINE_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done);       \
-    *__obfh_strncpy_target++ = 0;                                            \
-    --__obfh_strncpy_args.count;                                             \
-    goto __obfh_strncpy_fill;                                                \
-__obfh_strncpy_done:;                                                        \
-    __obfh_strncpy_args.destination;                                         \
+    struct { \
+        char *destination; \
+        const char *text; \
+        size_t count; \
+    } __obfh_strncpy_args = {__VA_ARGS__}; \
+    char *__obfh_strncpy_target = __obfh_strncpy_args.destination; \
+    const char *__obfh_strncpy_source = __obfh_strncpy_args.text; \
+    char __obfh_strncpy_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strncpy_copy: \
+    OBFH_INLINE_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done); \
+    __obfh_strncpy_value = *__obfh_strncpy_source; \
+    *__obfh_strncpy_target++ = __obfh_strncpy_value; \
+    --__obfh_strncpy_args.count; \
+    OBFH_INLINE_EXIT(!__obfh_strncpy_value, __obfh_strncpy_fill); \
+    ++__obfh_strncpy_source; \
+    goto __obfh_strncpy_copy; \
+__obfh_strncpy_fill: \
+    OBFH_INLINE_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done); \
+    *__obfh_strncpy_target++ = 0; \
+    --__obfh_strncpy_args.count; \
+    goto __obfh_strncpy_fill; \
+__obfh_strncpy_done:; \
+    __obfh_strncpy_args.destination; \
 })
 
 #define strncpy(...) strncpy_custom(__VA_ARGS__)
 
-#define strncat_custom(...) ({                                                                    \
+#define strncat_custom(...) ({ \
     __label__ __obfh_strncat_scan, __obfh_strncat_copy, __obfh_strncat_fill, __obfh_strncat_done; \
-    struct {                                                                                      \
-        char *destination;                                                                        \
-        const char *text;                                                                         \
-        size_t count;                                                                             \
-    } __obfh_strncat_args = {__VA_ARGS__};                                                        \
-    char *__obfh_strncat_target = __obfh_strncat_args.destination;                                \
-    const char *__obfh_strncat_source = __obfh_strncat_args.text;                                 \
-    char __obfh_strncat_value;                                                                    \
-    BREAK_STACK_CFLOW;                                                                            \
-    PHANTOM_NOP;                                                                                  \
-__obfh_strncat_scan:                                                                              \
-    OBFH_INLINE_EXIT(!*__obfh_strncat_target, __obfh_strncat_copy);                               \
-    ++__obfh_strncat_target;                                                                      \
-    goto __obfh_strncat_scan;                                                                     \
-__obfh_strncat_copy:                                                                              \
-    OBFH_INLINE_EXIT(!__obfh_strncat_args.count, __obfh_strncat_fill);                            \
-    __obfh_strncat_value = *__obfh_strncat_source;                                                \
-    *__obfh_strncat_target++ = __obfh_strncat_value;                                              \
-    --__obfh_strncat_args.count;                                                                  \
-    OBFH_INLINE_EXIT(!__obfh_strncat_value, __obfh_strncat_done);                                 \
-    ++__obfh_strncat_source;                                                                      \
-    goto __obfh_strncat_copy;                                                                     \
-__obfh_strncat_fill:                                                                              \
-    *__obfh_strncat_target = 0;                                                                   \
-__obfh_strncat_done:;                                                                             \
-    __obfh_strncat_args.destination;                                                              \
+    struct { \
+        char *destination; \
+        const char *text; \
+        size_t count; \
+    } __obfh_strncat_args = {__VA_ARGS__}; \
+    char *__obfh_strncat_target = __obfh_strncat_args.destination; \
+    const char *__obfh_strncat_source = __obfh_strncat_args.text; \
+    char __obfh_strncat_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strncat_scan: \
+    OBFH_INLINE_EXIT(!*__obfh_strncat_target, __obfh_strncat_copy); \
+    ++__obfh_strncat_target; \
+    goto __obfh_strncat_scan; \
+__obfh_strncat_copy: \
+    OBFH_INLINE_EXIT(!__obfh_strncat_args.count, __obfh_strncat_fill); \
+    __obfh_strncat_value = *__obfh_strncat_source; \
+    *__obfh_strncat_target++ = __obfh_strncat_value; \
+    --__obfh_strncat_args.count; \
+    OBFH_INLINE_EXIT(!__obfh_strncat_value, __obfh_strncat_done); \
+    ++__obfh_strncat_source; \
+    goto __obfh_strncat_copy; \
+__obfh_strncat_fill: \
+    *__obfh_strncat_target = 0; \
+__obfh_strncat_done:; \
+    __obfh_strncat_args.destination; \
 })
 
 #define strncat(...) strncat_custom(__VA_ARGS__)
 
-#define memcpy_custom(...) ({                                              \
-    struct {                                                               \
-        void *destination;                                                 \
-        const void *text;                                                  \
-        size_t count;                                                      \
-    } __obfh_memcpy_args = {__VA_ARGS__};                                  \
-    void *__obfh_memcpy_target = __obfh_memcpy_args.destination;           \
-    const void *__obfh_memcpy_source = __obfh_memcpy_args.text;            \
-    size_t __obfh_memcpy_count = __obfh_memcpy_args.count;                 \
-    BREAK_STACK_CFLOW;                                                     \
-    PHANTOM_NOP;                                                           \
-    __obfh_asm__("rep movsb"                                               \
+#define memcpy_custom(...) ({ \
+    struct { \
+        void *destination; \
+        const void *text; \
+        size_t count; \
+    } __obfh_memcpy_args = {__VA_ARGS__}; \
+    void *__obfh_memcpy_target = __obfh_memcpy_args.destination; \
+    const void *__obfh_memcpy_source = __obfh_memcpy_args.text; \
+    size_t __obfh_memcpy_count = __obfh_memcpy_args.count; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    __obfh_asm__("rep movsb" \
                  : "+D"(__obfh_memcpy_target), "+S"(__obfh_memcpy_source), \
-                   "+c"(__obfh_memcpy_count)                               \
-                 :                                                         \
-                 : "memory");                                              \
-    __obfh_memcpy_args.destination;                                        \
+                   "+c"(__obfh_memcpy_count) \
+                 : \
+                 : "memory"); \
+    __obfh_memcpy_args.destination; \
 })
 
 #define memcpy(...) memcpy_custom(__VA_ARGS__)
 
-#define memset_custom(...) ({                                            \
-    struct {                                                             \
-        void *destination;                                               \
-        int character;                                                   \
-        size_t count;                                                    \
-    } __obfh_memset_args = {__VA_ARGS__};                                \
-    void *__obfh_memset_target = __obfh_memset_args.destination;         \
-    size_t __obfh_memset_count = __obfh_memset_args.count;               \
-    BREAK_STACK_CFLOW;                                                   \
-    PHANTOM_NOP;                                                         \
-    __obfh_asm__("rep stosb"                                             \
+#define memset_custom(...) ({ \
+    struct { \
+        void *destination; \
+        int character; \
+        size_t count; \
+    } __obfh_memset_args = {__VA_ARGS__}; \
+    void *__obfh_memset_target = __obfh_memset_args.destination; \
+    size_t __obfh_memset_count = __obfh_memset_args.count; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    __obfh_asm__("rep stosb" \
                  : "+D"(__obfh_memset_target), "+c"(__obfh_memset_count) \
-                 : "a"((unsigned char)__obfh_memset_args.character)      \
-                 : "memory");                                            \
-    __obfh_memset_args.destination;                                      \
+                 : "a"((unsigned char)__obfh_memset_args.character) \
+                 : "memory"); \
+    __obfh_memset_args.destination; \
 })
 
 #define memset(...) memset_custom(__VA_ARGS__)
@@ -4653,636 +4722,636 @@ __obfh_strncat_done:;                                                           
 #define OBFH_MOVE_REGISTER "%%eax"
 #define OBFH_MOVE_STEP "4"
 #endif
-#define memmove_custom(...) ({                                                                                        \
-    __label__ __obfh_memmove_backward, __obfh_memmove_vector, __obfh_memmove_done;                                    \
-    struct {                                                                                                          \
-        void *destination;                                                                                            \
-        const void *text;                                                                                             \
-        size_t count;                                                                                                 \
-    } __obfh_memmove_args = {__VA_ARGS__};                                                                            \
-    void *__obfh_memmove_target = __obfh_memmove_args.destination;                                                    \
-    const void *__obfh_memmove_source = __obfh_memmove_args.text;                                                     \
-    size_t __obfh_memmove_count = __obfh_memmove_args.count;                                                          \
-    BREAK_STACK_CFLOW;                                                                                                \
-    PHANTOM_NOP;                                                                                                      \
-    OBFH_INLINE_EXIT(!__obfh_memmove_count, __obfh_memmove_done);                                                     \
-    OBFH_INLINE_EXIT((ULONG_PTR)__obfh_memmove_target > (ULONG_PTR)__obfh_memmove_source &&                           \
-                         (ULONG_PTR)__obfh_memmove_target - (ULONG_PTR)__obfh_memmove_source < __obfh_memmove_count,  \
-                     __obfh_memmove_backward);                                                                        \
-    __obfh_asm__("rep movsb"                                                                                          \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source),                                          \
-                   "+c"(__obfh_memmove_count)                                                                         \
-                 :                                                                                                    \
-                 : "memory");                                                                                         \
-    goto __obfh_memmove_done;                                                                                         \
-__obfh_memmove_backward:                                                                                              \
-    OBFH_INLINE_EXIT(__obfh_memmove_count >= 64, __obfh_memmove_vector);                                              \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1;                        \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1;                  \
-    size_t __obfh_memmove_tail = __obfh_memmove_count % sizeof(ULONG_PTR);                                            \
-    __obfh_memmove_count /= sizeof(ULONG_PTR);                                                                        \
-    __obfh_asm__("test" OBFH_MOVE_WIDTH                                                                               \
-                 " %2, %2; jz 2f; 1: movb (%1), %%al; movb %%al, (%0); "                                              \
-                 "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:"        \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_tail)                \
-                 :                                                                                                    \
-                 : "eax", "cc", "memory");                                                                            \
-    OBFH_INLINE_EXIT(!__obfh_memmove_count, __obfh_memmove_done);                                                     \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target - (sizeof(ULONG_PTR) - 1);                         \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - (sizeof(ULONG_PTR) - 1);                   \
+#define memmove_custom(...) ({ \
+    __label__ __obfh_memmove_backward, __obfh_memmove_vector, __obfh_memmove_done; \
+    struct { \
+        void *destination; \
+        const void *text; \
+        size_t count; \
+    } __obfh_memmove_args = {__VA_ARGS__}; \
+    void *__obfh_memmove_target = __obfh_memmove_args.destination; \
+    const void *__obfh_memmove_source = __obfh_memmove_args.text; \
+    size_t __obfh_memmove_count = __obfh_memmove_args.count; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    OBFH_INLINE_EXIT(!__obfh_memmove_count, __obfh_memmove_done); \
+    OBFH_INLINE_EXIT((ULONG_PTR)__obfh_memmove_target > (ULONG_PTR)__obfh_memmove_source && \
+                         (ULONG_PTR)__obfh_memmove_target - (ULONG_PTR)__obfh_memmove_source < __obfh_memmove_count, \
+                     __obfh_memmove_backward); \
+    __obfh_asm__("rep movsb" \
+                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), \
+                   "+c"(__obfh_memmove_count) \
+                 : \
+                 : "memory"); \
+    goto __obfh_memmove_done; \
+__obfh_memmove_backward: \
+    OBFH_INLINE_EXIT(__obfh_memmove_count >= 64, __obfh_memmove_vector); \
+    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1; \
+    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1; \
+    size_t __obfh_memmove_tail = __obfh_memmove_count % sizeof(ULONG_PTR); \
+    __obfh_memmove_count /= sizeof(ULONG_PTR); \
+    __obfh_asm__("test" OBFH_MOVE_WIDTH \
+                 " %2, %2; jz 2f; 1: movb (%1), %%al; movb %%al, (%0); " \
+                 "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:" \
+                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_tail) \
+                 : \
+                 : "eax", "cc", "memory"); \
+    OBFH_INLINE_EXIT(!__obfh_memmove_count, __obfh_memmove_done); \
+    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target - (sizeof(ULONG_PTR) - 1); \
+    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - (sizeof(ULONG_PTR) - 1); \
     __obfh_asm__("1: mov" OBFH_MOVE_WIDTH " (%1), " OBFH_MOVE_REGISTER "; mov" OBFH_MOVE_WIDTH " " OBFH_MOVE_REGISTER \
-                 ", (%0); "                                                                                           \
-                 "sub" OBFH_MOVE_WIDTH " $" OBFH_MOVE_STEP ", %0; sub" OBFH_MOVE_WIDTH " $" OBFH_MOVE_STEP            \
-                 ", %1; "                                                                                             \
-                 "dec" OBFH_MOVE_WIDTH " %2; jnz 1b;"                                                                 \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count)               \
-                 :                                                                                                    \
-                 : "eax", "cc", "memory");                                                                            \
-    goto __obfh_memmove_done;                                                                                         \
-__obfh_memmove_vector:                                                                                                \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1;                        \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1;                  \
-    size_t __obfh_memmove_vector_tail = __obfh_memmove_count & 15u;                                                   \
-    __obfh_memmove_count >>= 4;                                                                                       \
-    __obfh_asm__("test" OBFH_MOVE_WIDTH                                                                               \
-                 " %2, %2; jz 2f; 1: movb (%1), %%al; movb %%al, (%0); "                                              \
-                 "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:"        \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_vector_tail)         \
-                 :                                                                                                    \
-                 : "eax", "cc", "memory");                                                                            \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target - 15;                                              \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - 15;                                        \
-    /* TCC lacks MOVDQU syntax and XMM clobbers: fixed D/S/d addresses, save/restore XMM0. */                         \
-    unsigned char __obfh_memmove_xmm_save[16];                                                                        \
-    __obfh_asm__(                                                                                                     \
-        ".byte 0xf3,0x0f,0x7f,0x02; 1: .byte 0xf3,0x0f,0x6f,0x06; .byte 0xf3,0x0f,0x7f,0x07; "                        \
-        "sub" OBFH_MOVE_WIDTH " $16, %0; sub" OBFH_MOVE_WIDTH                                                         \
-        " $16, %1; "                                                                                                  \
-        "dec" OBFH_MOVE_WIDTH " %2; jnz 1b; .byte 0xf3,0x0f,0x6f,0x02;"                                               \
-        : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count)                        \
-        : "d"(__obfh_memmove_xmm_save)                                                                                \
-        : "cc", "memory");                                                                                            \
-__obfh_memmove_done:;                                                                                                 \
-    __obfh_memmove_args.destination;                                                                                  \
+                 ", (%0); " \
+                 "sub" OBFH_MOVE_WIDTH " $" OBFH_MOVE_STEP ", %0; sub" OBFH_MOVE_WIDTH " $" OBFH_MOVE_STEP \
+                 ", %1; " \
+                 "dec" OBFH_MOVE_WIDTH " %2; jnz 1b;" \
+                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count) \
+                 : \
+                 : "eax", "cc", "memory"); \
+    goto __obfh_memmove_done; \
+__obfh_memmove_vector: \
+    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1; \
+    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1; \
+    size_t __obfh_memmove_vector_tail = __obfh_memmove_count & 15u; \
+    __obfh_memmove_count >>= 4; \
+    __obfh_asm__("test" OBFH_MOVE_WIDTH \
+                 " %2, %2; jz 2f; 1: movb (%1), %%al; movb %%al, (%0); " \
+                 "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:" \
+                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_vector_tail) \
+                 : \
+                 : "eax", "cc", "memory"); \
+    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target - 15; \
+    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - 15; \
+    /* TCC lacks MOVDQU syntax and XMM clobbers: fixed D/S/d addresses, save/restore XMM0. */ \
+    unsigned char __obfh_memmove_xmm_save[16]; \
+    __obfh_asm__( \
+        ".byte 0xf3,0x0f,0x7f,0x02; 1: .byte 0xf3,0x0f,0x6f,0x06; .byte 0xf3,0x0f,0x7f,0x07; " \
+        "sub" OBFH_MOVE_WIDTH " $16, %0; sub" OBFH_MOVE_WIDTH \
+        " $16, %1; " \
+        "dec" OBFH_MOVE_WIDTH " %2; jnz 1b; .byte 0xf3,0x0f,0x6f,0x02;" \
+        : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count) \
+        : "d"(__obfh_memmove_xmm_save) \
+        : "cc", "memory"); \
+__obfh_memmove_done:; \
+    __obfh_memmove_args.destination; \
 })
 
 #define memmove(...) memmove_custom(__VA_ARGS__)
-#define wcslen_custom(...) ({                                                            \
-    __label__ __obfh_wcslen_loop, __obfh_wcslen_done;                                    \
-    struct {                                                                             \
-        const wchar_t *text;                                                             \
-    } __obfh_wcslen_args = {__VA_ARGS__};                                                \
-    size_t __obfh_wcslen_index = 0;                                                      \
-    BREAK_STACK_CFLOW;                                                                   \
-    PHANTOM_NOP;                                                                         \
-__obfh_wcslen_loop:                                                                      \
+#define wcslen_custom(...) ({ \
+    __label__ __obfh_wcslen_loop, __obfh_wcslen_done; \
+    struct { \
+        const wchar_t *text; \
+    } __obfh_wcslen_args = {__VA_ARGS__}; \
+    size_t __obfh_wcslen_index = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcslen_loop: \
     OBFH_INLINE_EXIT(!__obfh_wcslen_args.text[__obfh_wcslen_index], __obfh_wcslen_done); \
-    ++__obfh_wcslen_index;                                                               \
-    goto __obfh_wcslen_loop;                                                             \
-__obfh_wcslen_done:;                                                                     \
-    __obfh_wcslen_index;                                                                 \
+    ++__obfh_wcslen_index; \
+    goto __obfh_wcslen_loop; \
+__obfh_wcslen_done:; \
+    __obfh_wcslen_index; \
 })
 #define wcslen(...) wcslen_custom(__VA_ARGS__)
 
-#define wcscmp_custom(...) ({                                                                                                               \
-    __label__ __obfh_wcscmp_loop, __obfh_wcscmp_done;                                                                                       \
-    struct {                                                                                                                                \
-        const wchar_t *left;                                                                                                                \
-        const wchar_t *right;                                                                                                               \
-    } __obfh_wcscmp_args = {__VA_ARGS__};                                                                                                   \
-    int __obfh_wcscmp_result = 0;                                                                                                           \
-    BREAK_STACK_CFLOW;                                                                                                                      \
-    PHANTOM_NOP;                                                                                                                            \
-__obfh_wcscmp_loop:                                                                                                                         \
+#define wcscmp_custom(...) ({ \
+    __label__ __obfh_wcscmp_loop, __obfh_wcscmp_done; \
+    struct { \
+        const wchar_t *left; \
+        const wchar_t *right; \
+    } __obfh_wcscmp_args = {__VA_ARGS__}; \
+    int __obfh_wcscmp_result = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcscmp_loop: \
     __obfh_wcscmp_result = (*__obfh_wcscmp_args.left > *__obfh_wcscmp_args.right) - (*__obfh_wcscmp_args.left < *__obfh_wcscmp_args.right); \
-    OBFH_INLINE_EXIT(__obfh_wcscmp_result || !*__obfh_wcscmp_args.left, __obfh_wcscmp_done);                                                \
-    ++__obfh_wcscmp_args.left;                                                                                                              \
-    ++__obfh_wcscmp_args.right;                                                                                                             \
-    goto __obfh_wcscmp_loop;                                                                                                                \
-__obfh_wcscmp_done:;                                                                                                                        \
-    __obfh_wcscmp_result;                                                                                                                   \
+    OBFH_INLINE_EXIT(__obfh_wcscmp_result || !*__obfh_wcscmp_args.left, __obfh_wcscmp_done); \
+    ++__obfh_wcscmp_args.left; \
+    ++__obfh_wcscmp_args.right; \
+    goto __obfh_wcscmp_loop; \
+__obfh_wcscmp_done:; \
+    __obfh_wcscmp_result; \
 })
 #define wcscmp(...) wcscmp_custom(__VA_ARGS__)
 
-#define wcsncmp_custom(...) ({                                                                                                                   \
-    __label__ __obfh_wcsncmp_loop, __obfh_wcsncmp_done;                                                                                          \
-    struct {                                                                                                                                     \
-        const wchar_t *left;                                                                                                                     \
-        const wchar_t *right;                                                                                                                    \
-        size_t count;                                                                                                                            \
-    } __obfh_wcsncmp_args = {__VA_ARGS__};                                                                                                       \
-    int __obfh_wcsncmp_result = 0;                                                                                                               \
-    BREAK_STACK_CFLOW;                                                                                                                           \
-    PHANTOM_NOP;                                                                                                                                 \
-__obfh_wcsncmp_loop:                                                                                                                             \
-    OBFH_INLINE_EXIT(!__obfh_wcsncmp_args.count, __obfh_wcsncmp_done);                                                                           \
+#define wcsncmp_custom(...) ({ \
+    __label__ __obfh_wcsncmp_loop, __obfh_wcsncmp_done; \
+    struct { \
+        const wchar_t *left; \
+        const wchar_t *right; \
+        size_t count; \
+    } __obfh_wcsncmp_args = {__VA_ARGS__}; \
+    int __obfh_wcsncmp_result = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcsncmp_loop: \
+    OBFH_INLINE_EXIT(!__obfh_wcsncmp_args.count, __obfh_wcsncmp_done); \
     __obfh_wcsncmp_result = (*__obfh_wcsncmp_args.left > *__obfh_wcsncmp_args.right) - (*__obfh_wcsncmp_args.left < *__obfh_wcsncmp_args.right); \
-    OBFH_INLINE_EXIT(__obfh_wcsncmp_result || !*__obfh_wcsncmp_args.left, __obfh_wcsncmp_done);                                                  \
-    ++__obfh_wcsncmp_args.left;                                                                                                                  \
-    ++__obfh_wcsncmp_args.right;                                                                                                                 \
-    --__obfh_wcsncmp_args.count;                                                                                                                 \
-    goto __obfh_wcsncmp_loop;                                                                                                                    \
-__obfh_wcsncmp_done:;                                                                                                                            \
-    __obfh_wcsncmp_result;                                                                                                                       \
+    OBFH_INLINE_EXIT(__obfh_wcsncmp_result || !*__obfh_wcsncmp_args.left, __obfh_wcsncmp_done); \
+    ++__obfh_wcsncmp_args.left; \
+    ++__obfh_wcsncmp_args.right; \
+    --__obfh_wcsncmp_args.count; \
+    goto __obfh_wcsncmp_loop; \
+__obfh_wcsncmp_done:; \
+    __obfh_wcsncmp_result; \
 })
 #define wcsncmp(...) wcsncmp_custom(__VA_ARGS__)
 
 // Wide copies/searches and bounded lengths retain native internal branches.
-#define wcscpy_custom(...) ({                                       \
-    __label__ __obfh_wcscpy_copy, __obfh_wcscpy_done;               \
-    struct {                                                        \
-        wchar_t *destination;                                       \
-        const wchar_t *text;                                        \
-    } __obfh_wcscpy_args = {__VA_ARGS__};                           \
+#define wcscpy_custom(...) ({ \
+    __label__ __obfh_wcscpy_copy, __obfh_wcscpy_done; \
+    struct { \
+        wchar_t *destination; \
+        const wchar_t *text; \
+    } __obfh_wcscpy_args = {__VA_ARGS__}; \
     wchar_t *__obfh_wcscpy_target = __obfh_wcscpy_args.destination; \
-    const wchar_t *__obfh_wcscpy_source = __obfh_wcscpy_args.text;  \
-    wchar_t __obfh_wcscpy_value;                                    \
-    BREAK_STACK_CFLOW;                                              \
-    PHANTOM_NOP;                                                    \
-__obfh_wcscpy_copy:                                                 \
-    __obfh_wcscpy_value = *__obfh_wcscpy_source;                    \
-    *__obfh_wcscpy_target++ = __obfh_wcscpy_value;                  \
-    OBFH_INLINE_EXIT(!__obfh_wcscpy_value, __obfh_wcscpy_done);     \
-    ++__obfh_wcscpy_source;                                         \
-    goto __obfh_wcscpy_copy;                                        \
-__obfh_wcscpy_done:;                                                \
-    __obfh_wcscpy_args.destination;                                 \
+    const wchar_t *__obfh_wcscpy_source = __obfh_wcscpy_args.text; \
+    wchar_t __obfh_wcscpy_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcscpy_copy: \
+    __obfh_wcscpy_value = *__obfh_wcscpy_source; \
+    *__obfh_wcscpy_target++ = __obfh_wcscpy_value; \
+    OBFH_INLINE_EXIT(!__obfh_wcscpy_value, __obfh_wcscpy_done); \
+    ++__obfh_wcscpy_source; \
+    goto __obfh_wcscpy_copy; \
+__obfh_wcscpy_done:; \
+    __obfh_wcscpy_args.destination; \
 })
 #define wcscpy(...) wcscpy_custom(__VA_ARGS__)
 
-#define wcscat_custom(...) ({                                             \
+#define wcscat_custom(...) ({ \
     __label__ __obfh_wcscat_scan, __obfh_wcscat_copy, __obfh_wcscat_done; \
-    struct {                                                              \
-        wchar_t *destination;                                             \
-        const wchar_t *text;                                              \
-    } __obfh_wcscat_args = {__VA_ARGS__};                                 \
-    wchar_t *__obfh_wcscat_target = __obfh_wcscat_args.destination;       \
-    const wchar_t *__obfh_wcscat_source = __obfh_wcscat_args.text;        \
-    wchar_t __obfh_wcscat_value;                                          \
-    BREAK_STACK_CFLOW;                                                    \
-    PHANTOM_NOP;                                                          \
-__obfh_wcscat_scan:                                                       \
-    OBFH_INLINE_EXIT(!*__obfh_wcscat_target, __obfh_wcscat_copy);         \
-    ++__obfh_wcscat_target;                                               \
-    goto __obfh_wcscat_scan;                                              \
-__obfh_wcscat_copy:                                                       \
-    __obfh_wcscat_value = *__obfh_wcscat_source;                          \
-    *__obfh_wcscat_target++ = __obfh_wcscat_value;                        \
-    OBFH_INLINE_EXIT(!__obfh_wcscat_value, __obfh_wcscat_done);           \
-    ++__obfh_wcscat_source;                                               \
-    goto __obfh_wcscat_copy;                                              \
-__obfh_wcscat_done:;                                                      \
-    __obfh_wcscat_args.destination;                                       \
+    struct { \
+        wchar_t *destination; \
+        const wchar_t *text; \
+    } __obfh_wcscat_args = {__VA_ARGS__}; \
+    wchar_t *__obfh_wcscat_target = __obfh_wcscat_args.destination; \
+    const wchar_t *__obfh_wcscat_source = __obfh_wcscat_args.text; \
+    wchar_t __obfh_wcscat_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcscat_scan: \
+    OBFH_INLINE_EXIT(!*__obfh_wcscat_target, __obfh_wcscat_copy); \
+    ++__obfh_wcscat_target; \
+    goto __obfh_wcscat_scan; \
+__obfh_wcscat_copy: \
+    __obfh_wcscat_value = *__obfh_wcscat_source; \
+    *__obfh_wcscat_target++ = __obfh_wcscat_value; \
+    OBFH_INLINE_EXIT(!__obfh_wcscat_value, __obfh_wcscat_done); \
+    ++__obfh_wcscat_source; \
+    goto __obfh_wcscat_copy; \
+__obfh_wcscat_done:; \
+    __obfh_wcscat_args.destination; \
 })
 #define wcscat(...) wcscat_custom(__VA_ARGS__)
 
-#define wcsncpy_custom(...) ({                                               \
+#define wcsncpy_custom(...) ({ \
     __label__ __obfh_wcsncpy_copy, __obfh_wcsncpy_fill, __obfh_wcsncpy_done; \
-    struct {                                                                 \
-        wchar_t *destination;                                                \
-        const wchar_t *text;                                                 \
-        size_t count;                                                        \
-    } __obfh_wcsncpy_args = {__VA_ARGS__};                                   \
-    wchar_t *__obfh_wcsncpy_target = __obfh_wcsncpy_args.destination;        \
-    const wchar_t *__obfh_wcsncpy_source = __obfh_wcsncpy_args.text;         \
-    wchar_t __obfh_wcsncpy_value;                                            \
-    BREAK_STACK_CFLOW;                                                       \
-    PHANTOM_NOP;                                                             \
-__obfh_wcsncpy_copy:                                                         \
-    OBFH_INLINE_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done);       \
-    __obfh_wcsncpy_value = *__obfh_wcsncpy_source;                           \
-    *__obfh_wcsncpy_target++ = __obfh_wcsncpy_value;                         \
-    --__obfh_wcsncpy_args.count;                                             \
-    OBFH_INLINE_EXIT(!__obfh_wcsncpy_value, __obfh_wcsncpy_fill);            \
-    ++__obfh_wcsncpy_source;                                                 \
-    goto __obfh_wcsncpy_copy;                                                \
-__obfh_wcsncpy_fill:                                                         \
-    OBFH_INLINE_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done);       \
-    *__obfh_wcsncpy_target++ = 0;                                            \
-    --__obfh_wcsncpy_args.count;                                             \
-    goto __obfh_wcsncpy_fill;                                                \
-__obfh_wcsncpy_done:;                                                        \
-    __obfh_wcsncpy_args.destination;                                         \
+    struct { \
+        wchar_t *destination; \
+        const wchar_t *text; \
+        size_t count; \
+    } __obfh_wcsncpy_args = {__VA_ARGS__}; \
+    wchar_t *__obfh_wcsncpy_target = __obfh_wcsncpy_args.destination; \
+    const wchar_t *__obfh_wcsncpy_source = __obfh_wcsncpy_args.text; \
+    wchar_t __obfh_wcsncpy_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcsncpy_copy: \
+    OBFH_INLINE_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done); \
+    __obfh_wcsncpy_value = *__obfh_wcsncpy_source; \
+    *__obfh_wcsncpy_target++ = __obfh_wcsncpy_value; \
+    --__obfh_wcsncpy_args.count; \
+    OBFH_INLINE_EXIT(!__obfh_wcsncpy_value, __obfh_wcsncpy_fill); \
+    ++__obfh_wcsncpy_source; \
+    goto __obfh_wcsncpy_copy; \
+__obfh_wcsncpy_fill: \
+    OBFH_INLINE_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done); \
+    *__obfh_wcsncpy_target++ = 0; \
+    --__obfh_wcsncpy_args.count; \
+    goto __obfh_wcsncpy_fill; \
+__obfh_wcsncpy_done:; \
+    __obfh_wcsncpy_args.destination; \
 })
 #define wcsncpy(...) wcsncpy_custom(__VA_ARGS__)
 
-#define wcsncat_custom(...) ({                                                                    \
+#define wcsncat_custom(...) ({ \
     __label__ __obfh_wcsncat_scan, __obfh_wcsncat_copy, __obfh_wcsncat_fill, __obfh_wcsncat_done; \
-    struct {                                                                                      \
-        wchar_t *destination;                                                                     \
-        const wchar_t *text;                                                                      \
-        size_t count;                                                                             \
-    } __obfh_wcsncat_args = {__VA_ARGS__};                                                        \
-    wchar_t *__obfh_wcsncat_target = __obfh_wcsncat_args.destination;                             \
-    const wchar_t *__obfh_wcsncat_source = __obfh_wcsncat_args.text;                              \
-    wchar_t __obfh_wcsncat_value;                                                                 \
-    BREAK_STACK_CFLOW;                                                                            \
-    PHANTOM_NOP;                                                                                  \
-__obfh_wcsncat_scan:                                                                              \
-    OBFH_INLINE_EXIT(!*__obfh_wcsncat_target, __obfh_wcsncat_copy);                               \
-    ++__obfh_wcsncat_target;                                                                      \
-    goto __obfh_wcsncat_scan;                                                                     \
-__obfh_wcsncat_copy:                                                                              \
-    OBFH_INLINE_EXIT(!__obfh_wcsncat_args.count, __obfh_wcsncat_fill);                            \
-    __obfh_wcsncat_value = *__obfh_wcsncat_source;                                                \
-    *__obfh_wcsncat_target++ = __obfh_wcsncat_value;                                              \
-    --__obfh_wcsncat_args.count;                                                                  \
-    OBFH_INLINE_EXIT(!__obfh_wcsncat_value, __obfh_wcsncat_done);                                 \
-    ++__obfh_wcsncat_source;                                                                      \
-    goto __obfh_wcsncat_copy;                                                                     \
-__obfh_wcsncat_fill:                                                                              \
-    *__obfh_wcsncat_target = 0;                                                                   \
-__obfh_wcsncat_done:;                                                                             \
-    __obfh_wcsncat_args.destination;                                                              \
+    struct { \
+        wchar_t *destination; \
+        const wchar_t *text; \
+        size_t count; \
+    } __obfh_wcsncat_args = {__VA_ARGS__}; \
+    wchar_t *__obfh_wcsncat_target = __obfh_wcsncat_args.destination; \
+    const wchar_t *__obfh_wcsncat_source = __obfh_wcsncat_args.text; \
+    wchar_t __obfh_wcsncat_value; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcsncat_scan: \
+    OBFH_INLINE_EXIT(!*__obfh_wcsncat_target, __obfh_wcsncat_copy); \
+    ++__obfh_wcsncat_target; \
+    goto __obfh_wcsncat_scan; \
+__obfh_wcsncat_copy: \
+    OBFH_INLINE_EXIT(!__obfh_wcsncat_args.count, __obfh_wcsncat_fill); \
+    __obfh_wcsncat_value = *__obfh_wcsncat_source; \
+    *__obfh_wcsncat_target++ = __obfh_wcsncat_value; \
+    --__obfh_wcsncat_args.count; \
+    OBFH_INLINE_EXIT(!__obfh_wcsncat_value, __obfh_wcsncat_done); \
+    ++__obfh_wcsncat_source; \
+    goto __obfh_wcsncat_copy; \
+__obfh_wcsncat_fill: \
+    *__obfh_wcsncat_target = 0; \
+__obfh_wcsncat_done:; \
+    __obfh_wcsncat_args.destination; \
 })
 #define wcsncat(...) wcsncat_custom(__VA_ARGS__)
 
-#define wcsstr_custom(...) ({                                                                                          \
+#define wcsstr_custom(...) ({ \
     __label__ __obfh_wcsstr_loop, __obfh_wcsstr_match, __obfh_wcsstr_advance, __obfh_wcsstr_found, __obfh_wcsstr_done; \
-    struct {                                                                                                           \
-        const wchar_t *__obfh_wcsstr_text;                                                                             \
-        const wchar_t *__obfh_wcsstr_pattern;                                                                          \
-    } __obfh_wcsstr_args = {__VA_ARGS__};                                                                              \
-    const wchar_t *__obfh_wcsstr_a;                                                                                    \
-    const wchar_t *__obfh_wcsstr_b;                                                                                    \
-    wchar_t __obfh_wcsstr_first = (wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_pattern;                                  \
-    wchar_t *__obfh_wcsstr_result = NULL;                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                 \
-    PHANTOM_NOP;                                                                                                       \
-    OBFH_INLINE_EXIT(!__obfh_wcsstr_first, __obfh_wcsstr_found);                                                       \
-__obfh_wcsstr_loop:                                                                                                    \
-    OBFH_INLINE_EXIT(!*__obfh_wcsstr_args.__obfh_wcsstr_text, __obfh_wcsstr_done);                                     \
-    OBFH_INLINE_EXIT((wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_text != __obfh_wcsstr_first, __obfh_wcsstr_advance);   \
-    __obfh_wcsstr_a = __obfh_wcsstr_args.__obfh_wcsstr_text + 1;                                                       \
-    __obfh_wcsstr_b = __obfh_wcsstr_args.__obfh_wcsstr_pattern + 1;                                                    \
-__obfh_wcsstr_match:                                                                                                   \
-    OBFH_INLINE_EXIT(!*__obfh_wcsstr_b, __obfh_wcsstr_found);                                                          \
-    OBFH_INLINE_EXIT(*__obfh_wcsstr_a != *__obfh_wcsstr_b, __obfh_wcsstr_advance);                                     \
-    ++__obfh_wcsstr_a;                                                                                                 \
-    ++__obfh_wcsstr_b;                                                                                                 \
-    goto __obfh_wcsstr_match;                                                                                          \
-__obfh_wcsstr_advance:                                                                                                 \
-    ++__obfh_wcsstr_args.__obfh_wcsstr_text;                                                                           \
-    goto __obfh_wcsstr_loop;                                                                                           \
-__obfh_wcsstr_found:                                                                                                   \
-    __obfh_wcsstr_result = (wchar_t *)__obfh_wcsstr_args.__obfh_wcsstr_text;                                           \
-__obfh_wcsstr_done:;                                                                                                   \
-    __obfh_wcsstr_result;                                                                                              \
+    struct { \
+        const wchar_t *__obfh_wcsstr_text; \
+        const wchar_t *__obfh_wcsstr_pattern; \
+    } __obfh_wcsstr_args = {__VA_ARGS__}; \
+    const wchar_t *__obfh_wcsstr_a; \
+    const wchar_t *__obfh_wcsstr_b; \
+    wchar_t __obfh_wcsstr_first = (wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_pattern; \
+    wchar_t *__obfh_wcsstr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    OBFH_INLINE_EXIT(!__obfh_wcsstr_first, __obfh_wcsstr_found); \
+__obfh_wcsstr_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_wcsstr_args.__obfh_wcsstr_text, __obfh_wcsstr_done); \
+    OBFH_INLINE_EXIT((wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_text != __obfh_wcsstr_first, __obfh_wcsstr_advance); \
+    __obfh_wcsstr_a = __obfh_wcsstr_args.__obfh_wcsstr_text + 1; \
+    __obfh_wcsstr_b = __obfh_wcsstr_args.__obfh_wcsstr_pattern + 1; \
+__obfh_wcsstr_match: \
+    OBFH_INLINE_EXIT(!*__obfh_wcsstr_b, __obfh_wcsstr_found); \
+    OBFH_INLINE_EXIT(*__obfh_wcsstr_a != *__obfh_wcsstr_b, __obfh_wcsstr_advance); \
+    ++__obfh_wcsstr_a; \
+    ++__obfh_wcsstr_b; \
+    goto __obfh_wcsstr_match; \
+__obfh_wcsstr_advance: \
+    ++__obfh_wcsstr_args.__obfh_wcsstr_text; \
+    goto __obfh_wcsstr_loop; \
+__obfh_wcsstr_found: \
+    __obfh_wcsstr_result = (wchar_t *)__obfh_wcsstr_args.__obfh_wcsstr_text; \
+__obfh_wcsstr_done:; \
+    __obfh_wcsstr_result; \
 })
 #define wcsstr(...) wcsstr_custom(__VA_ARGS__)
 
-#define wcsspn_custom(...) ({                                                                                         \
-    __label__ __obfh_wcsspn_loop, __obfh_wcsspn_match, __obfh_wcsspn_select, __obfh_wcsspn_done;                      \
-    struct {                                                                                                          \
-        const wchar_t *__obfh_wcsspn_text;                                                                            \
-        const wchar_t *__obfh_wcsspn_set;                                                                             \
-    } __obfh_wcsspn_args = {__VA_ARGS__};                                                                             \
-    const wchar_t *__obfh_wcsspn_cursor = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text;                     \
-    const wchar_t *__obfh_wcsspn_member;                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                \
-    PHANTOM_NOP;                                                                                                      \
-__obfh_wcsspn_loop:                                                                                                   \
-    OBFH_INLINE_EXIT(!*__obfh_wcsspn_cursor, __obfh_wcsspn_done);                                                     \
-    __obfh_wcsspn_member = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_set;                                     \
-__obfh_wcsspn_match:                                                                                                  \
+#define wcsspn_custom(...) ({ \
+    __label__ __obfh_wcsspn_loop, __obfh_wcsspn_match, __obfh_wcsspn_select, __obfh_wcsspn_done; \
+    struct { \
+        const wchar_t *__obfh_wcsspn_text; \
+        const wchar_t *__obfh_wcsspn_set; \
+    } __obfh_wcsspn_args = {__VA_ARGS__}; \
+    const wchar_t *__obfh_wcsspn_cursor = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text; \
+    const wchar_t *__obfh_wcsspn_member; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcsspn_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_wcsspn_cursor, __obfh_wcsspn_done); \
+    __obfh_wcsspn_member = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_set; \
+__obfh_wcsspn_match: \
     OBFH_INLINE_EXIT(!*__obfh_wcsspn_member || *__obfh_wcsspn_member == *__obfh_wcsspn_cursor, __obfh_wcsspn_select); \
-    ++__obfh_wcsspn_member;                                                                                           \
-    goto __obfh_wcsspn_match;                                                                                         \
-__obfh_wcsspn_select:                                                                                                 \
-    OBFH_INLINE_EXIT(!*__obfh_wcsspn_member, __obfh_wcsspn_done);                                                     \
-    ++__obfh_wcsspn_cursor;                                                                                           \
-    goto __obfh_wcsspn_loop;                                                                                          \
-__obfh_wcsspn_done:;                                                                                                  \
-    (size_t)(__obfh_wcsspn_cursor - (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text);                          \
+    ++__obfh_wcsspn_member; \
+    goto __obfh_wcsspn_match; \
+__obfh_wcsspn_select: \
+    OBFH_INLINE_EXIT(!*__obfh_wcsspn_member, __obfh_wcsspn_done); \
+    ++__obfh_wcsspn_cursor; \
+    goto __obfh_wcsspn_loop; \
+__obfh_wcsspn_done:; \
+    (size_t)(__obfh_wcsspn_cursor - (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text); \
 })
 #define wcsspn(...) wcsspn_custom(__VA_ARGS__)
 
-#define wcscspn_custom(...) ({                                                                                            \
-    __label__ __obfh_wcscspn_loop, __obfh_wcscspn_match, __obfh_wcscspn_select, __obfh_wcscspn_done;                      \
-    struct {                                                                                                              \
-        const wchar_t *__obfh_wcscspn_text;                                                                               \
-        const wchar_t *__obfh_wcscspn_set;                                                                                \
-    } __obfh_wcscspn_args = {__VA_ARGS__};                                                                                \
-    const wchar_t *__obfh_wcscspn_cursor = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text;                      \
-    const wchar_t *__obfh_wcscspn_member;                                                                                 \
-    BREAK_STACK_CFLOW;                                                                                                    \
-    PHANTOM_NOP;                                                                                                          \
-__obfh_wcscspn_loop:                                                                                                      \
-    OBFH_INLINE_EXIT(!*__obfh_wcscspn_cursor, __obfh_wcscspn_done);                                                       \
-    __obfh_wcscspn_member = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_set;                                      \
-__obfh_wcscspn_match:                                                                                                     \
+#define wcscspn_custom(...) ({ \
+    __label__ __obfh_wcscspn_loop, __obfh_wcscspn_match, __obfh_wcscspn_select, __obfh_wcscspn_done; \
+    struct { \
+        const wchar_t *__obfh_wcscspn_text; \
+        const wchar_t *__obfh_wcscspn_set; \
+    } __obfh_wcscspn_args = {__VA_ARGS__}; \
+    const wchar_t *__obfh_wcscspn_cursor = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text; \
+    const wchar_t *__obfh_wcscspn_member; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcscspn_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_wcscspn_cursor, __obfh_wcscspn_done); \
+    __obfh_wcscspn_member = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_set; \
+__obfh_wcscspn_match: \
     OBFH_INLINE_EXIT(!*__obfh_wcscspn_member || *__obfh_wcscspn_member == *__obfh_wcscspn_cursor, __obfh_wcscspn_select); \
-    ++__obfh_wcscspn_member;                                                                                              \
-    goto __obfh_wcscspn_match;                                                                                            \
-__obfh_wcscspn_select:                                                                                                    \
-    OBFH_INLINE_EXIT(*__obfh_wcscspn_member, __obfh_wcscspn_done);                                                        \
-    ++__obfh_wcscspn_cursor;                                                                                              \
-    goto __obfh_wcscspn_loop;                                                                                             \
-__obfh_wcscspn_done:;                                                                                                     \
-    (size_t)(__obfh_wcscspn_cursor - (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text);                           \
+    ++__obfh_wcscspn_member; \
+    goto __obfh_wcscspn_match; \
+__obfh_wcscspn_select: \
+    OBFH_INLINE_EXIT(*__obfh_wcscspn_member, __obfh_wcscspn_done); \
+    ++__obfh_wcscspn_cursor; \
+    goto __obfh_wcscspn_loop; \
+__obfh_wcscspn_done:; \
+    (size_t)(__obfh_wcscspn_cursor - (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text); \
 })
 #define wcscspn(...) wcscspn_custom(__VA_ARGS__)
 
-#define wcspbrk_custom(...) ({                                                                                            \
-    __label__ __obfh_wcspbrk_loop, __obfh_wcspbrk_match, __obfh_wcspbrk_select, __obfh_wcspbrk_done;                      \
-    struct {                                                                                                              \
-        const wchar_t *__obfh_wcspbrk_text;                                                                               \
-        const wchar_t *__obfh_wcspbrk_set;                                                                                \
-    } __obfh_wcspbrk_args = {__VA_ARGS__};                                                                                \
-    const wchar_t *__obfh_wcspbrk_cursor = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_text;                      \
-    const wchar_t *__obfh_wcspbrk_member;                                                                                 \
-    BREAK_STACK_CFLOW;                                                                                                    \
-    PHANTOM_NOP;                                                                                                          \
-__obfh_wcspbrk_loop:                                                                                                      \
-    OBFH_INLINE_EXIT(!*__obfh_wcspbrk_cursor, __obfh_wcspbrk_done);                                                       \
-    __obfh_wcspbrk_member = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_set;                                      \
-__obfh_wcspbrk_match:                                                                                                     \
+#define wcspbrk_custom(...) ({ \
+    __label__ __obfh_wcspbrk_loop, __obfh_wcspbrk_match, __obfh_wcspbrk_select, __obfh_wcspbrk_done; \
+    struct { \
+        const wchar_t *__obfh_wcspbrk_text; \
+        const wchar_t *__obfh_wcspbrk_set; \
+    } __obfh_wcspbrk_args = {__VA_ARGS__}; \
+    const wchar_t *__obfh_wcspbrk_cursor = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_text; \
+    const wchar_t *__obfh_wcspbrk_member; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcspbrk_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_wcspbrk_cursor, __obfh_wcspbrk_done); \
+    __obfh_wcspbrk_member = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_set; \
+__obfh_wcspbrk_match: \
     OBFH_INLINE_EXIT(!*__obfh_wcspbrk_member || *__obfh_wcspbrk_member == *__obfh_wcspbrk_cursor, __obfh_wcspbrk_select); \
-    ++__obfh_wcspbrk_member;                                                                                              \
-    goto __obfh_wcspbrk_match;                                                                                            \
-__obfh_wcspbrk_select:                                                                                                    \
-    OBFH_INLINE_EXIT(*__obfh_wcspbrk_member, __obfh_wcspbrk_done);                                                        \
-    ++__obfh_wcspbrk_cursor;                                                                                              \
-    goto __obfh_wcspbrk_loop;                                                                                             \
-__obfh_wcspbrk_done:;                                                                                                     \
-    (wchar_t *)(*__obfh_wcspbrk_cursor ? (wchar_t *)__obfh_wcspbrk_cursor : NULL);                                        \
+    ++__obfh_wcspbrk_member; \
+    goto __obfh_wcspbrk_match; \
+__obfh_wcspbrk_select: \
+    OBFH_INLINE_EXIT(*__obfh_wcspbrk_member, __obfh_wcspbrk_done); \
+    ++__obfh_wcspbrk_cursor; \
+    goto __obfh_wcspbrk_loop; \
+__obfh_wcspbrk_done:; \
+    (wchar_t *)(*__obfh_wcspbrk_cursor ? (wchar_t *)__obfh_wcspbrk_cursor : NULL); \
 })
 #define wcspbrk(...) wcspbrk_custom(__VA_ARGS__)
 
-#define strnlen_custom(...) ({                                                                                                                     \
-    __label__ __obfh_strnlen_loop, __obfh_strnlen_done;                                                                                            \
-    struct {                                                                                                                                       \
-        const char *text;                                                                                                                          \
-        size_t count;                                                                                                                              \
-    } __obfh_strnlen_args = {__VA_ARGS__};                                                                                                         \
-    size_t __obfh_strnlen_length = 0;                                                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                                             \
-    PHANTOM_NOP;                                                                                                                                   \
-__obfh_strnlen_loop:                                                                                                                               \
+#define strnlen_custom(...) ({ \
+    __label__ __obfh_strnlen_loop, __obfh_strnlen_done; \
+    struct { \
+        const char *text; \
+        size_t count; \
+    } __obfh_strnlen_args = {__VA_ARGS__}; \
+    size_t __obfh_strnlen_length = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strnlen_loop: \
     OBFH_INLINE_EXIT(__obfh_strnlen_length == __obfh_strnlen_args.count || !__obfh_strnlen_args.text[__obfh_strnlen_length], __obfh_strnlen_done); \
-    ++__obfh_strnlen_length;                                                                                                                       \
-    goto __obfh_strnlen_loop;                                                                                                                      \
-__obfh_strnlen_done:;                                                                                                                              \
-    __obfh_strnlen_length;                                                                                                                         \
+    ++__obfh_strnlen_length; \
+    goto __obfh_strnlen_loop; \
+__obfh_strnlen_done:; \
+    __obfh_strnlen_length; \
 })
 #define strnlen(...) strnlen_custom(__VA_ARGS__)
 
-#define wcsnlen_custom(...) ({                                                                                                                     \
-    __label__ __obfh_wcsnlen_loop, __obfh_wcsnlen_done;                                                                                            \
-    struct {                                                                                                                                       \
-        const wchar_t *text;                                                                                                                       \
-        size_t count;                                                                                                                              \
-    } __obfh_wcsnlen_args = {__VA_ARGS__};                                                                                                         \
-    size_t __obfh_wcsnlen_length = 0;                                                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                                             \
-    PHANTOM_NOP;                                                                                                                                   \
-__obfh_wcsnlen_loop:                                                                                                                               \
+#define wcsnlen_custom(...) ({ \
+    __label__ __obfh_wcsnlen_loop, __obfh_wcsnlen_done; \
+    struct { \
+        const wchar_t *text; \
+        size_t count; \
+    } __obfh_wcsnlen_args = {__VA_ARGS__}; \
+    size_t __obfh_wcsnlen_length = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wcsnlen_loop: \
     OBFH_INLINE_EXIT(__obfh_wcsnlen_length == __obfh_wcsnlen_args.count || !__obfh_wcsnlen_args.text[__obfh_wcsnlen_length], __obfh_wcsnlen_done); \
-    ++__obfh_wcsnlen_length;                                                                                                                       \
-    goto __obfh_wcsnlen_loop;                                                                                                                      \
-__obfh_wcsnlen_done:;                                                                                                                              \
-    __obfh_wcsnlen_length;                                                                                                                         \
+    ++__obfh_wcsnlen_length; \
+    goto __obfh_wcsnlen_loop; \
+__obfh_wcsnlen_done:; \
+    __obfh_wcsnlen_length; \
 })
 #define wcsnlen(...) wcsnlen_custom(__VA_ARGS__)
 
-#define wmemcpy_custom(...) ({                                                                                                        \
-    struct {                                                                                                                          \
-        wchar_t *destination;                                                                                                         \
-        const wchar_t *text;                                                                                                          \
-        size_t count;                                                                                                                 \
-    } __obfh_wmemcpy_args = {__VA_ARGS__};                                                                                            \
+#define wmemcpy_custom(...) ({ \
+    struct { \
+        wchar_t *destination; \
+        const wchar_t *text; \
+        size_t count; \
+    } __obfh_wmemcpy_args = {__VA_ARGS__}; \
     (wchar_t *)memcpy_custom(__obfh_wmemcpy_args.destination, __obfh_wmemcpy_args.text, __obfh_wmemcpy_args.count * sizeof(wchar_t)); \
 })
 #define wmemcpy(...) wmemcpy_custom(__VA_ARGS__)
 
-#define wmemmove_custom(...) ({                                                                                                           \
-    struct {                                                                                                                              \
-        wchar_t *destination;                                                                                                             \
-        const wchar_t *text;                                                                                                              \
-        size_t count;                                                                                                                     \
-    } __obfh_wmemmove_args = {__VA_ARGS__};                                                                                               \
+#define wmemmove_custom(...) ({ \
+    struct { \
+        wchar_t *destination; \
+        const wchar_t *text; \
+        size_t count; \
+    } __obfh_wmemmove_args = {__VA_ARGS__}; \
     (wchar_t *)memmove_custom(__obfh_wmemmove_args.destination, __obfh_wmemmove_args.text, __obfh_wmemmove_args.count * sizeof(wchar_t)); \
 })
 #define wmemmove(...) wmemmove_custom(__VA_ARGS__)
 
-#define wmemset_custom(...) ({                                             \
-    struct {                                                               \
-        wchar_t *destination;                                              \
-        wchar_t value;                                                     \
-        size_t count;                                                      \
-    } __obfh_wmemset_args = {__VA_ARGS__};                                 \
-    wchar_t *__obfh_wmemset_target = __obfh_wmemset_args.destination;      \
-    size_t __obfh_wmemset_count = __obfh_wmemset_args.count;               \
-    BREAK_STACK_CFLOW;                                                     \
-    PHANTOM_NOP;                                                           \
-    __obfh_asm__("rep stosw"                                               \
+#define wmemset_custom(...) ({ \
+    struct { \
+        wchar_t *destination; \
+        wchar_t value; \
+        size_t count; \
+    } __obfh_wmemset_args = {__VA_ARGS__}; \
+    wchar_t *__obfh_wmemset_target = __obfh_wmemset_args.destination; \
+    size_t __obfh_wmemset_count = __obfh_wmemset_args.count; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    __obfh_asm__("rep stosw" \
                  : "+D"(__obfh_wmemset_target), "+c"(__obfh_wmemset_count) \
-                 : "a"(__obfh_wmemset_args.value)                          \
-                 : "memory");                                              \
-    __obfh_wmemset_args.destination;                                       \
+                 : "a"(__obfh_wmemset_args.value) \
+                 : "memory"); \
+    __obfh_wmemset_args.destination; \
 })
 #define wmemset(...) wmemset_custom(__VA_ARGS__)
 
-#define wmemcmp_custom(...) ({                                                                                                                   \
-    __label__ __obfh_wmemcmp_loop, __obfh_wmemcmp_done;                                                                                          \
-    struct {                                                                                                                                     \
-        const wchar_t *left;                                                                                                                     \
-        const wchar_t *right;                                                                                                                    \
-        size_t count;                                                                                                                            \
-    } __obfh_wmemcmp_args = {__VA_ARGS__};                                                                                                       \
-    int __obfh_wmemcmp_result = 0;                                                                                                               \
-    BREAK_STACK_CFLOW;                                                                                                                           \
-    PHANTOM_NOP;                                                                                                                                 \
-__obfh_wmemcmp_loop:                                                                                                                             \
-    OBFH_INLINE_EXIT(!__obfh_wmemcmp_args.count, __obfh_wmemcmp_done);                                                                           \
+#define wmemcmp_custom(...) ({ \
+    __label__ __obfh_wmemcmp_loop, __obfh_wmemcmp_done; \
+    struct { \
+        const wchar_t *left; \
+        const wchar_t *right; \
+        size_t count; \
+    } __obfh_wmemcmp_args = {__VA_ARGS__}; \
+    int __obfh_wmemcmp_result = 0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wmemcmp_loop: \
+    OBFH_INLINE_EXIT(!__obfh_wmemcmp_args.count, __obfh_wmemcmp_done); \
     __obfh_wmemcmp_result = (*__obfh_wmemcmp_args.left > *__obfh_wmemcmp_args.right) - (*__obfh_wmemcmp_args.left < *__obfh_wmemcmp_args.right); \
-    OBFH_INLINE_EXIT(__obfh_wmemcmp_result, __obfh_wmemcmp_done);                                                                                \
-    ++__obfh_wmemcmp_args.left;                                                                                                                  \
-    ++__obfh_wmemcmp_args.right;                                                                                                                 \
-    --__obfh_wmemcmp_args.count;                                                                                                                 \
-    goto __obfh_wmemcmp_loop;                                                                                                                    \
-__obfh_wmemcmp_done:;                                                                                                                            \
-    __obfh_wmemcmp_result;                                                                                                                       \
+    OBFH_INLINE_EXIT(__obfh_wmemcmp_result, __obfh_wmemcmp_done); \
+    ++__obfh_wmemcmp_args.left; \
+    ++__obfh_wmemcmp_args.right; \
+    --__obfh_wmemcmp_args.count; \
+    goto __obfh_wmemcmp_loop; \
+__obfh_wmemcmp_done:; \
+    __obfh_wmemcmp_result; \
 })
 #define wmemcmp(...) wmemcmp_custom(__VA_ARGS__)
 
-#define wmemchr_custom(...) ({                                                                      \
-    __label__ __obfh_wmemchr_loop, __obfh_wmemchr_found, __obfh_wmemchr_done;                       \
-    struct {                                                                                        \
-        const wchar_t *text;                                                                        \
-        wchar_t value;                                                                              \
-        size_t count;                                                                               \
-    } __obfh_wmemchr_args = {__VA_ARGS__};                                                          \
-    wchar_t *__obfh_wmemchr_result = NULL;                                                          \
-    BREAK_STACK_CFLOW;                                                                              \
-    PHANTOM_NOP;                                                                                    \
-__obfh_wmemchr_loop:                                                                                \
-    OBFH_INLINE_EXIT(!__obfh_wmemchr_args.count, __obfh_wmemchr_done);                              \
+#define wmemchr_custom(...) ({ \
+    __label__ __obfh_wmemchr_loop, __obfh_wmemchr_found, __obfh_wmemchr_done; \
+    struct { \
+        const wchar_t *text; \
+        wchar_t value; \
+        size_t count; \
+    } __obfh_wmemchr_args = {__VA_ARGS__}; \
+    wchar_t *__obfh_wmemchr_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_wmemchr_loop: \
+    OBFH_INLINE_EXIT(!__obfh_wmemchr_args.count, __obfh_wmemchr_done); \
     OBFH_INLINE_EXIT(*__obfh_wmemchr_args.text == __obfh_wmemchr_args.value, __obfh_wmemchr_found); \
-    ++__obfh_wmemchr_args.text;                                                                     \
-    --__obfh_wmemchr_args.count;                                                                    \
-    goto __obfh_wmemchr_loop;                                                                       \
-__obfh_wmemchr_found:                                                                               \
-    __obfh_wmemchr_result = (wchar_t *)__obfh_wmemchr_args.text;                                    \
-__obfh_wmemchr_done:;                                                                               \
-    __obfh_wmemchr_result;                                                                          \
+    ++__obfh_wmemchr_args.text; \
+    --__obfh_wmemchr_args.count; \
+    goto __obfh_wmemchr_loop; \
+__obfh_wmemchr_found: \
+    __obfh_wmemchr_result = (wchar_t *)__obfh_wmemchr_args.text; \
+__obfh_wmemchr_done:; \
+    __obfh_wmemchr_result; \
 })
 #define wmemchr(...) wmemchr_custom(__VA_ARGS__)
 
-#define bsearch_custom(...) ({                                                                                                        \
-    __label__ __obfh_bsearch_loop, __obfh_bsearch_found, __obfh_bsearch_done;                                                         \
-    struct {                                                                                                                          \
-        const void *key;                                                                                                              \
-        const void *base;                                                                                                             \
-        size_t count;                                                                                                                 \
-        size_t width;                                                                                                                 \
-        int(__cdecl * compare)(const void *, const void *);                                                                           \
-    } __obfh_bsearch_args = {__VA_ARGS__};                                                                                            \
-    const unsigned char *__obfh_bsearch_base = (const unsigned char *)__obfh_bsearch_args.base;                                       \
-    const unsigned char *__obfh_bsearch_middle;                                                                                       \
-    size_t __obfh_bsearch_half;                                                                                                       \
-    int __obfh_bsearch_order;                                                                                                         \
-    void *__obfh_bsearch_result = NULL;                                                                                               \
-    BREAK_STACK_CFLOW;                                                                                                                \
-    PHANTOM_NOP;                                                                                                                      \
-__obfh_bsearch_loop:                                                                                                                  \
-    OBFH_INLINE_EXIT(!__obfh_bsearch_args.count, __obfh_bsearch_done);                                                                \
-    __obfh_bsearch_half = __obfh_bsearch_args.count / 2;                                                                              \
-    __obfh_bsearch_middle = __obfh_bsearch_base + __obfh_bsearch_half * __obfh_bsearch_args.width;                                    \
-    __obfh_bsearch_order = __obfh_bsearch_args.compare(__obfh_bsearch_args.key, __obfh_bsearch_middle);                               \
-    OBFH_INLINE_EXIT(!__obfh_bsearch_order, __obfh_bsearch_found);                                                                    \
-    __obfh_bsearch_base = __obfh_bsearch_order < 0 ? __obfh_bsearch_base : __obfh_bsearch_middle + __obfh_bsearch_args.width;         \
+#define bsearch_custom(...) ({ \
+    __label__ __obfh_bsearch_loop, __obfh_bsearch_found, __obfh_bsearch_done; \
+    struct { \
+        const void *key; \
+        const void *base; \
+        size_t count; \
+        size_t width; \
+        int(__cdecl * compare)(const void *, const void *); \
+    } __obfh_bsearch_args = {__VA_ARGS__}; \
+    const unsigned char *__obfh_bsearch_base = (const unsigned char *)__obfh_bsearch_args.base; \
+    const unsigned char *__obfh_bsearch_middle; \
+    size_t __obfh_bsearch_half; \
+    int __obfh_bsearch_order; \
+    void *__obfh_bsearch_result = NULL; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_bsearch_loop: \
+    OBFH_INLINE_EXIT(!__obfh_bsearch_args.count, __obfh_bsearch_done); \
+    __obfh_bsearch_half = __obfh_bsearch_args.count / 2; \
+    __obfh_bsearch_middle = __obfh_bsearch_base + __obfh_bsearch_half * __obfh_bsearch_args.width; \
+    __obfh_bsearch_order = __obfh_bsearch_args.compare(__obfh_bsearch_args.key, __obfh_bsearch_middle); \
+    OBFH_INLINE_EXIT(!__obfh_bsearch_order, __obfh_bsearch_found); \
+    __obfh_bsearch_base = __obfh_bsearch_order < 0 ? __obfh_bsearch_base : __obfh_bsearch_middle + __obfh_bsearch_args.width; \
     __obfh_bsearch_args.count = __obfh_bsearch_order < 0 ? __obfh_bsearch_half : __obfh_bsearch_args.count - __obfh_bsearch_half - 1; \
-    goto __obfh_bsearch_loop;                                                                                                         \
-__obfh_bsearch_found:                                                                                                                 \
-    __obfh_bsearch_result = (void *)__obfh_bsearch_middle;                                                                            \
-__obfh_bsearch_done:;                                                                                                                 \
-    __obfh_bsearch_result;                                                                                                            \
+    goto __obfh_bsearch_loop; \
+__obfh_bsearch_found: \
+    __obfh_bsearch_result = (void *)__obfh_bsearch_middle; \
+__obfh_bsearch_done:; \
+    __obfh_bsearch_result; \
 })
 
 #define bsearch(...) bsearch_custom(__VA_ARGS__)
 
-#define strcmp_custom(...) ({                                                                                         \
-    __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done;                     \
-    struct {                                                                                                          \
-        const char *__obfh_strcmp_str1;                                                                               \
-        const char *__obfh_strcmp_str2;                                                                               \
-    } __obfh_strcmp_args = {__VA_ARGS__};                                                                             \
-    int __obfh_strcmp_result;                                                                                         \
-    int __obfh_strcmp_a;                                                                                              \
-    int __obfh_strcmp_b;                                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                \
-    PHANTOM_NOP;                                                                                                      \
-__obfh_strcmp_loop:                                                                                                   \
-    __obfh_strcmp_a = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str1;                                          \
-    __obfh_strcmp_b = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str2;                                          \
-    OBFH_INLINE_EXIT(!(__obfh_strcmp_a || __obfh_strcmp_b), __obfh_strcmp_equal);                                     \
-    __obfh_strcmp_a = obfh_int_proxy(__obfh_strcmp_a);                                                                \
-    __obfh_strcmp_b = obfh_int_proxy(__obfh_strcmp_b);                                                                \
-    OBFH_INLINE_EXIT(__obfh_strcmp_a == __obfh_strcmp_b, __obfh_strcmp_advance);                                      \
+#define strcmp_custom(...) ({ \
+    __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done; \
+    struct { \
+        const char *__obfh_strcmp_str1; \
+        const char *__obfh_strcmp_str2; \
+    } __obfh_strcmp_args = {__VA_ARGS__}; \
+    int __obfh_strcmp_result; \
+    int __obfh_strcmp_a; \
+    int __obfh_strcmp_b; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strcmp_loop: \
+    __obfh_strcmp_a = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str1; \
+    __obfh_strcmp_b = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str2; \
+    OBFH_INLINE_EXIT(!(__obfh_strcmp_a || __obfh_strcmp_b), __obfh_strcmp_equal); \
+    __obfh_strcmp_a = obfh_int_proxy(__obfh_strcmp_a); \
+    __obfh_strcmp_b = obfh_int_proxy(__obfh_strcmp_b); \
+    OBFH_INLINE_EXIT(__obfh_strcmp_a == __obfh_strcmp_b, __obfh_strcmp_advance); \
     __obfh_strcmp_result = obfh_int_proxy((__obfh_strcmp_a > __obfh_strcmp_b) - (__obfh_strcmp_a < __obfh_strcmp_b)); \
-    goto __obfh_strcmp_done;                                                                                          \
-__obfh_strcmp_advance:                                                                                                \
-    __obfh_strcmp_args.__obfh_strcmp_str1 += obfh_int_proxy(_1);                                                      \
-    __obfh_strcmp_args.__obfh_strcmp_str2 += obfh_int_proxy(_2 - _1);                                                 \
-    goto __obfh_strcmp_loop;                                                                                          \
-__obfh_strcmp_equal:                                                                                                  \
-    __obfh_strcmp_result = _0;                                                                                        \
-__obfh_strcmp_done:;                                                                                                  \
-    __obfh_strcmp_result;                                                                                             \
+    goto __obfh_strcmp_done; \
+__obfh_strcmp_advance: \
+    __obfh_strcmp_args.__obfh_strcmp_str1 += obfh_int_proxy(_1); \
+    __obfh_strcmp_args.__obfh_strcmp_str2 += obfh_int_proxy(_2 - _1); \
+    goto __obfh_strcmp_loop; \
+__obfh_strcmp_equal: \
+    __obfh_strcmp_result = _0; \
+__obfh_strcmp_done:; \
+    __obfh_strcmp_result; \
 })
 #define strcmp(...) strcmp_custom(__VA_ARGS__)
 
-#define strlen_custom(...) ({                                                \
-    __label__ __obfh_strlen_loop, __obfh_strlen_done;                        \
-    struct {                                                                 \
-        const char *str;                                                     \
-    } __obfh_strlen_args = {__VA_ARGS__};                                    \
-    int __obfh_strlen_step;                                                  \
-    size_t __obfh_strlen_length = _0;                                        \
-    BREAK_STACK_CFLOW;                                                       \
-    PHANTOM_NOP;                                                             \
-__obfh_strlen_loop:                                                          \
-    OBFH_INLINE_EXIT(!*__obfh_strlen_args.str, __obfh_strlen_done);          \
-    __obfh_strlen_step = obfh_int_proxy(_1);                                 \
-    __obfh_strlen_length += __obfh_strlen_step;                              \
-    __obfh_strlen_args.str += __obfh_strlen_step;                            \
-    goto __obfh_strlen_loop;                                                 \
-__obfh_strlen_done:                                                          \
+#define strlen_custom(...) ({ \
+    __label__ __obfh_strlen_loop, __obfh_strlen_done; \
+    struct { \
+        const char *str; \
+    } __obfh_strlen_args = {__VA_ARGS__}; \
+    int __obfh_strlen_step; \
+    size_t __obfh_strlen_length = _0; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+__obfh_strlen_loop: \
+    OBFH_INLINE_EXIT(!*__obfh_strlen_args.str, __obfh_strlen_done); \
+    __obfh_strlen_step = obfh_int_proxy(_1); \
+    __obfh_strlen_length += __obfh_strlen_step; \
+    __obfh_strlen_args.str += __obfh_strlen_step; \
+    goto __obfh_strlen_loop; \
+__obfh_strlen_done: \
     (size_t) obfh_uintptr_proxy(__obfh_strlen_length + (RND(0, 1000) * _0)); \
 })
 #define strlen(...) strlen_custom(__VA_ARGS__)
 
 // Integer conversion uses native locale classification and Windows CRT limits.
-#define OBFH_INTEGER_PARSE(input, ending, radix, mode)                                                                                     \
-    ({                                                                                                                                     \
-        __label__ __obfh_parse_space, __obfh_parse_sign, __obfh_parse_base, __obfh_parse_loop, __obfh_parse_finish, __obfh_parse_end;      \
-        struct {                                                                                                                           \
-            const char *text;                                                                                                              \
-            char **end;                                                                                                                    \
-            int base;                                                                                                                      \
-        } __obfh_parse_args = {(input), (ending), (radix)};                                                                                \
-        const unsigned char *__obfh_parse_p = (const unsigned char *)__obfh_parse_args.text;                                               \
-        unsigned long __obfh_parse_value = 0, __obfh_parse_limit, __obfh_parse_cutoff, __obfh_parse_tail;                                  \
-        enum { __obfh_parse_form = RND(0, 1) };                                                                                            \
-        unsigned int __obfh_parse_digit, __obfh_parse_negative = 0, __obfh_parse_any = 0, __obfh_parse_overflow = 0;                       \
-        int *__obfh_parse_errno = _errno();                                                                                                \
-        *__obfh_parse_errno = (mode) == 2 && !__obfh_parse_args.text ? *__obfh_parse_errno : 0;                                            \
-        OBFH_INLINE_EXIT(!__obfh_parse_args.text ||                                                                                        \
-                             (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36)),                      \
-                         __obfh_parse_end);                                                                                                \
-    __obfh_parse_space:                                                                                                                    \
-        OBFH_INLINE_EXIT(!(isspace)(*__obfh_parse_p), __obfh_parse_sign);                                                                  \
-        ++__obfh_parse_p;                                                                                                                  \
-        goto __obfh_parse_space;                                                                                                           \
-    __obfh_parse_sign:                                                                                                                     \
-        __obfh_parse_negative = *__obfh_parse_p == '-';                                                                                    \
-        __obfh_parse_p += (*__obfh_parse_p == '+' || *__obfh_parse_p == '-');                                                              \
-        OBFH_INLINE_EXIT((__obfh_parse_args.base && __obfh_parse_args.base != 16) || __obfh_parse_p[0] != '0' ||                           \
-                             (__obfh_parse_p[1] != 'x' && __obfh_parse_p[1] != 'X'),                                                       \
-                         __obfh_parse_base);                                                                                               \
-        __obfh_parse_args.base = 16;                                                                                                       \
-        __obfh_parse_p += 2;                                                                                                               \
-    __obfh_parse_base:                                                                                                                     \
-        __obfh_parse_args.base = __obfh_parse_args.base ? __obfh_parse_args.base : (*__obfh_parse_p == '0' ? 8 : 10);                      \
-        __obfh_parse_limit = (mode) == 0 ? (__obfh_parse_negative ? (unsigned long)LONG_MAX + 1ul : (unsigned long)LONG_MAX) : ULONG_MAX;  \
-        __obfh_parse_cutoff = (mode) == 2 ? 0 : __obfh_parse_limit / (unsigned int)__obfh_parse_args.base;                                 \
-        __obfh_parse_tail = (mode) == 2 ? 0 : __obfh_parse_limit % (unsigned int)__obfh_parse_args.base;                                   \
-        PHANTOM_NOP;                                                                                                                       \
-    __obfh_parse_loop:                                                                                                                     \
-        __obfh_parse_digit = *__obfh_parse_p;                                                                                              \
-        __obfh_parse_digit = __builtin_choose_expr(                                                                                        \
-            __obfh_parse_form,                                                                                                             \
-            __obfh_parse_digit >= '0' && __obfh_parse_digit <= '9'   ? __obfh_parse_digit - '0'                                            \
-            : __obfh_parse_digit >= 'A' && __obfh_parse_digit <= 'Z' ? __obfh_parse_digit - 'A' + 10u                                      \
-            : __obfh_parse_digit >= 'a' && __obfh_parse_digit <= 'z' ? __obfh_parse_digit - 'a' + 10u                                      \
-                                                                     : 36u,                                                                \
-            (__obfh_parse_digit - (unsigned int)'0' < 10u                                                                                  \
-                 ? __obfh_parse_digit - '0'                                                                                                \
-                 : ((__obfh_parse_digit | 32u) - (unsigned int)'a' < 26u ? (__obfh_parse_digit | 32u) - 'a' + 10u : 36u)));                \
-        OBFH_INLINE_EXIT(__obfh_parse_digit >= (unsigned int)__obfh_parse_args.base, __obfh_parse_finish);                                 \
-        __obfh_parse_any = 1;                                                                                                              \
-        __obfh_parse_overflow |= __obfh_parse_value > __obfh_parse_cutoff ||                                                               \
-                                 (__obfh_parse_value == __obfh_parse_cutoff && __obfh_parse_digit > __obfh_parse_tail);                    \
-        __obfh_parse_value = (mode) == 2 || !__obfh_parse_overflow                                                                         \
-                                 ? __obfh_parse_value * (unsigned int)__obfh_parse_args.base + __obfh_parse_digit                          \
-                                 : __obfh_parse_limit;                                                                                     \
-        ++__obfh_parse_p;                                                                                                                  \
-        goto __obfh_parse_loop;                                                                                                            \
-    __obfh_parse_finish:                                                                                                                   \
-        OBFH_INLINE_EXIT(!__obfh_parse_any, __obfh_parse_end);                                                                             \
-        *__obfh_parse_errno = (mode) != 2 && __obfh_parse_overflow ? ERANGE : 0;                                                           \
-        __obfh_parse_value = __obfh_parse_negative ? 0ul - __obfh_parse_value : __obfh_parse_value;                                        \
-        goto __obfh_parse_end;                                                                                                             \
-    __obfh_parse_end:                                                                                                                      \
-        *__obfh_parse_errno = (!__obfh_parse_args.text && (mode) != 2) ||                                                                  \
-                                      (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36))              \
-                                  ? EINVAL                                                                                                 \
-                                  : *__obfh_parse_errno;                                                                                   \
-        __obfh_parse_args.end                                                                                                              \
+#define OBFH_INTEGER_PARSE(input, ending, radix, mode) \
+    ({ \
+        __label__ __obfh_parse_space, __obfh_parse_sign, __obfh_parse_base, __obfh_parse_loop, __obfh_parse_finish, __obfh_parse_end; \
+        struct { \
+            const char *text; \
+            char **end; \
+            int base; \
+        } __obfh_parse_args = {(input), (ending), (radix)}; \
+        const unsigned char *__obfh_parse_p = (const unsigned char *)__obfh_parse_args.text; \
+        unsigned long __obfh_parse_value = 0, __obfh_parse_limit, __obfh_parse_cutoff, __obfh_parse_tail; \
+        enum { __obfh_parse_form = RND(0, 1) }; \
+        unsigned int __obfh_parse_digit, __obfh_parse_negative = 0, __obfh_parse_any = 0, __obfh_parse_overflow = 0; \
+        int *__obfh_parse_errno = _errno(); \
+        *__obfh_parse_errno = (mode) == 2 && !__obfh_parse_args.text ? *__obfh_parse_errno : 0; \
+        OBFH_INLINE_EXIT(!__obfh_parse_args.text || \
+                             (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36)), \
+                         __obfh_parse_end); \
+    __obfh_parse_space: \
+        OBFH_INLINE_EXIT(!(isspace)(*__obfh_parse_p), __obfh_parse_sign); \
+        ++__obfh_parse_p; \
+        goto __obfh_parse_space; \
+    __obfh_parse_sign: \
+        __obfh_parse_negative = *__obfh_parse_p == '-'; \
+        __obfh_parse_p += (*__obfh_parse_p == '+' || *__obfh_parse_p == '-'); \
+        OBFH_INLINE_EXIT((__obfh_parse_args.base && __obfh_parse_args.base != 16) || __obfh_parse_p[0] != '0' || \
+                             (__obfh_parse_p[1] != 'x' && __obfh_parse_p[1] != 'X'), \
+                         __obfh_parse_base); \
+        __obfh_parse_args.base = 16; \
+        __obfh_parse_p += 2; \
+    __obfh_parse_base: \
+        __obfh_parse_args.base = __obfh_parse_args.base ? __obfh_parse_args.base : (*__obfh_parse_p == '0' ? 8 : 10); \
+        __obfh_parse_limit = (mode) == 0 ? (__obfh_parse_negative ? (unsigned long)LONG_MAX + 1ul : (unsigned long)LONG_MAX) : ULONG_MAX; \
+        __obfh_parse_cutoff = (mode) == 2 ? 0 : __obfh_parse_limit / (unsigned int)__obfh_parse_args.base; \
+        __obfh_parse_tail = (mode) == 2 ? 0 : __obfh_parse_limit % (unsigned int)__obfh_parse_args.base; \
+        PHANTOM_NOP; \
+    __obfh_parse_loop: \
+        __obfh_parse_digit = *__obfh_parse_p; \
+        __obfh_parse_digit = __builtin_choose_expr( \
+            __obfh_parse_form, \
+            __obfh_parse_digit >= '0' && __obfh_parse_digit <= '9'   ? __obfh_parse_digit - '0' \
+            : __obfh_parse_digit >= 'A' && __obfh_parse_digit <= 'Z' ? __obfh_parse_digit - 'A' + 10u \
+            : __obfh_parse_digit >= 'a' && __obfh_parse_digit <= 'z' ? __obfh_parse_digit - 'a' + 10u \
+                                                                     : 36u, \
+            (__obfh_parse_digit - (unsigned int)'0' < 10u \
+                 ? __obfh_parse_digit - '0' \
+                 : ((__obfh_parse_digit | 32u) - (unsigned int)'a' < 26u ? (__obfh_parse_digit | 32u) - 'a' + 10u : 36u))); \
+        OBFH_INLINE_EXIT(__obfh_parse_digit >= (unsigned int)__obfh_parse_args.base, __obfh_parse_finish); \
+        __obfh_parse_any = 1; \
+        __obfh_parse_overflow |= __obfh_parse_value > __obfh_parse_cutoff || \
+                                 (__obfh_parse_value == __obfh_parse_cutoff && __obfh_parse_digit > __obfh_parse_tail); \
+        __obfh_parse_value = (mode) == 2 || !__obfh_parse_overflow \
+                                 ? __obfh_parse_value * (unsigned int)__obfh_parse_args.base + __obfh_parse_digit \
+                                 : __obfh_parse_limit; \
+        ++__obfh_parse_p; \
+        goto __obfh_parse_loop; \
+    __obfh_parse_finish: \
+        OBFH_INLINE_EXIT(!__obfh_parse_any, __obfh_parse_end); \
+        *__obfh_parse_errno = (mode) != 2 && __obfh_parse_overflow ? ERANGE : 0; \
+        __obfh_parse_value = __obfh_parse_negative ? 0ul - __obfh_parse_value : __obfh_parse_value; \
+        goto __obfh_parse_end; \
+    __obfh_parse_end: \
+        *__obfh_parse_errno = (!__obfh_parse_args.text && (mode) != 2) || \
+                                      (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36)) \
+                                  ? EINVAL \
+                                  : *__obfh_parse_errno; \
+        __obfh_parse_args.end \
             ? (void)(*__obfh_parse_args.end = (char *)(__obfh_parse_any ? __obfh_parse_p : (const unsigned char *)__obfh_parse_args.text)) \
-            : (void)0;                                                                                                                     \
-        __obfh_parse_value;                                                                                                                \
+            : (void)0; \
+        __obfh_parse_value; \
     })
 #define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
 #define strtol_custom(...) ((long)OBFH_INTEGER_PARSE_ARGS(0, __VA_ARGS__))
@@ -5297,116 +5366,116 @@ __obfh_strlen_done:                                                          \
 #define atol_custom(text) ((long)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
 #define atol(...) atol_custom(__VA_ARGS__)
 
-#define strdup_custom(input)                                                                                                     \
-    ({                                                                                                                           \
-        __label__ __obfh_dup_done;                                                                                               \
-        const char *__obfh_dup_source = (input);                                                                                 \
-        size_t __obfh_dup_length = __obfh_dup_source ? strlen(__obfh_dup_source) : 0;                                            \
-        char *__obfh_dup_result = NULL;                                                                                          \
+#define strdup_custom(input) \
+    ({ \
+        __label__ __obfh_dup_done; \
+        const char *__obfh_dup_source = (input); \
+        size_t __obfh_dup_length = __obfh_dup_source ? strlen(__obfh_dup_source) : 0; \
+        char *__obfh_dup_result = NULL; \
         OBFH_INLINE_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done); \
-        __obfh_dup_result = (char *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result));                               \
-        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done);                                                                   \
-        memcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u);                                                    \
-    __obfh_dup_done:                                                                                                             \
-        __obfh_dup_result;                                                                                                       \
+        __obfh_dup_result = (char *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result)); \
+        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done); \
+        memcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u); \
+    __obfh_dup_done: \
+        __obfh_dup_result; \
     })
 #define strdup(...) strdup_custom(__VA_ARGS__)
 #define _strdup(...) strdup_custom(__VA_ARGS__)
 
-#define wcsdup_custom(input)                                                                                                     \
-    ({                                                                                                                           \
-        __label__ __obfh_dup_done;                                                                                               \
-        const wchar_t *__obfh_dup_source = (input);                                                                              \
-        size_t __obfh_dup_length = __obfh_dup_source ? wcslen(__obfh_dup_source) : 0;                                            \
-        wchar_t *__obfh_dup_result = NULL;                                                                                       \
+#define wcsdup_custom(input) \
+    ({ \
+        __label__ __obfh_dup_done; \
+        const wchar_t *__obfh_dup_source = (input); \
+        size_t __obfh_dup_length = __obfh_dup_source ? wcslen(__obfh_dup_source) : 0; \
+        wchar_t *__obfh_dup_result = NULL; \
         OBFH_INLINE_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done); \
-        __obfh_dup_result = (wchar_t *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result));                            \
-        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done);                                                                   \
-        wmemcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u);                                                   \
-    __obfh_dup_done:                                                                                                             \
-        __obfh_dup_result;                                                                                                       \
+        __obfh_dup_result = (wchar_t *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result)); \
+        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done); \
+        wmemcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u); \
+    __obfh_dup_done: \
+        __obfh_dup_result; \
     })
 #define wcsdup(...) wcsdup_custom(__VA_ARGS__)
 #define _wcsdup(...) wcsdup_custom(__VA_ARGS__)
 
-#define strnlen_s_custom(...)                                                         \
-    ({                                                                                \
-        __label__ __obfh_safe_length_loop, __obfh_safe_length_done;                   \
-        struct {                                                                      \
-            const char *text;                                                         \
-            size_t count;                                                             \
-        } __obfh_safe_length_args = {__VA_ARGS__};                                    \
-        size_t __obfh_safe_length_value = 0;                                          \
-        BREAK_STACK_CFLOW;                                                            \
-        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done);     \
-    __obfh_safe_length_loop:                                                          \
+#define strnlen_s_custom(...) \
+    ({ \
+        __label__ __obfh_safe_length_loop, __obfh_safe_length_done; \
+        struct { \
+            const char *text; \
+            size_t count; \
+        } __obfh_safe_length_args = {__VA_ARGS__}; \
+        size_t __obfh_safe_length_value = 0; \
+        BREAK_STACK_CFLOW; \
+        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
+    __obfh_safe_length_loop: \
         OBFH_INLINE_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count || \
                              !__obfh_safe_length_args.text[__obfh_safe_length_value], \
-                         __obfh_safe_length_done);                                    \
-        ++__obfh_safe_length_value;                                                   \
-        goto __obfh_safe_length_loop;                                                 \
-    __obfh_safe_length_done:                                                          \
-        __obfh_safe_length_value;                                                     \
+                         __obfh_safe_length_done); \
+        ++__obfh_safe_length_value; \
+        goto __obfh_safe_length_loop; \
+    __obfh_safe_length_done: \
+        __obfh_safe_length_value; \
     })
 #define strnlen_s(...) strnlen_s_custom(__VA_ARGS__)
 
-#define wcsnlen_s_custom(...)                                                         \
-    ({                                                                                \
-        __label__ __obfh_safe_length_loop, __obfh_safe_length_done;                   \
-        struct {                                                                      \
-            const wchar_t *text;                                                      \
-            size_t count;                                                             \
-        } __obfh_safe_length_args = {__VA_ARGS__};                                    \
-        size_t __obfh_safe_length_value = 0;                                          \
-        BREAK_STACK_CFLOW;                                                            \
-        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done);     \
-    __obfh_safe_length_loop:                                                          \
+#define wcsnlen_s_custom(...) \
+    ({ \
+        __label__ __obfh_safe_length_loop, __obfh_safe_length_done; \
+        struct { \
+            const wchar_t *text; \
+            size_t count; \
+        } __obfh_safe_length_args = {__VA_ARGS__}; \
+        size_t __obfh_safe_length_value = 0; \
+        BREAK_STACK_CFLOW; \
+        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
+    __obfh_safe_length_loop: \
         OBFH_INLINE_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count || \
                              !__obfh_safe_length_args.text[__obfh_safe_length_value], \
-                         __obfh_safe_length_done);                                    \
-        ++__obfh_safe_length_value;                                                   \
-        goto __obfh_safe_length_loop;                                                 \
-    __obfh_safe_length_done:                                                          \
-        __obfh_safe_length_value;                                                     \
+                         __obfh_safe_length_done); \
+        ++__obfh_safe_length_value; \
+        goto __obfh_safe_length_loop; \
+    __obfh_safe_length_done: \
+        __obfh_safe_length_value; \
     })
 #define wcsnlen_s(...) wcsnlen_s_custom(__VA_ARGS__)
 
-#define strrev_custom(input)                                                                                           \
-    ({                                                                                                                 \
-        __label__ __obfh_reverse_loop, __obfh_reverse_done;                                                            \
-        char *__obfh_reverse_text = (input);                                                                           \
-        size_t __obfh_reverse_left = 0, __obfh_reverse_right = strlen(__obfh_reverse_text);                            \
-        PHANTOM_NOP;                                                                                                   \
-    __obfh_reverse_loop:                                                                                               \
+#define strrev_custom(input) \
+    ({ \
+        __label__ __obfh_reverse_loop, __obfh_reverse_done; \
+        char *__obfh_reverse_text = (input); \
+        size_t __obfh_reverse_left = 0, __obfh_reverse_right = strlen(__obfh_reverse_text); \
+        PHANTOM_NOP; \
+    __obfh_reverse_loop: \
         OBFH_INLINE_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right, \
-                         __obfh_reverse_done);                                                                         \
-        char __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left];                                          \
-        __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right];                          \
-        __obfh_reverse_text[__obfh_reverse_right] = __obfh_reverse_value;                                              \
-        ++__obfh_reverse_left;                                                                                         \
-        goto __obfh_reverse_loop;                                                                                      \
-    __obfh_reverse_done:                                                                                               \
-        __obfh_reverse_text;                                                                                           \
+                         __obfh_reverse_done); \
+        char __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left]; \
+        __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right]; \
+        __obfh_reverse_text[__obfh_reverse_right] = __obfh_reverse_value; \
+        ++__obfh_reverse_left; \
+        goto __obfh_reverse_loop; \
+    __obfh_reverse_done: \
+        __obfh_reverse_text; \
     })
 #define strrev(...) strrev_custom(__VA_ARGS__)
 #define _strrev(...) strrev_custom(__VA_ARGS__)
 
-#define wcsrev_custom(input)                                                                                           \
-    ({                                                                                                                 \
-        __label__ __obfh_reverse_loop, __obfh_reverse_done;                                                            \
-        wchar_t *__obfh_reverse_text = (input);                                                                        \
-        size_t __obfh_reverse_left = 0, __obfh_reverse_right = wcslen(__obfh_reverse_text);                            \
-        PHANTOM_NOP;                                                                                                   \
-    __obfh_reverse_loop:                                                                                               \
+#define wcsrev_custom(input) \
+    ({ \
+        __label__ __obfh_reverse_loop, __obfh_reverse_done; \
+        wchar_t *__obfh_reverse_text = (input); \
+        size_t __obfh_reverse_left = 0, __obfh_reverse_right = wcslen(__obfh_reverse_text); \
+        PHANTOM_NOP; \
+    __obfh_reverse_loop: \
         OBFH_INLINE_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right, \
-                         __obfh_reverse_done);                                                                         \
-        wchar_t __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left];                                       \
-        __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right];                          \
-        __obfh_reverse_text[__obfh_reverse_right] = __obfh_reverse_value;                                              \
-        ++__obfh_reverse_left;                                                                                         \
-        goto __obfh_reverse_loop;                                                                                      \
-    __obfh_reverse_done:                                                                                               \
-        __obfh_reverse_text;                                                                                           \
+                         __obfh_reverse_done); \
+        wchar_t __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left]; \
+        __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right]; \
+        __obfh_reverse_text[__obfh_reverse_right] = __obfh_reverse_value; \
+        ++__obfh_reverse_left; \
+        goto __obfh_reverse_loop; \
+    __obfh_reverse_done: \
+        __obfh_reverse_text; \
     })
 #define wcsrev(...) wcsrev_custom(__VA_ARGS__)
 #define _wcsrev(...) wcsrev_custom(__VA_ARGS__)
@@ -5431,31 +5500,31 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #define OBFH_GUI_BIAS(index) ((ULONG_PTR)OBFH_GUI_DRAW(index, 0x47554933u))
 #define OBFH_GUI_ROTATE(index) (OBFH_GUI_DRAW(index, 0x47554934u) % (sizeof(ULONG_PTR) * 8 - 1) + 1)
 // Cold-path name words are decoded at each call site, with no shared name key.
-#define OBFH_GUI_NAME_ASM(buffer, position, instructions) ({                                                  \
-    __obfh_asm__(instructions "; movl %0, %1"                                                                 \
-                 : "+&r"(__obfh_nc_value), "=m"(*(unsigned char(*)[4])((buffer) + (position)))                \
+#define OBFH_GUI_NAME_ASM(buffer, position, instructions) ({ \
+    __obfh_asm__(instructions "; movl %0, %1" \
+                 : "+&r"(__obfh_nc_value), "=m"(*(unsigned char(*)[4])((buffer) + (position))) \
                  : "r"((unsigned int)__obfh_nc_key), "r"((unsigned int)__obfh_nc_bias), "i"(__obfh_nc_rotate) \
-                 : "cc");                                                                                     \
+                 : "cc"); \
 })
-#define OBFH_GUI_NAME_WORD(buffer, position, api, word) ({                                                                                                               \
-    enum { __obfh_nc_site = __COUNTER__,                                                                                                                                 \
-           __obfh_nc_input = (unsigned int)(word),                                                                                                                       \
-           __obfh_nc_key_a = OBFH_MIX_A(__obfh_nc_site ^ (api) ^ (position) ^ (unsigned int)OBFH_BUILD_SEED ^ 0x4e414d45u),                                              \
-           __obfh_nc_key = OBFH_MIX_B(__obfh_nc_key_a),                                                                                                                  \
-           __obfh_nc_bias_a = OBFH_MIX_A(__obfh_nc_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x42595445u),                                                                  \
-           __obfh_nc_bias = OBFH_MIX_B(__obfh_nc_bias_a),                                                                                                                \
-           __obfh_nc_form = __obfh_nc_key & 3u,                                                                                                                          \
-           __obfh_nc_rotate = (__obfh_nc_key % 31u) + 1u };                                                                                                              \
-    unsigned int __obfh_nc_value =                                                                                                                                       \
-        __builtin_choose_expr(__obfh_nc_form == 0, ((unsigned int)__obfh_nc_input ^ __obfh_nc_key) + __obfh_nc_bias,                                                     \
-                              __builtin_choose_expr(__obfh_nc_form == 1, ((unsigned int)__obfh_nc_input + __obfh_nc_bias) ^ __obfh_nc_key,                               \
-                                                    __builtin_choose_expr(__obfh_nc_form == 2, ((unsigned int)__obfh_nc_input ^ __obfh_nc_key) - __obfh_nc_bias,         \
-                                                                          ((unsigned int)__obfh_nc_input - __obfh_nc_bias) ^ __obfh_nc_key)));                           \
-    __obfh_nc_value = (__obfh_nc_value << __obfh_nc_rotate) | (__obfh_nc_value >> (32u - __obfh_nc_rotate));                                                             \
-    __builtin_choose_expr(__obfh_nc_form == 0, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; subl %3, %0; xorl %2, %0"),                                             \
-                          __builtin_choose_expr(__obfh_nc_form == 1, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; xorl %2, %0; subl %3, %0"),                       \
+#define OBFH_GUI_NAME_WORD(buffer, position, api, word) ({ \
+    enum { __obfh_nc_site = __COUNTER__, \
+           __obfh_nc_input = (unsigned int)(word), \
+           __obfh_nc_key_a = OBFH_MIX_A(__obfh_nc_site ^ (api) ^ (position) ^ (unsigned int)OBFH_BUILD_SEED ^ 0x4e414d45u), \
+           __obfh_nc_key = OBFH_MIX_B(__obfh_nc_key_a), \
+           __obfh_nc_bias_a = OBFH_MIX_A(__obfh_nc_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x42595445u), \
+           __obfh_nc_bias = OBFH_MIX_B(__obfh_nc_bias_a), \
+           __obfh_nc_form = __obfh_nc_key & 3u, \
+           __obfh_nc_rotate = (__obfh_nc_key % 31u) + 1u }; \
+    unsigned int __obfh_nc_value = \
+        __builtin_choose_expr(__obfh_nc_form == 0, ((unsigned int)__obfh_nc_input ^ __obfh_nc_key) + __obfh_nc_bias, \
+                              __builtin_choose_expr(__obfh_nc_form == 1, ((unsigned int)__obfh_nc_input + __obfh_nc_bias) ^ __obfh_nc_key, \
+                                                    __builtin_choose_expr(__obfh_nc_form == 2, ((unsigned int)__obfh_nc_input ^ __obfh_nc_key) - __obfh_nc_bias, \
+                                                                          ((unsigned int)__obfh_nc_input - __obfh_nc_bias) ^ __obfh_nc_key))); \
+    __obfh_nc_value = (__obfh_nc_value << __obfh_nc_rotate) | (__obfh_nc_value >> (32u - __obfh_nc_rotate)); \
+    __builtin_choose_expr(__obfh_nc_form == 0, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; subl %3, %0; xorl %2, %0"), \
+                          __builtin_choose_expr(__obfh_nc_form == 1, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; xorl %2, %0; subl %3, %0"), \
                                                 __builtin_choose_expr(__obfh_nc_form == 2, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; addl %3, %0; xorl %2, %0"), \
-                                                                      OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; xorl %2, %0; addl %3, %0"))));                   \
+                                                                      OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; xorl %2, %0; addl %3, %0")))); \
 })
 
 // Internal fixed names use caller-owned storage and the same compile-time store selector.
@@ -5567,48 +5636,48 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 
 #if NO_CFLOW != 1
 // Each intercepted if links its selected proxy guard to encoded condition state.
-#define if(...) if (({                                                                                       \
-                        enum { __obfh_if_site = RND(1, 65535) };                                             \
+#define if(...) if (({ \
+                        enum { __obfh_if_site = RND(1, 65535) }; \
                         OBFH_FLOW_CONDITION((__VA_ARGS__), __obfh_if_site, OBFH_P_PROXY; BREAK_STACK_CFLOW); \
                     }))
 
 // Keep if separate from its parentheses during macro rescan to avoid another CFLOW layer.
-#define else                       \
+#define else \
     else if OBFH_FLOW_ELSE_GUARD { \
-    }                              \
+    } \
     else
 
 #define OBFUS_CONDITION_BLOCK(...) OBFH_FLOW_CONDITION((__VA_ARGS__), RND(1, 65535))
 
 // Keep the native break outside the expression so it retains its original target.
-#define OBFH_FLOW_BREAK_GUARD                   \
-    (({                                         \
+#define OBFH_FLOW_BREAK_GUARD \
+    (({ \
         if (OBFUS_CONDITION_BLOCK(RND(1, 255))) \
-            BREAK_STACK_CFLOW;                  \
-        1;                                      \
+            BREAK_STACK_CFLOW; \
+        1; \
     }))
 
 // A matched conditional consumes the caller's semicolon and preserves dangling else.
-#define break                \
+#define break \
     if OBFH_FLOW_BREAK_GUARD \
-        break;               \
-    else                     \
+        break; \
+    else \
         (void)0
 
-#define switch(...)                                                                                                  \
-    switch (({                                                                                                       \
-        __typeof__((__VA_ARGS__)) __obfh_switch_value = (__VA_ARGS__);                                               \
-        volatile ULONG_PTR __obfh_switch_shift = (ULONG_PTR)OBFUS_CONDITION_BLOCK(RND(1, 255)) * SALT_SHIFT;         \
+#define switch(...) \
+    switch (({ \
+        __typeof__((__VA_ARGS__)) __obfh_switch_value = (__VA_ARGS__); \
+        volatile ULONG_PTR __obfh_switch_shift = (ULONG_PTR)OBFUS_CONDITION_BLOCK(RND(1, 255)) * SALT_SHIFT; \
         ULONG_PTR __obfh_switch_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_switch_value ^ __obfh_switch_shift); \
-        *(__typeof__(&__obfh_switch_value))(__obfh_switch_address ^ __obfh_switch_shift);                            \
+        *(__typeof__(&__obfh_switch_value))(__obfh_switch_address ^ __obfh_switch_shift); \
     }))
 
 #define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))
 
 // Protect every iteration and retain randomized bytes in the never-taken arm.
-#define for(...)                  \
-    for (__VA_ARGS__)             \
-        if (0) {                  \
+#define for(...) \
+    for (__VA_ARGS__) \
+        if (0) { \
             OBFH_FLOW_DEAD_BYTES; \
         } else
 
@@ -5622,165 +5691,165 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 #if VIRT == 1
 
 /* Each expression owns an immutable encoded instruction stream. */
-#define OBFH_V_INSTRUCTION(op, d, a, b, imm)                                                                                  \
+#define OBFH_V_INSTRUCTION(op, d, a, b, imm) \
     (((((unsigned int)(op) * (((__obfh_vkey >> 8) & 255u) | 1u) + (__obfh_vkey & 255u)) & 255u)) | ((unsigned int)(d) << 8) | \
      ((unsigned int)(a) << 10) | ((unsigned int)(b) << 12) | (((unsigned int)(imm)&0x3ffffu) << 14))
-#define OBFH_V_OPERATION_0(d, a, b)                                                                                                                                                                                                               \
-    OBFH_V_INSTRUCTION(__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation                                                                              \
+#define OBFH_V_OPERATION_0(d, a, b) \
+    OBFH_V_INSTRUCTION(__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation \
                                                                                                                                     : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)), \
                        d, a, b, 0)
-#define OBFH_V_OPERATION_1(d, a)                                                                                                                            \
+#define OBFH_V_OPERATION_1(d, a) \
     OBFH_V_INSTRUCTION(((__obfh_voperation >= 5 && __obfh_voperation < 11) || __obfh_voperation == OBFH_VOP_TRUTH) ? OBFH_V_BOOLEAN : OBFH_V_CXOR, d, a, 0, \
                        __obfh_voperation == OBFH_VOP_TRUTH ? 6 : (__obfh_voperation >= 5 ? __obfh_voperation - 5 : 0))
-#define OBFH_V_PACK(w)                                                                                                                                             \
-    __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 1,                                                                                                         \
-                          (((w)&255u) << 24) | ((((w) >> 8) & 3u) << 18) | ((((w) >> 10) & 3u) << 20) | ((((w) >> 12) & 3u) << 22) | ((w) >> 14),                  \
-                          __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 2,                                                                                   \
+#define OBFH_V_PACK(w) \
+    __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 1, \
+                          (((w)&255u) << 24) | ((((w) >> 8) & 3u) << 18) | ((((w) >> 10) & 3u) << 20) | ((((w) >> 12) & 3u) << 22) | ((w) >> 14), \
+                          __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 2, \
                                                 (((w)&255u) << 6) | (((w) >> 8) & 3u) | ((((w) >> 10) & 3u) << 2) | ((((w) >> 12) & 3u) << 4) | ((w)&0xffffc000u), \
-                                                __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 3,                                                             \
+                                                __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 3, \
                                                                       ((w)&255u) | ((((w) >> 8) & 3u) << 12) | ((((w) >> 10) & 3u) << 8) | ((((w) >> 12) & 3u) << 10) | ((w)&0xffffc000u), (w))))
-#define OBFH_V_ENCODE_RAW(word, pc)                                                                                            \
+#define OBFH_V_ENCODE_RAW(word, pc) \
     (((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u))))) ^ \
      (__obfh_vkey + (unsigned int)(pc)*0x9e3779b9u))
 #define OBFH_V_ENCODE(word, pc) OBFH_V_ENCODE_RAW(OBFH_V_PACK(word), pc)
-#define OBFH_V_PROGRAM_0                                                                    \
-    (const unsigned int[]) {                                                                \
+#define OBFH_V_PROGRAM_0 \
+    (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3)         \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3) \
     }
-#define OBFH_V_PROGRAM_1                                                                         \
-    (const unsigned int[]) {                                                                     \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 0),                 \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 1),             \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 2),       \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 3),               \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 4),                          \
+#define OBFH_V_PROGRAM_1 \
+    (const unsigned int[]) { \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 0), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 2), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 3), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 4), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_COPY_RETURN, __obfh_va, __obfh_vc, 0, 0), 5) \
     }
-#define OBFH_V_PROGRAM_2                                                                    \
-    (const unsigned int[]) {                                                                \
+#define OBFH_V_PROGRAM_2 \
+    (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1),          \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2),                 \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 4),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 5),                 \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 0, 0, 0, 3), 6),                  \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 8),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9),  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10)        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 4), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 5), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 0, 0, 0, 3), 6), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 8), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10) \
     }
-#define OBFH_V_PROGRAM_3                                                                    \
-    (const unsigned int[]) {                                                                \
+#define OBFH_V_PROGRAM_3 \
+    (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1),          \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2),                 \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 4),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 5),        \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 0, 0, 0, 5), 6),                  \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 8),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vd, 0, 0), 9)         \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 4), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 5), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 0, 0, 0, 5), 6), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 8), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vd, 0, 0), 9) \
     }
-#define OBFH_V_PROGRAM_4                                                                        \
-    (const unsigned int[]) {                                                                    \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 4), 0),                          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1),              \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2),                         \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3),            \
+#define OBFH_V_PROGRAM_4 \
+    (const unsigned int[]) { \
+        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 4), 0), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 4), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 5),              \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 9), 6),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 7),      \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 8),                      \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 9),      \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 10),     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 11)                      \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 5), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 9), 6), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 7), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 8), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 9), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 10), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 11) \
     }
-#define OBFH_V_PROGRAM_5                                                                    \
-    (const unsigned int[]) {                                                                \
+#define OBFH_V_PROGRAM_5 \
+    (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 1),  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vb, 0, 0), 2),          \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 3),                 \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vb, __obfh_va), 4),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vb), 5),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 6),                 \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_vb, __obfh_va), 7),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_vb), 8),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9),  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10)        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vb, 0, 0), 2), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 3), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vb, __obfh_va), 4), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vb), 5), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 6), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_vb, __obfh_va), 7), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_vb), 8), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10) \
     }
-#define OBFH_V_PROGRAM_6                                                                    \
-    (const unsigned int[]) {                                                                \
+#define OBFH_V_PROGRAM_6 \
+    (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 2), 1),                  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 262143), 2),             \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 1, 1, 0, 2), 3),                 \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 4),  \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 5),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 6),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 7)         \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 2), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 262143), 2), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 1, 1, 0, 2), 3), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 4), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 5), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 6), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 7) \
     }
-#define OBFH_V_PROGRAM_7                                                                    \
-    (const unsigned int[]) {                                                                \
+#define OBFH_V_PROGRAM_7 \
+    (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1),          \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 6), 2),                 \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 3),  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7), 4),                  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 8), 5),                  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 6),  \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 1, 0, 0, 57), 7),                 \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 8),          \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 9),                     \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vc, 0, 0), 10),         \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 14), 11),               \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 6), 2), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 3), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7), 4), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 8), 5), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 6), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 1, 0, 0, 57), 7), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 8), \
+            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 9), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vc, 0, 0), 10), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 14), 11), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_va, __obfh_vc, 0, 0), 12), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_va, 0, 0), 13),       \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 14)        \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_va, 0, 0), 13), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 14) \
     }
-#define OBFH_V_PROGRAM                                                                \
-    __builtin_choose_expr(                                                            \
-        __obfh_vvariant == 0, OBFH_V_PROGRAM_0,                                       \
-        __builtin_choose_expr(                                                        \
-            __obfh_vvariant == 1, OBFH_V_PROGRAM_1,                                   \
-            __builtin_choose_expr(                                                    \
-                __obfh_vvariant == 2, OBFH_V_PROGRAM_2,                               \
-                __builtin_choose_expr(                                                \
-                    __obfh_vvariant == 3, OBFH_V_PROGRAM_3,                           \
-                    __builtin_choose_expr(                                            \
-                        __obfh_vvariant == 4, OBFH_V_PROGRAM_4,                       \
+#define OBFH_V_PROGRAM \
+    __builtin_choose_expr( \
+        __obfh_vvariant == 0, OBFH_V_PROGRAM_0, \
+        __builtin_choose_expr( \
+            __obfh_vvariant == 1, OBFH_V_PROGRAM_1, \
+            __builtin_choose_expr( \
+                __obfh_vvariant == 2, OBFH_V_PROGRAM_2, \
+                __builtin_choose_expr( \
+                    __obfh_vvariant == 3, OBFH_V_PROGRAM_3, \
+                    __builtin_choose_expr( \
+                        __obfh_vvariant == 4, OBFH_V_PROGRAM_4, \
                         __builtin_choose_expr(__obfh_vvariant == 5, OBFH_V_PROGRAM_5, \
                                               __builtin_choose_expr(__obfh_vvariant == 6, OBFH_V_PROGRAM_6, OBFH_V_PROGRAM_7)))))))
-#define OBFH_VM_EXEC(executor, operation, value_a, value_b, floating)                                         \
-    ({                                                                                                        \
-        enum {                                                                                                \
-            __obfh_vsite = __COUNTER__,                                                                       \
-            __obfh_voperation = (operation),                                                                  \
-            __obfh_vkey = OBFH_MIX_A(OBFH_JUNK_WORD ^ __obfh_vsite ^ (unsigned int)OBFH_BUILD_SEED),          \
-            __obfh_vvariant = RND(0, 7),                                                                      \
-            __obfh_va = __obfh_vkey & 3u,                                                                     \
-            __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,                                    \
-            __obfh_vc = (__obfh_va + 2u) & 3u,                                                                \
-            __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u                                     \
-        };                                                                                                    \
-        const unsigned int *__obfh_vprogram = OBFH_V_PROGRAM;                                                 \
-        enum {                                                                                                \
-            __obfh_vlength = __obfh_vvariant == 0 ? 4 : __obfh_vvariant == 1 ? 6                              \
-                                                    : __obfh_vvariant == 2   ? 11                             \
-                                                    : __obfh_vvariant == 3   ? 10                             \
-                                                    : __obfh_vvariant == 4   ? 12                             \
-                                                    : __obfh_vvariant == 5   ? 11                             \
-                                                    : __obfh_vvariant == 6   ? 8                              \
-                                                                             : 15                             \
-        };                                                                                                    \
+#define OBFH_VM_EXEC(executor, operation, value_a, value_b, floating) \
+    ({ \
+        enum { \
+            __obfh_vsite = __COUNTER__, \
+            __obfh_voperation = (operation), \
+            __obfh_vkey = OBFH_MIX_A(OBFH_JUNK_WORD ^ __obfh_vsite ^ (unsigned int)OBFH_BUILD_SEED), \
+            __obfh_vvariant = RND(0, 7), \
+            __obfh_va = __obfh_vkey & 3u, \
+            __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u, \
+            __obfh_vc = (__obfh_va + 2u) & 3u, \
+            __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u \
+        }; \
+        const unsigned int *__obfh_vprogram = OBFH_V_PROGRAM; \
+        enum { \
+            __obfh_vlength = __obfh_vvariant == 0 ? 4 : __obfh_vvariant == 1 ? 6 \
+                                                    : __obfh_vvariant == 2   ? 11 \
+                                                    : __obfh_vvariant == 3   ? 10 \
+                                                    : __obfh_vvariant == 4   ? 12 \
+                                                    : __obfh_vvariant == 5   ? 11 \
+                                                    : __obfh_vvariant == 6   ? 8 \
+                                                                             : 15 \
+        }; \
         executor(__obfh_vprogram, __obfh_vlength, __obfh_vkey, OBFH_VM_OPERAND(value_a, SALT_NUM1, floating), \
-                 OBFH_VM_OPERAND(value_b, SALT_NUM2, floating));                                              \
+                 OBFH_VM_OPERAND(value_b, SALT_NUM2, floating)); \
     })
 #define OBFH_VM_OPERAND(value, salt, floating) obfh_vm_encode(value, salt, (floating) | (RND(1, 2147483647u) << 1))
 // Bitwise operations use uint32 bit patterns; shift counts wrap modulo 32.
@@ -5981,26 +6050,26 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
     }
     return (FARPROC)(base + rva);
 }
-#define GetProcAddress_custom(...) ({                                                                                                                         \
-    __label__ __obfh_getprocaddress_done;                                                                                                                     \
-    struct {                                                                                                                                                  \
-        HMODULE hModule;                                                                                                                                      \
-        LPCSTR lpProcName;                                                                                                                                    \
-    } __obfh_getprocaddress_args = {__VA_ARGS__};                                                                                                             \
-    DWORD __obfh_getprocaddress_error = GetLastError();                                                                                                       \
-    FARPROC __obfh_getprocaddress_output;                                                                                                                     \
-    FARPROC __obfh_getprocaddress_result = obfh_find_export(__obfh_getprocaddress_args.hModule, __obfh_getprocaddress_args.lpProcName, 0);                    \
-    SetLastError(__obfh_getprocaddress_result ? __obfh_getprocaddress_error                                                                                   \
-                                              : (__obfh_getprocaddress_args.hModule && __obfh_getprocaddress_args.lpProcName ? ERROR_PROC_NOT_FOUND           \
+#define GetProcAddress_custom(...) ({ \
+    __label__ __obfh_getprocaddress_done; \
+    struct { \
+        HMODULE hModule; \
+        LPCSTR lpProcName; \
+    } __obfh_getprocaddress_args = {__VA_ARGS__}; \
+    DWORD __obfh_getprocaddress_error = GetLastError(); \
+    FARPROC __obfh_getprocaddress_output; \
+    FARPROC __obfh_getprocaddress_result = obfh_find_export(__obfh_getprocaddress_args.hModule, __obfh_getprocaddress_args.lpProcName, 0); \
+    SetLastError(__obfh_getprocaddress_result ? __obfh_getprocaddress_error \
+                                              : (__obfh_getprocaddress_args.hModule && __obfh_getprocaddress_args.lpProcName ? ERROR_PROC_NOT_FOUND \
                                                                                                                              : __obfh_getprocaddress_error)); \
-    PHANTOM_NOP;                                                                                                                                              \
-    BREAK_STACK_CFLOW;                                                                                                                                        \
-    {                                                                                                                                                         \
-        __obfh_getprocaddress_output = (__obfh_getprocaddress_result);                                                                                        \
-        goto __obfh_getprocaddress_done;                                                                                                                      \
-    }                                                                                                                                                         \
-__obfh_getprocaddress_done:                                                                                                                                   \
-    __obfh_getprocaddress_output;                                                                                                                             \
+    PHANTOM_NOP; \
+    BREAK_STACK_CFLOW; \
+    { \
+        __obfh_getprocaddress_output = (__obfh_getprocaddress_result); \
+        goto __obfh_getprocaddress_done; \
+    } \
+__obfh_getprocaddress_done: \
+    __obfh_getprocaddress_output; \
 })
 #define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
 
@@ -6196,15 +6265,15 @@ static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECT
     response(nonce ^ RND(1, 2147483646));
 }
 
-#define ANTI_DEBUG                                        \
-    do {                                                  \
-        BREAK_STACK_CFLOW;                                \
-        if (IsDebuggerPresent_proxy())                    \
+#define ANTI_DEBUG \
+    do { \
+        BREAK_STACK_CFLOW; \
+        if (IsDebuggerPresent_proxy()) \
             obfh_ad_react(RND(1, 2147483646), RND(0, 1)); \
     } while (0)
 #else
 #define ANTI_DEBUG \
-    do {           \
+    do { \
     } while (0)
 #endif
 
@@ -6317,34 +6386,34 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
     return result;
 }
 #define printf_custom(...) obfh_printf_variadic(__VA_ARGS__)
-#define printf(...)                                                                         \
-    ({                                                                                      \
-        int __obfh_printf_result;                                                           \
-        do {                                                                                \
-            BREAK_STACK_CFLOW;                                                              \
-            obfh_junk_func_args((RND(0, 1000) * 3) < _0);                                   \
-            __obfh_printf_result = printf_custom(RND(0, 1000), __VA_ARGS__);                \
+#define printf(...) \
+    ({ \
+        int __obfh_printf_result; \
+        do { \
+            BREAK_STACK_CFLOW; \
+            obfh_junk_func_args((RND(0, 1000) * 3) < _0); \
+            __obfh_printf_result = printf_custom(RND(0, 1000), __VA_ARGS__); \
         } while (_0 > ((unsigned long long)RND(0, 100000000000) * (unsigned char)_2) + 82); \
-        __obfh_printf_result;                                                               \
+        __obfh_printf_result; \
     })
 
 // Reuse the CRT resolver without a formatting pass or an extra proxy function.
-#define puts(string) ({                                                                                                                      \
-    const char *__obfh_puts_string = (string);                                                                                               \
-    char __obfh_puts_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_puts_name[0] = _p, __obfh_puts_name[1] = _u, __obfh_puts_name[2] = _t, __obfh_puts_name[3] = _s, __obfh_puts_name[4] = _0),  \
+#define puts(string) ({ \
+    const char *__obfh_puts_string = (string); \
+    char __obfh_puts_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_puts_name[0] = _p, __obfh_puts_name[1] = _u, __obfh_puts_name[2] = _t, __obfh_puts_name[3] = _s, __obfh_puts_name[4] = _0), \
         (__obfh_puts_name[4] = _0, __obfh_puts_name[3] = _s, __obfh_puts_name[2] = _t, __obfh_puts_name[1] = _u, __obfh_puts_name[0] = _p)); \
-    OBFH_CRT_TARGET(int (*)(const char *), __obfh_puts_name)                                                                                 \
-    (__obfh_puts_string);                                                                                                                    \
+    OBFH_CRT_TARGET(int (*)(const char *), __obfh_puts_name) \
+    (__obfh_puts_string); \
 })
 
 // Build the name in caller-owned storage, then invoke the resolved typed function.
 #define OBFH_CRT_INVOKE(builder, type, entry, ...) ({ \
-    char __obfh_crt_name[32];                         \
-    entry;                                            \
-    OBFH_CRT_TARGET(type, builder(__obfh_crt_name))   \
-    (__VA_ARGS__);                                    \
+    char __obfh_crt_name[32]; \
+    entry; \
+    OBFH_CRT_TARGET(type, builder(__obfh_crt_name)) \
+    (__VA_ARGS__); \
 })
 #define OBFH_CRT_CALL(builder, type, ...) \
     OBFH_CRT_INVOKE(builder, type, STACK_PROXY_FUNCTIONS, __VA_ARGS__)
@@ -6883,20 +6952,20 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 
 // USER32/GDI32: covered function-like calls use cached indirect targets.
 // Four local decode layouts; arguments appear once in the typed invocation.
-#define OBFH_GUI_DECODE(index, key, code) ({                                                     \
-    __obfh_asm__(code                                                                            \
-                 : "+&r"(__obfh_gui_value)                                                       \
+#define OBFH_GUI_DECODE(index, key, code) ({ \
+    __obfh_asm__(code \
+                 : "+&r"(__obfh_gui_value) \
                  : "r"((ULONG_PTR)(key)), "r"(OBFH_GUI_BIAS(index)), "i"(OBFH_GUI_ROTATE(index)) \
-                 : "cc");                                                                        \
+                 : "cc"); \
 })
 #define OBFH_GUI_FORM_0(index) OBFH_GUI_DECODE(index, OBFH_GUI_KEY(index), \
                                                "sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
-#define OBFH_GUI_FORM_1(index) ({                                                                            \
+#define OBFH_GUI_FORM_1(index) ({ \
     __obfh_asm__("add" OBFH_GUI_WIDTH " %2, %0; rol" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;" \
-                 : "+&r"(__obfh_gui_value)                                                                   \
-                 : "r"(OBFH_GUI_KEY(index)), "r"((ULONG_PTR)-OBFH_GUI_BIAS(index)),                          \
-                   "i"(sizeof(ULONG_PTR) * 8 - OBFH_GUI_ROTATE(index))                                       \
-                 : "cc");                                                                                    \
+                 : "+&r"(__obfh_gui_value) \
+                 : "r"(OBFH_GUI_KEY(index)), "r"((ULONG_PTR)-OBFH_GUI_BIAS(index)), \
+                   "i"(sizeof(ULONG_PTR) * 8 - OBFH_GUI_ROTATE(index)) \
+                 : "cc"); \
 })
 #define OBFH_GUI_FORM_2(index) OBFH_GUI_DECODE(index, ~OBFH_GUI_KEY(index), \
                                                "sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0; not" OBFH_GUI_WIDTH " %0; xor" OBFH_GUI_WIDTH " %1, %0;")
@@ -6908,35 +6977,35 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #else
 #define OBFH_GUI_CACHE_VISIT(slot, site) ((void)0)
 #endif
-#define OBFH_GUI_CALL(index, module, name, type, ...) ({                                                                                                           \
-    __label__ __obfh_gui_cached, __obfh_gui_decode;                                                                                                                \
-    enum { __obfh_gui_site = __COUNTER__,                                                                                                                          \
-           __obfh_gui_form = OBFH_GUI_DRAW(__obfh_gui_site ^ (index), 0x47554936u) & 3u,                                                                           \
-           __obfh_gui_gap = OBFH_GUI_DRAW(__obfh_gui_site, 0x534c4f54u) & 31u };                                                                                   \
-    static struct {                                                                                                                                                \
-        unsigned char prefix[1u + __obfh_gui_gap];                                                                                                                 \
-        OBFH_GUI_SLOT cache __attribute__((aligned(16)));                                                                                                          \
-    } __obfh_gui_storage;                                                                                                                                          \
-    ULONG_PTR __obfh_gui_value;                                                                                                                                    \
-    OBFH_GUI_CACHE_VISIT(&__obfh_gui_storage.cache, __obfh_gui_site);                                                                                              \
-    OBFH_INLINE_EXIT(__obfh_gui_storage.cache.ready, __obfh_gui_cached);                                                                                           \
-    {                                                                                                                                                              \
-        unsigned char __obfh_gui_name[64];                                                                                                                         \
-        size_t __obfh_gui_length = name(__obfh_gui_name);                                                                                                          \
-        __obfh_gui_value = obfh_gui_cold(module, &__obfh_gui_storage.cache, __obfh_gui_site, __obfh_gui_name, __obfh_gui_length);                                  \
-    }                                                                                                                                                              \
-    goto __obfh_gui_decode;                                                                                                                                        \
-__obfh_gui_cached:                                                                                                                                                 \
-    __obfh_asm__(""                                                                                                                                                \
-                 :                                                                                                                                                 \
-                 :                                                                                                                                                 \
-                 : "memory");                                                                                                                                      \
-    __obfh_gui_value = (ULONG_PTR)__obfh_gui_storage.cache.encoded;                                                                                                \
-__obfh_gui_decode:                                                                                                                                                 \
-    __builtin_choose_expr(__obfh_gui_form == 0, OBFH_GUI_FORM_0(__obfh_gui_site),                                                                                  \
-                          __builtin_choose_expr(__obfh_gui_form == 1, OBFH_GUI_FORM_1(__obfh_gui_site),                                                            \
+#define OBFH_GUI_CALL(index, module, name, type, ...) ({ \
+    __label__ __obfh_gui_cached, __obfh_gui_decode; \
+    enum { __obfh_gui_site = __COUNTER__, \
+           __obfh_gui_form = OBFH_GUI_DRAW(__obfh_gui_site ^ (index), 0x47554936u) & 3u, \
+           __obfh_gui_gap = OBFH_GUI_DRAW(__obfh_gui_site, 0x534c4f54u) & 31u }; \
+    static struct { \
+        unsigned char prefix[1u + __obfh_gui_gap]; \
+        OBFH_GUI_SLOT cache __attribute__((aligned(16))); \
+    } __obfh_gui_storage; \
+    ULONG_PTR __obfh_gui_value; \
+    OBFH_GUI_CACHE_VISIT(&__obfh_gui_storage.cache, __obfh_gui_site); \
+    OBFH_INLINE_EXIT(__obfh_gui_storage.cache.ready, __obfh_gui_cached); \
+    { \
+        unsigned char __obfh_gui_name[64]; \
+        size_t __obfh_gui_length = name(__obfh_gui_name); \
+        __obfh_gui_value = obfh_gui_cold(module, &__obfh_gui_storage.cache, __obfh_gui_site, __obfh_gui_name, __obfh_gui_length); \
+    } \
+    goto __obfh_gui_decode; \
+__obfh_gui_cached: \
+    __obfh_asm__("" \
+                 : \
+                 : \
+                 : "memory"); \
+    __obfh_gui_value = (ULONG_PTR)__obfh_gui_storage.cache.encoded; \
+__obfh_gui_decode: \
+    __builtin_choose_expr(__obfh_gui_form == 0, OBFH_GUI_FORM_0(__obfh_gui_site), \
+                          __builtin_choose_expr(__obfh_gui_form == 1, OBFH_GUI_FORM_1(__obfh_gui_site), \
                                                 __builtin_choose_expr(__obfh_gui_form == 2, OBFH_GUI_FORM_2(__obfh_gui_site), OBFH_GUI_FORM_3(__obfh_gui_site)))); \
-    ((type)__obfh_gui_value)(__VA_ARGS__);                                                                                                                         \
+    ((type)__obfh_gui_value)(__VA_ARGS__); \
 })
 
 // One typed front end; export names are assembled only on the cold path.
@@ -6944,13 +7013,13 @@ __obfh_gui_decode:                                                              
     OBFH_GUI_CALL(OBFH_GUI_ID_##name, module, OBFH_GUI_NAME_##name, __typeof__(&name), __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentThreadId 136
-#define OBFH_GUI_NAME_GetCurrentThreadId(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 136, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 136, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 136, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'h' << 24)));  \
+#define OBFH_GUI_NAME_GetCurrentThreadId(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 136, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 136, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 136, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'h' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 136, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 136, (((unsigned int)'I' << 0) | ((unsigned int)'d' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 136, (((unsigned int)'I' << 0) | ((unsigned int)'d' << 8) | 0u | 0u)); \
+    19u; \
 })
 #define GetCurrentThreadId(...) OBFH_API_CALL(2, GetCurrentThreadId, __VA_ARGS__)
 
@@ -6960,130 +7029,130 @@ WINBASEAPI int WINAPI MultiByteToWideChar(UINT codepage, DWORD flags, LPCSTR inp
 WINBASEAPI int WINAPI WideCharToMultiByte(UINT codepage, DWORD flags, LPCWSTR input, int input_length, LPSTR output, int output_length, LPCSTR fallback, LPBOOL used_fallback);
 #endif
 #define OBFH_GUI_ID_GetCurrentProcess 137
-#define OBFH_GUI_NAME_GetCurrentProcess(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 137, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 137, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 137, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'r' << 24)));  \
+#define OBFH_GUI_NAME_GetCurrentProcess(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 137, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 137, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 137, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 137, (((unsigned int)'o' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 137, (((unsigned int)'s' << 0) | 0u | 0u | 0u));                                                                     \
-    18u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 137, (((unsigned int)'s' << 0) | 0u | 0u | 0u)); \
+    18u; \
 })
 #undef GetCurrentProcess
 #define GetCurrentProcess(...) OBFH_API_CALL(2, GetCurrentProcess, __VA_ARGS__)
 
 #define OBFH_GUI_ID_Sleep 138
-#define OBFH_GUI_NAME_Sleep(buffer) ({                                                                                                                 \
+#define OBFH_GUI_NAME_Sleep(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 138, (((unsigned int)'S' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 138, (((unsigned int)'p' << 0) | 0u | 0u | 0u));                                                                     \
-    6u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 4, 138, (((unsigned int)'p' << 0) | 0u | 0u | 0u)); \
+    6u; \
 })
 #undef Sleep
 #define Sleep(...) OBFH_API_CALL(2, Sleep, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapCreate 139
-#define OBFH_GUI_NAME_HeapCreate(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_HeapCreate(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 139, (((unsigned int)'H' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 139, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 139, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 139, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | 0u | 0u)); \
+    11u; \
 })
 #undef HeapCreate
 #define HeapCreate(...) OBFH_API_CALL(2, HeapCreate, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetConsoleTextAttribute 140
-#define OBFH_GUI_NAME_SetConsoleTextAttribute(buffer) ({                                                                                                \
-    OBFH_GUI_NAME_WORD(buffer, 0, 140, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 140, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 140, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'e' << 24)));  \
+#define OBFH_GUI_NAME_SetConsoleTextAttribute(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 140, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 140, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 140, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 140, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 140, (((unsigned int)'t' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'b' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 140, (((unsigned int)'u' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    24u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 140, (((unsigned int)'u' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    24u; \
 })
 #undef SetConsoleTextAttribute
 #define SetConsoleTextAttribute(...) OBFH_API_CALL(2, SetConsoleTextAttribute, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentProcessId 141
-#define OBFH_GUI_NAME_GetCurrentProcessId(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 141, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 141, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 141, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'r' << 24)));  \
+#define OBFH_GUI_NAME_GetCurrentProcessId(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 141, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 141, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 141, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 141, (((unsigned int)'o' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 141, (((unsigned int)'s' << 0) | ((unsigned int)'I' << 8) | ((unsigned int)'d' << 16) | 0u));                        \
-    20u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 141, (((unsigned int)'s' << 0) | ((unsigned int)'I' << 8) | ((unsigned int)'d' << 16) | 0u)); \
+    20u; \
 })
 #undef GetCurrentProcessId
 #define GetCurrentProcessId(...) OBFH_API_CALL(2, GetCurrentProcessId, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentThread 142
-#define OBFH_GUI_NAME_GetCurrentThread(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 142, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 142, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 142, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'h' << 24)));  \
+#define OBFH_GUI_NAME_GetCurrentThread(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 142, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 142, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 142, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'h' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 142, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 142, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 142, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetCurrentThread
 #define GetCurrentThread(...) OBFH_API_CALL(2, GetCurrentThread, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetExitCodeThread 143
-#define OBFH_GUI_NAME_GetExitCodeThread(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 143, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 143, (((unsigned int)'x' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 143, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'T' << 24)));  \
+#define OBFH_GUI_NAME_GetExitCodeThread(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 143, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 143, (((unsigned int)'x' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 143, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 143, (((unsigned int)'h' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 143, (((unsigned int)'d' << 0) | 0u | 0u | 0u));                                                                     \
-    18u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 143, (((unsigned int)'d' << 0) | 0u | 0u | 0u)); \
+    18u; \
 })
 #undef GetExitCodeThread
 #define GetExitCodeThread(...) OBFH_API_CALL(2, GetExitCodeThread, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DuplicateHandle 144
-#define OBFH_GUI_NAME_DuplicateHandle(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_DuplicateHandle(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 144, (((unsigned int)'D' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 144, (((unsigned int)'i' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 144, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 144, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 144, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    16u; \
 })
 #undef DuplicateHandle
 #define DuplicateHandle(...) OBFH_API_CALL(2, DuplicateHandle, __VA_ARGS__)
 
 #define OBFH_GUI_ID_QueryPerformanceCounter 145
-#define OBFH_GUI_NAME_QueryPerformanceCounter(buffer) ({                                                                                                \
-    OBFH_GUI_NAME_WORD(buffer, 0, 145, (((unsigned int)'Q' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 145, (((unsigned int)'y' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 145, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24)));  \
+#define OBFH_GUI_NAME_QueryPerformanceCounter(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 145, (((unsigned int)'Q' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 145, (((unsigned int)'y' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 145, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 145, (((unsigned int)'a' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 145, (((unsigned int)'C' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 145, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | 0u));                        \
-    24u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 145, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | 0u)); \
+    24u; \
 })
 #undef QueryPerformanceCounter
 #define QueryPerformanceCounter(...) OBFH_API_CALL(2, QueryPerformanceCounter, __VA_ARGS__)
 
 #define OBFH_GUI_ID_QueryPerformanceFrequency 146
-#define OBFH_GUI_NAME_QueryPerformanceFrequency(buffer) ({                                                                                              \
-    OBFH_GUI_NAME_WORD(buffer, 0, 146, (((unsigned int)'Q' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 146, (((unsigned int)'y' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 146, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24)));  \
+#define OBFH_GUI_NAME_QueryPerformanceFrequency(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 146, (((unsigned int)'Q' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 146, (((unsigned int)'y' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 146, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 146, (((unsigned int)'a' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 146, (((unsigned int)'F' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'q' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 20, 146, (((unsigned int)'u' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 24, 146, (((unsigned int)'y' << 0) | 0u | 0u | 0u));                                                                     \
-    26u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 24, 146, (((unsigned int)'y' << 0) | 0u | 0u | 0u)); \
+    26u; \
 })
 #undef QueryPerformanceFrequency
 #define QueryPerformanceFrequency(...) OBFH_API_CALL(2, QueryPerformanceFrequency, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTickCount 147
-#define OBFH_GUI_NAME_GetTickCount(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetTickCount(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 147, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 147, (((unsigned int)'i' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'k' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 147, (((unsigned int)'o' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 147, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 147, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetTickCount
 #define GetTickCount(...) OBFH_API_CALL(2, GetTickCount, __VA_ARGS__)
@@ -7093,413 +7162,413 @@ WINBASEAPI int WINAPI WideCharToMultiByte(UINT codepage, DWORD flags, LPCWSTR in
 WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 #endif
 #define OBFH_GUI_ID_GetTickCount64 148
-#define OBFH_GUI_NAME_GetTickCount64(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetTickCount64(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 148, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 148, (((unsigned int)'i' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'k' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 148, (((unsigned int)'o' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 148, (((unsigned int)'6' << 0) | ((unsigned int)'4' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 148, (((unsigned int)'6' << 0) | ((unsigned int)'4' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef GetTickCount64
 #define GetTickCount64(...) OBFH_API_CALL(2, GetTickCount64, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MultiByteToWideChar 149
-#define OBFH_GUI_NAME_MultiByteToWideChar(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 149, (((unsigned int)'M' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 149, (((unsigned int)'i' << 0) | ((unsigned int)'B' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 149, (((unsigned int)'e' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'W' << 24)));  \
+#define OBFH_GUI_NAME_MultiByteToWideChar(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 149, (((unsigned int)'M' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 149, (((unsigned int)'i' << 0) | ((unsigned int)'B' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 149, (((unsigned int)'e' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 149, (((unsigned int)'i' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'C' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 149, (((unsigned int)'h' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | 0u));                        \
-    20u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 149, (((unsigned int)'h' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | 0u)); \
+    20u; \
 })
 #undef MultiByteToWideChar
 #define MultiByteToWideChar(...) OBFH_API_CALL(2, MultiByteToWideChar, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WideCharToMultiByte 150
-#define OBFH_GUI_NAME_WideCharToMultiByte(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 150, (((unsigned int)'W' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 150, (((unsigned int)'C' << 0) | ((unsigned int)'h' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 150, (((unsigned int)'T' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'u' << 24)));  \
+#define OBFH_GUI_NAME_WideCharToMultiByte(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 150, (((unsigned int)'W' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 150, (((unsigned int)'C' << 0) | ((unsigned int)'h' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 150, (((unsigned int)'T' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 150, (((unsigned int)'l' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'B' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 150, (((unsigned int)'y' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    20u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 150, (((unsigned int)'y' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    20u; \
 })
 #undef WideCharToMultiByte
 #define WideCharToMultiByte(...) OBFH_API_CALL(2, WideCharToMultiByte, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadResource 151
-#define OBFH_GUI_NAME_LoadResource(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_LoadResource(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 151, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 151, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 151, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 151, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 151, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef LoadResource
 #define LoadResource(...) OBFH_API_CALL(2, LoadResource, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LockResource 152
-#define OBFH_GUI_NAME_LockResource(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_LockResource(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 152, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'k' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 152, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 152, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 152, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 152, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef LockResource
 #define LockResource(...) OBFH_API_CALL(2, LockResource, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SizeofResource 153
-#define OBFH_GUI_NAME_SizeofResource(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_SizeofResource(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 153, (((unsigned int)'S' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'z' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 153, (((unsigned int)'o' << 0) | ((unsigned int)'f' << 8) | ((unsigned int)'R' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 153, (((unsigned int)'s' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 153, (((unsigned int)'c' << 0) | ((unsigned int)'e' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 153, (((unsigned int)'c' << 0) | ((unsigned int)'e' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef SizeofResource
 #define SizeofResource(...) OBFH_API_CALL(2, SizeofResource, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindClose 154
-#define OBFH_GUI_NAME_FindClose(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_FindClose(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 154, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 154, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 154, (((unsigned int)'e' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 154, (((unsigned int)'e' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef FindClose
 #define FindClose(...) OBFH_API_CALL(2, FindClose, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDesktopWindow 155
-#define OBFH_GUI_NAME_GetDesktopWindow(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 155, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 155, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'k' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 155, (((unsigned int)'o' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetDesktopWindow(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 155, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 155, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'k' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 155, (((unsigned int)'o' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 155, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 155, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 155, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetDesktopWindow
 #define GetDesktopWindow(...) OBFH_API_CALL(0, GetDesktopWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetParent 156
-#define OBFH_GUI_NAME_GetParent(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_GetParent(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 156, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 156, (((unsigned int)'a' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 156, (((unsigned int)'t' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 156, (((unsigned int)'t' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef GetParent
 #define GetParent(...) OBFH_API_CALL(0, GetParent, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetTimer 157
-#define OBFH_GUI_NAME_SetTimer(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_SetTimer(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 157, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 157, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 157, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 157, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef SetTimer
 #define SetTimer(...) OBFH_API_CALL(0, SetTimer, __VA_ARGS__)
 
 #define OBFH_GUI_ID_KillTimer 158
-#define OBFH_GUI_NAME_KillTimer(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_KillTimer(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 158, (((unsigned int)'K' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 158, (((unsigned int)'T' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 158, (((unsigned int)'r' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 158, (((unsigned int)'r' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef KillTimer
 #define KillTimer(...) OBFH_API_CALL(0, KillTimer, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EnableWindow 159
-#define OBFH_GUI_NAME_EnableWindow(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_EnableWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 159, (((unsigned int)'E' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 159, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 159, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 159, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 159, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef EnableWindow
 #define EnableWindow(...) OBFH_API_CALL(0, EnableWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_IsWindow 160
-#define OBFH_GUI_NAME_IsWindow(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_IsWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 160, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 160, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 160, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 160, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef IsWindow
 #define IsWindow(...) OBFH_API_CALL(0, IsWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileAttributesA 161
-#define OBFH_GUI_NAME_GetFileAttributesA(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 161, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 161, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 161, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetFileAttributesA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 161, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 161, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 161, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 161, (((unsigned int)'b' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 161, (((unsigned int)'s' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 161, (((unsigned int)'s' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetFileAttributesA
 #define GetFileAttributesA(...) OBFH_API_CALL(2, GetFileAttributesA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileAttributesW 162
-#define OBFH_GUI_NAME_GetFileAttributesW(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 162, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 162, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 162, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetFileAttributesW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 162, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 162, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 162, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 162, (((unsigned int)'b' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 162, (((unsigned int)'s' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 162, (((unsigned int)'s' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetFileAttributesW
 #define GetFileAttributesW(...) OBFH_API_CALL(2, GetFileAttributesW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindFirstFileA 163
-#define OBFH_GUI_NAME_FindFirstFileA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_FindFirstFileA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 163, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 163, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 163, (((unsigned int)'t' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 163, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 163, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef FindFirstFileA
 #define FindFirstFileA(...) OBFH_API_CALL(2, FindFirstFileA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindFirstFileW 164
-#define OBFH_GUI_NAME_FindFirstFileW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_FindFirstFileW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 164, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 164, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 164, (((unsigned int)'t' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 164, (((unsigned int)'e' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 164, (((unsigned int)'e' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef FindFirstFileW
 #define FindFirstFileW(...) OBFH_API_CALL(2, FindFirstFileW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindNextFileA 165
-#define OBFH_GUI_NAME_FindNextFileA(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_FindNextFileA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 165, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 165, (((unsigned int)'N' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 165, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 165, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 165, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef FindNextFileA
 #define FindNextFileA(...) OBFH_API_CALL(2, FindNextFileA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindNextFileW 166
-#define OBFH_GUI_NAME_FindNextFileW(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_FindNextFileW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 166, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 166, (((unsigned int)'N' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 166, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 166, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 166, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef FindNextFileW
 #define FindNextFileW(...) OBFH_API_CALL(2, FindNextFileW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DeleteFileA 167
-#define OBFH_GUI_NAME_DeleteFileA(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_DeleteFileA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 167, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 167, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 167, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 167, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #undef DeleteFileA
 #define DeleteFileA(...) OBFH_API_CALL(2, DeleteFileA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DeleteFileW 168
-#define OBFH_GUI_NAME_DeleteFileW(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_DeleteFileW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 168, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 168, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 168, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 168, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #undef DeleteFileW
 #define DeleteFileW(...) OBFH_API_CALL(2, DeleteFileW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CopyFileA 169
-#define OBFH_GUI_NAME_CopyFileA(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_CopyFileA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 169, (((unsigned int)'C' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'y' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 169, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 169, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 169, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef CopyFileA
 #define CopyFileA(...) OBFH_API_CALL(2, CopyFileA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CopyFileW 170
-#define OBFH_GUI_NAME_CopyFileW(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_CopyFileW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 170, (((unsigned int)'C' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'y' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 170, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 170, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 170, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef CopyFileW
 #define CopyFileW(...) OBFH_API_CALL(2, CopyFileW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MoveFileExA 171
-#define OBFH_GUI_NAME_MoveFileExA(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_MoveFileExA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 171, (((unsigned int)'M' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'v' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 171, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 171, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 171, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #undef MoveFileExA
 #define MoveFileExA(...) OBFH_API_CALL(2, MoveFileExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MoveFileExW 172
-#define OBFH_GUI_NAME_MoveFileExW(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_MoveFileExW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 172, (((unsigned int)'M' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'v' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 172, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 172, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 172, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #undef MoveFileExW
 #define MoveFileExW(...) OBFH_API_CALL(2, MoveFileExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FormatMessageA 173
-#define OBFH_GUI_NAME_FormatMessageA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_FormatMessageA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 173, (((unsigned int)'F' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 173, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 173, (((unsigned int)'s' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'g' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 173, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 173, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef FormatMessageA
 #define FormatMessageA(...) OBFH_API_CALL(2, FormatMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FormatMessageW 174
-#define OBFH_GUI_NAME_FormatMessageW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_FormatMessageW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 174, (((unsigned int)'F' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 174, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 174, (((unsigned int)'s' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'g' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 174, (((unsigned int)'e' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 174, (((unsigned int)'e' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef FormatMessageW
 #define FormatMessageW(...) OBFH_API_CALL(2, FormatMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindResourceA 175
-#define OBFH_GUI_NAME_FindResourceA(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_FindResourceA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 175, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 175, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 175, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 175, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 175, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef FindResourceA
 #define FindResourceA(...) OBFH_API_CALL(2, FindResourceA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindResourceW 176
-#define OBFH_GUI_NAME_FindResourceW(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_FindResourceW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 176, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 176, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 176, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 176, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 176, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef FindResourceW
 #define FindResourceW(...) OBFH_API_CALL(2, FindResourceW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_PostMessageA 177
-#define OBFH_GUI_NAME_PostMessageA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_PostMessageA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 177, (((unsigned int)'P' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 177, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 177, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 177, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 177, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef PostMessageA
 #define PostMessageA(...) OBFH_API_CALL(0, PostMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_PostMessageW 178
-#define OBFH_GUI_NAME_PostMessageW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_PostMessageW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 178, (((unsigned int)'P' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 178, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 178, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 178, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 178, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef PostMessageW
 #define PostMessageW(...) OBFH_API_CALL(0, PostMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowLongA 179
-#define OBFH_GUI_NAME_GetWindowLongA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetWindowLongA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 179, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 179, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 179, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 179, (((unsigned int)'g' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 179, (((unsigned int)'g' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef GetWindowLongA
 #define GetWindowLongA(...) OBFH_API_CALL(0, GetWindowLongA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowLongW 180
-#define OBFH_GUI_NAME_GetWindowLongW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetWindowLongW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 180, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 180, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 180, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 180, (((unsigned int)'g' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 180, (((unsigned int)'g' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef GetWindowLongW
 #define GetWindowLongW(...) OBFH_API_CALL(0, GetWindowLongW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowLongA 181
-#define OBFH_GUI_NAME_SetWindowLongA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_SetWindowLongA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 181, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 181, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 181, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 181, (((unsigned int)'g' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 181, (((unsigned int)'g' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef SetWindowLongA
 #define SetWindowLongA(...) OBFH_API_CALL(0, SetWindowLongA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowLongW 182
-#define OBFH_GUI_NAME_SetWindowLongW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_SetWindowLongW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 182, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 182, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 182, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 182, (((unsigned int)'g' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 182, (((unsigned int)'g' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef SetWindowLongW
 #define SetWindowLongW(...) OBFH_API_CALL(0, SetWindowLongW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadStringA 183
-#define OBFH_GUI_NAME_LoadStringA(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_LoadStringA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 183, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 183, (((unsigned int)'S' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 183, (((unsigned int)'n' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 183, (((unsigned int)'n' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #undef LoadStringA
 #define LoadStringA(...) OBFH_API_CALL(0, LoadStringA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadStringW 184
-#define OBFH_GUI_NAME_LoadStringW(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_LoadStringW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 184, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 184, (((unsigned int)'S' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 184, (((unsigned int)'n' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 184, (((unsigned int)'n' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #undef LoadStringW
 #define LoadStringW(...) OBFH_API_CALL(0, LoadStringW, __VA_ARGS__)
 
 #if defined(__x86_64__)
 #define OBFH_GUI_ID_GetWindowLongPtrA 185
-#define OBFH_GUI_NAME_GetWindowLongPtrA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 185, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 185, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 185, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetWindowLongPtrA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 185, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 185, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 185, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 185, (((unsigned int)'g' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 185, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                     \
-    18u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 185, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    18u; \
 })
 #undef GetWindowLongPtrA
 #define GetWindowLongPtrA(...) OBFH_API_CALL(0, GetWindowLongPtrA, __VA_ARGS__)
@@ -7507,13 +7576,13 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 
 #if defined(__x86_64__)
 #define OBFH_GUI_ID_GetWindowLongPtrW 186
-#define OBFH_GUI_NAME_GetWindowLongPtrW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 186, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 186, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 186, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetWindowLongPtrW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 186, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 186, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 186, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 186, (((unsigned int)'g' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 186, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                     \
-    18u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 186, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    18u; \
 })
 #undef GetWindowLongPtrW
 #define GetWindowLongPtrW(...) OBFH_API_CALL(0, GetWindowLongPtrW, __VA_ARGS__)
@@ -7521,13 +7590,13 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 
 #if defined(__x86_64__)
 #define OBFH_GUI_ID_SetWindowLongPtrA 187
-#define OBFH_GUI_NAME_SetWindowLongPtrA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 187, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 187, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 187, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_SetWindowLongPtrA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 187, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 187, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 187, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 187, (((unsigned int)'g' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 187, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                     \
-    18u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 187, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    18u; \
 })
 #undef SetWindowLongPtrA
 #define SetWindowLongPtrA(...) OBFH_API_CALL(0, SetWindowLongPtrA, __VA_ARGS__)
@@ -7535,896 +7604,896 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 
 #if defined(__x86_64__)
 #define OBFH_GUI_ID_SetWindowLongPtrW 188
-#define OBFH_GUI_NAME_SetWindowLongPtrW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 188, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 188, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 188, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_SetWindowLongPtrW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 188, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 188, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 188, (((unsigned int)'w' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 188, (((unsigned int)'g' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 188, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                     \
-    18u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 188, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    18u; \
 })
 #undef SetWindowLongPtrW
 #define SetWindowLongPtrW(...) OBFH_API_CALL(0, SetWindowLongPtrW, __VA_ARGS__)
 #endif
 
 #define OBFH_GUI_ID_AppendMenuA 0
-#define OBFH_GUI_NAME_AppendMenuA(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_AppendMenuA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 0, (((unsigned int)'A' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 0, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 0, (((unsigned int)'n' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 8, 0, (((unsigned int)'n' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #define AppendMenuA(...) OBFH_API_CALL(0, AppendMenuA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_AppendMenuW 1
-#define OBFH_GUI_NAME_AppendMenuW(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_AppendMenuW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 1, (((unsigned int)'A' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 1, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 1, (((unsigned int)'n' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 8, 1, (((unsigned int)'n' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #define AppendMenuW(...) OBFH_API_CALL(0, AppendMenuW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CheckMenuItem 2
-#define OBFH_GUI_NAME_CheckMenuItem(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_CheckMenuItem(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 2, (((unsigned int)'C' << 0) | ((unsigned int)'h' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 2, (((unsigned int)'k' << 0) | ((unsigned int)'M' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 2, (((unsigned int)'u' << 0) | ((unsigned int)'I' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 2, (((unsigned int)'m' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 2, (((unsigned int)'m' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #define CheckMenuItem(...) OBFH_API_CALL(0, CheckMenuItem, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CloseClipboard 3
-#define OBFH_GUI_NAME_CloseClipboard(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_CloseClipboard(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 3, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 3, (((unsigned int)'e' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 3, (((unsigned int)'p' << 0) | ((unsigned int)'b' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 3, (((unsigned int)'r' << 0) | ((unsigned int)'d' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 3, (((unsigned int)'r' << 0) | ((unsigned int)'d' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define CloseClipboard(...) OBFH_API_CALL(0, CloseClipboard, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateMenu 4
-#define OBFH_GUI_NAME_CreateMenu(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateMenu(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 4, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 4, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 4, (((unsigned int)'n' << 0) | ((unsigned int)'u' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 8, 4, (((unsigned int)'n' << 0) | ((unsigned int)'u' << 8) | 0u | 0u)); \
+    11u; \
 })
 #define CreateMenu(...) OBFH_API_CALL(0, CreateMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreatePopupMenu 5
-#define OBFH_GUI_NAME_CreatePopupMenu(buffer) ({                                                                                                     \
+#define OBFH_GUI_NAME_CreatePopupMenu(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 5, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 5, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 5, (((unsigned int)'p' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'M' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 5, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u));                       \
-    16u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 5, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u)); \
+    16u; \
 })
 #define CreatePopupMenu(...) OBFH_API_CALL(0, CreatePopupMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateWindowExA 6
-#define OBFH_GUI_NAME_CreateWindowExA(buffer) ({                                                                                                     \
+#define OBFH_GUI_NAME_CreateWindowExA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 6, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 6, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 6, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 6, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'A' << 16) | 0u));                       \
-    16u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 6, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    16u; \
 })
 #define CreateWindowExA(...) OBFH_API_CALL(0, CreateWindowExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateWindowExW 7
-#define OBFH_GUI_NAME_CreateWindowExW(buffer) ({                                                                                                     \
+#define OBFH_GUI_NAME_CreateWindowExW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 7, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 7, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 7, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 7, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'W' << 16) | 0u));                       \
-    16u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 7, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    16u; \
 })
 #define CreateWindowExW(...) OBFH_API_CALL(0, CreateWindowExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DefWindowProcA 8
-#define OBFH_GUI_NAME_DefWindowProcA(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_DefWindowProcA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 8, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'f' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 8, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 8, (((unsigned int)'w' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 8, (((unsigned int)'c' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 8, (((unsigned int)'c' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define DefWindowProcA(...) OBFH_API_CALL(0, DefWindowProcA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DefWindowProcW 9
-#define OBFH_GUI_NAME_DefWindowProcW(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_DefWindowProcW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 9, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'f' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 9, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 9, (((unsigned int)'w' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 9, (((unsigned int)'c' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                             \
+    OBFH_GUI_NAME_WORD(buffer, 12, 9, (((unsigned int)'c' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define DefWindowProcW(...) OBFH_API_CALL(0, DefWindowProcW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DestroyWindow 10
-#define OBFH_GUI_NAME_DestroyWindow(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_DestroyWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 10, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 10, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 10, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 10, (((unsigned int)'w' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 10, (((unsigned int)'w' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #define DestroyWindow(...) OBFH_API_CALL(0, DestroyWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DispatchMessageA 11
-#define OBFH_GUI_NAME_DispatchMessageA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 11, (((unsigned int)'D' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'p' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 11, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'h' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 11, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_DispatchMessageA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 11, (((unsigned int)'D' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'p' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 11, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'h' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 11, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 11, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 11, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 11, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define DispatchMessageA(...) OBFH_API_CALL(0, DispatchMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DispatchMessageW 12
-#define OBFH_GUI_NAME_DispatchMessageW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 12, (((unsigned int)'D' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'p' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 12, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'h' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 12, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_DispatchMessageW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 12, (((unsigned int)'D' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'p' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 12, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'h' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 12, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 12, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 12, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 12, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define DispatchMessageW(...) OBFH_API_CALL(0, DispatchMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EmptyClipboard 13
-#define OBFH_GUI_NAME_EmptyClipboard(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_EmptyClipboard(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 13, (((unsigned int)'E' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 13, (((unsigned int)'y' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 13, (((unsigned int)'p' << 0) | ((unsigned int)'b' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 13, (((unsigned int)'r' << 0) | ((unsigned int)'d' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 13, (((unsigned int)'r' << 0) | ((unsigned int)'d' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define EmptyClipboard(...) OBFH_API_CALL(0, EmptyClipboard, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetClientRect 14
-#define OBFH_GUI_NAME_GetClientRect(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetClientRect(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 14, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 14, (((unsigned int)'l' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 14, (((unsigned int)'t' << 0) | ((unsigned int)'R' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 14, (((unsigned int)'t' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 14, (((unsigned int)'t' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #define GetClientRect(...) OBFH_API_CALL(0, GetClientRect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDC 15
-#define OBFH_GUI_NAME_GetDC(buffer) ({                                                                                                                \
+#define OBFH_GUI_NAME_GetDC(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 15, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 15, (((unsigned int)'C' << 0) | 0u | 0u | 0u));                                                                     \
-    6u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 4, 15, (((unsigned int)'C' << 0) | 0u | 0u | 0u)); \
+    6u; \
 })
 #define GetDC(...) OBFH_API_CALL(0, GetDC, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDlgItem 16
-#define OBFH_GUI_NAME_GetDlgItem(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_GetDlgItem(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 16, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 16, (((unsigned int)'l' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 16, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 16, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | 0u | 0u)); \
+    11u; \
 })
 #define GetDlgItem(...) OBFH_API_CALL(0, GetDlgItem, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetKeyState 17
-#define OBFH_GUI_NAME_GetKeyState(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetKeyState(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 17, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'K' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 17, (((unsigned int)'e' << 0) | ((unsigned int)'y' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 17, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 17, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #define GetKeyState(...) OBFH_API_CALL(0, GetKeyState, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetMenu 18
-#define OBFH_GUI_NAME_GetMenu(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_GetMenu(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 18, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 18, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u));                        \
-    8u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 4, 18, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u)); \
+    8u; \
 })
 #define GetMenu(...) OBFH_API_CALL(0, GetMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetMessageA 19
-#define OBFH_GUI_NAME_GetMessageA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetMessageA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 19, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 19, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 19, (((unsigned int)'g' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 19, (((unsigned int)'g' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #define GetMessageA(...) OBFH_API_CALL(0, GetMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetMessageW 20
-#define OBFH_GUI_NAME_GetMessageW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetMessageW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 20, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 20, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 20, (((unsigned int)'g' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 20, (((unsigned int)'g' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #define GetMessageW(...) OBFH_API_CALL(0, GetMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSysColor 21
-#define OBFH_GUI_NAME_GetSysColor(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetSysColor(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 21, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 21, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 21, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 21, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | 0u)); \
+    12u; \
 })
 #define GetSysColor(...) OBFH_API_CALL(0, GetSysColor, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSysColorBrush 22
-#define OBFH_GUI_NAME_GetSysColorBrush(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 22, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 22, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 22, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'B' << 24)));  \
+#define OBFH_GUI_NAME_GetSysColorBrush(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 22, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 22, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 22, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'B' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 22, (((unsigned int)'r' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'h' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 22, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 22, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define GetSysColorBrush(...) OBFH_API_CALL(0, GetSysColorBrush, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSystemMetrics 23
-#define OBFH_GUI_NAME_GetSystemMetrics(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 23, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 23, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 23, (((unsigned int)'m' << 0) | ((unsigned int)'M' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_GetSystemMetrics(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 23, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 23, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 23, (((unsigned int)'m' << 0) | ((unsigned int)'M' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 23, (((unsigned int)'r' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 23, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 23, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define GetSystemMetrics(...) OBFH_API_CALL(0, GetSystemMetrics, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowRect 24
-#define OBFH_GUI_NAME_GetWindowRect(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetWindowRect(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 24, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 24, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 24, (((unsigned int)'w' << 0) | ((unsigned int)'R' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 24, (((unsigned int)'t' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 24, (((unsigned int)'t' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #define GetWindowRect(...) OBFH_API_CALL(0, GetWindowRect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextA 25
-#define OBFH_GUI_NAME_GetWindowTextA(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetWindowTextA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 25, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 25, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 25, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 25, (((unsigned int)'t' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 25, (((unsigned int)'t' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define GetWindowTextA(...) OBFH_API_CALL(0, GetWindowTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextW 26
-#define OBFH_GUI_NAME_GetWindowTextW(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetWindowTextW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 26, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 26, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 26, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 26, (((unsigned int)'t' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 26, (((unsigned int)'t' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define GetWindowTextW(...) OBFH_API_CALL(0, GetWindowTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextLengthA 27
-#define OBFH_GUI_NAME_GetWindowTextLengthA(buffer) ({                                                                                                  \
-    OBFH_GUI_NAME_WORD(buffer, 0, 27, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 27, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 27, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24)));  \
+#define OBFH_GUI_NAME_GetWindowTextLengthA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 27, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 27, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 27, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 27, (((unsigned int)'t' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 27, (((unsigned int)'g' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 27, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 20, 27, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #define GetWindowTextLengthA(...) OBFH_API_CALL(0, GetWindowTextLengthA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindowTextLengthW 28
-#define OBFH_GUI_NAME_GetWindowTextLengthW(buffer) ({                                                                                                  \
-    OBFH_GUI_NAME_WORD(buffer, 0, 28, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 28, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 28, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24)));  \
+#define OBFH_GUI_NAME_GetWindowTextLengthW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 28, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 28, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 28, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 28, (((unsigned int)'t' << 0) | ((unsigned int)'L' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 28, (((unsigned int)'g' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 28, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 20, 28, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #define GetWindowTextLengthW(...) OBFH_API_CALL(0, GetWindowTextLengthW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_IsDialogMessageA 29
-#define OBFH_GUI_NAME_IsDialogMessageA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 29, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 29, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 29, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_IsDialogMessageA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 29, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 29, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 29, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 29, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 29, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 29, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define IsDialogMessageA(...) OBFH_API_CALL(0, IsDialogMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_IsDialogMessageW 30
-#define OBFH_GUI_NAME_IsDialogMessageW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 30, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 30, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 30, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_IsDialogMessageW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 30, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 30, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 30, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 30, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 30, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 30, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define IsDialogMessageW(...) OBFH_API_CALL(0, IsDialogMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadCursorA 31
-#define OBFH_GUI_NAME_LoadCursorA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_LoadCursorA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 31, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 31, (((unsigned int)'C' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 31, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 31, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #define LoadCursorA(...) OBFH_API_CALL(0, LoadCursorA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadCursorW 32
-#define OBFH_GUI_NAME_LoadCursorW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_LoadCursorW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 32, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 32, (((unsigned int)'C' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 32, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 32, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #define LoadCursorW(...) OBFH_API_CALL(0, LoadCursorW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadIconA 33
-#define OBFH_GUI_NAME_LoadIconA(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_LoadIconA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 33, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 33, (((unsigned int)'I' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 33, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 33, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #define LoadIconA(...) OBFH_API_CALL(0, LoadIconA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadIconW 34
-#define OBFH_GUI_NAME_LoadIconW(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_LoadIconW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 34, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 34, (((unsigned int)'I' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 34, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 34, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #define LoadIconW(...) OBFH_API_CALL(0, LoadIconW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MessageBeep 35
-#define OBFH_GUI_NAME_MessageBeep(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_MessageBeep(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 35, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 35, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'B' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 35, (((unsigned int)'e' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'p' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 35, (((unsigned int)'e' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'p' << 16) | 0u)); \
+    12u; \
 })
 #define MessageBeep(...) OBFH_API_CALL(0, MessageBeep, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MessageBoxA 36
-#define OBFH_GUI_NAME_MessageBoxA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_MessageBoxA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 36, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 36, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'B' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 36, (((unsigned int)'o' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 36, (((unsigned int)'o' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #define MessageBoxA(...) OBFH_API_CALL(0, MessageBoxA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MessageBoxW 37
-#define OBFH_GUI_NAME_MessageBoxW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_MessageBoxW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 37, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 37, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'B' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 37, (((unsigned int)'o' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 37, (((unsigned int)'o' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #define MessageBoxW(...) OBFH_API_CALL(0, MessageBoxW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MoveWindow 38
-#define OBFH_GUI_NAME_MoveWindow(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_MoveWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 38, (((unsigned int)'M' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'v' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 38, (((unsigned int)'W' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 38, (((unsigned int)'o' << 0) | ((unsigned int)'w' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 38, (((unsigned int)'o' << 0) | ((unsigned int)'w' << 8) | 0u | 0u)); \
+    11u; \
 })
 #define MoveWindow(...) OBFH_API_CALL(0, MoveWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_OpenClipboard 39
-#define OBFH_GUI_NAME_OpenClipboard(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_OpenClipboard(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 39, (((unsigned int)'O' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 39, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 39, (((unsigned int)'b' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 39, (((unsigned int)'d' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 39, (((unsigned int)'d' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #define OpenClipboard(...) OBFH_API_CALL(0, OpenClipboard, __VA_ARGS__)
 
 #define OBFH_GUI_ID_PostQuitMessage 40
-#define OBFH_GUI_NAME_PostQuitMessage(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_PostQuitMessage(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 40, (((unsigned int)'P' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 40, (((unsigned int)'Q' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 40, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 40, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | 0u));                       \
-    16u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 40, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    16u; \
 })
 #define PostQuitMessage(...) OBFH_API_CALL(0, PostQuitMessage, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegisterClassExA 41
-#define OBFH_GUI_NAME_RegisterClassExA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 41, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 41, (((unsigned int)'s' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 41, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_RegisterClassExA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 41, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 41, (((unsigned int)'s' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 41, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 41, (((unsigned int)'s' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 41, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 41, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define RegisterClassExA(...) OBFH_API_CALL(0, RegisterClassExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegisterClassExW 42
-#define OBFH_GUI_NAME_RegisterClassExW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 42, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 42, (((unsigned int)'s' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 42, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_RegisterClassExW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 42, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 42, (((unsigned int)'s' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 42, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 42, (((unsigned int)'s' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 42, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 42, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define RegisterClassExW(...) OBFH_API_CALL(0, RegisterClassExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReleaseDC 43
-#define OBFH_GUI_NAME_ReleaseDC(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_ReleaseDC(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 43, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 43, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'D' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 43, (((unsigned int)'C' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 43, (((unsigned int)'C' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #define ReleaseDC(...) OBFH_API_CALL(0, ReleaseDC, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SendMessageA 44
-#define OBFH_GUI_NAME_SendMessageA(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_SendMessageA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 44, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 44, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 44, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 44, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 44, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define SendMessageA(...) OBFH_API_CALL(0, SendMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SendMessageW 45
-#define OBFH_GUI_NAME_SendMessageW(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_SendMessageW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 45, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 45, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 45, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 45, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 45, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define SendMessageW(...) OBFH_API_CALL(0, SendMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetClipboardData 46
-#define OBFH_GUI_NAME_SetClipboardData(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 46, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 46, (((unsigned int)'l' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'b' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 46, (((unsigned int)'o' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'d' << 24)));  \
+#define OBFH_GUI_NAME_SetClipboardData(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 46, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 46, (((unsigned int)'l' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'b' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 46, (((unsigned int)'o' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 46, (((unsigned int)'D' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 46, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 46, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define SetClipboardData(...) OBFH_API_CALL(0, SetClipboardData, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetFocus 47
-#define OBFH_GUI_NAME_SetFocus(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_SetFocus(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 47, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 47, (((unsigned int)'o' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 47, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 47, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #define SetFocus(...) OBFH_API_CALL(0, SetFocus, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowPos 48
-#define OBFH_GUI_NAME_SetWindowPos(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_SetWindowPos(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 48, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 48, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 48, (((unsigned int)'w' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 48, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 48, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define SetWindowPos(...) OBFH_API_CALL(0, SetWindowPos, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowTextA 49
-#define OBFH_GUI_NAME_SetWindowTextA(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_SetWindowTextA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 49, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 49, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 49, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 49, (((unsigned int)'t' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 49, (((unsigned int)'t' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define SetWindowTextA(...) OBFH_API_CALL(0, SetWindowTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetWindowTextW 50
-#define OBFH_GUI_NAME_SetWindowTextW(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_SetWindowTextW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 50, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 50, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 50, (((unsigned int)'w' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 50, (((unsigned int)'t' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 50, (((unsigned int)'t' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #define SetWindowTextW(...) OBFH_API_CALL(0, SetWindowTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ShowWindow 51
-#define OBFH_GUI_NAME_ShowWindow(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_ShowWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 51, (((unsigned int)'S' << 0) | ((unsigned int)'h' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 51, (((unsigned int)'W' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 51, (((unsigned int)'o' << 0) | ((unsigned int)'w' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 51, (((unsigned int)'o' << 0) | ((unsigned int)'w' << 8) | 0u | 0u)); \
+    11u; \
 })
 #define ShowWindow(...) OBFH_API_CALL(0, ShowWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TranslateMessage 52
-#define OBFH_GUI_NAME_TranslateMessage(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 52, (((unsigned int)'T' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 52, (((unsigned int)'s' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 52, (((unsigned int)'e' << 0) | ((unsigned int)'M' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_TranslateMessage(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 52, (((unsigned int)'T' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 52, (((unsigned int)'s' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 52, (((unsigned int)'e' << 0) | ((unsigned int)'M' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 52, (((unsigned int)'s' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 52, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 52, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define TranslateMessage(...) OBFH_API_CALL(0, TranslateMessage, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UnregisterClassA 53
-#define OBFH_GUI_NAME_UnregisterClassA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 53, (((unsigned int)'U' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 53, (((unsigned int)'g' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 53, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_UnregisterClassA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 53, (((unsigned int)'U' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 53, (((unsigned int)'g' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 53, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 53, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 53, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 53, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define UnregisterClassA(...) OBFH_API_CALL(0, UnregisterClassA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UnregisterClassW 54
-#define OBFH_GUI_NAME_UnregisterClassW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 54, (((unsigned int)'U' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 54, (((unsigned int)'g' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 54, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_UnregisterClassW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 54, (((unsigned int)'U' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 54, (((unsigned int)'g' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 54, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 54, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 54, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 54, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #define UnregisterClassW(...) OBFH_API_CALL(0, UnregisterClassW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UpdateWindow 55
-#define OBFH_GUI_NAME_UpdateWindow(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_UpdateWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 55, (((unsigned int)'U' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 55, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 55, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 55, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 55, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define UpdateWindow(...) OBFH_API_CALL(0, UpdateWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontA 56
-#define OBFH_GUI_NAME_CreateFontA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateFontA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 56, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 56, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 56, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 56, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #define CreateFontA(...) OBFH_API_CALL(1, CreateFontA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontW 57
-#define OBFH_GUI_NAME_CreateFontW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateFontW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 57, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 57, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 57, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 57, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #define CreateFontW(...) OBFH_API_CALL(1, CreateFontW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontIndirectA 58
-#define OBFH_GUI_NAME_CreateFontIndirectA(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 58, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 58, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 58, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_CreateFontIndirectA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 58, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 58, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 58, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 58, (((unsigned int)'d' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 58, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    20u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 58, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    20u; \
 })
 #define CreateFontIndirectA(...) OBFH_API_CALL(1, CreateFontIndirectA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFontIndirectW 59
-#define OBFH_GUI_NAME_CreateFontIndirectW(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 59, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 59, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 59, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_CreateFontIndirectW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 59, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 59, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 59, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 59, (((unsigned int)'d' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 59, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    20u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 59, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    20u; \
 })
 #define CreateFontIndirectW(...) OBFH_API_CALL(1, CreateFontIndirectW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DeleteObject 60
-#define OBFH_GUI_NAME_DeleteObject(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_DeleteObject(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 60, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 60, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'O' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 60, (((unsigned int)'j' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 60, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 60, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define DeleteObject(...) OBFH_API_CALL(1, DeleteObject, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDeviceCaps 61
-#define OBFH_GUI_NAME_GetDeviceCaps(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetDeviceCaps(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 61, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 61, (((unsigned int)'e' << 0) | ((unsigned int)'v' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 61, (((unsigned int)'e' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 61, (((unsigned int)'s' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 61, (((unsigned int)'s' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #define GetDeviceCaps(...) OBFH_API_CALL(1, GetDeviceCaps, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SelectObject 62
-#define OBFH_GUI_NAME_SelectObject(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_SelectObject(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 62, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 62, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'O' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 62, (((unsigned int)'j' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 62, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 62, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define SelectObject(...) OBFH_API_CALL(1, SelectObject, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetBkColor 63
-#define OBFH_GUI_NAME_SetBkColor(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_SetBkColor(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 63, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'B' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 63, (((unsigned int)'k' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 63, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 63, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | 0u | 0u)); \
+    11u; \
 })
 #define SetBkColor(...) OBFH_API_CALL(1, SetBkColor, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetTextColor 64
-#define OBFH_GUI_NAME_SetTextColor(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_SetTextColor(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 64, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 64, (((unsigned int)'e' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 64, (((unsigned int)'o' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 64, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 64, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #define SetTextColor(...) OBFH_API_CALL(1, SetTextColor, __VA_ARGS__)
 // KERNEL32 user call sites share the cache; resolver definitions above use
 // native bootstrap calls and cannot recurse through these late intercepts.
 #define OBFH_GUI_ID_ExitProcess 65
-#define OBFH_GUI_NAME_ExitProcess(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_ExitProcess(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 65, (((unsigned int)'E' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 65, (((unsigned int)'P' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 65, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 65, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | 0u)); \
+    12u; \
 })
 #undef ExitProcess
 #define ExitProcess(...) OBFH_API_CALL(2, ExitProcess, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetLastError 66
-#define OBFH_GUI_NAME_GetLastError(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_GetLastError(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 66, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'L' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 66, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 66, (((unsigned int)'r' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 66, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 66, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetLastError
 #define GetLastError(...) OBFH_API_CALL(2, GetLastError, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FreeLibrary 67
-#define OBFH_GUI_NAME_FreeLibrary(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_FreeLibrary(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 67, (((unsigned int)'F' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 67, (((unsigned int)'L' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'b' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 67, (((unsigned int)'a' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 67, (((unsigned int)'a' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | 0u)); \
+    12u; \
 })
 #undef FreeLibrary
 #define FreeLibrary(...) OBFH_API_CALL(2, FreeLibrary, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetLastError 68
-#define OBFH_GUI_NAME_SetLastError(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_SetLastError(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 68, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'L' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 68, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 68, (((unsigned int)'r' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 68, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 68, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef SetLastError
 #define SetLastError(...) OBFH_API_CALL(2, SetLastError, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WriteConsoleA 69
-#define OBFH_GUI_NAME_WriteConsoleA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_WriteConsoleA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 69, (((unsigned int)'W' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 69, (((unsigned int)'e' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 69, (((unsigned int)'s' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 69, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 69, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef WriteConsoleA
 #define WriteConsoleA(...) OBFH_API_CALL(2, WriteConsoleA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStdHandle 70
-#define OBFH_GUI_NAME_GetStdHandle(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_GetStdHandle(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 70, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 70, (((unsigned int)'t' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'H' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 70, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 70, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 70, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetStdHandle
 #define GetStdHandle(...) OBFH_API_CALL(2, GetStdHandle, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleA 71
-#define OBFH_GUI_NAME_GetModuleHandleA(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 71, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 71, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 71, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetModuleHandleA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 71, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 71, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 71, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 71, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 71, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 71, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetModuleHandleA
 #define GetModuleHandleA(...) OBFH_API_CALL(2, GetModuleHandleA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleExA 72
-#define OBFH_GUI_NAME_GetModuleHandleExA(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 72, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 72, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 72, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetModuleHandleExA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 72, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 72, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 72, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 72, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 72, (((unsigned int)'x' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 72, (((unsigned int)'x' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetModuleHandleExA
 #define GetModuleHandleExA(...) OBFH_API_CALL(2, GetModuleHandleExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_VirtualQuery 73
-#define OBFH_GUI_NAME_VirtualQuery(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_VirtualQuery(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 73, (((unsigned int)'V' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 73, (((unsigned int)'u' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'Q' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 73, (((unsigned int)'u' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'y' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 73, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 73, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef VirtualQuery
 #define VirtualQuery(...) OBFH_API_CALL(2, VirtualQuery, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetConsoleMode 74
-#define OBFH_GUI_NAME_GetConsoleMode(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetConsoleMode(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 74, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 74, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 74, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 74, (((unsigned int)'d' << 0) | ((unsigned int)'e' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 74, (((unsigned int)'d' << 0) | ((unsigned int)'e' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef GetConsoleMode
 #define GetConsoleMode(...) OBFH_API_CALL(2, GetConsoleMode, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MulDiv 75
-#define OBFH_GUI_NAME_MulDiv(buffer) ({                                                                                                               \
+#define OBFH_GUI_NAME_MulDiv(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 75, (((unsigned int)'M' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'D' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 75, (((unsigned int)'i' << 0) | ((unsigned int)'v' << 8) | 0u | 0u));                                               \
-    7u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 4, 75, (((unsigned int)'i' << 0) | ((unsigned int)'v' << 8) | 0u | 0u)); \
+    7u; \
 })
 #undef MulDiv
 #define MulDiv(...) OBFH_API_CALL(2, MulDiv, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalAlloc 76
-#define OBFH_GUI_NAME_GlobalAlloc(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GlobalAlloc(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 76, (((unsigned int)'G' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 76, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'A' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 76, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 76, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | 0u)); \
+    12u; \
 })
 #undef GlobalAlloc
 #define GlobalAlloc(...) OBFH_API_CALL(2, GlobalAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalLock 77
-#define OBFH_GUI_NAME_GlobalLock(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_GlobalLock(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 77, (((unsigned int)'G' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 77, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'L' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 77, (((unsigned int)'c' << 0) | ((unsigned int)'k' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 77, (((unsigned int)'c' << 0) | ((unsigned int)'k' << 8) | 0u | 0u)); \
+    11u; \
 })
 #undef GlobalLock
 #define GlobalLock(...) OBFH_API_CALL(2, GlobalLock, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalFree 78
-#define OBFH_GUI_NAME_GlobalFree(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_GlobalFree(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 78, (((unsigned int)'G' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 78, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 78, (((unsigned int)'e' << 0) | ((unsigned int)'e' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 78, (((unsigned int)'e' << 0) | ((unsigned int)'e' << 8) | 0u | 0u)); \
+    11u; \
 })
 #undef GlobalFree
 #define GlobalFree(...) OBFH_API_CALL(2, GlobalFree, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GlobalUnlock 79
-#define OBFH_GUI_NAME_GlobalUnlock(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_GlobalUnlock(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 79, (((unsigned int)'G' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'b' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 79, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'U' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 79, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'k' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 79, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 79, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GlobalUnlock
 #define GlobalUnlock(...) OBFH_API_CALL(2, GlobalUnlock, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStartupInfoA 80
-#define OBFH_GUI_NAME_GetStartupInfoA(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_GetStartupInfoA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 80, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 80, (((unsigned int)'t' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 80, (((unsigned int)'u' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 80, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'A' << 16) | 0u));                       \
-    16u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 80, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    16u; \
 })
 #undef GetStartupInfoA
 #define GetStartupInfoA(...) OBFH_API_CALL(2, GetStartupInfoA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCommandLineA 81
-#define OBFH_GUI_NAME_GetCommandLineA(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_GetCommandLineA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 81, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 81, (((unsigned int)'o' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 81, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'L' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 81, (((unsigned int)'n' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u));                       \
-    16u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 81, (((unsigned int)'n' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    16u; \
 })
 #undef GetCommandLineA
 #define GetCommandLineA(...) OBFH_API_CALL(2, GetCommandLineA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WriteConsoleW 82
-#define OBFH_GUI_NAME_WriteConsoleW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_WriteConsoleW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 82, (((unsigned int)'W' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 82, (((unsigned int)'e' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 82, (((unsigned int)'s' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 82, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 82, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef WriteConsoleW
 #define WriteConsoleW(...) OBFH_API_CALL(2, WriteConsoleW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleW 83
-#define OBFH_GUI_NAME_GetModuleHandleW(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 83, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 83, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 83, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetModuleHandleW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 83, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 83, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 83, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 83, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 83, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 83, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetModuleHandleW
 #define GetModuleHandleW(...) OBFH_API_CALL(2, GetModuleHandleW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleHandleExW 84
-#define OBFH_GUI_NAME_GetModuleHandleExW(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 84, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 84, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 84, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetModuleHandleExW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 84, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 84, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 84, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 84, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 84, (((unsigned int)'x' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 84, (((unsigned int)'x' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetModuleHandleExW
 #define GetModuleHandleExW(...) OBFH_API_CALL(2, GetModuleHandleExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStartupInfoW 85
-#define OBFH_GUI_NAME_GetStartupInfoW(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_GetStartupInfoW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 85, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 85, (((unsigned int)'t' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 85, (((unsigned int)'u' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 85, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'W' << 16) | 0u));                       \
-    16u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 85, (((unsigned int)'f' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    16u; \
 })
 #undef GetStartupInfoW
 #define GetStartupInfoW(...) OBFH_API_CALL(2, GetStartupInfoW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCommandLineW 86
-#define OBFH_GUI_NAME_GetCommandLineW(buffer) ({                                                                                                      \
+#define OBFH_GUI_NAME_GetCommandLineW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 86, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 86, (((unsigned int)'o' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 86, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'L' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 86, (((unsigned int)'n' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u));                       \
-    16u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 86, (((unsigned int)'n' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    16u; \
 })
 #undef GetCommandLineW
 #define GetCommandLineW(...) OBFH_API_CALL(2, GetCommandLineW, __VA_ARGS__)
@@ -8432,74 +8501,74 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Files.
 
 #define OBFH_GUI_ID_CreateFileA 87
-#define OBFH_GUI_NAME_CreateFileA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateFileA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 87, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 87, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 87, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 87, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    12u; \
 })
 #undef CreateFileA
 #define CreateFileA(...) OBFH_API_CALL(2, CreateFileA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFileW 88
-#define OBFH_GUI_NAME_CreateFileW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateFileW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 88, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 88, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 88, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 88, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    12u; \
 })
 #undef CreateFileW
 #define CreateFileW(...) OBFH_API_CALL(2, CreateFileW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReadFile 89
-#define OBFH_GUI_NAME_ReadFile(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_ReadFile(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 89, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 89, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 89, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 89, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef ReadFile
 #define ReadFile(...) OBFH_API_CALL(2, ReadFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WriteFile 90
-#define OBFH_GUI_NAME_WriteFile(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_WriteFile(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 90, (((unsigned int)'W' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 90, (((unsigned int)'e' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 90, (((unsigned int)'e' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 90, (((unsigned int)'e' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef WriteFile
 #define WriteFile(...) OBFH_API_CALL(2, WriteFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CloseHandle 91
-#define OBFH_GUI_NAME_CloseHandle(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CloseHandle(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 91, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 91, (((unsigned int)'e' << 0) | ((unsigned int)'H' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 91, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 91, (((unsigned int)'d' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #undef CloseHandle
 #define CloseHandle(...) OBFH_API_CALL(2, CloseHandle, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileSizeEx 92
-#define OBFH_GUI_NAME_GetFileSizeEx(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetFileSizeEx(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 92, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 92, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 92, (((unsigned int)'i' << 0) | ((unsigned int)'z' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 92, (((unsigned int)'x' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 92, (((unsigned int)'x' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef GetFileSizeEx
 #define GetFileSizeEx(...) OBFH_API_CALL(2, GetFileSizeEx, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetFilePointerEx 93
-#define OBFH_GUI_NAME_SetFilePointerEx(buffer) ({                                                                                                      \
-    OBFH_GUI_NAME_WORD(buffer, 0, 93, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 93, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'P' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 93, (((unsigned int)'o' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_SetFilePointerEx(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 93, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 93, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'P' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 93, (((unsigned int)'o' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 93, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'E' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 93, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 16, 93, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef SetFilePointerEx
 #define SetFilePointerEx(...) OBFH_API_CALL(2, SetFilePointerEx, __VA_ARGS__)
@@ -8507,74 +8576,74 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Memory.
 
 #define OBFH_GUI_ID_VirtualAlloc 94
-#define OBFH_GUI_NAME_VirtualAlloc(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_VirtualAlloc(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 94, (((unsigned int)'V' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 94, (((unsigned int)'u' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'A' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 94, (((unsigned int)'l' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 94, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 94, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef VirtualAlloc
 #define VirtualAlloc(...) OBFH_API_CALL(2, VirtualAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_VirtualProtect 95
-#define OBFH_GUI_NAME_VirtualProtect(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_VirtualProtect(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 95, (((unsigned int)'V' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 95, (((unsigned int)'u' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 95, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 95, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 95, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef VirtualProtect
 #define VirtualProtect(...) OBFH_API_CALL(2, VirtualProtect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_VirtualFree 96
-#define OBFH_GUI_NAME_VirtualFree(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_VirtualFree(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 96, (((unsigned int)'V' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 96, (((unsigned int)'u' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'F' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 96, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 96, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #undef VirtualFree
 #define VirtualFree(...) OBFH_API_CALL(2, VirtualFree, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetProcessHeap 97
-#define OBFH_GUI_NAME_GetProcessHeap(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetProcessHeap(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 97, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 97, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 97, (((unsigned int)'s' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'H' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 97, (((unsigned int)'a' << 0) | ((unsigned int)'p' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 12, 97, (((unsigned int)'a' << 0) | ((unsigned int)'p' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef GetProcessHeap
 #define GetProcessHeap(...) OBFH_API_CALL(2, GetProcessHeap, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapAlloc 98
-#define OBFH_GUI_NAME_HeapAlloc(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_HeapAlloc(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 98, (((unsigned int)'H' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 98, (((unsigned int)'A' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 98, (((unsigned int)'c' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 98, (((unsigned int)'c' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef HeapAlloc
 #define HeapAlloc(...) OBFH_API_CALL(2, HeapAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapReAlloc 99
-#define OBFH_GUI_NAME_HeapReAlloc(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_HeapReAlloc(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 99, (((unsigned int)'H' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 99, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 99, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | 0u));                        \
-    12u;                                                                                                                                              \
+    OBFH_GUI_NAME_WORD(buffer, 8, 99, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | 0u)); \
+    12u; \
 })
 #undef HeapReAlloc
 #define HeapReAlloc(...) OBFH_API_CALL(2, HeapReAlloc, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapFree 100
-#define OBFH_GUI_NAME_HeapFree(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_HeapFree(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 100, (((unsigned int)'H' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 100, (((unsigned int)'F' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 100, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 100, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef HeapFree
 #define HeapFree(...) OBFH_API_CALL(2, HeapFree, __VA_ARGS__)
@@ -8582,99 +8651,99 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Paths and environment.
 
 #define OBFH_GUI_ID_GetModuleFileNameA 101
-#define OBFH_GUI_NAME_GetModuleFileNameA(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 101, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 101, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 101, (((unsigned int)'e' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_GetModuleFileNameA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 101, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 101, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 101, (((unsigned int)'e' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 101, (((unsigned int)'e' << 0) | ((unsigned int)'N' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'m' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 101, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 101, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetModuleFileNameA
 #define GetModuleFileNameA(...) OBFH_API_CALL(2, GetModuleFileNameA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetModuleFileNameW 102
-#define OBFH_GUI_NAME_GetModuleFileNameW(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 102, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 102, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 102, (((unsigned int)'e' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_GetModuleFileNameW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 102, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 102, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 102, (((unsigned int)'e' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 102, (((unsigned int)'e' << 0) | ((unsigned int)'N' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'m' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 102, (((unsigned int)'e' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 102, (((unsigned int)'e' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetModuleFileNameW
 #define GetModuleFileNameW(...) OBFH_API_CALL(2, GetModuleFileNameW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetEnvironmentVariableA 103
-#define OBFH_GUI_NAME_GetEnvironmentVariableA(buffer) ({                                                                                                \
-    OBFH_GUI_NAME_WORD(buffer, 0, 103, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 103, (((unsigned int)'n' << 0) | ((unsigned int)'v' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 103, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'e' << 24)));  \
+#define OBFH_GUI_NAME_GetEnvironmentVariableA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 103, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 103, (((unsigned int)'n' << 0) | ((unsigned int)'v' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 103, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 103, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'V' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 103, (((unsigned int)'r' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'b' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 103, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u));                        \
-    24u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 103, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    24u; \
 })
 #undef GetEnvironmentVariableA
 #define GetEnvironmentVariableA(...) OBFH_API_CALL(2, GetEnvironmentVariableA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetEnvironmentVariableW 104
-#define OBFH_GUI_NAME_GetEnvironmentVariableW(buffer) ({                                                                                                \
-    OBFH_GUI_NAME_WORD(buffer, 0, 104, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 104, (((unsigned int)'n' << 0) | ((unsigned int)'v' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 104, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'e' << 24)));  \
+#define OBFH_GUI_NAME_GetEnvironmentVariableW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 104, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 104, (((unsigned int)'n' << 0) | ((unsigned int)'v' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 104, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 104, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'V' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 104, (((unsigned int)'r' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'b' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 104, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u));                        \
-    24u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 104, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    24u; \
 })
 #undef GetEnvironmentVariableW
 #define GetEnvironmentVariableW(...) OBFH_API_CALL(2, GetEnvironmentVariableW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentDirectoryA 105
-#define OBFH_GUI_NAME_GetCurrentDirectoryA(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 105, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 105, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 105, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetCurrentDirectoryA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 105, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 105, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 105, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 105, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 105, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 105, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 105, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef GetCurrentDirectoryA
 #define GetCurrentDirectoryA(...) OBFH_API_CALL(2, GetCurrentDirectoryA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCurrentDirectoryW 106
-#define OBFH_GUI_NAME_GetCurrentDirectoryW(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 106, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 106, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 106, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetCurrentDirectoryW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 106, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 106, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 106, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 106, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 106, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 106, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 106, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef GetCurrentDirectoryW
 #define GetCurrentDirectoryW(...) OBFH_API_CALL(2, GetCurrentDirectoryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTempPathA 107
-#define OBFH_GUI_NAME_GetTempPathA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetTempPathA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 107, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 107, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 107, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 107, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 107, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetTempPathA
 #define GetTempPathA(...) OBFH_API_CALL(2, GetTempPathA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTempPathW 108
-#define OBFH_GUI_NAME_GetTempPathW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetTempPathW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 108, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 108, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 108, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 108, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 108, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetTempPathW
 #define GetTempPathW(...) OBFH_API_CALL(2, GetTempPathW, __VA_ARGS__)
@@ -8682,79 +8751,79 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Threads and events.
 
 #define OBFH_GUI_ID_CreateThread 109
-#define OBFH_GUI_NAME_CreateThread(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateThread(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 109, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 109, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'h' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 109, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 109, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 109, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef CreateThread
 #define CreateThread(...) OBFH_API_CALL(2, CreateThread, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WaitForSingleObject 110
-#define OBFH_GUI_NAME_WaitForSingleObject(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 110, (((unsigned int)'W' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 110, (((unsigned int)'F' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'S' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 110, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_WaitForSingleObject(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 110, (((unsigned int)'W' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 110, (((unsigned int)'F' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'S' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 110, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 110, (((unsigned int)'e' << 0) | ((unsigned int)'O' << 8) | ((unsigned int)'b' << 16) | ((unsigned int)'j' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 110, (((unsigned int)'e' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'t' << 16) | 0u));                        \
-    20u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 110, (((unsigned int)'e' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'t' << 16) | 0u)); \
+    20u; \
 })
 #undef WaitForSingleObject
 #define WaitForSingleObject(...) OBFH_API_CALL(2, WaitForSingleObject, __VA_ARGS__)
 
 #define OBFH_GUI_ID_WaitForMultipleObjects 111
-#define OBFH_GUI_NAME_WaitForMultipleObjects(buffer) ({                                                                                                 \
-    OBFH_GUI_NAME_WORD(buffer, 0, 111, (((unsigned int)'W' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 111, (((unsigned int)'F' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'M' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 111, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_WaitForMultipleObjects(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 111, (((unsigned int)'W' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 111, (((unsigned int)'F' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'M' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 111, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 111, (((unsigned int)'p' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'O' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 111, (((unsigned int)'b' << 0) | ((unsigned int)'j' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 111, (((unsigned int)'t' << 0) | ((unsigned int)'s' << 8) | 0u | 0u));                                               \
-    23u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 111, (((unsigned int)'t' << 0) | ((unsigned int)'s' << 8) | 0u | 0u)); \
+    23u; \
 })
 #undef WaitForMultipleObjects
 #define WaitForMultipleObjects(...) OBFH_API_CALL(2, WaitForMultipleObjects, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateEventA 112
-#define OBFH_GUI_NAME_CreateEventA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateEventA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 112, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 112, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'E' << 16) | ((unsigned int)'v' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 112, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 112, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 112, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef CreateEventA
 #define CreateEventA(...) OBFH_API_CALL(2, CreateEventA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateEventW 113
-#define OBFH_GUI_NAME_CreateEventW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateEventW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 113, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 113, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'E' << 16) | ((unsigned int)'v' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 113, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 113, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 113, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef CreateEventW
 #define CreateEventW(...) OBFH_API_CALL(2, CreateEventW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetEvent 114
-#define OBFH_GUI_NAME_SetEvent(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_SetEvent(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 114, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 114, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 114, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 114, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef SetEvent
 #define SetEvent(...) OBFH_API_CALL(2, SetEvent, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ResetEvent 115
-#define OBFH_GUI_NAME_ResetEvent(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_ResetEvent(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 115, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 115, (((unsigned int)'t' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'v' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 115, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 115, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    11u; \
 })
 #undef ResetEvent
 #define ResetEvent(...) OBFH_API_CALL(2, ResetEvent, __VA_ARGS__)
@@ -8762,106 +8831,106 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Painting.
 
 #define OBFH_GUI_ID_BeginPaint 116
-#define OBFH_GUI_NAME_BeginPaint(buffer) ({                                                                                                            \
+#define OBFH_GUI_NAME_BeginPaint(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 116, (((unsigned int)'B' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 116, (((unsigned int)'n' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 116, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                               \
-    11u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 116, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    11u; \
 })
 #undef BeginPaint
 #define BeginPaint(...) OBFH_API_CALL(0, BeginPaint, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EndPaint 117
-#define OBFH_GUI_NAME_EndPaint(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_EndPaint(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 117, (((unsigned int)'E' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 117, (((unsigned int)'a' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 117, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 117, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef EndPaint
 #define EndPaint(...) OBFH_API_CALL(0, EndPaint, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DrawTextA 118
-#define OBFH_GUI_NAME_DrawTextA(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_DrawTextA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 118, (((unsigned int)'D' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'w' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 118, (((unsigned int)'T' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 118, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 118, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef DrawTextA
 #define DrawTextA(...) OBFH_API_CALL(0, DrawTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DrawTextW 119
-#define OBFH_GUI_NAME_DrawTextW(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_DrawTextW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 119, (((unsigned int)'D' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'w' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 119, (((unsigned int)'T' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 119, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 119, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef DrawTextW
 #define DrawTextW(...) OBFH_API_CALL(0, DrawTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TextOutA 120
-#define OBFH_GUI_NAME_TextOutA(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_TextOutA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 120, (((unsigned int)'T' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 120, (((unsigned int)'O' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 120, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 120, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef TextOutA
 #define TextOutA(...) OBFH_API_CALL(1, TextOutA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TextOutW 121
-#define OBFH_GUI_NAME_TextOutW(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_TextOutW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 121, (((unsigned int)'T' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 121, (((unsigned int)'O' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 121, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 121, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef TextOutW
 #define TextOutW(...) OBFH_API_CALL(1, TextOutW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_BitBlt 122
-#define OBFH_GUI_NAME_BitBlt(buffer) ({                                                                                                                \
+#define OBFH_GUI_NAME_BitBlt(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 122, (((unsigned int)'B' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'B' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 122, (((unsigned int)'l' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                               \
-    7u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 4, 122, (((unsigned int)'l' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    7u; \
 })
 #undef BitBlt
 #define BitBlt(...) OBFH_API_CALL(1, BitBlt, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateCompatibleDC 123
-#define OBFH_GUI_NAME_CreateCompatibleDC(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 123, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 123, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 123, (((unsigned int)'m' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_CreateCompatibleDC(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 123, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 123, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 123, (((unsigned int)'m' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 123, (((unsigned int)'i' << 0) | ((unsigned int)'b' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 123, (((unsigned int)'D' << 0) | ((unsigned int)'C' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 123, (((unsigned int)'D' << 0) | ((unsigned int)'C' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef CreateCompatibleDC
 #define CreateCompatibleDC(...) OBFH_API_CALL(1, CreateCompatibleDC, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateCompatibleBitmap 124
-#define OBFH_GUI_NAME_CreateCompatibleBitmap(buffer) ({                                                                                                 \
-    OBFH_GUI_NAME_WORD(buffer, 0, 124, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 124, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 124, (((unsigned int)'m' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_CreateCompatibleBitmap(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 124, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 124, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 124, (((unsigned int)'m' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 124, (((unsigned int)'i' << 0) | ((unsigned int)'b' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 124, (((unsigned int)'B' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'m' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 124, (((unsigned int)'a' << 0) | ((unsigned int)'p' << 8) | 0u | 0u));                                               \
-    23u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 124, (((unsigned int)'a' << 0) | ((unsigned int)'p' << 8) | 0u | 0u)); \
+    23u; \
 })
 #undef CreateCompatibleBitmap
 #define CreateCompatibleBitmap(...) OBFH_API_CALL(1, CreateCompatibleBitmap, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetStockObject 125
-#define OBFH_GUI_NAME_GetStockObject(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_GetStockObject(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 125, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 125, (((unsigned int)'t' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'k' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 125, (((unsigned int)'O' << 0) | ((unsigned int)'b' << 8) | ((unsigned int)'j' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 125, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 125, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef GetStockObject
 #define GetStockObject(...) OBFH_API_CALL(1, GetStockObject, __VA_ARGS__)
@@ -8869,79 +8938,79 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Registry.
 
 #define OBFH_GUI_ID_RegOpenKeyExA 126
-#define OBFH_GUI_NAME_RegOpenKeyExA(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_RegOpenKeyExA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 126, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'O' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 126, (((unsigned int)'p' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'K' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 126, (((unsigned int)'e' << 0) | ((unsigned int)'y' << 8) | ((unsigned int)'E' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 126, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 126, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef RegOpenKeyExA
 #define RegOpenKeyExA(...) OBFH_API_CALL(3, RegOpenKeyExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegOpenKeyExW 127
-#define OBFH_GUI_NAME_RegOpenKeyExW(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_RegOpenKeyExW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 127, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'O' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 127, (((unsigned int)'p' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'K' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 127, (((unsigned int)'e' << 0) | ((unsigned int)'y' << 8) | ((unsigned int)'E' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 127, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 127, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef RegOpenKeyExW
 #define RegOpenKeyExW(...) OBFH_API_CALL(3, RegOpenKeyExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegQueryValueExA 128
-#define OBFH_GUI_NAME_RegQueryValueExA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 128, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'Q' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 128, (((unsigned int)'u' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'y' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 128, (((unsigned int)'V' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'u' << 24)));  \
+#define OBFH_GUI_NAME_RegQueryValueExA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 128, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'Q' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 128, (((unsigned int)'u' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'y' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 128, (((unsigned int)'V' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 128, (((unsigned int)'e' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 128, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 128, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef RegQueryValueExA
 #define RegQueryValueExA(...) OBFH_API_CALL(3, RegQueryValueExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegQueryValueExW 129
-#define OBFH_GUI_NAME_RegQueryValueExW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 129, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'Q' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 129, (((unsigned int)'u' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'y' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 129, (((unsigned int)'V' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'u' << 24)));  \
+#define OBFH_GUI_NAME_RegQueryValueExW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 129, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'Q' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 129, (((unsigned int)'u' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'y' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 129, (((unsigned int)'V' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 129, (((unsigned int)'e' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 129, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 129, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef RegQueryValueExW
 #define RegQueryValueExW(...) OBFH_API_CALL(3, RegQueryValueExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegSetValueExA 130
-#define OBFH_GUI_NAME_RegSetValueExA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_RegSetValueExA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 130, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 130, (((unsigned int)'e' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'V' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 130, (((unsigned int)'l' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 130, (((unsigned int)'x' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 130, (((unsigned int)'x' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef RegSetValueExA
 #define RegSetValueExA(...) OBFH_API_CALL(3, RegSetValueExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegSetValueExW 131
-#define OBFH_GUI_NAME_RegSetValueExW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_RegSetValueExW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 131, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 131, (((unsigned int)'e' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'V' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 131, (((unsigned int)'l' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 131, (((unsigned int)'x' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 131, (((unsigned int)'x' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef RegSetValueExW
 #define RegSetValueExW(...) OBFH_API_CALL(3, RegSetValueExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RegCloseKey 132
-#define OBFH_GUI_NAME_RegCloseKey(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_RegCloseKey(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 132, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 132, (((unsigned int)'l' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 132, (((unsigned int)'K' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'y' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 132, (((unsigned int)'K' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'y' << 16) | 0u)); \
+    12u; \
 })
 #undef RegCloseKey
 #define RegCloseKey(...) OBFH_API_CALL(3, RegCloseKey, __VA_ARGS__)
@@ -8949,34 +9018,34 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // Loading.
 
 #define OBFH_GUI_ID_LoadLibraryW 133
-#define OBFH_GUI_NAME_LoadLibraryW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_LoadLibraryW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 133, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 133, (((unsigned int)'L' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'b' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 133, (((unsigned int)'a' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 133, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 133, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef LoadLibraryW
 #define LoadLibraryW(...) OBFH_API_CALL(2, LoadLibraryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadLibraryExA 134
-#define OBFH_GUI_NAME_LoadLibraryExA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_LoadLibraryExA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 134, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 134, (((unsigned int)'L' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'b' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 134, (((unsigned int)'a' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 134, (((unsigned int)'x' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 134, (((unsigned int)'x' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef LoadLibraryExA
 #define LoadLibraryExA(...) OBFH_API_CALL(2, LoadLibraryExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LoadLibraryExW 135
-#define OBFH_GUI_NAME_LoadLibraryExW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_LoadLibraryExW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 135, (((unsigned int)'L' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 135, (((unsigned int)'L' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'b' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 135, (((unsigned int)'a' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'E' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 135, (((unsigned int)'x' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 135, (((unsigned int)'x' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef LoadLibraryExW
 #define LoadLibraryExW(...) OBFH_API_CALL(2, LoadLibraryExW, __VA_ARGS__)
@@ -8985,988 +9054,988 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // File mappings, process control, synchronization and additional GUI calls.
 
 #define OBFH_GUI_ID_CreateDirectoryA 189
-#define OBFH_GUI_NAME_CreateDirectoryA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 189, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 189, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 189, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_CreateDirectoryA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 189, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 189, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 189, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 189, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 189, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 189, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef CreateDirectoryA
 #define CreateDirectoryA(...) OBFH_API_CALL(2, CreateDirectoryA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateDirectoryW 190
-#define OBFH_GUI_NAME_CreateDirectoryW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 190, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 190, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 190, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_CreateDirectoryW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 190, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 190, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 190, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 190, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 190, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 190, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef CreateDirectoryW
 #define CreateDirectoryW(...) OBFH_API_CALL(2, CreateDirectoryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RemoveDirectoryA 191
-#define OBFH_GUI_NAME_RemoveDirectoryA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 191, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 191, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 191, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_RemoveDirectoryA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 191, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 191, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 191, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 191, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 191, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 191, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef RemoveDirectoryA
 #define RemoveDirectoryA(...) OBFH_API_CALL(2, RemoveDirectoryA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_RemoveDirectoryW 192
-#define OBFH_GUI_NAME_RemoveDirectoryW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 192, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 192, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 192, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_RemoveDirectoryW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 192, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 192, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 192, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 192, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 192, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 192, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef RemoveDirectoryW
 #define RemoveDirectoryW(...) OBFH_API_CALL(2, RemoveDirectoryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetCurrentDirectoryA 193
-#define OBFH_GUI_NAME_SetCurrentDirectoryA(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 193, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 193, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 193, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_SetCurrentDirectoryA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 193, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 193, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 193, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 193, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 193, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 193, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 193, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef SetCurrentDirectoryA
 #define SetCurrentDirectoryA(...) OBFH_API_CALL(2, SetCurrentDirectoryA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetCurrentDirectoryW 194
-#define OBFH_GUI_NAME_SetCurrentDirectoryW(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 194, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 194, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 194, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_SetCurrentDirectoryW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 194, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 194, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 194, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 194, (((unsigned int)'r' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 194, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 194, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 194, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef SetCurrentDirectoryW
 #define SetCurrentDirectoryW(...) OBFH_API_CALL(2, SetCurrentDirectoryW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFullPathNameA 195
-#define OBFH_GUI_NAME_GetFullPathNameA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 195, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 195, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'P' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 195, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'N' << 24)));  \
+#define OBFH_GUI_NAME_GetFullPathNameA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 195, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 195, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'P' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 195, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'N' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 195, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 195, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 195, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetFullPathNameA
 #define GetFullPathNameA(...) OBFH_API_CALL(2, GetFullPathNameA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFullPathNameW 196
-#define OBFH_GUI_NAME_GetFullPathNameW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 196, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 196, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'P' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 196, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'N' << 24)));  \
+#define OBFH_GUI_NAME_GetFullPathNameW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 196, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 196, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'P' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 196, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'h' << 16) | ((unsigned int)'N' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 196, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 196, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 196, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetFullPathNameW
 #define GetFullPathNameW(...) OBFH_API_CALL(2, GetFullPathNameW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTempFileNameA 197
-#define OBFH_GUI_NAME_GetTempFileNameA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 197, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 197, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 197, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'N' << 24)));  \
+#define OBFH_GUI_NAME_GetTempFileNameA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 197, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 197, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 197, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'N' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 197, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 197, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 197, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetTempFileNameA
 #define GetTempFileNameA(...) OBFH_API_CALL(2, GetTempFileNameA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTempFileNameW 198
-#define OBFH_GUI_NAME_GetTempFileNameW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 198, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 198, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 198, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'N' << 24)));  \
+#define OBFH_GUI_NAME_GetTempFileNameW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 198, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 198, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 198, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'N' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 198, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 198, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 198, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetTempFileNameW
 #define GetTempFileNameW(...) OBFH_API_CALL(2, GetTempFileNameW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFileMappingA 199
-#define OBFH_GUI_NAME_CreateFileMappingA(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 199, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 199, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 199, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'a' << 24)));  \
+#define OBFH_GUI_NAME_CreateFileMappingA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 199, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 199, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 199, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 199, (((unsigned int)'p' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 199, (((unsigned int)'g' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 199, (((unsigned int)'g' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef CreateFileMappingA
 #define CreateFileMappingA(...) OBFH_API_CALL(2, CreateFileMappingA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateFileMappingW 200
-#define OBFH_GUI_NAME_CreateFileMappingW(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 200, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 200, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 200, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'a' << 24)));  \
+#define OBFH_GUI_NAME_CreateFileMappingW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 200, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 200, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'F' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 200, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 200, (((unsigned int)'p' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 200, (((unsigned int)'g' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 200, (((unsigned int)'g' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef CreateFileMappingW
 #define CreateFileMappingW(...) OBFH_API_CALL(2, CreateFileMappingW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_OpenFileMappingA 201
-#define OBFH_GUI_NAME_OpenFileMappingA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 201, (((unsigned int)'O' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 201, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 201, (((unsigned int)'M' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'p' << 24)));  \
+#define OBFH_GUI_NAME_OpenFileMappingA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 201, (((unsigned int)'O' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 201, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 201, (((unsigned int)'M' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 201, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 201, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 201, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef OpenFileMappingA
 #define OpenFileMappingA(...) OBFH_API_CALL(2, OpenFileMappingA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_OpenFileMappingW 202
-#define OBFH_GUI_NAME_OpenFileMappingW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 202, (((unsigned int)'O' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 202, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 202, (((unsigned int)'M' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'p' << 24)));  \
+#define OBFH_GUI_NAME_OpenFileMappingW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 202, (((unsigned int)'O' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 202, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 202, (((unsigned int)'M' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 202, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'g' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 202, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 202, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef OpenFileMappingW
 #define OpenFileMappingW(...) OBFH_API_CALL(2, OpenFileMappingW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateProcessA 203
-#define OBFH_GUI_NAME_CreateProcessA(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_CreateProcessA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 203, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 203, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 203, (((unsigned int)'o' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 203, (((unsigned int)'s' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 203, (((unsigned int)'s' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef CreateProcessA
 #define CreateProcessA(...) OBFH_API_CALL(2, CreateProcessA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateProcessW 204
-#define OBFH_GUI_NAME_CreateProcessW(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_CreateProcessW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 204, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 204, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'P' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 204, (((unsigned int)'o' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 204, (((unsigned int)'s' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 204, (((unsigned int)'s' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef CreateProcessW
 #define CreateProcessW(...) OBFH_API_CALL(2, CreateProcessW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateMutexA 205
-#define OBFH_GUI_NAME_CreateMutexA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateMutexA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 205, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 205, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 205, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 205, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 205, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef CreateMutexA
 #define CreateMutexA(...) OBFH_API_CALL(2, CreateMutexA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateMutexW 206
-#define OBFH_GUI_NAME_CreateMutexW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_CreateMutexW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 206, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 206, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 206, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 206, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 206, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef CreateMutexW
 #define CreateMutexW(...) OBFH_API_CALL(2, CreateMutexW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateSemaphoreA 207
-#define OBFH_GUI_NAME_CreateSemaphoreA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 207, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 207, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 207, (((unsigned int)'m' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'h' << 24)));  \
+#define OBFH_GUI_NAME_CreateSemaphoreA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 207, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 207, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 207, (((unsigned int)'m' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'h' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 207, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 207, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 207, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef CreateSemaphoreA
 #define CreateSemaphoreA(...) OBFH_API_CALL(2, CreateSemaphoreA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateSemaphoreW 208
-#define OBFH_GUI_NAME_CreateSemaphoreW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 208, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 208, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 208, (((unsigned int)'m' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'h' << 24)));  \
+#define OBFH_GUI_NAME_CreateSemaphoreW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 208, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 208, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 208, (((unsigned int)'m' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'h' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 208, (((unsigned int)'o' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 208, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 208, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef CreateSemaphoreW
 #define CreateSemaphoreW(...) OBFH_API_CALL(2, CreateSemaphoreW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReadConsoleA 209
-#define OBFH_GUI_NAME_ReadConsoleA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_ReadConsoleA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 209, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 209, (((unsigned int)'C' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 209, (((unsigned int)'o' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 209, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 209, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef ReadConsoleA
 #define ReadConsoleA(...) OBFH_API_CALL(2, ReadConsoleA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReadConsoleW 210
-#define OBFH_GUI_NAME_ReadConsoleW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_ReadConsoleW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 210, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'d' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 210, (((unsigned int)'C' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 210, (((unsigned int)'o' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 210, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 210, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef ReadConsoleW
 #define ReadConsoleW(...) OBFH_API_CALL(2, ReadConsoleW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FlushFileBuffers 211
-#define OBFH_GUI_NAME_FlushFileBuffers(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 211, (((unsigned int)'F' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'s' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 211, (((unsigned int)'h' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 211, (((unsigned int)'e' << 0) | ((unsigned int)'B' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'f' << 24)));  \
+#define OBFH_GUI_NAME_FlushFileBuffers(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 211, (((unsigned int)'F' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'s' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 211, (((unsigned int)'h' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 211, (((unsigned int)'e' << 0) | ((unsigned int)'B' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'f' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 211, (((unsigned int)'f' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 211, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 211, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef FlushFileBuffers
 #define FlushFileBuffers(...) OBFH_API_CALL(2, FlushFileBuffers, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileTime 212
-#define OBFH_GUI_NAME_GetFileTime(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_GetFileTime(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 212, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 212, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'T' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 212, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 212, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #undef GetFileTime
 #define GetFileTime(...) OBFH_API_CALL(2, GetFileTime, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetFileTime 213
-#define OBFH_GUI_NAME_SetFileTime(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_SetFileTime(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 213, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 213, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'T' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 213, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 213, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #undef SetFileTime
 #define SetFileTime(...) OBFH_API_CALL(2, SetFileTime, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileInformationByHandle 214
-#define OBFH_GUI_NAME_GetFileInformationByHandle(buffer) ({                                                                                             \
-    OBFH_GUI_NAME_WORD(buffer, 0, 214, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 214, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'I' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 214, (((unsigned int)'n' << 0) | ((unsigned int)'f' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'r' << 24)));  \
+#define OBFH_GUI_NAME_GetFileInformationByHandle(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 214, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 214, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'I' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 214, (((unsigned int)'n' << 0) | ((unsigned int)'f' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 214, (((unsigned int)'m' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 214, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'B' << 16) | ((unsigned int)'y' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 20, 214, (((unsigned int)'H' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 24, 214, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | 0u | 0u));                                               \
-    27u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 24, 214, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | 0u | 0u)); \
+    27u; \
 })
 #undef GetFileInformationByHandle
 #define GetFileInformationByHandle(...) OBFH_API_CALL(2, GetFileInformationByHandle, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetOverlappedResult 215
-#define OBFH_GUI_NAME_GetOverlappedResult(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 215, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'O' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 215, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 215, (((unsigned int)'a' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'e' << 24)));  \
+#define OBFH_GUI_NAME_GetOverlappedResult(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 215, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'O' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 215, (((unsigned int)'v' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 215, (((unsigned int)'a' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 215, (((unsigned int)'d' << 0) | ((unsigned int)'R' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 215, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'t' << 16) | 0u));                        \
-    20u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 215, (((unsigned int)'u' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'t' << 16) | 0u)); \
+    20u; \
 })
 #undef GetOverlappedResult
 #define GetOverlappedResult(...) OBFH_API_CALL(2, GetOverlappedResult, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CancelIo 216
-#define OBFH_GUI_NAME_CancelIo(buffer) ({                                                                                                              \
+#define OBFH_GUI_NAME_CancelIo(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 216, (((unsigned int)'C' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 216, (((unsigned int)'e' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 216, (0u | 0u | 0u | 0u));                                                                                           \
-    9u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 8, 216, (0u | 0u | 0u | 0u)); \
+    9u; \
 })
 #undef CancelIo
 #define CancelIo(...) OBFH_API_CALL(2, CancelIo, __VA_ARGS__)
 
 #define OBFH_GUI_ID_MapViewOfFile 217
-#define OBFH_GUI_NAME_MapViewOfFile(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_MapViewOfFile(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 217, (((unsigned int)'M' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'p' << 16) | ((unsigned int)'V' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 217, (((unsigned int)'i' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'w' << 16) | ((unsigned int)'O' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 217, (((unsigned int)'f' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 217, (((unsigned int)'e' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 217, (((unsigned int)'e' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef MapViewOfFile
 #define MapViewOfFile(...) OBFH_API_CALL(2, MapViewOfFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_UnmapViewOfFile 218
-#define OBFH_GUI_NAME_UnmapViewOfFile(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_UnmapViewOfFile(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 218, (((unsigned int)'U' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 218, (((unsigned int)'p' << 0) | ((unsigned int)'V' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 218, (((unsigned int)'w' << 0) | ((unsigned int)'O' << 8) | ((unsigned int)'f' << 16) | ((unsigned int)'F' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 218, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 218, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    16u; \
 })
 #undef UnmapViewOfFile
 #define UnmapViewOfFile(...) OBFH_API_CALL(2, UnmapViewOfFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FlushViewOfFile 219
-#define OBFH_GUI_NAME_FlushViewOfFile(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_FlushViewOfFile(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 219, (((unsigned int)'F' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 219, (((unsigned int)'h' << 0) | ((unsigned int)'V' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 219, (((unsigned int)'w' << 0) | ((unsigned int)'O' << 8) | ((unsigned int)'f' << 16) | ((unsigned int)'F' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 219, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 219, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    16u; \
 })
 #undef FlushViewOfFile
 #define FlushViewOfFile(...) OBFH_API_CALL(2, FlushViewOfFile, __VA_ARGS__)
 
 #define OBFH_GUI_ID_OpenProcess 220
-#define OBFH_GUI_NAME_OpenProcess(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_OpenProcess(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 220, (((unsigned int)'O' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 220, (((unsigned int)'P' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'c' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 220, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 220, (((unsigned int)'e' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'s' << 16) | 0u)); \
+    12u; \
 })
 #undef OpenProcess
 #define OpenProcess(...) OBFH_API_CALL(2, OpenProcess, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TerminateProcess 221
-#define OBFH_GUI_NAME_TerminateProcess(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 221, (((unsigned int)'T' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 221, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 221, (((unsigned int)'e' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'o' << 24)));  \
+#define OBFH_GUI_NAME_TerminateProcess(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 221, (((unsigned int)'T' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'m' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 221, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 221, (((unsigned int)'e' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 221, (((unsigned int)'c' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 221, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 221, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef TerminateProcess
 #define TerminateProcess(...) OBFH_API_CALL(2, TerminateProcess, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetExitCodeProcess 222
-#define OBFH_GUI_NAME_GetExitCodeProcess(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 222, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 222, (((unsigned int)'x' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 222, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'P' << 24)));  \
+#define OBFH_GUI_NAME_GetExitCodeProcess(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 222, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 222, (((unsigned int)'x' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 222, (((unsigned int)'o' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 222, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 222, (((unsigned int)'s' << 0) | ((unsigned int)'s' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 222, (((unsigned int)'s' << 0) | ((unsigned int)'s' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetExitCodeProcess
 #define GetExitCodeProcess(...) OBFH_API_CALL(2, GetExitCodeProcess, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetProcessTimes 223
-#define OBFH_GUI_NAME_GetProcessTimes(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetProcessTimes(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 223, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 223, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 223, (((unsigned int)'s' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'i' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 223, (((unsigned int)'m' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 223, (((unsigned int)'m' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | 0u)); \
+    16u; \
 })
 #undef GetProcessTimes
 #define GetProcessTimes(...) OBFH_API_CALL(2, GetProcessTimes, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SleepEx 224
-#define OBFH_GUI_NAME_SleepEx(buffer) ({                                                                                                               \
+#define OBFH_GUI_NAME_SleepEx(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 224, (((unsigned int)'S' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 224, (((unsigned int)'p' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | 0u));                        \
-    8u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 4, 224, (((unsigned int)'p' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | 0u)); \
+    8u; \
 })
 #undef SleepEx
 #define SleepEx(...) OBFH_API_CALL(2, SleepEx, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReleaseMutex 225
-#define OBFH_GUI_NAME_ReleaseMutex(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_ReleaseMutex(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 225, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 225, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'M' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 225, (((unsigned int)'u' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'x' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 225, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 225, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef ReleaseMutex
 #define ReleaseMutex(...) OBFH_API_CALL(2, ReleaseMutex, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ReleaseSemaphore 226
-#define OBFH_GUI_NAME_ReleaseSemaphore(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 226, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 226, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'S' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 226, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24)));  \
+#define OBFH_GUI_NAME_ReleaseSemaphore(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 226, (((unsigned int)'R' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 226, (((unsigned int)'a' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'S' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 226, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 226, (((unsigned int)'h' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 226, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 226, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef ReleaseSemaphore
 #define ReleaseSemaphore(...) OBFH_API_CALL(2, ReleaseSemaphore, __VA_ARGS__)
 
 #define OBFH_GUI_ID_InitializeCriticalSection 227
-#define OBFH_GUI_NAME_InitializeCriticalSection(buffer) ({                                                                                              \
-    OBFH_GUI_NAME_WORD(buffer, 0, 227, (((unsigned int)'I' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 227, (((unsigned int)'i' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 227, (((unsigned int)'z' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'r' << 24)));  \
+#define OBFH_GUI_NAME_InitializeCriticalSection(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 227, (((unsigned int)'I' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 227, (((unsigned int)'i' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 227, (((unsigned int)'z' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'r' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 227, (((unsigned int)'i' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 227, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 20, 227, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 24, 227, (((unsigned int)'n' << 0) | 0u | 0u | 0u));                                                                     \
-    26u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 24, 227, (((unsigned int)'n' << 0) | 0u | 0u | 0u)); \
+    26u; \
 })
 #undef InitializeCriticalSection
 #define InitializeCriticalSection(...) OBFH_API_CALL(2, InitializeCriticalSection, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DeleteCriticalSection 228
-#define OBFH_GUI_NAME_DeleteCriticalSection(buffer) ({                                                                                                  \
-    OBFH_GUI_NAME_WORD(buffer, 0, 228, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 228, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 228, (((unsigned int)'i' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'c' << 24)));  \
+#define OBFH_GUI_NAME_DeleteCriticalSection(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 228, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 228, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 228, (((unsigned int)'i' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 228, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'S' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 228, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 228, (((unsigned int)'n' << 0) | 0u | 0u | 0u));                                                                     \
-    22u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 228, (((unsigned int)'n' << 0) | 0u | 0u | 0u)); \
+    22u; \
 })
 #undef DeleteCriticalSection
 #define DeleteCriticalSection(...) OBFH_API_CALL(2, DeleteCriticalSection, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EnterCriticalSection 229
-#define OBFH_GUI_NAME_EnterCriticalSection(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 229, (((unsigned int)'E' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 229, (((unsigned int)'r' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 229, (((unsigned int)'t' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'a' << 24)));  \
+#define OBFH_GUI_NAME_EnterCriticalSection(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 229, (((unsigned int)'E' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 229, (((unsigned int)'r' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 229, (((unsigned int)'t' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 229, (((unsigned int)'l' << 0) | ((unsigned int)'S' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 229, (((unsigned int)'t' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 229, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 229, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef EnterCriticalSection
 #define EnterCriticalSection(...) OBFH_API_CALL(2, EnterCriticalSection, __VA_ARGS__)
 
 #define OBFH_GUI_ID_LeaveCriticalSection 230
-#define OBFH_GUI_NAME_LeaveCriticalSection(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 230, (((unsigned int)'L' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'v' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 230, (((unsigned int)'e' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 230, (((unsigned int)'t' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'a' << 24)));  \
+#define OBFH_GUI_NAME_LeaveCriticalSection(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 230, (((unsigned int)'L' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'v' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 230, (((unsigned int)'e' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 230, (((unsigned int)'t' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 230, (((unsigned int)'l' << 0) | ((unsigned int)'S' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 230, (((unsigned int)'t' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 230, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 230, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef LeaveCriticalSection
 #define LeaveCriticalSection(...) OBFH_API_CALL(2, LeaveCriticalSection, __VA_ARGS__)
 
 #define OBFH_GUI_ID_TryEnterCriticalSection 231
-#define OBFH_GUI_NAME_TryEnterCriticalSection(buffer) ({                                                                                                \
-    OBFH_GUI_NAME_WORD(buffer, 0, 231, (((unsigned int)'T' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 231, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 231, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24)));  \
+#define OBFH_GUI_NAME_TryEnterCriticalSection(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 231, (((unsigned int)'T' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 231, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'r' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 231, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 231, (((unsigned int)'i' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 231, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 231, (((unsigned int)'i' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | 0u));                        \
-    24u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 231, (((unsigned int)'i' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | 0u)); \
+    24u; \
 })
 #undef TryEnterCriticalSection
 #define TryEnterCriticalSection(...) OBFH_API_CALL(2, TryEnterCriticalSection, __VA_ARGS__)
 
 #define OBFH_GUI_ID_AllocConsole 232
-#define OBFH_GUI_NAME_AllocConsole(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_AllocConsole(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 232, (((unsigned int)'A' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 232, (((unsigned int)'c' << 0) | ((unsigned int)'C' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 232, (((unsigned int)'s' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 232, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 232, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef AllocConsole
 #define AllocConsole(...) OBFH_API_CALL(2, AllocConsole, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FreeConsole 233
-#define OBFH_GUI_NAME_FreeConsole(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_FreeConsole(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 233, (((unsigned int)'F' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 233, (((unsigned int)'C' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 233, (((unsigned int)'o' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 233, (((unsigned int)'o' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #undef FreeConsole
 #define FreeConsole(...) OBFH_API_CALL(2, FreeConsole, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetConsoleWindow 234
-#define OBFH_GUI_NAME_GetConsoleWindow(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 234, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 234, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 234, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetConsoleWindow(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 234, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 234, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 234, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'W' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 234, (((unsigned int)'n' << 0) | ((unsigned int)'d' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'w' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 234, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 234, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetConsoleWindow
 #define GetConsoleWindow(...) OBFH_API_CALL(2, GetConsoleWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetConsoleMode 235
-#define OBFH_GUI_NAME_SetConsoleMode(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_SetConsoleMode(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 235, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 235, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 235, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'M' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 235, (((unsigned int)'d' << 0) | ((unsigned int)'e' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 235, (((unsigned int)'d' << 0) | ((unsigned int)'e' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef SetConsoleMode
 #define SetConsoleMode(...) OBFH_API_CALL(2, SetConsoleMode, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetConsoleCP 236
-#define OBFH_GUI_NAME_GetConsoleCP(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetConsoleCP(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 236, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 236, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 236, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'P' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 236, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 236, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetConsoleCP
 #define GetConsoleCP(...) OBFH_API_CALL(2, GetConsoleCP, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetConsoleOutputCP 237
-#define OBFH_GUI_NAME_GetConsoleOutputCP(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 237, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 237, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 237, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'O' << 16) | ((unsigned int)'u' << 24)));  \
+#define OBFH_GUI_NAME_GetConsoleOutputCP(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 237, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 237, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 237, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'O' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 237, (((unsigned int)'t' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 237, (((unsigned int)'C' << 0) | ((unsigned int)'P' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 237, (((unsigned int)'C' << 0) | ((unsigned int)'P' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef GetConsoleOutputCP
 #define GetConsoleOutputCP(...) OBFH_API_CALL(2, GetConsoleOutputCP, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetConsoleCP 238
-#define OBFH_GUI_NAME_SetConsoleCP(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_SetConsoleCP(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 238, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 238, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 238, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'C' << 16) | ((unsigned int)'P' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 238, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 238, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef SetConsoleCP
 #define SetConsoleCP(...) OBFH_API_CALL(2, SetConsoleCP, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetConsoleOutputCP 239
-#define OBFH_GUI_NAME_SetConsoleOutputCP(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 239, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 239, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 239, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'O' << 16) | ((unsigned int)'u' << 24)));  \
+#define OBFH_GUI_NAME_SetConsoleOutputCP(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 239, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 239, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 239, (((unsigned int)'l' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'O' << 16) | ((unsigned int)'u' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 239, (((unsigned int)'t' << 0) | ((unsigned int)'p' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 239, (((unsigned int)'C' << 0) | ((unsigned int)'P' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 239, (((unsigned int)'C' << 0) | ((unsigned int)'P' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef SetConsoleOutputCP
 #define SetConsoleOutputCP(...) OBFH_API_CALL(2, SetConsoleOutputCP, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSystemInfo 240
-#define OBFH_GUI_NAME_GetSystemInfo(buffer) ({                                                                                                         \
+#define OBFH_GUI_NAME_GetSystemInfo(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 240, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 240, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 240, (((unsigned int)'m' << 0) | ((unsigned int)'I' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'f' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 240, (((unsigned int)'o' << 0) | 0u | 0u | 0u));                                                                    \
-    14u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 240, (((unsigned int)'o' << 0) | 0u | 0u | 0u)); \
+    14u; \
 })
 #undef GetSystemInfo
 #define GetSystemInfo(...) OBFH_API_CALL(2, GetSystemInfo, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetNativeSystemInfo 241
-#define OBFH_GUI_NAME_GetNativeSystemInfo(buffer) ({                                                                                                    \
-    OBFH_GUI_NAME_WORD(buffer, 0, 241, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'N' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 241, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'v' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 241, (((unsigned int)'e' << 0) | ((unsigned int)'S' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'s' << 24)));  \
+#define OBFH_GUI_NAME_GetNativeSystemInfo(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 241, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'N' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 241, (((unsigned int)'a' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'v' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 241, (((unsigned int)'e' << 0) | ((unsigned int)'S' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 241, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'m' << 16) | ((unsigned int)'I' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 241, (((unsigned int)'n' << 0) | ((unsigned int)'f' << 8) | ((unsigned int)'o' << 16) | 0u));                        \
-    20u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 241, (((unsigned int)'n' << 0) | ((unsigned int)'f' << 8) | ((unsigned int)'o' << 16) | 0u)); \
+    20u; \
 })
 #undef GetNativeSystemInfo
 #define GetNativeSystemInfo(...) OBFH_API_CALL(2, GetNativeSystemInfo, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetSystemTimeAsFileTime 242
-#define OBFH_GUI_NAME_GetSystemTimeAsFileTime(buffer) ({                                                                                                \
-    OBFH_GUI_NAME_WORD(buffer, 0, 242, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 242, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 242, (((unsigned int)'m' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'m' << 24)));  \
+#define OBFH_GUI_NAME_GetSystemTimeAsFileTime(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 242, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'S' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 242, (((unsigned int)'y' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 242, (((unsigned int)'m' << 0) | ((unsigned int)'T' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'m' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 242, (((unsigned int)'e' << 0) | ((unsigned int)'A' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 242, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'T' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 242, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    24u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 242, (((unsigned int)'i' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    24u; \
 })
 #undef GetSystemTimeAsFileTime
 #define GetSystemTimeAsFileTime(...) OBFH_API_CALL(2, GetSystemTimeAsFileTime, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateDialogParamA 243
-#define OBFH_GUI_NAME_CreateDialogParamA(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 243, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 243, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 243, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24)));  \
+#define OBFH_GUI_NAME_CreateDialogParamA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 243, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 243, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 243, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 243, (((unsigned int)'P' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 243, (((unsigned int)'m' << 0) | ((unsigned int)'A' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 243, (((unsigned int)'m' << 0) | ((unsigned int)'A' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef CreateDialogParamA
 #define CreateDialogParamA(...) OBFH_API_CALL(0, CreateDialogParamA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CreateDialogParamW 244
-#define OBFH_GUI_NAME_CreateDialogParamW(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 244, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 244, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 244, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24)));  \
+#define OBFH_GUI_NAME_CreateDialogParamW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 244, (((unsigned int)'C' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'a' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 244, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'i' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 244, (((unsigned int)'a' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'g' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 244, (((unsigned int)'P' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'a' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 244, (((unsigned int)'m' << 0) | ((unsigned int)'W' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 244, (((unsigned int)'m' << 0) | ((unsigned int)'W' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef CreateDialogParamW
 #define CreateDialogParamW(...) OBFH_API_CALL(0, CreateDialogParamW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DialogBoxParamA 245
-#define OBFH_GUI_NAME_DialogBoxParamA(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_DialogBoxParamA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 245, (((unsigned int)'D' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 245, (((unsigned int)'o' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'B' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 245, (((unsigned int)'x' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 245, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'A' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 245, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    16u; \
 })
 #undef DialogBoxParamA
 #define DialogBoxParamA(...) OBFH_API_CALL(0, DialogBoxParamA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DialogBoxParamW 246
-#define OBFH_GUI_NAME_DialogBoxParamW(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_DialogBoxParamW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 246, (((unsigned int)'D' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 246, (((unsigned int)'o' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'B' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 246, (((unsigned int)'x' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'r' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 246, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'W' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 246, (((unsigned int)'a' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    16u; \
 })
 #undef DialogBoxParamW
 #define DialogBoxParamW(...) OBFH_API_CALL(0, DialogBoxParamW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDlgItemTextA 247
-#define OBFH_GUI_NAME_GetDlgItemTextA(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetDlgItemTextA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 247, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 247, (((unsigned int)'l' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 247, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 247, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 247, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    16u; \
 })
 #undef GetDlgItemTextA
 #define GetDlgItemTextA(...) OBFH_API_CALL(0, GetDlgItemTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetDlgItemTextW 248
-#define OBFH_GUI_NAME_GetDlgItemTextW(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_GetDlgItemTextW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 248, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 248, (((unsigned int)'l' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 248, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 248, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 248, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    16u; \
 })
 #undef GetDlgItemTextW
 #define GetDlgItemTextW(...) OBFH_API_CALL(0, GetDlgItemTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetDlgItemTextA 249
-#define OBFH_GUI_NAME_SetDlgItemTextA(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_SetDlgItemTextA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 249, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 249, (((unsigned int)'l' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 249, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 249, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 249, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'A' << 16) | 0u)); \
+    16u; \
 })
 #undef SetDlgItemTextA
 #define SetDlgItemTextA(...) OBFH_API_CALL(0, SetDlgItemTextA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetDlgItemTextW 250
-#define OBFH_GUI_NAME_SetDlgItemTextW(buffer) ({                                                                                                       \
+#define OBFH_GUI_NAME_SetDlgItemTextW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 250, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 250, (((unsigned int)'l' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'I' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 250, (((unsigned int)'e' << 0) | ((unsigned int)'m' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 250, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u));                       \
-    16u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 250, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'W' << 16) | 0u)); \
+    16u; \
 })
 #undef SetDlgItemTextW
 #define SetDlgItemTextW(...) OBFH_API_CALL(0, SetDlgItemTextW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_PeekMessageA 251
-#define OBFH_GUI_NAME_PeekMessageA(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_PeekMessageA(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 251, (((unsigned int)'P' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'k' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 251, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 251, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 251, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 251, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef PeekMessageA
 #define PeekMessageA(...) OBFH_API_CALL(0, PeekMessageA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_PeekMessageW 252
-#define OBFH_GUI_NAME_PeekMessageW(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_PeekMessageW(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 252, (((unsigned int)'P' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'k' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 252, (((unsigned int)'M' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'s' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 252, (((unsigned int)'a' << 0) | ((unsigned int)'g' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 252, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 252, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef PeekMessageW
 #define PeekMessageW(...) OBFH_API_CALL(0, PeekMessageW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_EndDialog 253
-#define OBFH_GUI_NAME_EndDialog(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_EndDialog(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 253, (((unsigned int)'E' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'D' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 253, (((unsigned int)'i' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 253, (((unsigned int)'g' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 253, (((unsigned int)'g' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef EndDialog
 #define EndDialog(...) OBFH_API_CALL(0, EndDialog, __VA_ARGS__)
 
 #define OBFH_GUI_ID_CheckDlgButton 254
-#define OBFH_GUI_NAME_CheckDlgButton(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_CheckDlgButton(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 254, (((unsigned int)'C' << 0) | ((unsigned int)'h' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'c' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 254, (((unsigned int)'k' << 0) | ((unsigned int)'D' << 8) | ((unsigned int)'l' << 16) | ((unsigned int)'g' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 254, (((unsigned int)'B' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 254, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 254, (((unsigned int)'o' << 0) | ((unsigned int)'n' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef CheckDlgButton
 #define CheckDlgButton(...) OBFH_API_CALL(0, CheckDlgButton, __VA_ARGS__)
 
 #define OBFH_GUI_ID_IsDlgButtonChecked 255
-#define OBFH_GUI_NAME_IsDlgButtonChecked(buffer) ({                                                                                                     \
-    OBFH_GUI_NAME_WORD(buffer, 0, 255, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'l' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 255, (((unsigned int)'g' << 0) | ((unsigned int)'B' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'t' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 255, (((unsigned int)'t' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'C' << 24)));  \
+#define OBFH_GUI_NAME_IsDlgButtonChecked(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 255, (((unsigned int)'I' << 0) | ((unsigned int)'s' << 8) | ((unsigned int)'D' << 16) | ((unsigned int)'l' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 255, (((unsigned int)'g' << 0) | ((unsigned int)'B' << 8) | ((unsigned int)'u' << 16) | ((unsigned int)'t' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 255, (((unsigned int)'t' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 255, (((unsigned int)'h' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'c' << 16) | ((unsigned int)'k' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 255, (((unsigned int)'e' << 0) | ((unsigned int)'d' << 8) | 0u | 0u));                                               \
-    19u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 255, (((unsigned int)'e' << 0) | ((unsigned int)'d' << 8) | 0u | 0u)); \
+    19u; \
 })
 #undef IsDlgButtonChecked
 #define IsDlgButtonChecked(...) OBFH_API_CALL(0, IsDlgButtonChecked, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetMenu 256
-#define OBFH_GUI_NAME_SetMenu(buffer) ({                                                                                                               \
+#define OBFH_GUI_NAME_SetMenu(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 256, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'M' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 4, 256, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u));                        \
-    8u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 4, 256, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u)); \
+    8u; \
 })
 #undef SetMenu
 #define SetMenu(...) OBFH_API_CALL(0, SetMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_DestroyMenu 257
-#define OBFH_GUI_NAME_DestroyMenu(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_DestroyMenu(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 257, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 257, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'M' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 257, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 257, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'u' << 16) | 0u)); \
+    12u; \
 })
 #undef DestroyMenu
 #define DestroyMenu(...) OBFH_API_CALL(0, DestroyMenu, __VA_ARGS__)
 
 #define OBFH_GUI_ID_InvalidateRect 258
-#define OBFH_GUI_NAME_InvalidateRect(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_InvalidateRect(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 258, (((unsigned int)'I' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'v' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 258, (((unsigned int)'l' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'a' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 258, (((unsigned int)'t' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'R' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 258, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 258, (((unsigned int)'c' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef InvalidateRect
 #define InvalidateRect(...) OBFH_API_CALL(0, InvalidateRect, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetAsyncKeyState 259
-#define OBFH_GUI_NAME_GetAsyncKeyState(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 259, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'A' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 259, (((unsigned int)'s' << 0) | ((unsigned int)'y' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'c' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 259, (((unsigned int)'K' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'S' << 24)));  \
+#define OBFH_GUI_NAME_GetAsyncKeyState(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 259, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'A' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 259, (((unsigned int)'s' << 0) | ((unsigned int)'y' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'c' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 259, (((unsigned int)'K' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'y' << 16) | ((unsigned int)'S' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 259, (((unsigned int)'t' << 0) | ((unsigned int)'a' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 259, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 259, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef GetAsyncKeyState
 #define GetAsyncKeyState(...) OBFH_API_CALL(0, GetAsyncKeyState, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ScreenToClient 260
-#define OBFH_GUI_NAME_ScreenToClient(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_ScreenToClient(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 260, (((unsigned int)'S' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 260, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 260, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 260, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 260, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef ScreenToClient
 #define ScreenToClient(...) OBFH_API_CALL(0, ScreenToClient, __VA_ARGS__)
 
 #define OBFH_GUI_ID_ClientToScreen 261
-#define OBFH_GUI_NAME_ClientToScreen(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_ClientToScreen(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 261, (((unsigned int)'C' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 261, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'T' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 261, (((unsigned int)'S' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'e' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 261, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 261, (((unsigned int)'e' << 0) | ((unsigned int)'n' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef ClientToScreen
 #define ClientToScreen(...) OBFH_API_CALL(0, ClientToScreen, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetCursorPos 262
-#define OBFH_GUI_NAME_GetCursorPos(buffer) ({                                                                                                          \
+#define OBFH_GUI_NAME_GetCursorPos(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 262, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'C' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 262, (((unsigned int)'u' << 0) | ((unsigned int)'r' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'o' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 262, (((unsigned int)'r' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 262, (0u | 0u | 0u | 0u));                                                                                          \
-    13u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 262, (0u | 0u | 0u | 0u)); \
+    13u; \
 })
 #undef GetCursorPos
 #define GetCursorPos(...) OBFH_API_CALL(0, GetCursorPos, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetWindow 263
-#define OBFH_GUI_NAME_GetWindow(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_GetWindow(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 263, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'W' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 263, (((unsigned int)'i' << 0) | ((unsigned int)'n' << 8) | ((unsigned int)'d' << 16) | ((unsigned int)'o' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 263, (((unsigned int)'w' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 263, (((unsigned int)'w' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef GetWindow
 #define GetWindow(...) OBFH_API_CALL(0, GetWindow, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetAncestor 264
-#define OBFH_GUI_NAME_GetAncestor(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_GetAncestor(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 264, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'A' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 264, (((unsigned int)'n' << 0) | ((unsigned int)'c' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'s' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 264, (((unsigned int)'t' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 264, (((unsigned int)'t' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'r' << 16) | 0u)); \
+    12u; \
 })
 #undef GetAncestor
 #define GetAncestor(...) OBFH_API_CALL(0, GetAncestor, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTextExtentPoint32A 265
-#define OBFH_GUI_NAME_GetTextExtentPoint32A(buffer) ({                                                                                                  \
-    OBFH_GUI_NAME_WORD(buffer, 0, 265, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 265, (((unsigned int)'e' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 265, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetTextExtentPoint32A(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 265, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 265, (((unsigned int)'e' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 265, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 265, (((unsigned int)'t' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 265, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'3' << 16) | ((unsigned int)'2' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 265, (((unsigned int)'A' << 0) | 0u | 0u | 0u));                                                                     \
-    22u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 265, (((unsigned int)'A' << 0) | 0u | 0u | 0u)); \
+    22u; \
 })
 #undef GetTextExtentPoint32A
 #define GetTextExtentPoint32A(...) OBFH_API_CALL(1, GetTextExtentPoint32A, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetTextExtentPoint32W 266
-#define OBFH_GUI_NAME_GetTextExtentPoint32W(buffer) ({                                                                                                  \
-    OBFH_GUI_NAME_WORD(buffer, 0, 266, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 266, (((unsigned int)'e' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 266, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24)));  \
+#define OBFH_GUI_NAME_GetTextExtentPoint32W(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 266, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'T' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 266, (((unsigned int)'e' << 0) | ((unsigned int)'x' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'E' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 266, (((unsigned int)'x' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'n' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 266, (((unsigned int)'t' << 0) | ((unsigned int)'P' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 266, (((unsigned int)'n' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'3' << 16) | ((unsigned int)'2' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 266, (((unsigned int)'W' << 0) | 0u | 0u | 0u));                                                                     \
-    22u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 266, (((unsigned int)'W' << 0) | 0u | 0u | 0u)); \
+    22u; \
 })
 #undef GetTextExtentPoint32W
 #define GetTextExtentPoint32W(...) OBFH_API_CALL(1, GetTextExtentPoint32W, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetBkMode 267
-#define OBFH_GUI_NAME_SetBkMode(buffer) ({                                                                                                             \
+#define OBFH_GUI_NAME_SetBkMode(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 267, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'B' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 267, (((unsigned int)'k' << 0) | ((unsigned int)'M' << 8) | ((unsigned int)'o' << 16) | ((unsigned int)'d' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 267, (((unsigned int)'e' << 0) | 0u | 0u | 0u));                                                                     \
-    10u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 267, (((unsigned int)'e' << 0) | 0u | 0u | 0u)); \
+    10u; \
 })
 #undef SetBkMode
 #define SetBkMode(...) OBFH_API_CALL(1, SetBkMode, __VA_ARGS__)
 
 #define OBFH_GUI_ID_HeapDestroy 268
-#define OBFH_GUI_NAME_HeapDestroy(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_HeapDestroy(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 268, (((unsigned int)'H' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'a' << 16) | ((unsigned int)'p' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 268, (((unsigned int)'D' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'s' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 268, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'y' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 268, (((unsigned int)'r' << 0) | ((unsigned int)'o' << 8) | ((unsigned int)'y' << 16) | 0u)); \
+    12u; \
 })
 #undef HeapDestroy
 #define HeapDestroy(...) OBFH_API_CALL(2, HeapDestroy, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileSize 269
-#define OBFH_GUI_NAME_GetFileSize(buffer) ({                                                                                                           \
+#define OBFH_GUI_NAME_GetFileSize(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 269, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 269, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'S' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 8, 269, (((unsigned int)'i' << 0) | ((unsigned int)'z' << 8) | ((unsigned int)'e' << 16) | 0u));                        \
-    12u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 8, 269, (((unsigned int)'i' << 0) | ((unsigned int)'z' << 8) | ((unsigned int)'e' << 16) | 0u)); \
+    12u; \
 })
 #undef GetFileSize
 #define GetFileSize(...) OBFH_API_CALL(2, GetFileSize, __VA_ARGS__)
 
 #define OBFH_GUI_ID_SetFilePointer 270
-#define OBFH_GUI_NAME_SetFilePointer(buffer) ({                                                                                                        \
+#define OBFH_GUI_NAME_SetFilePointer(buffer) ({ \
     OBFH_GUI_NAME_WORD(buffer, 0, 270, (((unsigned int)'S' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 4, 270, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'P' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 8, 270, (((unsigned int)'o' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'t' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 12, 270, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | 0u | 0u));                                              \
-    15u;                                                                                                                                               \
+    OBFH_GUI_NAME_WORD(buffer, 12, 270, (((unsigned int)'e' << 0) | ((unsigned int)'r' << 8) | 0u | 0u)); \
+    15u; \
 })
 #undef SetFilePointer
 #define SetFilePointer(...) OBFH_API_CALL(2, SetFilePointer, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileAttributesExA 271
-#define OBFH_GUI_NAME_GetFileAttributesExA(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 271, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 271, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 271, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetFileAttributesExA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 271, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 271, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 271, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 271, (((unsigned int)'b' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 271, (((unsigned int)'s' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 271, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 271, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef GetFileAttributesExA
 #define GetFileAttributesExA(...) OBFH_API_CALL(2, GetFileAttributesExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_GetFileAttributesExW 272
-#define OBFH_GUI_NAME_GetFileAttributesExW(buffer) ({                                                                                                   \
-    OBFH_GUI_NAME_WORD(buffer, 0, 272, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 272, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 272, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24)));  \
+#define OBFH_GUI_NAME_GetFileAttributesExW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 272, (((unsigned int)'G' << 0) | ((unsigned int)'e' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'F' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 272, (((unsigned int)'i' << 0) | ((unsigned int)'l' << 8) | ((unsigned int)'e' << 16) | ((unsigned int)'A' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 272, (((unsigned int)'t' << 0) | ((unsigned int)'t' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'i' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 272, (((unsigned int)'b' << 0) | ((unsigned int)'u' << 8) | ((unsigned int)'t' << 16) | ((unsigned int)'e' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 16, 272, (((unsigned int)'s' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 20, 272, (0u | 0u | 0u | 0u));                                                                                           \
-    21u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 20, 272, (0u | 0u | 0u | 0u)); \
+    21u; \
 })
 #undef GetFileAttributesExW
 #define GetFileAttributesExW(...) OBFH_API_CALL(2, GetFileAttributesExW, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindFirstFileExA 273
-#define OBFH_GUI_NAME_FindFirstFileExA(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 273, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 273, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 273, (((unsigned int)'t' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_FindFirstFileExA(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 273, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 273, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 273, (((unsigned int)'t' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 273, (((unsigned int)'e' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'A' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 273, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 273, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef FindFirstFileExA
 #define FindFirstFileExA(...) OBFH_API_CALL(2, FindFirstFileExA, __VA_ARGS__)
 
 #define OBFH_GUI_ID_FindFirstFileExW 274
-#define OBFH_GUI_NAME_FindFirstFileExW(buffer) ({                                                                                                       \
-    OBFH_GUI_NAME_WORD(buffer, 0, 274, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 4, 274, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24)));  \
-    OBFH_GUI_NAME_WORD(buffer, 8, 274, (((unsigned int)'t' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24)));  \
+#define OBFH_GUI_NAME_FindFirstFileExW(buffer) ({ \
+    OBFH_GUI_NAME_WORD(buffer, 0, 274, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'n' << 16) | ((unsigned int)'d' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 4, 274, (((unsigned int)'F' << 0) | ((unsigned int)'i' << 8) | ((unsigned int)'r' << 16) | ((unsigned int)'s' << 24))); \
+    OBFH_GUI_NAME_WORD(buffer, 8, 274, (((unsigned int)'t' << 0) | ((unsigned int)'F' << 8) | ((unsigned int)'i' << 16) | ((unsigned int)'l' << 24))); \
     OBFH_GUI_NAME_WORD(buffer, 12, 274, (((unsigned int)'e' << 0) | ((unsigned int)'E' << 8) | ((unsigned int)'x' << 16) | ((unsigned int)'W' << 24))); \
-    OBFH_GUI_NAME_WORD(buffer, 16, 274, (0u | 0u | 0u | 0u));                                                                                           \
-    17u;                                                                                                                                                \
+    OBFH_GUI_NAME_WORD(buffer, 16, 274, (0u | 0u | 0u | 0u)); \
+    17u; \
 })
 #undef FindFirstFileExW
 #define FindFirstFileExW(...) OBFH_API_CALL(2, FindFirstFileExW, __VA_ARGS__)
@@ -9989,12 +10058,12 @@ static int obfh_abs_proxy(int value) {
 #endif
 // Mutate the typed value's address: arithmetic identities can change -0,
 // rounding, NaN payloads or wide integer exponents before the math call.
-#define _MUTATE_MATH(value) ({                                                                           \
-    BREAK_STACK_CFLOW;                                                                                   \
-    __typeof__((value)) volatile __obfh_math_value = (value);                                            \
-    volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY;                                                  \
+#define _MUTATE_MATH(value) ({ \
+    BREAK_STACK_CFLOW; \
+    __typeof__((value)) volatile __obfh_math_value = (value); \
+    volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY; \
     ULONG_PTR __obfh_math_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_math_value ^ __obfh_math_key); \
-    *(__typeof__(&__obfh_math_value))(__obfh_math_address ^ __obfh_math_key);                            \
+    *(__typeof__(&__obfh_math_value))(__obfh_math_address ^ __obfh_math_key); \
 })
 
 // TCC math adapters without a guaranteed matching msvcrt export retain native calls.
@@ -10031,202 +10100,202 @@ static int obfh_abs_proxy(int value) {
 #define trunc(x) trunc(_MUTATE_MATH(x))
 
 // Known msvcrt math exports use the same name selector and typed target as other CRT calls.
-#define acos(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _c, __obfh_math_name[2] = _o, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0),  \
+#define acos(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _c, __obfh_math_name[2] = _o, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _o, __obfh_math_name[1] = _c, __obfh_math_name[0] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define asin(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _s, __obfh_math_name[2] = _i, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0),  \
+#define asin(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _s, __obfh_math_name[2] = _i, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _i, __obfh_math_name[1] = _s, __obfh_math_name[0] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define atan(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0),  \
+#define atan(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define atan2(y, x) ({                                                                                                                                                         \
-    char __obfh_math_name[6];                                                                                                                                                  \
-    OBFH_NAME_ORDER(                                                                                                                                                           \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[5] = _0),  \
+#define atan2(y, x) ({ \
+    char __obfh_math_name[6]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[5] = _0), \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name)                                                                                                              \
-    (y, x);                                                                                                                                                                    \
+    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
+    (y, x); \
 })
 
-#define ceil(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _e, __obfh_math_name[2] = _i, __obfh_math_name[3] = _l, __obfh_math_name[4] = _0),  \
+#define ceil(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _e, __obfh_math_name[2] = _i, __obfh_math_name[3] = _l, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _l, __obfh_math_name[2] = _i, __obfh_math_name[1] = _e, __obfh_math_name[0] = _c)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define cos(x) ({                                                                                                  \
-    char __obfh_math_name[4];                                                                                      \
-    OBFH_NAME_ORDER(                                                                                               \
-        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _0),  \
+#define cos(x) ({ \
+    char __obfh_math_name[4]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _0), \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
-    (x);                                                                                                           \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define cosh(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0),  \
+#define cosh(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define exp(x) ({                                                                                                  \
-    char __obfh_math_name[4];                                                                                      \
-    OBFH_NAME_ORDER(                                                                                               \
-        (__obfh_math_name[0] = _e, __obfh_math_name[1] = _x, __obfh_math_name[2] = _p, __obfh_math_name[3] = _0),  \
+#define exp(x) ({ \
+    char __obfh_math_name[4]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _e, __obfh_math_name[1] = _x, __obfh_math_name[2] = _p, __obfh_math_name[3] = _0), \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _p, __obfh_math_name[1] = _x, __obfh_math_name[0] = _e)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
-    (x);                                                                                                           \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define fabs(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _a, __obfh_math_name[2] = _b, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0),  \
+#define fabs(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _a, __obfh_math_name[2] = _b, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _b, __obfh_math_name[1] = _a, __obfh_math_name[0] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define floor(x) ({                                                                                                                                                    \
-    char __obfh_math_name[6];                                                                                                                                          \
-    OBFH_NAME_ORDER(                                                                                                                                                   \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _l, __obfh_math_name[2] = _o, __obfh_math_name[3] = _o, __obfh_math_name[4] = _r, __obfh_math_name[5] = _0),  \
+#define floor(x) ({ \
+    char __obfh_math_name[6]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _l, __obfh_math_name[2] = _o, __obfh_math_name[3] = _o, __obfh_math_name[4] = _r, __obfh_math_name[5] = _0), \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = _r, __obfh_math_name[3] = _o, __obfh_math_name[2] = _o, __obfh_math_name[1] = _l, __obfh_math_name[0] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                                              \
-    (x);                                                                                                                                                               \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define fmod(x, y) ({                                                                                                                        \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _m, __obfh_math_name[2] = _o, __obfh_math_name[3] = _d, __obfh_math_name[4] = _0),  \
+#define fmod(x, y) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _m, __obfh_math_name[2] = _o, __obfh_math_name[3] = _d, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _d, __obfh_math_name[2] = _o, __obfh_math_name[1] = _m, __obfh_math_name[0] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name)                                                                            \
-    (x, y);                                                                                                                                  \
+    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
+    (x, y); \
 })
 
-#define frexp(x, y) ({                                                                                                                                                 \
-    char __obfh_math_name[6];                                                                                                                                          \
-    OBFH_NAME_ORDER(                                                                                                                                                   \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _r, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0),  \
+#define frexp(x, y) ({ \
+    char __obfh_math_name[6]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _r, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0), \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _r, __obfh_math_name[0] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double, int *), __obfh_math_name)                                                                                                       \
-    (x, y);                                                                                                                                                            \
+    OBFH_CRT_TARGET(double (*)(double, int *), __obfh_math_name) \
+    (x, y); \
 })
 
-#define ldexp(x, y) ({                                                                                                                                                 \
-    char __obfh_math_name[6];                                                                                                                                          \
-    OBFH_NAME_ORDER(                                                                                                                                                   \
-        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _d, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0),  \
+#define ldexp(x, y) ({ \
+    char __obfh_math_name[6]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _d, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0), \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _d, __obfh_math_name[0] = _l)); \
-    OBFH_CRT_TARGET(double (*)(double, int), __obfh_math_name)                                                                                                         \
-    (x, y);                                                                                                                                                            \
+    OBFH_CRT_TARGET(double (*)(double, int), __obfh_math_name) \
+    (x, y); \
 })
 
-#define log(x) ({                                                                                                  \
-    char __obfh_math_name[4];                                                                                      \
-    OBFH_NAME_ORDER(                                                                                               \
-        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = _0),  \
+#define log(x) ({ \
+    char __obfh_math_name[4]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = _0), \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
-    (x);                                                                                                           \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define log10(x) ({                                                                                                                                                                    \
-    char __obfh_math_name[6];                                                                                                                                                          \
-    OBFH_NAME_ORDER(                                                                                                                                                                   \
-        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[5] = _0),  \
+#define log10(x) ({ \
+    char __obfh_math_name[6]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[5] = _0), \
         (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                                                              \
-    (x);                                                                                                                                                                               \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define modf(x, y) ({                                                                                                                        \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _m, __obfh_math_name[1] = _o, __obfh_math_name[2] = _d, __obfh_math_name[3] = _f, __obfh_math_name[4] = _0),  \
+#define modf(x, y) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _m, __obfh_math_name[1] = _o, __obfh_math_name[2] = _d, __obfh_math_name[3] = _f, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _f, __obfh_math_name[2] = _d, __obfh_math_name[1] = _o, __obfh_math_name[0] = _m)); \
-    OBFH_CRT_TARGET(double (*)(double, double *), __obfh_math_name)                                                                          \
-    (x, y);                                                                                                                                  \
+    OBFH_CRT_TARGET(double (*)(double, double *), __obfh_math_name) \
+    (x, y); \
 })
 
-#define pow(x, y) ({                                                                                               \
-    char __obfh_math_name[4];                                                                                      \
-    OBFH_NAME_ORDER(                                                                                               \
-        (__obfh_math_name[0] = _p, __obfh_math_name[1] = _o, __obfh_math_name[2] = _w, __obfh_math_name[3] = _0),  \
+#define pow(x, y) ({ \
+    char __obfh_math_name[4]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _p, __obfh_math_name[1] = _o, __obfh_math_name[2] = _w, __obfh_math_name[3] = _0), \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _w, __obfh_math_name[1] = _o, __obfh_math_name[0] = _p)); \
-    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name)                                                  \
-    (x, y);                                                                                                        \
+    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
+    (x, y); \
 })
 
-#define sin(x) ({                                                                                                  \
-    char __obfh_math_name[4];                                                                                      \
-    OBFH_NAME_ORDER(                                                                                               \
-        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0),  \
+#define sin(x) ({ \
+    char __obfh_math_name[4]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0), \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
-    (x);                                                                                                           \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define sinh(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0),  \
+#define sinh(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define sqrt(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _q, __obfh_math_name[2] = _r, __obfh_math_name[3] = _t, __obfh_math_name[4] = _0),  \
+#define sqrt(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _q, __obfh_math_name[2] = _r, __obfh_math_name[3] = _t, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _t, __obfh_math_name[2] = _r, __obfh_math_name[1] = _q, __obfh_math_name[0] = _s)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define tan(x) ({                                                                                                  \
-    char __obfh_math_name[4];                                                                                      \
-    OBFH_NAME_ORDER(                                                                                               \
-        (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0),  \
+#define tan(x) ({ \
+    char __obfh_math_name[4]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0), \
         (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                          \
-    (x);                                                                                                           \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
-#define tanh(x) ({                                                                                                                           \
-    char __obfh_math_name[5];                                                                                                                \
-    OBFH_NAME_ORDER(                                                                                                                         \
-        (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0),  \
+#define tanh(x) ({ \
+    char __obfh_math_name[5]; \
+    OBFH_NAME_ORDER( \
+        (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), \
         (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name)                                                                                    \
-    (x);                                                                                                                                     \
+    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
+    (x); \
 })
 
 // ============================================================================
@@ -10242,9 +10311,9 @@ __declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_C
 // the transport once, rather than duplicating it for every value/void return.
 #if NO_CFLOW != 1
 #define OBFH_FLOW_RETURN_GUARD (0)
-#define return                  \
+#define return \
     if OBFH_FLOW_RETURN_GUARD { \
-    } else                      \
+    } else \
         return
 #endif
 

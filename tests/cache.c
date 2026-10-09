@@ -5,12 +5,12 @@ void obfh_test_crt_cold(void) { InterlockedIncrement(&cold_calls); }
 #include "../include/obfus.h"
 static FARPROC resolve_at_one_site(const char *name) { return obfh_crt_resolve(name); }
 static FARPROC resolve_at_another_site(const char *name) { return obfh_crt_resolve(name); }
-#define CHECK(x)                                                          \
-    do {                                                                  \
-        if (!(x)) {                                                       \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "cache failure line %d: %s\n", __LINE__, #x); \
-            return 1;                                                     \
-        }                                                                 \
+            return 1; \
+        } \
     } while (0)
 static DWORD WINAPI worker(void *unused) {
     for (int i = 0; i < 500; ++i) {

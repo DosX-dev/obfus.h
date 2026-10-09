@@ -24,12 +24,12 @@ static double native_sub(double a, double b) { return a - b; }
 static double native_mul(double a, double b) { return a * b; }
 static double native_div(double a, double b) { return a / b; }
 #include "../include/obfus.h"
-#define CHECK(x)                                                            \
-    do {                                                                    \
-        if (!(x)) {                                                         \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "numeric failure line %d: %s\n", __LINE__, #x); \
-            return 1;                                                       \
-        }                                                                   \
+            return 1; \
+        } \
     } while (0)
 static int same(double a, double b) {
     uint64_t ua = bits(a), ub = bits(b);

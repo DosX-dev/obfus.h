@@ -48,12 +48,12 @@ static int fail_compare(const void *a, const void *b) {
     return 0;
 }
 #include "../include/obfus.h"
-#define CHECK(x)                                         \
-    do {                                                 \
-        if (!(x)) {                                      \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "WIDE_FAIL:%d\n", __LINE__); \
-            return 1;                                    \
-        }                                                \
+            return 1; \
+        } \
     } while (0)
 static int inner_key = 4, inner_values[] = {0, 2, 4, 6, 8};
 static int compare_int(const void *a, const void *b) { return (*(const int *)a > *(const int *)b) - (*(const int *)a < *(const int *)b); }

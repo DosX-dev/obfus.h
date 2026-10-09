@@ -37,24 +37,24 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #undef for
 #undef while
 #undef break
-#define CHECK(x)                                                \
-    do {                                                        \
-        if (!(x)) {                                             \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "API_FAIL:%d: %s\n", __LINE__, #x); \
-            return 1;                                           \
-        }                                                       \
+            return 1; \
+        } \
     } while (0)
-#define ADDRESS(index, module, api)                                                        \
-    do {                                                                                   \
-        unsigned char bytes[64];                                                           \
-        size_t length = OBFH_GUI_NAME_##api(bytes);                                        \
-        SetLastError(0x12345678u);                                                         \
+#define ADDRESS(index, module, api) \
+    do { \
+        unsigned char bytes[64]; \
+        size_t length = OBFH_GUI_NAME_##api(bytes); \
+        SetLastError(0x12345678u); \
         ULONG_PTR v = obfh_gui_cold(module, &test_gui_slots[index], index, bytes, length); \
-        CHECK(GetLastError() == 0x12345678u);                                              \
-        unsigned r = OBFH_GUI_ROTATE(index);                                               \
-        v -= OBFH_GUI_BIAS(index);                                                         \
-        v = ((v >> r) | (v << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(index);         \
-        CHECK(v == (ULONG_PTR)native_export(modules[module], #api));                       \
+        CHECK(GetLastError() == 0x12345678u); \
+        unsigned r = OBFH_GUI_ROTATE(index); \
+        v -= OBFH_GUI_BIAS(index); \
+        v = ((v >> r) | (v << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(index); \
+        CHECK(v == (ULONG_PTR)native_export(modules[module], #api)); \
     } while (0)
 static DWORD WINAPI worker(void *event) { return SetEvent(event) ? 0 : 1; }
 static int painted;

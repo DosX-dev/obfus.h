@@ -13,12 +13,12 @@ static char *ref_token(char *s, const char *d) { return strtok(s, d); }
 static char *ref_reverse(char *s) { return _strrev(s); }
 static wchar_t *ref_wreverse(wchar_t *s) { return _wcsrev(s); }
 #include "../include/obfus.h"
-#define CHECK(x)                                            \
-    do {                                                    \
-        if (!(x)) {                                         \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             (fprintf)(stderr, "EXTRA_FAIL:%d\n", __LINE__); \
-            return 1;                                       \
-        }                                                   \
+            return 1; \
+        } \
     } while (0)
 static int compare(const char *s, int base) {
     char *a, *b;

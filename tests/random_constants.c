@@ -7,15 +7,15 @@
 
 /* Check the linear line-salted formula, including the
    captured counter's next draw and the source line at each expansion. */
-#define DRAW(minimum, maximum)                                                                \
-    {                                                                                         \
-        enum { captured = __COUNTER__,                                                        \
-               value = RND(minimum, maximum) };                                               \
-        unsigned int expected = (minimum) +                                                   \
+#define DRAW(minimum, maximum) \
+    { \
+        enum { captured = __COUNTER__, \
+               value = RND(minimum, maximum) }; \
+        unsigned int expected = (minimum) + \
                                 (((captured + 1 + __LINE__ + (unsigned int)OBFH_BUILD_SEED) * \
-                                  2654435761u) %                                              \
-                                 ((maximum) - (minimum) + 1));                                \
-        if ((unsigned int)value != expected) return 1;                                        \
+                                  2654435761u) % \
+                                 ((maximum) - (minimum) + 1)); \
+        if ((unsigned int)value != expected) return 1; \
     }
 
 #define RANDOM_BATCH_16 RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255), RND(0, 255)

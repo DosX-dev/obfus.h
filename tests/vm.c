@@ -5,12 +5,12 @@
 #include <windows.h>
 
 #include "../include/obfus.h"
-#define CHECK(x)                                               \
-    do {                                                       \
-        if (!(x)) {                                            \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "VM failure line %d\n", __LINE__); \
-            return 1;                                          \
-        }                                                      \
+            return 1; \
+        } \
     } while (0)
 #if VIRT && !NO_OBF
 static volatile LONG calls;
@@ -19,10 +19,10 @@ static long double counted_vm(const unsigned int *program, unsigned int length, 
     return (Obfh_VirtualMachine)(program, length, key, a, b);
 }
 #define Obfh_VirtualMachine(...) counted_vm(__VA_ARGS__)
-#define ROUTE(expr)            \
-    do {                       \
-        LONG before = calls;   \
-        (void)(expr);          \
+#define ROUTE(expr) \
+    do { \
+        LONG before = calls; \
+        (void)(expr); \
         CHECK(calls > before); \
     } while (0)
 #else

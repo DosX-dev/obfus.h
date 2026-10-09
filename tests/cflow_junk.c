@@ -3,10 +3,10 @@
 #include <windows.h>
 
 #include "../include/obfus.h"
-#define SITE(n, macro)                               \
+#define SITE(n, macro) \
     __declspec(dllexport) int junk_site_##n(int x) { \
-        macro;                                       \
-        return x + n + 1;                            \
+        macro; \
+        return x + n + 1; \
     }
 SITE(0, OBFH_CFLOW_SELECT(0))
 SITE(1, OBFH_CFLOW_SELECT(1))

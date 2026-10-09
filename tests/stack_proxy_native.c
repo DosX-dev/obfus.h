@@ -13,25 +13,25 @@ typedef unsigned (*NativeLeaf)(unsigned, unsigned);
 #if defined(__x86_64__)
 #define LEAF_ADDRESS "leaq 1f(%%rip), %0; jmp 9f; 1:"
 #define SP(value) __asm__ __volatile__("movq %%rsp, %0" \
-                                       : "=r"(value)    \
-                                       :                \
+                                       : "=r"(value) \
+                                       : \
                                        : "memory")
 #else
 #define LEAF_ADDRESS "leal 1f, %0; jmp 9f; 1:"
 #define SP(value) __asm__ __volatile__("movl %%esp, %0" \
-                                       : "=r"(value)    \
-                                       :                \
+                                       : "=r"(value) \
+                                       : \
                                        : "memory")
 #endif
-#define CARRIER(name, body)                                          \
-    static NativeLeaf name(void) {                                   \
-        OBFH_SF_CAPTURE;                                             \
-        NativeLeaf entry;                                            \
-        __asm__ __volatile__(LEAF_ADDRESS body "9:"                  \
-                             : "=r"(entry)                           \
-                             : OBFH_SF_INPUTS                        \
+#define CARRIER(name, body) \
+    static NativeLeaf name(void) { \
+        OBFH_SF_CAPTURE; \
+        NativeLeaf entry; \
+        __asm__ __volatile__(LEAF_ADDRESS body "9:" \
+                             : "=r"(entry) \
+                             : OBFH_SF_INPUTS \
                              : "eax", "ecx", "edx", "cc", "memory"); \
-        return entry;                                                \
+        return entry; \
     }
 CARRIER(leaf_a, OBFH_SF_LEAF_A)
 CARRIER(leaf_b, OBFH_SF_LEAF_B)

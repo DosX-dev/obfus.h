@@ -11,12 +11,12 @@ static void test_phase(const char *phase, int progress) {
     fflush(stderr);
 }
 #include "../include/obfus.h"
-#define CHECK(x)                                                           \
-    do {                                                                   \
-        if (!(x)) {                                                        \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "failed %s:%d: %s\n", __FILE__, __LINE__, #x); \
-            return 1;                                                      \
-        }                                                                  \
+            return 1; \
+        } \
     } while (0)
 
 #if !NO_OBF

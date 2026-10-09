@@ -7,12 +7,12 @@ static double (*native_remquo)(double, double, int *);
 double nan(const char *tag) { return native_nan(tag); }
 double remquo(double x, double y, int *q) { return native_remquo(x, y, q); }
 #include "../include/obfus.h"
-#define CHECK(x)                                               \
-    do {                                                       \
-        if (!(x)) {                                            \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "math contract failed: %s\n", #x); \
-            return 1;                                          \
-        }                                                      \
+            return 1; \
+        } \
     } while (0)
 int main(void) {
     HMODULE crt = LoadLibraryA("ucrtbase.dll");

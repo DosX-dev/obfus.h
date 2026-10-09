@@ -130,3 +130,7 @@ The full runner schedules independent checks automatically using CPU capacity an
 On the 32-logical-CPU Windows development machine, the automatic full run completed in 1 minute 56 seconds with 420/420 checks passing. All 419 previous checks remain, plus the scheduler regression check. This is a host-specific measurement, not a fixed runtime guarantee.
 
 `cflow_chain.c` and `cflow_chain.js` verify the x64 live proxy ladder: independent arithmetic references, all native nodes and return routes, condition-state equivalence, recursion, parallel calls, and mutations that remove a call or corrupt a transform. Existing unwind checks cover the native entries and exceptions in nested calls. Disabled modes and x86 retain their previous transport. Run this focused matrix with `node tests/run.js --only-chain`.
+
+`cflow_weave.js` checks linked coordinate transforms, transferred stage components, register roles and instruction spellings against an independent C reference on both architectures. It compares full transported values for equal and unequal inputs, checks the generated constant cache, and rejects mutations that discard either output. After editing the readable scheduling macros, regenerate their cache with `node tests/cflow_weave_cache.js --write`.
+
+`cflow_selectors.js` checks every combination of address representation, bit extraction, index direction and comparison polarity at all selector positions. Both selector families run against an independent route rule with equal and unequal unsigned boundary values.

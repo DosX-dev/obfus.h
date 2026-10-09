@@ -65,8 +65,8 @@ static unsigned int ref(unsigned int a, unsigned int b, unsigned int c, unsigned
 
 #if defined(__x86_64__)
 #define SP(out) __asm__ __volatile__("movq %%rsp, %0" \
-                                     : "=r"(out)      \
-                                     :                \
+                                     : "=r"(out) \
+                                     : \
                                      : "memory")
 #endif
 static DWORD WINAPI worker(void *argument) {
@@ -103,12 +103,12 @@ static int coverage(void) {
 #endif
     return 0;
 }
-#define TRANSFER(hash)                                                           \
-    static int transfer_##hash(unsigned int value) {                             \
-        enum { __obfh_flow_hash = hash };                                        \
-        unsigned int __obfh_flow_state = value, __obfh_flow_tag = 0x88776655u;   \
-        ULONG_PTR __obfh_cookie = 0;                                             \
-        OBFH_P_CHAIN(0x88776655u);                                               \
+#define TRANSFER(hash) \
+    static int transfer_##hash(unsigned int value) { \
+        enum { __obfh_flow_hash = hash }; \
+        unsigned int __obfh_flow_state = value, __obfh_flow_tag = 0x88776655u; \
+        ULONG_PTR __obfh_cookie = 0; \
+        OBFH_P_CHAIN(0x88776655u); \
         return (__obfh_flow_state == __obfh_flow_tag) != (value == 0x88776655u); \
     }
 TRANSFER(0)

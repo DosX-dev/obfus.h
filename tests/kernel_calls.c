@@ -43,24 +43,24 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #undef for
 #undef while
 #undef break
-#define CHECK(x)                                                   \
-    do {                                                           \
-        if (!(x)) {                                                \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "KERNEL_FAIL:%d: %s\n", __LINE__, #x); \
-            return 1;                                              \
-        }                                                          \
+            return 1; \
+        } \
     } while (0)
-#define ADDRESS(index, api)                                                                    \
-    do {                                                                                       \
-        unsigned char name[64];                                                                \
-        size_t length = OBFH_GUI_NAME_##api(name);                                             \
-        SetLastError(0x12345678u);                                                             \
-        ULONG_PTR value = obfh_gui_cold(2, &test_gui_slots[index], index, name, length);       \
-        CHECK(GetLastError() == 0x12345678u);                                                  \
-        unsigned r = OBFH_GUI_ROTATE(index);                                                   \
-        value -= OBFH_GUI_BIAS(index);                                                         \
+#define ADDRESS(index, api) \
+    do { \
+        unsigned char name[64]; \
+        size_t length = OBFH_GUI_NAME_##api(name); \
+        SetLastError(0x12345678u); \
+        ULONG_PTR value = obfh_gui_cold(2, &test_gui_slots[index], index, name, length); \
+        CHECK(GetLastError() == 0x12345678u); \
+        unsigned r = OBFH_GUI_ROTATE(index); \
+        value -= OBFH_GUI_BIAS(index); \
         value = ((value >> r) | (value << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(index); \
-        CHECK(value == (ULONG_PTR)native_export(kernel, #api));                                \
+        CHECK(value == (ULONG_PTR)native_export(kernel, #api)); \
     } while (0)
 int main(int argc, char **argv) {
     if (argc > 1 && argv[1][0] == 'x') ExitProcess(23);

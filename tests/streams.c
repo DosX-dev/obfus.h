@@ -5,12 +5,12 @@
 #include <windows.h>
 
 #include "../include/obfus.h"
-#define CHECK(x)                                                   \
-    do {                                                           \
-        if (!(x)) {                                                \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "stream failure line %d\n", __LINE__); \
-            return 1;                                              \
-        }                                                          \
+            return 1; \
+        } \
     } while (0)
 int main(int argc, char **argv) {
     CHECK(argc == 2);

@@ -440,17 +440,17 @@ int main(int argc, char **argv) {
             return 7;
     }
     /* Force every physical format independently of the seeded template selection. */
-#define FORMAT_CASE(layout)                                                                    \
-    {                                                                                          \
-        enum { __obfh_vkey = 0x11223344u | ((layout) << 29) };                                 \
-        const unsigned int program[] = {                                                       \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, 0, 1, 0, 0), 0),                \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_ADD, 2, 0, 1, 0), 1),                      \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_COPY_RETURN, 3, 2, 0, 0), 2)};             \
-        trace_count = 0;                                                                       \
+#define FORMAT_CASE(layout) \
+    { \
+        enum { __obfh_vkey = 0x11223344u | ((layout) << 29) }; \
+        const unsigned int program[] = { \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, 0, 1, 0, 0), 0), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_ADD, 2, 0, 1, 0), 1), \
+            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_COPY_RETURN, 3, 2, 0, 0), 2)}; \
+        trace_count = 0; \
         if (Obfh_VirtualMachine(program, 3, __obfh_vkey, obfh_vm_encode(-1.25L, SALT_NUM1, 1), \
-                                obfh_vm_encode(3.75L, SALT_NUM2, 1)) != 2.5L ||                \
-            trace_count != 3) return 9;                                                        \
+                                obfh_vm_encode(3.75L, SALT_NUM2, 1)) != 2.5L || \
+            trace_count != 3) return 9; \
     }
     FORMAT_CASE(0u);
     FORMAT_CASE(1u);

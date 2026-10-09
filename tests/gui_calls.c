@@ -35,12 +35,12 @@ static BOOL native_move(HWND h, HWND a, int x, int y, int cx, int cy, UINT f) { 
 #if NO_OBF != 1
 static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #endif
-#define CHECK(x)                                                \
-    do {                                                        \
-        if (!(x)) {                                             \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "GUI_FAIL:%d: %s\n", __LINE__, #x); \
-            return 1;                                           \
-        }                                                       \
+            return 1; \
+        } \
     } while (0)
 static int creates, callbacks;
 static LRESULT CALLBACK procedure(HWND h, UINT m, WPARAM w, LPARAM l) {

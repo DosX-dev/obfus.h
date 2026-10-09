@@ -8,7 +8,7 @@
 #undef puts
 #undef fflush
 #undef OBFH_CFLOW_INPUT
-#define OBFH_CFLOW_INPUT(reg) "movl %[input], " reg ";"
+#define OBFH_CFLOW_INPUT(reg, index) "movl %[input], " reg ";"
 static int pred_0(unsigned int input) {
     unsigned char valid;
     __obfh_asm__(OBFH_CFLOW_PRED_ADD_CARRY "sete %[valid];"

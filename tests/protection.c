@@ -10,12 +10,12 @@ static int reference_printf(const char *format, ...) {
     return result;
 }
 #include "../include/obfus.h"
-#define CHECK(x)                                                  \
-    do {                                                          \
-        if (!(x)) {                                               \
+#define CHECK(x) \
+    do { \
+        if (!(x)) { \
             fprintf(stderr, "protection check failed: %s\n", #x); \
-            return 1;                                             \
-        }                                                         \
+            return 1; \
+        } \
     } while (0)
 #if !NO_OBF
 static int shifted(int shift) { RET_BY_VAR(shift); }

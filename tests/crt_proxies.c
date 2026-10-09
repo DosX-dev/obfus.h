@@ -18,12 +18,12 @@ static int original_strncmp(const char *a, const char *b, size_t n) { return str
 static char *original_strstr(const char *a, const char *b) { return strstr(a, b); }
 static int original_system_available(void) { return system(NULL); }
 #include "../include/obfus.h"
-#define CHECK(value)                                             \
-    do {                                                         \
-        if (!(value)) {                                          \
+#define CHECK(value) \
+    do { \
+        if (!(value)) { \
             fprintf(stderr, "CRT check failed: %d\n", __LINE__); \
-            return 1;                                            \
-        }                                                        \
+            return 1; \
+        } \
     } while (0)
 static void on_exit(void) { puts("CRT_ATEXIT_PASS"); }
 static int format_args(char *out, const char *format, ...) {
