@@ -3261,15 +3261,15 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // Local condition transport: disjoint input tags and path-specific permutations.
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_BEFORE unsigned int __obfh_before_state = __obfh_flow_state, __obfh_before_tag = __obfh_flow_tag;
-#define OBFH_P_TRACE(s, p)                                                                                            \
-    obfh_test_flow_stage(__obfh_flow_layout, s, p, __obfh_before_state, __obfh_before_tag, __obfh_flow_state,         \
-                         __obfh_flow_tag, __obfh_k##s##p, __obfh_m##s##p, __obfh_a##s##p, __obfh_r##s##p,             \
-                         __obfh_style##s##p);                                                                         \
-    __builtin_choose_expr((s) == 0, ({                                                                                \
-                              obfh_test_flow_visit();                                                                 \
-                              obfh_test_flow_route(__obfh_flow_first);                                                \
+#define OBFH_P_TRACE(s, p)                                               \
+    obfh_test_flow_stage(__obfh_flow_layout, s, p, __obfh_before_state, __obfh_before_tag, __obfh_flow_state, \
+                         __obfh_flow_tag, __obfh_k##s##p, __obfh_m##s##p, __obfh_a##s##p, __obfh_r##s##p, \
+                         __obfh_style##s##p, _X##s##p, _H##s##p, _E##s##p, _A##s##p, _Y##s##p); \
+    __builtin_choose_expr((s) == 0, ({                                   \
+                              obfh_test_flow_visit();                    \
+                              obfh_test_flow_route(__obfh_flow_first);   \
                               obfh_test_transport_visit(__obfh_flow_layout, __obfh_flow_exit, __obfh_flow_hash & 1u); \
-                          }),                                                                                         \
+                          }),                                            \
                           ((void)0))
 #else
 #define OBFH_P_BEFORE
@@ -3279,1189 +3279,393 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_WORD "q"
 #define OBFH_P_CX "%%rcx"
 #define OBFH_P_SCALE "8"
+#define OBFH_P_CMOV_PREFIX "0x48,"
 #else
 #define OBFH_P_WORD "l"
 #define OBFH_P_CX "%%ecx"
 #define OBFH_P_SCALE "4"
+#define OBFH_P_CMOV_PREFIX ""
 #endif
-#define OBFH_P_MASK(shift, label_false, label_true)                                                                \
-    ({                                                                                                             \
-        ULONG_PTR __obfh_target;                                                                                   \
-        ULONG_PTR __obfh_target_zero = (ULONG_PTR) && label_false ^ (ULONG_PTR)__obfh_flow_key;                    \
-        ULONG_PTR __obfh_target_one = (ULONG_PTR) && label_true ^ (ULONG_PTR)__obfh_flow_key;                      \
-        ULONG_PTR __obfh_cookie_mask = 0 - (ULONG_PTR)((__obfh_cookie >> (shift)) & 1u);                           \
-        __obfh_asm__("mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD                                      \
-                     " %[one], %[target]; "                                                                        \
-                     "and" OBFH_P_WORD " %[flip], %[target]; mov" OBFH_P_WORD " %[target], " OBFH_P_CX             \
-                     "; "                                                                                          \
-                     "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX                \
-                     "; "                                                                                          \
-                     "cmpl %[tag], %%eax; cmove" OBFH_P_WORD " " OBFH_P_CX                                         \
-                     ", %[target]; "                                                                               \
-                     "xor" OBFH_P_WORD " %[key], %[target];"                                                       \
-                     : [target] "=&r"(__obfh_target)                                                               \
-                     : "a"(__obfh_flow_state),                                                                     \
+// Local address representation is selected once; no runtime dispatcher.
+#define OBFH_P_SELECTOR_META(s)                                          \
+    enum { __obfh_address_form##s = (__obfh_flow_hash >> ((s) + 22)) % 3u, \
+           __obfh_address_xor##s = __obfh_address_form##s == 0 ? __obfh_flow_key : 0, \
+           __obfh_address_bias##s = __obfh_address_form##s == 1 ? -(int)__obfh_flow_key : \
+               (__obfh_address_form##s == 2 ? (int)__obfh_flow_key : 0), \
+           __obfh_shift_form##s = (__obfh_flow_hash >> ((s) + 26)) % 3u, \
+           __obfh_index_form##s = (__obfh_flow_hash >> ((s) + 25)) & 1u, \
+           __obfh_bitcode##s = 0xc1u | ((__obfh_shift_form##s == 0 ? 0xe9u : \
+               (__obfh_shift_form##s == 1 ? 0xc9u : 0xc1u)) << 8) |      \
+               ((__obfh_shift_form##s == 2 ? ((32u - (s)) & 31u) : (s)) << 16) };
+#define OBFH_P_ADDRESS(shift, label)                                     \
+    (((ULONG_PTR)&&label ^ (ULONG_PTR)__obfh_address_xor##shift) + (ULONG_PTR)(LONG)__obfh_address_bias##shift)
+#define OBFH_P_MASK_TEXT                                                 \
+    "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD             \
+                     " %[one], %[target]; "                              \
+                     "and" OBFH_P_WORD " %[flip], %[target]; mov" OBFH_P_WORD " %[target], " OBFH_P_CX \
+                     "; "                                                \
+                     "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX \
+                     "; "                                                \
+                     "cmpl %[tag], %%eax; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],0xd1; " \
+                     ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_TEXT                                                \
+                                                                         \
+            "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
+            "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE \
+            "), %[target]; .byte " OBFH_P_CMOV_PREFIX "0xf7,%c[index_op]; " \
+            "mov" OBFH_P_WORD " %c[next](%[table], " OBFH_P_CX ", " OBFH_P_SCALE "), " OBFH_P_CX \
+            "; "                                                         \
+            "cmpl %[tag], %%eax; .byte " OBFH_P_CMOV_PREFIX "0x0f,%c[cmov],0xd1; " \
+            ".byte " OBFH_P_CMOV_PREFIX "0x81,%c[decode]; .long %c[key];"
+// BEGIN GENERATED CFLOW SELECTORS
+#if defined(__x86_64__)
+#define OBFH_P_MASK_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %[flip], %[target]; movq %[target], %%rcx; xorq %[zero], %[target]; xorq %[one], %%rcx; cmpl %[tag], %%eax; .byte 0x48,0x0f,%c[cmov],0xd1; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movq (%[table], %%rcx, 8), %[target]; .byte 0x48,0xf7,%c[index_op]; movq %c[next](%[table], %%rcx, 8), %%rcx; cmpl %[tag], %%eax; .byte 0x48,0x0f,%c[cmov],0xd1; .byte 0x48,0x81,%c[decode]; .long %c[key];"
+#else
+#define OBFH_P_MASK_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %[flip], %[target]; movl %[target], %%ecx; xorl %[zero], %[target]; xorl %[one], %%ecx; cmpl %[tag], %%eax; .byte 0x0f,%c[cmov],0xd1; .byte 0x81,%c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl (%[table], %%ecx, 4), %[target]; .byte 0xf7,%c[index_op]; movl %c[next](%[table], %%ecx, 4), %%ecx; cmpl %[tag], %%eax; .byte 0x0f,%c[cmov],0xd1; .byte 0x81,%c[decode]; .long %c[key];"
+#endif
+// END GENERATED CFLOW SELECTORS
+#define OBFH_P_MASK(shift, label_false, label_true)                      \
+    ({                                                                   \
+        ULONG_PTR __obfh_target;                                         \
+        ULONG_PTR __obfh_target_zero = OBFH_P_ADDRESS(shift, label_false); \
+        ULONG_PTR __obfh_target_one = OBFH_P_ADDRESS(shift, label_true); \
+        ULONG_PTR __obfh_cookie_mask = 0 - (ULONG_PTR)((__obfh_cookie >> (shift)) & 1u); \
+        __obfh_asm__(OBFH_P_MASK_INSTRUCTIONS                            \
+                     : [target] "=&d"(__obfh_target)                     \
+                     : "a"(__obfh_flow_state),                           \
                        [tag] "m"(__obfh_flow_tag), [flip] "m"(__obfh_cookie_mask), [zero] "m"(__obfh_target_zero), \
-                       [one] "m"(__obfh_target_one), [key] "i"(__obfh_flow_key)                                    \
-                     : "ecx", "cc", "memory");                                                                     \
-        goto *(void *)__obfh_target;                                                                               \
+                       [one] "m"(__obfh_target_one), [key] "i"(__obfh_flow_key), [decode] "i"(__obfh_address_form##shift == 0 ? 0xf2 : (__obfh_address_form##shift == 1 ? 0xc2 : 0xea)), [cmov] "i"(0x44u + ((__obfh_flow_hash >> ((shift) + 20)) & 1u)) \
+                     : "ecx", "cc", "memory");                           \
+        goto *(void *)__obfh_target;                                     \
     })
-#define OBFH_P_TABLE(shift, label_false, label_true)                                            \
-    ({                                                                                          \
-        ULONG_PTR __obfh_targets[2] = {(ULONG_PTR) && label_false ^ (ULONG_PTR)__obfh_flow_key, \
-                                       (ULONG_PTR) && label_true ^ (ULONG_PTR)__obfh_flow_key}, \
-                  __obfh_target;                                                                \
-        __obfh_asm__(                                                                           \
-            "movl %[cookie], %%ecx; shrl %[offset], %%ecx; andl $1, %%ecx; "                    \
-            "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE                        \
-            "), %[target]; xorl $1, %%ecx; "                                                    \
-            "mov" OBFH_P_WORD " (%[table], " OBFH_P_CX ", " OBFH_P_SCALE "), " OBFH_P_CX        \
-            "; "                                                                                \
-            "cmpl %[tag], %%eax; cmove" OBFH_P_WORD " " OBFH_P_CX                               \
-            ", %[target]; "                                                                     \
-            "xor" OBFH_P_WORD " %[key], %[target];"                                             \
-            : [target] "=&r"(__obfh_target)                                                     \
-            : "a"(__obfh_flow_state),                                                           \
-              [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [offset] "i"(shift),     \
-              [table] "r"(__obfh_targets), [key] "i"(__obfh_flow_key)                           \
-            : "ecx", "cc", "memory");                                                           \
-        goto *(void *)__obfh_target;                                                            \
+#define OBFH_P_TABLE(shift, label_false, label_true)                     \
+    ({                                                                   \
+        ULONG_PTR __obfh_targets[2] = {OBFH_P_ADDRESS(shift, label_false), \
+                                       OBFH_P_ADDRESS(shift, label_true)}, \
+                  __obfh_target;                                         \
+        __obfh_asm__(OBFH_P_TABLE_INSTRUCTIONS                           \
+                     : [target] "=&d"(__obfh_target)                     \
+            : "a"(__obfh_flow_state),                                    \
+              [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [bitcode] "i"(__obfh_bitcode##shift), \
+              [index_op] "i"(__obfh_index_form##shift ? 0xd9 : 0xd1),    \
+              [next] "i"((__obfh_index_form##shift ? 1 : 2) * sizeof(ULONG_PTR)), \
+              [table] "r"(__obfh_targets), [key] "i"(__obfh_flow_key), [decode] "i"(__obfh_address_form##shift == 0 ? 0xf2 : (__obfh_address_form##shift == 1 ? 0xc2 : 0xea)), [cmov] "i"(0x44u + ((__obfh_flow_hash >> ((shift) + 20)) & 1u)) \
+            : "ecx", "cc", "memory");                                    \
+        goto *(void *)__obfh_target;                                     \
     })
-// Interleave dependent queues; never emit an entire coordinate chain contiguously.
-// A=count, B=coordinate, O=operation, D=encoding, V=immediate; short reserved names keep expansion small.
-#define OBFH_P_SLOT(id, n, prior)                                                                                                                   \
-    enum {                                                                                                                                          \
-        _B##id##n = _A##id##prior == 4 ? 1 : (prior - _A##id##prior == 4 ? 0 : (_P##id##prior == 3 ? !_B##id##prior : ((_K##id >> (n - 1)) & 1u))), \
-        _P##id##n = (_B##id##n == _B##id##prior ? _P##id##prior : 0) + 1,                                                                           \
-        _A##id##n = _A##id##prior + !_B##id##n,                                                                                                     \
-        _O##id##n = (_Q##id >> (2 * (_B##id##n ? prior - _A##id##prior : _A##id##prior))) & 3u,                                                     \
-        _D##id##n = _O##id##n == 0 ? (_B##id##n ? _F##id : _C##id) : _O##id##n == 1 ? (_B##id##n ? _H##id : _E##id)                                 \
-                                                                 : _O##id##n == 2   ? (_B##id##n ? _U##id : _I##id)                                 \
-                                                                                    : (_B##id##n ? _W##id : _L##id),                                  \
-        _V##id##n = _O##id##n == 0 ? _K##id : _O##id##n == 1 ? _M##id                                                                               \
-                                          : _O##id##n == 2   ? (_B##id##n ? _G##id : _N##id)                                                        \
-                                                             : (_B##id##n ? _J##id : _Y##id)                                                        \
-    }
-// Fields: opcode [0..15], opcode width [16..17], immediate width [18..20],
-// TCC .fill values are limited to 32 bits, so emit opcode and immediate separately.
-// NOT followed by XOR(~key) is folded to XOR(key), preserving its result.
-#define OBFH_P_INSTRUCTIONS \
-    ".fill 1, ((%c[d1] >> 16) & 3), %c[d1]; .fill 1, ((%c[d1] >> 18) & 7), %c[v1];\
-     .fill 1, ((%c[d2] >> 16) & 3), %c[d2]; .fill 1, ((%c[d2] >> 18) & 7), %c[v2];\
-     .fill 1, ((%c[d3] >> 16) & 3), %c[d3]; .fill 1, ((%c[d3] >> 18) & 7), %c[v3];\
-     .fill 1, ((%c[d4] >> 16) & 3), %c[d4]; .fill 1, ((%c[d4] >> 18) & 7), %c[v4];\
-     .fill 1, ((%c[d5] >> 16) & 3), %c[d5]; .fill 1, ((%c[d5] >> 18) & 7), %c[v5];\
-     .fill 1, ((%c[d6] >> 16) & 3), %c[d6]; .fill 1, ((%c[d6] >> 18) & 7), %c[v6];\
-     .fill 1, ((%c[d7] >> 16) & 3), %c[d7]; .fill 1, ((%c[d7] >> 18) & 7), %c[v7];\
-     .fill 1, ((%c[d8] >> 16) & 3), %c[d8]; .fill 1, ((%c[d8] >> 18) & 7), %c[v8];"
+// Pair transport: every component is bijective and preserves equality in both directions.
+// Reflections y <- 2*x-y bind the coordinates; neither is an independent tag pipeline.
+// Select physical roles at compile time; no exchange instruction is needed.
+#define OBFH_P_SLOT(id, n, prior, key, mul, add, rot)                    \
+    enum { _C##id##n = ((n & 1) ? ((_Q##id >> (2 * ((n - 1) / 2))) & 3u) : (_C##id##prior)), \
+           _O##id##n = ((n & 1) ? ((n <= 2) ? (_N##id) : (_C##id##n < 2 ? (_C##id##n ? _G##id : _F##id) : _C##id##n + 2u)) : (_O##id##prior)), \
+           _B##id##n = (_O##id##n < 4 ? (((_K##id >> ((n - 1) / 2)) ^ (n - 1)) & 1u) \
+                                      : ((_O##id##n == 4) ^ !!(_T##id & 32u))) ^ !!(_T##id & 16u), \
+           _D##id##n = _O##id##n == 0 ? (_B##id##n ? _f##id : _c##id)    \
+                     : _O##id##n == 1 ? (_B##id##n ? _h##id : _e##id)    \
+                     : _O##id##n == 2 ? (_B##id##n ? _u##id : _i##id)    \
+                     : _O##id##n == 3 ? (_B##id##n ? _w##id : _l##id)    \
+                     : (_K##id & (1u << (16 + _O##id##n)))               \
+                       ? ((n & 1) ? (_B##id##n ? 0x0342148du : 0x0350048du) \
+                                  : (_B##id##n ? 0x0340048du : 0x0352148du)) \
+                       : ((n & 1) ? (_B##id##n ? 0x0200daf7u : 0x0200d8f7u) \
+                                  : (_B##id##n ? 0x0342148du : 0x0350048du)), \
+           _V##id##n = _O##id##n == 0 ? (key) : _O##id##n == 1 ? (mul)   \
+                     : _O##id##n == 2 ? ((_T##id & (_B##id##n ? 2u : 1u)) ? 0u - (add) : (add)) \
+                     : _O##id##n == 3 ? ((_T##id & (_B##id##n ? 8u : 4u)) ? 32u - (rot) : (rot)) : 0u }
+// Opcode [0..23], opcode width [24..25], immediate width [26..28].
+// Emit separately: TCC .fill values are limited to 32 bits.
+#define OBFH_P_INSTRUCTIONS                                              \
+    ".fill 1, ((%c[d1] >> 24) & 3), %c[d1]; .fill 1, ((%c[d1] >> 26) & 7), %c[v1];\
+     .fill 1, ((%c[d2] >> 24) & 3), %c[d2]; .fill 1, ((%c[d2] >> 26) & 7), %c[v2];\
+     .fill 1, ((%c[d3] >> 24) & 3), %c[d3]; .fill 1, ((%c[d3] >> 26) & 7), %c[v3];\
+     .fill 1, ((%c[d4] >> 24) & 3), %c[d4]; .fill 1, ((%c[d4] >> 26) & 7), %c[v4];\
+     .fill 1, ((%c[d5] >> 24) & 3), %c[d5]; .fill 1, ((%c[d5] >> 26) & 7), %c[v5];\
+     .fill 1, ((%c[d6] >> 24) & 3), %c[d6]; .fill 1, ((%c[d6] >> 26) & 7), %c[v6];\
+     .fill 1, ((%c[d7] >> 24) & 3), %c[d7]; .fill 1, ((%c[d7] >> 26) & 7), %c[v7];\
+     .fill 1, ((%c[d8] >> 24) & 3), %c[d8]; .fill 1, ((%c[d8] >> 26) & 7), %c[v8];"
 #define OBFH_P_INPUT(id, n) [d##n] "i"(_D##id##n), [v##n] "i"(_V##id##n)
-#define OBFH_P_PERMUTE(s, p, instructions)                                                                         \
-    ({                                                                                                             \
-        __obfh_asm__(instructions                                                                                  \
-                     : "+a"(__obfh_flow_state), "+d"(__obfh_flow_tag)                                              \
-                     : OBFH_P_INPUT(s##p, 1), OBFH_P_INPUT(s##p, 2), OBFH_P_INPUT(s##p, 3), OBFH_P_INPUT(s##p, 4), \
-                       OBFH_P_INPUT(s##p, 5), OBFH_P_INPUT(s##p, 6), OBFH_P_INPUT(s##p, 7), OBFH_P_INPUT(s##p, 8)  \
-                     : "cc", "memory");                                                                            \
-    })
+#define OBFH_P_ROLE(s, p, reverse)                                       \
+    __builtin_choose_expr(!!(_T##s##p & 16u) ^ (reverse), __obfh_flow_tag, __obfh_flow_state)
+#define OBFH_P_ARGUMENTS(s, p)                                           \
+    OBFH_P_INPUT(s##p, 1), OBFH_P_INPUT(s##p, 2), OBFH_P_INPUT(s##p, 3), OBFH_P_INPUT(s##p, 4), \
+                      OBFH_P_INPUT(s##p, 5), OBFH_P_INPUT(s##p, 6), OBFH_P_INPUT(s##p, 7), OBFH_P_INPUT(s##p, 8)
+#define OBFH_P_PERMUTE(s, p, instructions)                               \
+    ({ __obfh_asm__(instructions                                         \
+                    : "+a"(OBFH_P_ROLE(s, p, 0)), "+d"(OBFH_P_ROLE(s, p, 1)) \
+                    : OBFH_P_ARGS_##s##p                                 \
+                    : "cc", "memory"); })
 #define OBFH_P_PREPARE(s, p) OBFH_P_CACHE_##s##p
-#define OBFH_P_POOL(id, style, key, mul, add, rot)                               \
-    enum { _S##id = style,                                                       \
-           _K##id = key,                                                         \
-           _M##id = mul,                                                         \
-           _Z##id = add,                                                         \
-           _R##id = rot,                                                         \
-           _T##id = _K##id >> 14,                                                \
-           _A##id##0 = 0,                                                        \
-           _B##id##0 = 0,                                                        \
-           _P##id##0 = 0,                                                        \
-           _Q##id = _S##id == 0 ? 0xe4u : _S##id == 1 ? 0x4eu                    \
-                                      : _S##id == 2   ? 0xb1u                    \
-                                                      : 0x93u };                   \
-    enum { _C##id = 0x110035u,                                                   \
-           _E##id = 0x12c069u,                                                   \
-           _I##id = (_T##id & 1u ? 0x11002du : 0x110005u),                       \
-           _L##id = (_T##id & 4u ? 0x06c8c1u : 0x06c0c1u),                       \
-           _F##id = 0x12f281u,                                                   \
-           _H##id = 0x12d269u,                                                   \
-           _U##id = (_T##id & 2u ? 0x12ea81u : 0x12c281u),                       \
-           _W##id = (_T##id & 8u ? 0x06cac1u : 0x06c2c1u) };                     \
-    enum { _N##id = ((_S##id < 2) ^ !!(_T##id & 1u)) ? _Z##id : 0u - _Z##id,     \
-           _G##id = ((_S##id < 2) ^ !!(_T##id & 2u)) ? _Z##id : 0u - _Z##id,     \
-           _Y##id = ((_S##id == 2) ^ !!(_T##id & 4u)) ? 32u - _R##id : _R##id,   \
-           _J##id = ((_S##id == 2) ^ !!(_T##id & 8u)) ? 32u - _R##id : _R##id }; \
-    OBFH_P_SLOT(id, 1, 0);                                                       \
-    OBFH_P_SLOT(id, 2, 1);                                                       \
-    OBFH_P_SLOT(id, 3, 2);                                                       \
-    OBFH_P_SLOT(id, 4, 3);                                                       \
-    OBFH_P_SLOT(id, 5, 4);                                                       \
-    OBFH_P_SLOT(id, 6, 5);                                                       \
-    OBFH_P_SLOT(id, 7, 6);                                                       \
-    OBFH_P_SLOT(id, 8, 7);
+#define OBFH_P_POOL(id, style, key, mul, add, rot, branch, donor, donorstyle, donormul, donoradd, donorrot) \
+    enum { _S##id = style, _K##id = key, _M##id = mul, _Z##id = add, _R##id = rot, _X##id = donor, _T##id = _K##id >> 14, _C##id##0 = 0, _O##id##0 = 0, \
+           _H##id = donorstyle, _E##id = donormul, _A##id = donoradd, _Y##id = donorrot, \
+           _N##id = (0xb16cu >> (4 * _H##id + 2 * ((_X##id >> 8) % 12u / 6u))) & 3u, \
+           _F##id = _S##id == 0 ? 0 : _S##id == 1 ? 2 : _S##id == 2 ? 1 : 3, \
+           _G##id = _S##id == 0 ? 3 : _S##id == 1 ? 1 : _S##id == 2 ? 0 : 2, \
+           _J##id = (_K##id >> 8) % 12u,                                 \
+           _Q##id = ((_J##id < 8 ? 0xb1e16c9c78d8b4e4ull : 0x2d8d39c9ull) \
+                     >> (8 * (_J##id & 7u))) & 255u };                   \
+    enum { _c##id = 0x11000035u, _f##id = 0x1200f281u, _e##id = 0x1200c069u, _h##id = 0x1200d269u, \
+           _i##id = _T##id & 1u ? 0x1100002du : 0x11000005u, _u##id = _T##id & 2u ? 0x1200ea81u : 0x1200c281u, \
+           _l##id = _T##id & 4u ? 0x0600c8c1u : 0x0600c0c1u, _w##id = _T##id & 8u ? 0x0600cac1u : 0x0600c2c1u }; \
+    OBFH_P_SLOT(id, 1, 0, _X##id, _E##id, _A##id, _Y##id);               \
+    OBFH_P_SLOT(id, 2, 1, _X##id, _E##id, _A##id, _Y##id);               \
+    OBFH_P_SLOT(id, 3, 2, _K##id, _M##id, _Z##id, _R##id); OBFH_P_SLOT(id, 4, 3, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 5, 4, _K##id, _M##id, _Z##id, _R##id); OBFH_P_SLOT(id, 6, 5, _K##id, _M##id, _Z##id, _R##id); \
+    OBFH_P_SLOT(id, 7, 6, _K##id, _M##id, _Z##id, _R##id); OBFH_P_SLOT(id, 8, 7, _K##id, _M##id, _Z##id, _R##id);
 // Generated constant pools: regenerate from the readable macros with tests/cflow_weave_cache.js.
-#define OBFH_P_CACHE_00                                                                                      \
-    enum { _S00 = __obfh_style00,                                                                            \
-           _K00 = __obfh_k00,                                                                                \
-           _M00 = __obfh_m00,                                                                                \
-           _Z00 = __obfh_a00,                                                                                \
-           _R00 = __obfh_r00,                                                                                \
-           _T00 = _K00 >> 14,                                                                                \
-           _A000 = 0,                                                                                        \
-           _B000 = 0,                                                                                        \
-           _P000 = 0,                                                                                        \
-           _Q00 = _S00 == 0 ? 0xe4u : _S00 == 1 ? 0x4eu                                                      \
-                                  : _S00 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C00 = 0x110035u,                                                                                 \
-           _E00 = 0x12c069u,                                                                                 \
-           _I00 = (_T00 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L00 = (_T00 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F00 = 0x12f281u,                                                                                 \
-           _H00 = 0x12d269u,                                                                                 \
-           _U00 = (_T00 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W00 = (_T00 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N00 = ((_S00 < 2) ^ !!(_T00 & 1u)) ? _Z00 : 0u - _Z00,                                           \
-           _G00 = ((_S00 < 2) ^ !!(_T00 & 2u)) ? _Z00 : 0u - _Z00,                                           \
-           _Y00 = ((_S00 == 2) ^ !!(_T00 & 4u)) ? 32u - _R00 : _R00,                                         \
-           _J00 = ((_S00 == 2) ^ !!(_T00 & 8u)) ? 32u - _R00 : _R00 };                                       \
-    enum { _B001 = _A000 == 4 ? 1 : (0 - _A000 == 4 ? 0 : (_P000 == 3 ? !_B000 : ((_K00 >> (1 - 1)) & 1u))), \
-           _P001 = (_B001 == _B000 ? _P000 : 0) + 1,                                                         \
-           _A001 = _A000 + !_B001,                                                                           \
-           _O001 = (_Q00 >> (2 * (_B001 ? 0 - _A000 : _A000))) & 3u,                                         \
-           _D001 = _O001 == 0 ? (_B001 ? _F00 : _C00) : _O001 == 1 ? (_B001 ? _H00 : _E00)                   \
-                                                    : _O001 == 2   ? (_B001 ? _U00 : _I00)                   \
-                                                                   : (_B001 ? _W00 : _L00),                    \
-           _V001 = _O001 == 0 ? _K00 : _O001 == 1 ? _M00                                                     \
-                                   : _O001 == 2   ? (_B001 ? _G00 : _N00)                                    \
-                                                  : (_B001 ? _J00 : _Y00) };                                   \
-    enum { _B002 = _A001 == 4 ? 1 : (1 - _A001 == 4 ? 0 : (_P001 == 3 ? !_B001 : ((_K00 >> (2 - 1)) & 1u))), \
-           _P002 = (_B002 == _B001 ? _P001 : 0) + 1,                                                         \
-           _A002 = _A001 + !_B002,                                                                           \
-           _O002 = (_Q00 >> (2 * (_B002 ? 1 - _A001 : _A001))) & 3u,                                         \
-           _D002 = _O002 == 0 ? (_B002 ? _F00 : _C00) : _O002 == 1 ? (_B002 ? _H00 : _E00)                   \
-                                                    : _O002 == 2   ? (_B002 ? _U00 : _I00)                   \
-                                                                   : (_B002 ? _W00 : _L00),                    \
-           _V002 = _O002 == 0 ? _K00 : _O002 == 1 ? _M00                                                     \
-                                   : _O002 == 2   ? (_B002 ? _G00 : _N00)                                    \
-                                                  : (_B002 ? _J00 : _Y00) };                                   \
-    enum { _B003 = _A002 == 4 ? 1 : (2 - _A002 == 4 ? 0 : (_P002 == 3 ? !_B002 : ((_K00 >> (3 - 1)) & 1u))), \
-           _P003 = (_B003 == _B002 ? _P002 : 0) + 1,                                                         \
-           _A003 = _A002 + !_B003,                                                                           \
-           _O003 = (_Q00 >> (2 * (_B003 ? 2 - _A002 : _A002))) & 3u,                                         \
-           _D003 = _O003 == 0 ? (_B003 ? _F00 : _C00) : _O003 == 1 ? (_B003 ? _H00 : _E00)                   \
-                                                    : _O003 == 2   ? (_B003 ? _U00 : _I00)                   \
-                                                                   : (_B003 ? _W00 : _L00),                    \
-           _V003 = _O003 == 0 ? _K00 : _O003 == 1 ? _M00                                                     \
-                                   : _O003 == 2   ? (_B003 ? _G00 : _N00)                                    \
-                                                  : (_B003 ? _J00 : _Y00) };                                   \
-    enum { _B004 = _A003 == 4 ? 1 : (3 - _A003 == 4 ? 0 : (_P003 == 3 ? !_B003 : ((_K00 >> (4 - 1)) & 1u))), \
-           _P004 = (_B004 == _B003 ? _P003 : 0) + 1,                                                         \
-           _A004 = _A003 + !_B004,                                                                           \
-           _O004 = (_Q00 >> (2 * (_B004 ? 3 - _A003 : _A003))) & 3u,                                         \
-           _D004 = _O004 == 0 ? (_B004 ? _F00 : _C00) : _O004 == 1 ? (_B004 ? _H00 : _E00)                   \
-                                                    : _O004 == 2   ? (_B004 ? _U00 : _I00)                   \
-                                                                   : (_B004 ? _W00 : _L00),                    \
-           _V004 = _O004 == 0 ? _K00 : _O004 == 1 ? _M00                                                     \
-                                   : _O004 == 2   ? (_B004 ? _G00 : _N00)                                    \
-                                                  : (_B004 ? _J00 : _Y00) };                                   \
-    enum { _B005 = _A004 == 4 ? 1 : (4 - _A004 == 4 ? 0 : (_P004 == 3 ? !_B004 : ((_K00 >> (5 - 1)) & 1u))), \
-           _P005 = (_B005 == _B004 ? _P004 : 0) + 1,                                                         \
-           _A005 = _A004 + !_B005,                                                                           \
-           _O005 = (_Q00 >> (2 * (_B005 ? 4 - _A004 : _A004))) & 3u,                                         \
-           _D005 = _O005 == 0 ? (_B005 ? _F00 : _C00) : _O005 == 1 ? (_B005 ? _H00 : _E00)                   \
-                                                    : _O005 == 2   ? (_B005 ? _U00 : _I00)                   \
-                                                                   : (_B005 ? _W00 : _L00),                    \
-           _V005 = _O005 == 0 ? _K00 : _O005 == 1 ? _M00                                                     \
-                                   : _O005 == 2   ? (_B005 ? _G00 : _N00)                                    \
-                                                  : (_B005 ? _J00 : _Y00) };                                   \
-    enum { _B006 = _A005 == 4 ? 1 : (5 - _A005 == 4 ? 0 : (_P005 == 3 ? !_B005 : ((_K00 >> (6 - 1)) & 1u))), \
-           _P006 = (_B006 == _B005 ? _P005 : 0) + 1,                                                         \
-           _A006 = _A005 + !_B006,                                                                           \
-           _O006 = (_Q00 >> (2 * (_B006 ? 5 - _A005 : _A005))) & 3u,                                         \
-           _D006 = _O006 == 0 ? (_B006 ? _F00 : _C00) : _O006 == 1 ? (_B006 ? _H00 : _E00)                   \
-                                                    : _O006 == 2   ? (_B006 ? _U00 : _I00)                   \
-                                                                   : (_B006 ? _W00 : _L00),                    \
-           _V006 = _O006 == 0 ? _K00 : _O006 == 1 ? _M00                                                     \
-                                   : _O006 == 2   ? (_B006 ? _G00 : _N00)                                    \
-                                                  : (_B006 ? _J00 : _Y00) };                                   \
-    enum { _B007 = _A006 == 4 ? 1 : (6 - _A006 == 4 ? 0 : (_P006 == 3 ? !_B006 : ((_K00 >> (7 - 1)) & 1u))), \
-           _P007 = (_B007 == _B006 ? _P006 : 0) + 1,                                                         \
-           _A007 = _A006 + !_B007,                                                                           \
-           _O007 = (_Q00 >> (2 * (_B007 ? 6 - _A006 : _A006))) & 3u,                                         \
-           _D007 = _O007 == 0 ? (_B007 ? _F00 : _C00) : _O007 == 1 ? (_B007 ? _H00 : _E00)                   \
-                                                    : _O007 == 2   ? (_B007 ? _U00 : _I00)                   \
-                                                                   : (_B007 ? _W00 : _L00),                    \
-           _V007 = _O007 == 0 ? _K00 : _O007 == 1 ? _M00                                                     \
-                                   : _O007 == 2   ? (_B007 ? _G00 : _N00)                                    \
-                                                  : (_B007 ? _J00 : _Y00) };                                   \
-    enum { _B008 = _A007 == 4 ? 1 : (7 - _A007 == 4 ? 0 : (_P007 == 3 ? !_B007 : ((_K00 >> (8 - 1)) & 1u))), \
-           _P008 = (_B008 == _B007 ? _P007 : 0) + 1,                                                         \
-           _A008 = _A007 + !_B008,                                                                           \
-           _O008 = (_Q00 >> (2 * (_B008 ? 7 - _A007 : _A007))) & 3u,                                         \
-           _D008 = _O008 == 0 ? (_B008 ? _F00 : _C00) : _O008 == 1 ? (_B008 ? _H00 : _E00)                   \
-                                                    : _O008 == 2   ? (_B008 ? _U00 : _I00)                   \
-                                                                   : (_B008 ? _W00 : _L00),                    \
-           _V008 = _O008 == 0 ? _K00 : _O008 == 1 ? _M00                                                     \
-                                   : _O008 == 2   ? (_B008 ? _G00 : _N00)                                    \
-                                                  : (_B008 ? _J00 : _Y00) };
-#define OBFH_P_CACHE_01                                                                                      \
-    enum { _S01 = __obfh_style01,                                                                            \
-           _K01 = __obfh_k01,                                                                                \
-           _M01 = __obfh_m01,                                                                                \
-           _Z01 = __obfh_a01,                                                                                \
-           _R01 = __obfh_r01,                                                                                \
-           _T01 = _K01 >> 14,                                                                                \
-           _A010 = 0,                                                                                        \
-           _B010 = 0,                                                                                        \
-           _P010 = 0,                                                                                        \
-           _Q01 = _S01 == 0 ? 0xe4u : _S01 == 1 ? 0x4eu                                                      \
-                                  : _S01 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C01 = 0x110035u,                                                                                 \
-           _E01 = 0x12c069u,                                                                                 \
-           _I01 = (_T01 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L01 = (_T01 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F01 = 0x12f281u,                                                                                 \
-           _H01 = 0x12d269u,                                                                                 \
-           _U01 = (_T01 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W01 = (_T01 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N01 = ((_S01 < 2) ^ !!(_T01 & 1u)) ? _Z01 : 0u - _Z01,                                           \
-           _G01 = ((_S01 < 2) ^ !!(_T01 & 2u)) ? _Z01 : 0u - _Z01,                                           \
-           _Y01 = ((_S01 == 2) ^ !!(_T01 & 4u)) ? 32u - _R01 : _R01,                                         \
-           _J01 = ((_S01 == 2) ^ !!(_T01 & 8u)) ? 32u - _R01 : _R01 };                                       \
-    enum { _B011 = _A010 == 4 ? 1 : (0 - _A010 == 4 ? 0 : (_P010 == 3 ? !_B010 : ((_K01 >> (1 - 1)) & 1u))), \
-           _P011 = (_B011 == _B010 ? _P010 : 0) + 1,                                                         \
-           _A011 = _A010 + !_B011,                                                                           \
-           _O011 = (_Q01 >> (2 * (_B011 ? 0 - _A010 : _A010))) & 3u,                                         \
-           _D011 = _O011 == 0 ? (_B011 ? _F01 : _C01) : _O011 == 1 ? (_B011 ? _H01 : _E01)                   \
-                                                    : _O011 == 2   ? (_B011 ? _U01 : _I01)                   \
-                                                                   : (_B011 ? _W01 : _L01),                    \
-           _V011 = _O011 == 0 ? _K01 : _O011 == 1 ? _M01                                                     \
-                                   : _O011 == 2   ? (_B011 ? _G01 : _N01)                                    \
-                                                  : (_B011 ? _J01 : _Y01) };                                   \
-    enum { _B012 = _A011 == 4 ? 1 : (1 - _A011 == 4 ? 0 : (_P011 == 3 ? !_B011 : ((_K01 >> (2 - 1)) & 1u))), \
-           _P012 = (_B012 == _B011 ? _P011 : 0) + 1,                                                         \
-           _A012 = _A011 + !_B012,                                                                           \
-           _O012 = (_Q01 >> (2 * (_B012 ? 1 - _A011 : _A011))) & 3u,                                         \
-           _D012 = _O012 == 0 ? (_B012 ? _F01 : _C01) : _O012 == 1 ? (_B012 ? _H01 : _E01)                   \
-                                                    : _O012 == 2   ? (_B012 ? _U01 : _I01)                   \
-                                                                   : (_B012 ? _W01 : _L01),                    \
-           _V012 = _O012 == 0 ? _K01 : _O012 == 1 ? _M01                                                     \
-                                   : _O012 == 2   ? (_B012 ? _G01 : _N01)                                    \
-                                                  : (_B012 ? _J01 : _Y01) };                                   \
-    enum { _B013 = _A012 == 4 ? 1 : (2 - _A012 == 4 ? 0 : (_P012 == 3 ? !_B012 : ((_K01 >> (3 - 1)) & 1u))), \
-           _P013 = (_B013 == _B012 ? _P012 : 0) + 1,                                                         \
-           _A013 = _A012 + !_B013,                                                                           \
-           _O013 = (_Q01 >> (2 * (_B013 ? 2 - _A012 : _A012))) & 3u,                                         \
-           _D013 = _O013 == 0 ? (_B013 ? _F01 : _C01) : _O013 == 1 ? (_B013 ? _H01 : _E01)                   \
-                                                    : _O013 == 2   ? (_B013 ? _U01 : _I01)                   \
-                                                                   : (_B013 ? _W01 : _L01),                    \
-           _V013 = _O013 == 0 ? _K01 : _O013 == 1 ? _M01                                                     \
-                                   : _O013 == 2   ? (_B013 ? _G01 : _N01)                                    \
-                                                  : (_B013 ? _J01 : _Y01) };                                   \
-    enum { _B014 = _A013 == 4 ? 1 : (3 - _A013 == 4 ? 0 : (_P013 == 3 ? !_B013 : ((_K01 >> (4 - 1)) & 1u))), \
-           _P014 = (_B014 == _B013 ? _P013 : 0) + 1,                                                         \
-           _A014 = _A013 + !_B014,                                                                           \
-           _O014 = (_Q01 >> (2 * (_B014 ? 3 - _A013 : _A013))) & 3u,                                         \
-           _D014 = _O014 == 0 ? (_B014 ? _F01 : _C01) : _O014 == 1 ? (_B014 ? _H01 : _E01)                   \
-                                                    : _O014 == 2   ? (_B014 ? _U01 : _I01)                   \
-                                                                   : (_B014 ? _W01 : _L01),                    \
-           _V014 = _O014 == 0 ? _K01 : _O014 == 1 ? _M01                                                     \
-                                   : _O014 == 2   ? (_B014 ? _G01 : _N01)                                    \
-                                                  : (_B014 ? _J01 : _Y01) };                                   \
-    enum { _B015 = _A014 == 4 ? 1 : (4 - _A014 == 4 ? 0 : (_P014 == 3 ? !_B014 : ((_K01 >> (5 - 1)) & 1u))), \
-           _P015 = (_B015 == _B014 ? _P014 : 0) + 1,                                                         \
-           _A015 = _A014 + !_B015,                                                                           \
-           _O015 = (_Q01 >> (2 * (_B015 ? 4 - _A014 : _A014))) & 3u,                                         \
-           _D015 = _O015 == 0 ? (_B015 ? _F01 : _C01) : _O015 == 1 ? (_B015 ? _H01 : _E01)                   \
-                                                    : _O015 == 2   ? (_B015 ? _U01 : _I01)                   \
-                                                                   : (_B015 ? _W01 : _L01),                    \
-           _V015 = _O015 == 0 ? _K01 : _O015 == 1 ? _M01                                                     \
-                                   : _O015 == 2   ? (_B015 ? _G01 : _N01)                                    \
-                                                  : (_B015 ? _J01 : _Y01) };                                   \
-    enum { _B016 = _A015 == 4 ? 1 : (5 - _A015 == 4 ? 0 : (_P015 == 3 ? !_B015 : ((_K01 >> (6 - 1)) & 1u))), \
-           _P016 = (_B016 == _B015 ? _P015 : 0) + 1,                                                         \
-           _A016 = _A015 + !_B016,                                                                           \
-           _O016 = (_Q01 >> (2 * (_B016 ? 5 - _A015 : _A015))) & 3u,                                         \
-           _D016 = _O016 == 0 ? (_B016 ? _F01 : _C01) : _O016 == 1 ? (_B016 ? _H01 : _E01)                   \
-                                                    : _O016 == 2   ? (_B016 ? _U01 : _I01)                   \
-                                                                   : (_B016 ? _W01 : _L01),                    \
-           _V016 = _O016 == 0 ? _K01 : _O016 == 1 ? _M01                                                     \
-                                   : _O016 == 2   ? (_B016 ? _G01 : _N01)                                    \
-                                                  : (_B016 ? _J01 : _Y01) };                                   \
-    enum { _B017 = _A016 == 4 ? 1 : (6 - _A016 == 4 ? 0 : (_P016 == 3 ? !_B016 : ((_K01 >> (7 - 1)) & 1u))), \
-           _P017 = (_B017 == _B016 ? _P016 : 0) + 1,                                                         \
-           _A017 = _A016 + !_B017,                                                                           \
-           _O017 = (_Q01 >> (2 * (_B017 ? 6 - _A016 : _A016))) & 3u,                                         \
-           _D017 = _O017 == 0 ? (_B017 ? _F01 : _C01) : _O017 == 1 ? (_B017 ? _H01 : _E01)                   \
-                                                    : _O017 == 2   ? (_B017 ? _U01 : _I01)                   \
-                                                                   : (_B017 ? _W01 : _L01),                    \
-           _V017 = _O017 == 0 ? _K01 : _O017 == 1 ? _M01                                                     \
-                                   : _O017 == 2   ? (_B017 ? _G01 : _N01)                                    \
-                                                  : (_B017 ? _J01 : _Y01) };                                   \
-    enum { _B018 = _A017 == 4 ? 1 : (7 - _A017 == 4 ? 0 : (_P017 == 3 ? !_B017 : ((_K01 >> (8 - 1)) & 1u))), \
-           _P018 = (_B018 == _B017 ? _P017 : 0) + 1,                                                         \
-           _A018 = _A017 + !_B018,                                                                           \
-           _O018 = (_Q01 >> (2 * (_B018 ? 7 - _A017 : _A017))) & 3u,                                         \
-           _D018 = _O018 == 0 ? (_B018 ? _F01 : _C01) : _O018 == 1 ? (_B018 ? _H01 : _E01)                   \
-                                                    : _O018 == 2   ? (_B018 ? _U01 : _I01)                   \
-                                                                   : (_B018 ? _W01 : _L01),                    \
-           _V018 = _O018 == 0 ? _K01 : _O018 == 1 ? _M01                                                     \
-                                   : _O018 == 2   ? (_B018 ? _G01 : _N01)                                    \
-                                                  : (_B018 ? _J01 : _Y01) };
-#define OBFH_P_CACHE_10                                                                                      \
-    enum { _S10 = __obfh_style10,                                                                            \
-           _K10 = __obfh_k10,                                                                                \
-           _M10 = __obfh_m10,                                                                                \
-           _Z10 = __obfh_a10,                                                                                \
-           _R10 = __obfh_r10,                                                                                \
-           _T10 = _K10 >> 14,                                                                                \
-           _A100 = 0,                                                                                        \
-           _B100 = 0,                                                                                        \
-           _P100 = 0,                                                                                        \
-           _Q10 = _S10 == 0 ? 0xe4u : _S10 == 1 ? 0x4eu                                                      \
-                                  : _S10 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C10 = 0x110035u,                                                                                 \
-           _E10 = 0x12c069u,                                                                                 \
-           _I10 = (_T10 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L10 = (_T10 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F10 = 0x12f281u,                                                                                 \
-           _H10 = 0x12d269u,                                                                                 \
-           _U10 = (_T10 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W10 = (_T10 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N10 = ((_S10 < 2) ^ !!(_T10 & 1u)) ? _Z10 : 0u - _Z10,                                           \
-           _G10 = ((_S10 < 2) ^ !!(_T10 & 2u)) ? _Z10 : 0u - _Z10,                                           \
-           _Y10 = ((_S10 == 2) ^ !!(_T10 & 4u)) ? 32u - _R10 : _R10,                                         \
-           _J10 = ((_S10 == 2) ^ !!(_T10 & 8u)) ? 32u - _R10 : _R10 };                                       \
-    enum { _B101 = _A100 == 4 ? 1 : (0 - _A100 == 4 ? 0 : (_P100 == 3 ? !_B100 : ((_K10 >> (1 - 1)) & 1u))), \
-           _P101 = (_B101 == _B100 ? _P100 : 0) + 1,                                                         \
-           _A101 = _A100 + !_B101,                                                                           \
-           _O101 = (_Q10 >> (2 * (_B101 ? 0 - _A100 : _A100))) & 3u,                                         \
-           _D101 = _O101 == 0 ? (_B101 ? _F10 : _C10) : _O101 == 1 ? (_B101 ? _H10 : _E10)                   \
-                                                    : _O101 == 2   ? (_B101 ? _U10 : _I10)                   \
-                                                                   : (_B101 ? _W10 : _L10),                    \
-           _V101 = _O101 == 0 ? _K10 : _O101 == 1 ? _M10                                                     \
-                                   : _O101 == 2   ? (_B101 ? _G10 : _N10)                                    \
-                                                  : (_B101 ? _J10 : _Y10) };                                   \
-    enum { _B102 = _A101 == 4 ? 1 : (1 - _A101 == 4 ? 0 : (_P101 == 3 ? !_B101 : ((_K10 >> (2 - 1)) & 1u))), \
-           _P102 = (_B102 == _B101 ? _P101 : 0) + 1,                                                         \
-           _A102 = _A101 + !_B102,                                                                           \
-           _O102 = (_Q10 >> (2 * (_B102 ? 1 - _A101 : _A101))) & 3u,                                         \
-           _D102 = _O102 == 0 ? (_B102 ? _F10 : _C10) : _O102 == 1 ? (_B102 ? _H10 : _E10)                   \
-                                                    : _O102 == 2   ? (_B102 ? _U10 : _I10)                   \
-                                                                   : (_B102 ? _W10 : _L10),                    \
-           _V102 = _O102 == 0 ? _K10 : _O102 == 1 ? _M10                                                     \
-                                   : _O102 == 2   ? (_B102 ? _G10 : _N10)                                    \
-                                                  : (_B102 ? _J10 : _Y10) };                                   \
-    enum { _B103 = _A102 == 4 ? 1 : (2 - _A102 == 4 ? 0 : (_P102 == 3 ? !_B102 : ((_K10 >> (3 - 1)) & 1u))), \
-           _P103 = (_B103 == _B102 ? _P102 : 0) + 1,                                                         \
-           _A103 = _A102 + !_B103,                                                                           \
-           _O103 = (_Q10 >> (2 * (_B103 ? 2 - _A102 : _A102))) & 3u,                                         \
-           _D103 = _O103 == 0 ? (_B103 ? _F10 : _C10) : _O103 == 1 ? (_B103 ? _H10 : _E10)                   \
-                                                    : _O103 == 2   ? (_B103 ? _U10 : _I10)                   \
-                                                                   : (_B103 ? _W10 : _L10),                    \
-           _V103 = _O103 == 0 ? _K10 : _O103 == 1 ? _M10                                                     \
-                                   : _O103 == 2   ? (_B103 ? _G10 : _N10)                                    \
-                                                  : (_B103 ? _J10 : _Y10) };                                   \
-    enum { _B104 = _A103 == 4 ? 1 : (3 - _A103 == 4 ? 0 : (_P103 == 3 ? !_B103 : ((_K10 >> (4 - 1)) & 1u))), \
-           _P104 = (_B104 == _B103 ? _P103 : 0) + 1,                                                         \
-           _A104 = _A103 + !_B104,                                                                           \
-           _O104 = (_Q10 >> (2 * (_B104 ? 3 - _A103 : _A103))) & 3u,                                         \
-           _D104 = _O104 == 0 ? (_B104 ? _F10 : _C10) : _O104 == 1 ? (_B104 ? _H10 : _E10)                   \
-                                                    : _O104 == 2   ? (_B104 ? _U10 : _I10)                   \
-                                                                   : (_B104 ? _W10 : _L10),                    \
-           _V104 = _O104 == 0 ? _K10 : _O104 == 1 ? _M10                                                     \
-                                   : _O104 == 2   ? (_B104 ? _G10 : _N10)                                    \
-                                                  : (_B104 ? _J10 : _Y10) };                                   \
-    enum { _B105 = _A104 == 4 ? 1 : (4 - _A104 == 4 ? 0 : (_P104 == 3 ? !_B104 : ((_K10 >> (5 - 1)) & 1u))), \
-           _P105 = (_B105 == _B104 ? _P104 : 0) + 1,                                                         \
-           _A105 = _A104 + !_B105,                                                                           \
-           _O105 = (_Q10 >> (2 * (_B105 ? 4 - _A104 : _A104))) & 3u,                                         \
-           _D105 = _O105 == 0 ? (_B105 ? _F10 : _C10) : _O105 == 1 ? (_B105 ? _H10 : _E10)                   \
-                                                    : _O105 == 2   ? (_B105 ? _U10 : _I10)                   \
-                                                                   : (_B105 ? _W10 : _L10),                    \
-           _V105 = _O105 == 0 ? _K10 : _O105 == 1 ? _M10                                                     \
-                                   : _O105 == 2   ? (_B105 ? _G10 : _N10)                                    \
-                                                  : (_B105 ? _J10 : _Y10) };                                   \
-    enum { _B106 = _A105 == 4 ? 1 : (5 - _A105 == 4 ? 0 : (_P105 == 3 ? !_B105 : ((_K10 >> (6 - 1)) & 1u))), \
-           _P106 = (_B106 == _B105 ? _P105 : 0) + 1,                                                         \
-           _A106 = _A105 + !_B106,                                                                           \
-           _O106 = (_Q10 >> (2 * (_B106 ? 5 - _A105 : _A105))) & 3u,                                         \
-           _D106 = _O106 == 0 ? (_B106 ? _F10 : _C10) : _O106 == 1 ? (_B106 ? _H10 : _E10)                   \
-                                                    : _O106 == 2   ? (_B106 ? _U10 : _I10)                   \
-                                                                   : (_B106 ? _W10 : _L10),                    \
-           _V106 = _O106 == 0 ? _K10 : _O106 == 1 ? _M10                                                     \
-                                   : _O106 == 2   ? (_B106 ? _G10 : _N10)                                    \
-                                                  : (_B106 ? _J10 : _Y10) };                                   \
-    enum { _B107 = _A106 == 4 ? 1 : (6 - _A106 == 4 ? 0 : (_P106 == 3 ? !_B106 : ((_K10 >> (7 - 1)) & 1u))), \
-           _P107 = (_B107 == _B106 ? _P106 : 0) + 1,                                                         \
-           _A107 = _A106 + !_B107,                                                                           \
-           _O107 = (_Q10 >> (2 * (_B107 ? 6 - _A106 : _A106))) & 3u,                                         \
-           _D107 = _O107 == 0 ? (_B107 ? _F10 : _C10) : _O107 == 1 ? (_B107 ? _H10 : _E10)                   \
-                                                    : _O107 == 2   ? (_B107 ? _U10 : _I10)                   \
-                                                                   : (_B107 ? _W10 : _L10),                    \
-           _V107 = _O107 == 0 ? _K10 : _O107 == 1 ? _M10                                                     \
-                                   : _O107 == 2   ? (_B107 ? _G10 : _N10)                                    \
-                                                  : (_B107 ? _J10 : _Y10) };                                   \
-    enum { _B108 = _A107 == 4 ? 1 : (7 - _A107 == 4 ? 0 : (_P107 == 3 ? !_B107 : ((_K10 >> (8 - 1)) & 1u))), \
-           _P108 = (_B108 == _B107 ? _P107 : 0) + 1,                                                         \
-           _A108 = _A107 + !_B108,                                                                           \
-           _O108 = (_Q10 >> (2 * (_B108 ? 7 - _A107 : _A107))) & 3u,                                         \
-           _D108 = _O108 == 0 ? (_B108 ? _F10 : _C10) : _O108 == 1 ? (_B108 ? _H10 : _E10)                   \
-                                                    : _O108 == 2   ? (_B108 ? _U10 : _I10)                   \
-                                                                   : (_B108 ? _W10 : _L10),                    \
-           _V108 = _O108 == 0 ? _K10 : _O108 == 1 ? _M10                                                     \
-                                   : _O108 == 2   ? (_B108 ? _G10 : _N10)                                    \
-                                                  : (_B108 ? _J10 : _Y10) };
-#define OBFH_P_CACHE_11                                                                                      \
-    enum { _S11 = __obfh_style11,                                                                            \
-           _K11 = __obfh_k11,                                                                                \
-           _M11 = __obfh_m11,                                                                                \
-           _Z11 = __obfh_a11,                                                                                \
-           _R11 = __obfh_r11,                                                                                \
-           _T11 = _K11 >> 14,                                                                                \
-           _A110 = 0,                                                                                        \
-           _B110 = 0,                                                                                        \
-           _P110 = 0,                                                                                        \
-           _Q11 = _S11 == 0 ? 0xe4u : _S11 == 1 ? 0x4eu                                                      \
-                                  : _S11 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C11 = 0x110035u,                                                                                 \
-           _E11 = 0x12c069u,                                                                                 \
-           _I11 = (_T11 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L11 = (_T11 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F11 = 0x12f281u,                                                                                 \
-           _H11 = 0x12d269u,                                                                                 \
-           _U11 = (_T11 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W11 = (_T11 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N11 = ((_S11 < 2) ^ !!(_T11 & 1u)) ? _Z11 : 0u - _Z11,                                           \
-           _G11 = ((_S11 < 2) ^ !!(_T11 & 2u)) ? _Z11 : 0u - _Z11,                                           \
-           _Y11 = ((_S11 == 2) ^ !!(_T11 & 4u)) ? 32u - _R11 : _R11,                                         \
-           _J11 = ((_S11 == 2) ^ !!(_T11 & 8u)) ? 32u - _R11 : _R11 };                                       \
-    enum { _B111 = _A110 == 4 ? 1 : (0 - _A110 == 4 ? 0 : (_P110 == 3 ? !_B110 : ((_K11 >> (1 - 1)) & 1u))), \
-           _P111 = (_B111 == _B110 ? _P110 : 0) + 1,                                                         \
-           _A111 = _A110 + !_B111,                                                                           \
-           _O111 = (_Q11 >> (2 * (_B111 ? 0 - _A110 : _A110))) & 3u,                                         \
-           _D111 = _O111 == 0 ? (_B111 ? _F11 : _C11) : _O111 == 1 ? (_B111 ? _H11 : _E11)                   \
-                                                    : _O111 == 2   ? (_B111 ? _U11 : _I11)                   \
-                                                                   : (_B111 ? _W11 : _L11),                    \
-           _V111 = _O111 == 0 ? _K11 : _O111 == 1 ? _M11                                                     \
-                                   : _O111 == 2   ? (_B111 ? _G11 : _N11)                                    \
-                                                  : (_B111 ? _J11 : _Y11) };                                   \
-    enum { _B112 = _A111 == 4 ? 1 : (1 - _A111 == 4 ? 0 : (_P111 == 3 ? !_B111 : ((_K11 >> (2 - 1)) & 1u))), \
-           _P112 = (_B112 == _B111 ? _P111 : 0) + 1,                                                         \
-           _A112 = _A111 + !_B112,                                                                           \
-           _O112 = (_Q11 >> (2 * (_B112 ? 1 - _A111 : _A111))) & 3u,                                         \
-           _D112 = _O112 == 0 ? (_B112 ? _F11 : _C11) : _O112 == 1 ? (_B112 ? _H11 : _E11)                   \
-                                                    : _O112 == 2   ? (_B112 ? _U11 : _I11)                   \
-                                                                   : (_B112 ? _W11 : _L11),                    \
-           _V112 = _O112 == 0 ? _K11 : _O112 == 1 ? _M11                                                     \
-                                   : _O112 == 2   ? (_B112 ? _G11 : _N11)                                    \
-                                                  : (_B112 ? _J11 : _Y11) };                                   \
-    enum { _B113 = _A112 == 4 ? 1 : (2 - _A112 == 4 ? 0 : (_P112 == 3 ? !_B112 : ((_K11 >> (3 - 1)) & 1u))), \
-           _P113 = (_B113 == _B112 ? _P112 : 0) + 1,                                                         \
-           _A113 = _A112 + !_B113,                                                                           \
-           _O113 = (_Q11 >> (2 * (_B113 ? 2 - _A112 : _A112))) & 3u,                                         \
-           _D113 = _O113 == 0 ? (_B113 ? _F11 : _C11) : _O113 == 1 ? (_B113 ? _H11 : _E11)                   \
-                                                    : _O113 == 2   ? (_B113 ? _U11 : _I11)                   \
-                                                                   : (_B113 ? _W11 : _L11),                    \
-           _V113 = _O113 == 0 ? _K11 : _O113 == 1 ? _M11                                                     \
-                                   : _O113 == 2   ? (_B113 ? _G11 : _N11)                                    \
-                                                  : (_B113 ? _J11 : _Y11) };                                   \
-    enum { _B114 = _A113 == 4 ? 1 : (3 - _A113 == 4 ? 0 : (_P113 == 3 ? !_B113 : ((_K11 >> (4 - 1)) & 1u))), \
-           _P114 = (_B114 == _B113 ? _P113 : 0) + 1,                                                         \
-           _A114 = _A113 + !_B114,                                                                           \
-           _O114 = (_Q11 >> (2 * (_B114 ? 3 - _A113 : _A113))) & 3u,                                         \
-           _D114 = _O114 == 0 ? (_B114 ? _F11 : _C11) : _O114 == 1 ? (_B114 ? _H11 : _E11)                   \
-                                                    : _O114 == 2   ? (_B114 ? _U11 : _I11)                   \
-                                                                   : (_B114 ? _W11 : _L11),                    \
-           _V114 = _O114 == 0 ? _K11 : _O114 == 1 ? _M11                                                     \
-                                   : _O114 == 2   ? (_B114 ? _G11 : _N11)                                    \
-                                                  : (_B114 ? _J11 : _Y11) };                                   \
-    enum { _B115 = _A114 == 4 ? 1 : (4 - _A114 == 4 ? 0 : (_P114 == 3 ? !_B114 : ((_K11 >> (5 - 1)) & 1u))), \
-           _P115 = (_B115 == _B114 ? _P114 : 0) + 1,                                                         \
-           _A115 = _A114 + !_B115,                                                                           \
-           _O115 = (_Q11 >> (2 * (_B115 ? 4 - _A114 : _A114))) & 3u,                                         \
-           _D115 = _O115 == 0 ? (_B115 ? _F11 : _C11) : _O115 == 1 ? (_B115 ? _H11 : _E11)                   \
-                                                    : _O115 == 2   ? (_B115 ? _U11 : _I11)                   \
-                                                                   : (_B115 ? _W11 : _L11),                    \
-           _V115 = _O115 == 0 ? _K11 : _O115 == 1 ? _M11                                                     \
-                                   : _O115 == 2   ? (_B115 ? _G11 : _N11)                                    \
-                                                  : (_B115 ? _J11 : _Y11) };                                   \
-    enum { _B116 = _A115 == 4 ? 1 : (5 - _A115 == 4 ? 0 : (_P115 == 3 ? !_B115 : ((_K11 >> (6 - 1)) & 1u))), \
-           _P116 = (_B116 == _B115 ? _P115 : 0) + 1,                                                         \
-           _A116 = _A115 + !_B116,                                                                           \
-           _O116 = (_Q11 >> (2 * (_B116 ? 5 - _A115 : _A115))) & 3u,                                         \
-           _D116 = _O116 == 0 ? (_B116 ? _F11 : _C11) : _O116 == 1 ? (_B116 ? _H11 : _E11)                   \
-                                                    : _O116 == 2   ? (_B116 ? _U11 : _I11)                   \
-                                                                   : (_B116 ? _W11 : _L11),                    \
-           _V116 = _O116 == 0 ? _K11 : _O116 == 1 ? _M11                                                     \
-                                   : _O116 == 2   ? (_B116 ? _G11 : _N11)                                    \
-                                                  : (_B116 ? _J11 : _Y11) };                                   \
-    enum { _B117 = _A116 == 4 ? 1 : (6 - _A116 == 4 ? 0 : (_P116 == 3 ? !_B116 : ((_K11 >> (7 - 1)) & 1u))), \
-           _P117 = (_B117 == _B116 ? _P116 : 0) + 1,                                                         \
-           _A117 = _A116 + !_B117,                                                                           \
-           _O117 = (_Q11 >> (2 * (_B117 ? 6 - _A116 : _A116))) & 3u,                                         \
-           _D117 = _O117 == 0 ? (_B117 ? _F11 : _C11) : _O117 == 1 ? (_B117 ? _H11 : _E11)                   \
-                                                    : _O117 == 2   ? (_B117 ? _U11 : _I11)                   \
-                                                                   : (_B117 ? _W11 : _L11),                    \
-           _V117 = _O117 == 0 ? _K11 : _O117 == 1 ? _M11                                                     \
-                                   : _O117 == 2   ? (_B117 ? _G11 : _N11)                                    \
-                                                  : (_B117 ? _J11 : _Y11) };                                   \
-    enum { _B118 = _A117 == 4 ? 1 : (7 - _A117 == 4 ? 0 : (_P117 == 3 ? !_B117 : ((_K11 >> (8 - 1)) & 1u))), \
-           _P118 = (_B118 == _B117 ? _P117 : 0) + 1,                                                         \
-           _A118 = _A117 + !_B118,                                                                           \
-           _O118 = (_Q11 >> (2 * (_B118 ? 7 - _A117 : _A117))) & 3u,                                         \
-           _D118 = _O118 == 0 ? (_B118 ? _F11 : _C11) : _O118 == 1 ? (_B118 ? _H11 : _E11)                   \
-                                                    : _O118 == 2   ? (_B118 ? _U11 : _I11)                   \
-                                                                   : (_B118 ? _W11 : _L11),                    \
-           _V118 = _O118 == 0 ? _K11 : _O118 == 1 ? _M11                                                     \
-                                   : _O118 == 2   ? (_B118 ? _G11 : _N11)                                    \
-                                                  : (_B118 ? _J11 : _Y11) };
-#define OBFH_P_CACHE_20                                                                                      \
-    enum { _S20 = __obfh_style20,                                                                            \
-           _K20 = __obfh_k20,                                                                                \
-           _M20 = __obfh_m20,                                                                                \
-           _Z20 = __obfh_a20,                                                                                \
-           _R20 = __obfh_r20,                                                                                \
-           _T20 = _K20 >> 14,                                                                                \
-           _A200 = 0,                                                                                        \
-           _B200 = 0,                                                                                        \
-           _P200 = 0,                                                                                        \
-           _Q20 = _S20 == 0 ? 0xe4u : _S20 == 1 ? 0x4eu                                                      \
-                                  : _S20 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C20 = 0x110035u,                                                                                 \
-           _E20 = 0x12c069u,                                                                                 \
-           _I20 = (_T20 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L20 = (_T20 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F20 = 0x12f281u,                                                                                 \
-           _H20 = 0x12d269u,                                                                                 \
-           _U20 = (_T20 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W20 = (_T20 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N20 = ((_S20 < 2) ^ !!(_T20 & 1u)) ? _Z20 : 0u - _Z20,                                           \
-           _G20 = ((_S20 < 2) ^ !!(_T20 & 2u)) ? _Z20 : 0u - _Z20,                                           \
-           _Y20 = ((_S20 == 2) ^ !!(_T20 & 4u)) ? 32u - _R20 : _R20,                                         \
-           _J20 = ((_S20 == 2) ^ !!(_T20 & 8u)) ? 32u - _R20 : _R20 };                                       \
-    enum { _B201 = _A200 == 4 ? 1 : (0 - _A200 == 4 ? 0 : (_P200 == 3 ? !_B200 : ((_K20 >> (1 - 1)) & 1u))), \
-           _P201 = (_B201 == _B200 ? _P200 : 0) + 1,                                                         \
-           _A201 = _A200 + !_B201,                                                                           \
-           _O201 = (_Q20 >> (2 * (_B201 ? 0 - _A200 : _A200))) & 3u,                                         \
-           _D201 = _O201 == 0 ? (_B201 ? _F20 : _C20) : _O201 == 1 ? (_B201 ? _H20 : _E20)                   \
-                                                    : _O201 == 2   ? (_B201 ? _U20 : _I20)                   \
-                                                                   : (_B201 ? _W20 : _L20),                    \
-           _V201 = _O201 == 0 ? _K20 : _O201 == 1 ? _M20                                                     \
-                                   : _O201 == 2   ? (_B201 ? _G20 : _N20)                                    \
-                                                  : (_B201 ? _J20 : _Y20) };                                   \
-    enum { _B202 = _A201 == 4 ? 1 : (1 - _A201 == 4 ? 0 : (_P201 == 3 ? !_B201 : ((_K20 >> (2 - 1)) & 1u))), \
-           _P202 = (_B202 == _B201 ? _P201 : 0) + 1,                                                         \
-           _A202 = _A201 + !_B202,                                                                           \
-           _O202 = (_Q20 >> (2 * (_B202 ? 1 - _A201 : _A201))) & 3u,                                         \
-           _D202 = _O202 == 0 ? (_B202 ? _F20 : _C20) : _O202 == 1 ? (_B202 ? _H20 : _E20)                   \
-                                                    : _O202 == 2   ? (_B202 ? _U20 : _I20)                   \
-                                                                   : (_B202 ? _W20 : _L20),                    \
-           _V202 = _O202 == 0 ? _K20 : _O202 == 1 ? _M20                                                     \
-                                   : _O202 == 2   ? (_B202 ? _G20 : _N20)                                    \
-                                                  : (_B202 ? _J20 : _Y20) };                                   \
-    enum { _B203 = _A202 == 4 ? 1 : (2 - _A202 == 4 ? 0 : (_P202 == 3 ? !_B202 : ((_K20 >> (3 - 1)) & 1u))), \
-           _P203 = (_B203 == _B202 ? _P202 : 0) + 1,                                                         \
-           _A203 = _A202 + !_B203,                                                                           \
-           _O203 = (_Q20 >> (2 * (_B203 ? 2 - _A202 : _A202))) & 3u,                                         \
-           _D203 = _O203 == 0 ? (_B203 ? _F20 : _C20) : _O203 == 1 ? (_B203 ? _H20 : _E20)                   \
-                                                    : _O203 == 2   ? (_B203 ? _U20 : _I20)                   \
-                                                                   : (_B203 ? _W20 : _L20),                    \
-           _V203 = _O203 == 0 ? _K20 : _O203 == 1 ? _M20                                                     \
-                                   : _O203 == 2   ? (_B203 ? _G20 : _N20)                                    \
-                                                  : (_B203 ? _J20 : _Y20) };                                   \
-    enum { _B204 = _A203 == 4 ? 1 : (3 - _A203 == 4 ? 0 : (_P203 == 3 ? !_B203 : ((_K20 >> (4 - 1)) & 1u))), \
-           _P204 = (_B204 == _B203 ? _P203 : 0) + 1,                                                         \
-           _A204 = _A203 + !_B204,                                                                           \
-           _O204 = (_Q20 >> (2 * (_B204 ? 3 - _A203 : _A203))) & 3u,                                         \
-           _D204 = _O204 == 0 ? (_B204 ? _F20 : _C20) : _O204 == 1 ? (_B204 ? _H20 : _E20)                   \
-                                                    : _O204 == 2   ? (_B204 ? _U20 : _I20)                   \
-                                                                   : (_B204 ? _W20 : _L20),                    \
-           _V204 = _O204 == 0 ? _K20 : _O204 == 1 ? _M20                                                     \
-                                   : _O204 == 2   ? (_B204 ? _G20 : _N20)                                    \
-                                                  : (_B204 ? _J20 : _Y20) };                                   \
-    enum { _B205 = _A204 == 4 ? 1 : (4 - _A204 == 4 ? 0 : (_P204 == 3 ? !_B204 : ((_K20 >> (5 - 1)) & 1u))), \
-           _P205 = (_B205 == _B204 ? _P204 : 0) + 1,                                                         \
-           _A205 = _A204 + !_B205,                                                                           \
-           _O205 = (_Q20 >> (2 * (_B205 ? 4 - _A204 : _A204))) & 3u,                                         \
-           _D205 = _O205 == 0 ? (_B205 ? _F20 : _C20) : _O205 == 1 ? (_B205 ? _H20 : _E20)                   \
-                                                    : _O205 == 2   ? (_B205 ? _U20 : _I20)                   \
-                                                                   : (_B205 ? _W20 : _L20),                    \
-           _V205 = _O205 == 0 ? _K20 : _O205 == 1 ? _M20                                                     \
-                                   : _O205 == 2   ? (_B205 ? _G20 : _N20)                                    \
-                                                  : (_B205 ? _J20 : _Y20) };                                   \
-    enum { _B206 = _A205 == 4 ? 1 : (5 - _A205 == 4 ? 0 : (_P205 == 3 ? !_B205 : ((_K20 >> (6 - 1)) & 1u))), \
-           _P206 = (_B206 == _B205 ? _P205 : 0) + 1,                                                         \
-           _A206 = _A205 + !_B206,                                                                           \
-           _O206 = (_Q20 >> (2 * (_B206 ? 5 - _A205 : _A205))) & 3u,                                         \
-           _D206 = _O206 == 0 ? (_B206 ? _F20 : _C20) : _O206 == 1 ? (_B206 ? _H20 : _E20)                   \
-                                                    : _O206 == 2   ? (_B206 ? _U20 : _I20)                   \
-                                                                   : (_B206 ? _W20 : _L20),                    \
-           _V206 = _O206 == 0 ? _K20 : _O206 == 1 ? _M20                                                     \
-                                   : _O206 == 2   ? (_B206 ? _G20 : _N20)                                    \
-                                                  : (_B206 ? _J20 : _Y20) };                                   \
-    enum { _B207 = _A206 == 4 ? 1 : (6 - _A206 == 4 ? 0 : (_P206 == 3 ? !_B206 : ((_K20 >> (7 - 1)) & 1u))), \
-           _P207 = (_B207 == _B206 ? _P206 : 0) + 1,                                                         \
-           _A207 = _A206 + !_B207,                                                                           \
-           _O207 = (_Q20 >> (2 * (_B207 ? 6 - _A206 : _A206))) & 3u,                                         \
-           _D207 = _O207 == 0 ? (_B207 ? _F20 : _C20) : _O207 == 1 ? (_B207 ? _H20 : _E20)                   \
-                                                    : _O207 == 2   ? (_B207 ? _U20 : _I20)                   \
-                                                                   : (_B207 ? _W20 : _L20),                    \
-           _V207 = _O207 == 0 ? _K20 : _O207 == 1 ? _M20                                                     \
-                                   : _O207 == 2   ? (_B207 ? _G20 : _N20)                                    \
-                                                  : (_B207 ? _J20 : _Y20) };                                   \
-    enum { _B208 = _A207 == 4 ? 1 : (7 - _A207 == 4 ? 0 : (_P207 == 3 ? !_B207 : ((_K20 >> (8 - 1)) & 1u))), \
-           _P208 = (_B208 == _B207 ? _P207 : 0) + 1,                                                         \
-           _A208 = _A207 + !_B208,                                                                           \
-           _O208 = (_Q20 >> (2 * (_B208 ? 7 - _A207 : _A207))) & 3u,                                         \
-           _D208 = _O208 == 0 ? (_B208 ? _F20 : _C20) : _O208 == 1 ? (_B208 ? _H20 : _E20)                   \
-                                                    : _O208 == 2   ? (_B208 ? _U20 : _I20)                   \
-                                                                   : (_B208 ? _W20 : _L20),                    \
-           _V208 = _O208 == 0 ? _K20 : _O208 == 1 ? _M20                                                     \
-                                   : _O208 == 2   ? (_B208 ? _G20 : _N20)                                    \
-                                                  : (_B208 ? _J20 : _Y20) };
-#define OBFH_P_CACHE_21                                                                                      \
-    enum { _S21 = __obfh_style21,                                                                            \
-           _K21 = __obfh_k21,                                                                                \
-           _M21 = __obfh_m21,                                                                                \
-           _Z21 = __obfh_a21,                                                                                \
-           _R21 = __obfh_r21,                                                                                \
-           _T21 = _K21 >> 14,                                                                                \
-           _A210 = 0,                                                                                        \
-           _B210 = 0,                                                                                        \
-           _P210 = 0,                                                                                        \
-           _Q21 = _S21 == 0 ? 0xe4u : _S21 == 1 ? 0x4eu                                                      \
-                                  : _S21 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C21 = 0x110035u,                                                                                 \
-           _E21 = 0x12c069u,                                                                                 \
-           _I21 = (_T21 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L21 = (_T21 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F21 = 0x12f281u,                                                                                 \
-           _H21 = 0x12d269u,                                                                                 \
-           _U21 = (_T21 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W21 = (_T21 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N21 = ((_S21 < 2) ^ !!(_T21 & 1u)) ? _Z21 : 0u - _Z21,                                           \
-           _G21 = ((_S21 < 2) ^ !!(_T21 & 2u)) ? _Z21 : 0u - _Z21,                                           \
-           _Y21 = ((_S21 == 2) ^ !!(_T21 & 4u)) ? 32u - _R21 : _R21,                                         \
-           _J21 = ((_S21 == 2) ^ !!(_T21 & 8u)) ? 32u - _R21 : _R21 };                                       \
-    enum { _B211 = _A210 == 4 ? 1 : (0 - _A210 == 4 ? 0 : (_P210 == 3 ? !_B210 : ((_K21 >> (1 - 1)) & 1u))), \
-           _P211 = (_B211 == _B210 ? _P210 : 0) + 1,                                                         \
-           _A211 = _A210 + !_B211,                                                                           \
-           _O211 = (_Q21 >> (2 * (_B211 ? 0 - _A210 : _A210))) & 3u,                                         \
-           _D211 = _O211 == 0 ? (_B211 ? _F21 : _C21) : _O211 == 1 ? (_B211 ? _H21 : _E21)                   \
-                                                    : _O211 == 2   ? (_B211 ? _U21 : _I21)                   \
-                                                                   : (_B211 ? _W21 : _L21),                    \
-           _V211 = _O211 == 0 ? _K21 : _O211 == 1 ? _M21                                                     \
-                                   : _O211 == 2   ? (_B211 ? _G21 : _N21)                                    \
-                                                  : (_B211 ? _J21 : _Y21) };                                   \
-    enum { _B212 = _A211 == 4 ? 1 : (1 - _A211 == 4 ? 0 : (_P211 == 3 ? !_B211 : ((_K21 >> (2 - 1)) & 1u))), \
-           _P212 = (_B212 == _B211 ? _P211 : 0) + 1,                                                         \
-           _A212 = _A211 + !_B212,                                                                           \
-           _O212 = (_Q21 >> (2 * (_B212 ? 1 - _A211 : _A211))) & 3u,                                         \
-           _D212 = _O212 == 0 ? (_B212 ? _F21 : _C21) : _O212 == 1 ? (_B212 ? _H21 : _E21)                   \
-                                                    : _O212 == 2   ? (_B212 ? _U21 : _I21)                   \
-                                                                   : (_B212 ? _W21 : _L21),                    \
-           _V212 = _O212 == 0 ? _K21 : _O212 == 1 ? _M21                                                     \
-                                   : _O212 == 2   ? (_B212 ? _G21 : _N21)                                    \
-                                                  : (_B212 ? _J21 : _Y21) };                                   \
-    enum { _B213 = _A212 == 4 ? 1 : (2 - _A212 == 4 ? 0 : (_P212 == 3 ? !_B212 : ((_K21 >> (3 - 1)) & 1u))), \
-           _P213 = (_B213 == _B212 ? _P212 : 0) + 1,                                                         \
-           _A213 = _A212 + !_B213,                                                                           \
-           _O213 = (_Q21 >> (2 * (_B213 ? 2 - _A212 : _A212))) & 3u,                                         \
-           _D213 = _O213 == 0 ? (_B213 ? _F21 : _C21) : _O213 == 1 ? (_B213 ? _H21 : _E21)                   \
-                                                    : _O213 == 2   ? (_B213 ? _U21 : _I21)                   \
-                                                                   : (_B213 ? _W21 : _L21),                    \
-           _V213 = _O213 == 0 ? _K21 : _O213 == 1 ? _M21                                                     \
-                                   : _O213 == 2   ? (_B213 ? _G21 : _N21)                                    \
-                                                  : (_B213 ? _J21 : _Y21) };                                   \
-    enum { _B214 = _A213 == 4 ? 1 : (3 - _A213 == 4 ? 0 : (_P213 == 3 ? !_B213 : ((_K21 >> (4 - 1)) & 1u))), \
-           _P214 = (_B214 == _B213 ? _P213 : 0) + 1,                                                         \
-           _A214 = _A213 + !_B214,                                                                           \
-           _O214 = (_Q21 >> (2 * (_B214 ? 3 - _A213 : _A213))) & 3u,                                         \
-           _D214 = _O214 == 0 ? (_B214 ? _F21 : _C21) : _O214 == 1 ? (_B214 ? _H21 : _E21)                   \
-                                                    : _O214 == 2   ? (_B214 ? _U21 : _I21)                   \
-                                                                   : (_B214 ? _W21 : _L21),                    \
-           _V214 = _O214 == 0 ? _K21 : _O214 == 1 ? _M21                                                     \
-                                   : _O214 == 2   ? (_B214 ? _G21 : _N21)                                    \
-                                                  : (_B214 ? _J21 : _Y21) };                                   \
-    enum { _B215 = _A214 == 4 ? 1 : (4 - _A214 == 4 ? 0 : (_P214 == 3 ? !_B214 : ((_K21 >> (5 - 1)) & 1u))), \
-           _P215 = (_B215 == _B214 ? _P214 : 0) + 1,                                                         \
-           _A215 = _A214 + !_B215,                                                                           \
-           _O215 = (_Q21 >> (2 * (_B215 ? 4 - _A214 : _A214))) & 3u,                                         \
-           _D215 = _O215 == 0 ? (_B215 ? _F21 : _C21) : _O215 == 1 ? (_B215 ? _H21 : _E21)                   \
-                                                    : _O215 == 2   ? (_B215 ? _U21 : _I21)                   \
-                                                                   : (_B215 ? _W21 : _L21),                    \
-           _V215 = _O215 == 0 ? _K21 : _O215 == 1 ? _M21                                                     \
-                                   : _O215 == 2   ? (_B215 ? _G21 : _N21)                                    \
-                                                  : (_B215 ? _J21 : _Y21) };                                   \
-    enum { _B216 = _A215 == 4 ? 1 : (5 - _A215 == 4 ? 0 : (_P215 == 3 ? !_B215 : ((_K21 >> (6 - 1)) & 1u))), \
-           _P216 = (_B216 == _B215 ? _P215 : 0) + 1,                                                         \
-           _A216 = _A215 + !_B216,                                                                           \
-           _O216 = (_Q21 >> (2 * (_B216 ? 5 - _A215 : _A215))) & 3u,                                         \
-           _D216 = _O216 == 0 ? (_B216 ? _F21 : _C21) : _O216 == 1 ? (_B216 ? _H21 : _E21)                   \
-                                                    : _O216 == 2   ? (_B216 ? _U21 : _I21)                   \
-                                                                   : (_B216 ? _W21 : _L21),                    \
-           _V216 = _O216 == 0 ? _K21 : _O216 == 1 ? _M21                                                     \
-                                   : _O216 == 2   ? (_B216 ? _G21 : _N21)                                    \
-                                                  : (_B216 ? _J21 : _Y21) };                                   \
-    enum { _B217 = _A216 == 4 ? 1 : (6 - _A216 == 4 ? 0 : (_P216 == 3 ? !_B216 : ((_K21 >> (7 - 1)) & 1u))), \
-           _P217 = (_B217 == _B216 ? _P216 : 0) + 1,                                                         \
-           _A217 = _A216 + !_B217,                                                                           \
-           _O217 = (_Q21 >> (2 * (_B217 ? 6 - _A216 : _A216))) & 3u,                                         \
-           _D217 = _O217 == 0 ? (_B217 ? _F21 : _C21) : _O217 == 1 ? (_B217 ? _H21 : _E21)                   \
-                                                    : _O217 == 2   ? (_B217 ? _U21 : _I21)                   \
-                                                                   : (_B217 ? _W21 : _L21),                    \
-           _V217 = _O217 == 0 ? _K21 : _O217 == 1 ? _M21                                                     \
-                                   : _O217 == 2   ? (_B217 ? _G21 : _N21)                                    \
-                                                  : (_B217 ? _J21 : _Y21) };                                   \
-    enum { _B218 = _A217 == 4 ? 1 : (7 - _A217 == 4 ? 0 : (_P217 == 3 ? !_B217 : ((_K21 >> (8 - 1)) & 1u))), \
-           _P218 = (_B218 == _B217 ? _P217 : 0) + 1,                                                         \
-           _A218 = _A217 + !_B218,                                                                           \
-           _O218 = (_Q21 >> (2 * (_B218 ? 7 - _A217 : _A217))) & 3u,                                         \
-           _D218 = _O218 == 0 ? (_B218 ? _F21 : _C21) : _O218 == 1 ? (_B218 ? _H21 : _E21)                   \
-                                                    : _O218 == 2   ? (_B218 ? _U21 : _I21)                   \
-                                                                   : (_B218 ? _W21 : _L21),                    \
-           _V218 = _O218 == 0 ? _K21 : _O218 == 1 ? _M21                                                     \
-                                   : _O218 == 2   ? (_B218 ? _G21 : _N21)                                    \
-                                                  : (_B218 ? _J21 : _Y21) };
-#define OBFH_P_CACHE_30                                                                                      \
-    enum { _S30 = __obfh_style30,                                                                            \
-           _K30 = __obfh_k30,                                                                                \
-           _M30 = __obfh_m30,                                                                                \
-           _Z30 = __obfh_a30,                                                                                \
-           _R30 = __obfh_r30,                                                                                \
-           _T30 = _K30 >> 14,                                                                                \
-           _A300 = 0,                                                                                        \
-           _B300 = 0,                                                                                        \
-           _P300 = 0,                                                                                        \
-           _Q30 = _S30 == 0 ? 0xe4u : _S30 == 1 ? 0x4eu                                                      \
-                                  : _S30 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C30 = 0x110035u,                                                                                 \
-           _E30 = 0x12c069u,                                                                                 \
-           _I30 = (_T30 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L30 = (_T30 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F30 = 0x12f281u,                                                                                 \
-           _H30 = 0x12d269u,                                                                                 \
-           _U30 = (_T30 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W30 = (_T30 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N30 = ((_S30 < 2) ^ !!(_T30 & 1u)) ? _Z30 : 0u - _Z30,                                           \
-           _G30 = ((_S30 < 2) ^ !!(_T30 & 2u)) ? _Z30 : 0u - _Z30,                                           \
-           _Y30 = ((_S30 == 2) ^ !!(_T30 & 4u)) ? 32u - _R30 : _R30,                                         \
-           _J30 = ((_S30 == 2) ^ !!(_T30 & 8u)) ? 32u - _R30 : _R30 };                                       \
-    enum { _B301 = _A300 == 4 ? 1 : (0 - _A300 == 4 ? 0 : (_P300 == 3 ? !_B300 : ((_K30 >> (1 - 1)) & 1u))), \
-           _P301 = (_B301 == _B300 ? _P300 : 0) + 1,                                                         \
-           _A301 = _A300 + !_B301,                                                                           \
-           _O301 = (_Q30 >> (2 * (_B301 ? 0 - _A300 : _A300))) & 3u,                                         \
-           _D301 = _O301 == 0 ? (_B301 ? _F30 : _C30) : _O301 == 1 ? (_B301 ? _H30 : _E30)                   \
-                                                    : _O301 == 2   ? (_B301 ? _U30 : _I30)                   \
-                                                                   : (_B301 ? _W30 : _L30),                    \
-           _V301 = _O301 == 0 ? _K30 : _O301 == 1 ? _M30                                                     \
-                                   : _O301 == 2   ? (_B301 ? _G30 : _N30)                                    \
-                                                  : (_B301 ? _J30 : _Y30) };                                   \
-    enum { _B302 = _A301 == 4 ? 1 : (1 - _A301 == 4 ? 0 : (_P301 == 3 ? !_B301 : ((_K30 >> (2 - 1)) & 1u))), \
-           _P302 = (_B302 == _B301 ? _P301 : 0) + 1,                                                         \
-           _A302 = _A301 + !_B302,                                                                           \
-           _O302 = (_Q30 >> (2 * (_B302 ? 1 - _A301 : _A301))) & 3u,                                         \
-           _D302 = _O302 == 0 ? (_B302 ? _F30 : _C30) : _O302 == 1 ? (_B302 ? _H30 : _E30)                   \
-                                                    : _O302 == 2   ? (_B302 ? _U30 : _I30)                   \
-                                                                   : (_B302 ? _W30 : _L30),                    \
-           _V302 = _O302 == 0 ? _K30 : _O302 == 1 ? _M30                                                     \
-                                   : _O302 == 2   ? (_B302 ? _G30 : _N30)                                    \
-                                                  : (_B302 ? _J30 : _Y30) };                                   \
-    enum { _B303 = _A302 == 4 ? 1 : (2 - _A302 == 4 ? 0 : (_P302 == 3 ? !_B302 : ((_K30 >> (3 - 1)) & 1u))), \
-           _P303 = (_B303 == _B302 ? _P302 : 0) + 1,                                                         \
-           _A303 = _A302 + !_B303,                                                                           \
-           _O303 = (_Q30 >> (2 * (_B303 ? 2 - _A302 : _A302))) & 3u,                                         \
-           _D303 = _O303 == 0 ? (_B303 ? _F30 : _C30) : _O303 == 1 ? (_B303 ? _H30 : _E30)                   \
-                                                    : _O303 == 2   ? (_B303 ? _U30 : _I30)                   \
-                                                                   : (_B303 ? _W30 : _L30),                    \
-           _V303 = _O303 == 0 ? _K30 : _O303 == 1 ? _M30                                                     \
-                                   : _O303 == 2   ? (_B303 ? _G30 : _N30)                                    \
-                                                  : (_B303 ? _J30 : _Y30) };                                   \
-    enum { _B304 = _A303 == 4 ? 1 : (3 - _A303 == 4 ? 0 : (_P303 == 3 ? !_B303 : ((_K30 >> (4 - 1)) & 1u))), \
-           _P304 = (_B304 == _B303 ? _P303 : 0) + 1,                                                         \
-           _A304 = _A303 + !_B304,                                                                           \
-           _O304 = (_Q30 >> (2 * (_B304 ? 3 - _A303 : _A303))) & 3u,                                         \
-           _D304 = _O304 == 0 ? (_B304 ? _F30 : _C30) : _O304 == 1 ? (_B304 ? _H30 : _E30)                   \
-                                                    : _O304 == 2   ? (_B304 ? _U30 : _I30)                   \
-                                                                   : (_B304 ? _W30 : _L30),                    \
-           _V304 = _O304 == 0 ? _K30 : _O304 == 1 ? _M30                                                     \
-                                   : _O304 == 2   ? (_B304 ? _G30 : _N30)                                    \
-                                                  : (_B304 ? _J30 : _Y30) };                                   \
-    enum { _B305 = _A304 == 4 ? 1 : (4 - _A304 == 4 ? 0 : (_P304 == 3 ? !_B304 : ((_K30 >> (5 - 1)) & 1u))), \
-           _P305 = (_B305 == _B304 ? _P304 : 0) + 1,                                                         \
-           _A305 = _A304 + !_B305,                                                                           \
-           _O305 = (_Q30 >> (2 * (_B305 ? 4 - _A304 : _A304))) & 3u,                                         \
-           _D305 = _O305 == 0 ? (_B305 ? _F30 : _C30) : _O305 == 1 ? (_B305 ? _H30 : _E30)                   \
-                                                    : _O305 == 2   ? (_B305 ? _U30 : _I30)                   \
-                                                                   : (_B305 ? _W30 : _L30),                    \
-           _V305 = _O305 == 0 ? _K30 : _O305 == 1 ? _M30                                                     \
-                                   : _O305 == 2   ? (_B305 ? _G30 : _N30)                                    \
-                                                  : (_B305 ? _J30 : _Y30) };                                   \
-    enum { _B306 = _A305 == 4 ? 1 : (5 - _A305 == 4 ? 0 : (_P305 == 3 ? !_B305 : ((_K30 >> (6 - 1)) & 1u))), \
-           _P306 = (_B306 == _B305 ? _P305 : 0) + 1,                                                         \
-           _A306 = _A305 + !_B306,                                                                           \
-           _O306 = (_Q30 >> (2 * (_B306 ? 5 - _A305 : _A305))) & 3u,                                         \
-           _D306 = _O306 == 0 ? (_B306 ? _F30 : _C30) : _O306 == 1 ? (_B306 ? _H30 : _E30)                   \
-                                                    : _O306 == 2   ? (_B306 ? _U30 : _I30)                   \
-                                                                   : (_B306 ? _W30 : _L30),                    \
-           _V306 = _O306 == 0 ? _K30 : _O306 == 1 ? _M30                                                     \
-                                   : _O306 == 2   ? (_B306 ? _G30 : _N30)                                    \
-                                                  : (_B306 ? _J30 : _Y30) };                                   \
-    enum { _B307 = _A306 == 4 ? 1 : (6 - _A306 == 4 ? 0 : (_P306 == 3 ? !_B306 : ((_K30 >> (7 - 1)) & 1u))), \
-           _P307 = (_B307 == _B306 ? _P306 : 0) + 1,                                                         \
-           _A307 = _A306 + !_B307,                                                                           \
-           _O307 = (_Q30 >> (2 * (_B307 ? 6 - _A306 : _A306))) & 3u,                                         \
-           _D307 = _O307 == 0 ? (_B307 ? _F30 : _C30) : _O307 == 1 ? (_B307 ? _H30 : _E30)                   \
-                                                    : _O307 == 2   ? (_B307 ? _U30 : _I30)                   \
-                                                                   : (_B307 ? _W30 : _L30),                    \
-           _V307 = _O307 == 0 ? _K30 : _O307 == 1 ? _M30                                                     \
-                                   : _O307 == 2   ? (_B307 ? _G30 : _N30)                                    \
-                                                  : (_B307 ? _J30 : _Y30) };                                   \
-    enum { _B308 = _A307 == 4 ? 1 : (7 - _A307 == 4 ? 0 : (_P307 == 3 ? !_B307 : ((_K30 >> (8 - 1)) & 1u))), \
-           _P308 = (_B308 == _B307 ? _P307 : 0) + 1,                                                         \
-           _A308 = _A307 + !_B308,                                                                           \
-           _O308 = (_Q30 >> (2 * (_B308 ? 7 - _A307 : _A307))) & 3u,                                         \
-           _D308 = _O308 == 0 ? (_B308 ? _F30 : _C30) : _O308 == 1 ? (_B308 ? _H30 : _E30)                   \
-                                                    : _O308 == 2   ? (_B308 ? _U30 : _I30)                   \
-                                                                   : (_B308 ? _W30 : _L30),                    \
-           _V308 = _O308 == 0 ? _K30 : _O308 == 1 ? _M30                                                     \
-                                   : _O308 == 2   ? (_B308 ? _G30 : _N30)                                    \
-                                                  : (_B308 ? _J30 : _Y30) };
-#define OBFH_P_CACHE_31                                                                                      \
-    enum { _S31 = __obfh_style31,                                                                            \
-           _K31 = __obfh_k31,                                                                                \
-           _M31 = __obfh_m31,                                                                                \
-           _Z31 = __obfh_a31,                                                                                \
-           _R31 = __obfh_r31,                                                                                \
-           _T31 = _K31 >> 14,                                                                                \
-           _A310 = 0,                                                                                        \
-           _B310 = 0,                                                                                        \
-           _P310 = 0,                                                                                        \
-           _Q31 = _S31 == 0 ? 0xe4u : _S31 == 1 ? 0x4eu                                                      \
-                                  : _S31 == 2   ? 0xb1u                                                      \
-                                                : 0x93u };                                                     \
-    enum { _C31 = 0x110035u,                                                                                 \
-           _E31 = 0x12c069u,                                                                                 \
-           _I31 = (_T31 & 1u ? 0x11002du : 0x110005u),                                                       \
-           _L31 = (_T31 & 4u ? 0x06c8c1u : 0x06c0c1u),                                                       \
-           _F31 = 0x12f281u,                                                                                 \
-           _H31 = 0x12d269u,                                                                                 \
-           _U31 = (_T31 & 2u ? 0x12ea81u : 0x12c281u),                                                       \
-           _W31 = (_T31 & 8u ? 0x06cac1u : 0x06c2c1u) };                                                     \
-    enum { _N31 = ((_S31 < 2) ^ !!(_T31 & 1u)) ? _Z31 : 0u - _Z31,                                           \
-           _G31 = ((_S31 < 2) ^ !!(_T31 & 2u)) ? _Z31 : 0u - _Z31,                                           \
-           _Y31 = ((_S31 == 2) ^ !!(_T31 & 4u)) ? 32u - _R31 : _R31,                                         \
-           _J31 = ((_S31 == 2) ^ !!(_T31 & 8u)) ? 32u - _R31 : _R31 };                                       \
-    enum { _B311 = _A310 == 4 ? 1 : (0 - _A310 == 4 ? 0 : (_P310 == 3 ? !_B310 : ((_K31 >> (1 - 1)) & 1u))), \
-           _P311 = (_B311 == _B310 ? _P310 : 0) + 1,                                                         \
-           _A311 = _A310 + !_B311,                                                                           \
-           _O311 = (_Q31 >> (2 * (_B311 ? 0 - _A310 : _A310))) & 3u,                                         \
-           _D311 = _O311 == 0 ? (_B311 ? _F31 : _C31) : _O311 == 1 ? (_B311 ? _H31 : _E31)                   \
-                                                    : _O311 == 2   ? (_B311 ? _U31 : _I31)                   \
-                                                                   : (_B311 ? _W31 : _L31),                    \
-           _V311 = _O311 == 0 ? _K31 : _O311 == 1 ? _M31                                                     \
-                                   : _O311 == 2   ? (_B311 ? _G31 : _N31)                                    \
-                                                  : (_B311 ? _J31 : _Y31) };                                   \
-    enum { _B312 = _A311 == 4 ? 1 : (1 - _A311 == 4 ? 0 : (_P311 == 3 ? !_B311 : ((_K31 >> (2 - 1)) & 1u))), \
-           _P312 = (_B312 == _B311 ? _P311 : 0) + 1,                                                         \
-           _A312 = _A311 + !_B312,                                                                           \
-           _O312 = (_Q31 >> (2 * (_B312 ? 1 - _A311 : _A311))) & 3u,                                         \
-           _D312 = _O312 == 0 ? (_B312 ? _F31 : _C31) : _O312 == 1 ? (_B312 ? _H31 : _E31)                   \
-                                                    : _O312 == 2   ? (_B312 ? _U31 : _I31)                   \
-                                                                   : (_B312 ? _W31 : _L31),                    \
-           _V312 = _O312 == 0 ? _K31 : _O312 == 1 ? _M31                                                     \
-                                   : _O312 == 2   ? (_B312 ? _G31 : _N31)                                    \
-                                                  : (_B312 ? _J31 : _Y31) };                                   \
-    enum { _B313 = _A312 == 4 ? 1 : (2 - _A312 == 4 ? 0 : (_P312 == 3 ? !_B312 : ((_K31 >> (3 - 1)) & 1u))), \
-           _P313 = (_B313 == _B312 ? _P312 : 0) + 1,                                                         \
-           _A313 = _A312 + !_B313,                                                                           \
-           _O313 = (_Q31 >> (2 * (_B313 ? 2 - _A312 : _A312))) & 3u,                                         \
-           _D313 = _O313 == 0 ? (_B313 ? _F31 : _C31) : _O313 == 1 ? (_B313 ? _H31 : _E31)                   \
-                                                    : _O313 == 2   ? (_B313 ? _U31 : _I31)                   \
-                                                                   : (_B313 ? _W31 : _L31),                    \
-           _V313 = _O313 == 0 ? _K31 : _O313 == 1 ? _M31                                                     \
-                                   : _O313 == 2   ? (_B313 ? _G31 : _N31)                                    \
-                                                  : (_B313 ? _J31 : _Y31) };                                   \
-    enum { _B314 = _A313 == 4 ? 1 : (3 - _A313 == 4 ? 0 : (_P313 == 3 ? !_B313 : ((_K31 >> (4 - 1)) & 1u))), \
-           _P314 = (_B314 == _B313 ? _P313 : 0) + 1,                                                         \
-           _A314 = _A313 + !_B314,                                                                           \
-           _O314 = (_Q31 >> (2 * (_B314 ? 3 - _A313 : _A313))) & 3u,                                         \
-           _D314 = _O314 == 0 ? (_B314 ? _F31 : _C31) : _O314 == 1 ? (_B314 ? _H31 : _E31)                   \
-                                                    : _O314 == 2   ? (_B314 ? _U31 : _I31)                   \
-                                                                   : (_B314 ? _W31 : _L31),                    \
-           _V314 = _O314 == 0 ? _K31 : _O314 == 1 ? _M31                                                     \
-                                   : _O314 == 2   ? (_B314 ? _G31 : _N31)                                    \
-                                                  : (_B314 ? _J31 : _Y31) };                                   \
-    enum { _B315 = _A314 == 4 ? 1 : (4 - _A314 == 4 ? 0 : (_P314 == 3 ? !_B314 : ((_K31 >> (5 - 1)) & 1u))), \
-           _P315 = (_B315 == _B314 ? _P314 : 0) + 1,                                                         \
-           _A315 = _A314 + !_B315,                                                                           \
-           _O315 = (_Q31 >> (2 * (_B315 ? 4 - _A314 : _A314))) & 3u,                                         \
-           _D315 = _O315 == 0 ? (_B315 ? _F31 : _C31) : _O315 == 1 ? (_B315 ? _H31 : _E31)                   \
-                                                    : _O315 == 2   ? (_B315 ? _U31 : _I31)                   \
-                                                                   : (_B315 ? _W31 : _L31),                    \
-           _V315 = _O315 == 0 ? _K31 : _O315 == 1 ? _M31                                                     \
-                                   : _O315 == 2   ? (_B315 ? _G31 : _N31)                                    \
-                                                  : (_B315 ? _J31 : _Y31) };                                   \
-    enum { _B316 = _A315 == 4 ? 1 : (5 - _A315 == 4 ? 0 : (_P315 == 3 ? !_B315 : ((_K31 >> (6 - 1)) & 1u))), \
-           _P316 = (_B316 == _B315 ? _P315 : 0) + 1,                                                         \
-           _A316 = _A315 + !_B316,                                                                           \
-           _O316 = (_Q31 >> (2 * (_B316 ? 5 - _A315 : _A315))) & 3u,                                         \
-           _D316 = _O316 == 0 ? (_B316 ? _F31 : _C31) : _O316 == 1 ? (_B316 ? _H31 : _E31)                   \
-                                                    : _O316 == 2   ? (_B316 ? _U31 : _I31)                   \
-                                                                   : (_B316 ? _W31 : _L31),                    \
-           _V316 = _O316 == 0 ? _K31 : _O316 == 1 ? _M31                                                     \
-                                   : _O316 == 2   ? (_B316 ? _G31 : _N31)                                    \
-                                                  : (_B316 ? _J31 : _Y31) };                                   \
-    enum { _B317 = _A316 == 4 ? 1 : (6 - _A316 == 4 ? 0 : (_P316 == 3 ? !_B316 : ((_K31 >> (7 - 1)) & 1u))), \
-           _P317 = (_B317 == _B316 ? _P316 : 0) + 1,                                                         \
-           _A317 = _A316 + !_B317,                                                                           \
-           _O317 = (_Q31 >> (2 * (_B317 ? 6 - _A316 : _A316))) & 3u,                                         \
-           _D317 = _O317 == 0 ? (_B317 ? _F31 : _C31) : _O317 == 1 ? (_B317 ? _H31 : _E31)                   \
-                                                    : _O317 == 2   ? (_B317 ? _U31 : _I31)                   \
-                                                                   : (_B317 ? _W31 : _L31),                    \
-           _V317 = _O317 == 0 ? _K31 : _O317 == 1 ? _M31                                                     \
-                                   : _O317 == 2   ? (_B317 ? _G31 : _N31)                                    \
-                                                  : (_B317 ? _J31 : _Y31) };                                   \
-    enum { _B318 = _A317 == 4 ? 1 : (7 - _A317 == 4 ? 0 : (_P317 == 3 ? !_B317 : ((_K31 >> (8 - 1)) & 1u))), \
-           _P318 = (_B318 == _B317 ? _P317 : 0) + 1,                                                         \
-           _A318 = _A317 + !_B318,                                                                           \
-           _O318 = (_Q31 >> (2 * (_B318 ? 7 - _A317 : _A317))) & 3u,                                         \
-           _D318 = _O318 == 0 ? (_B318 ? _F31 : _C31) : _O318 == 1 ? (_B318 ? _H31 : _E31)                   \
-                                                    : _O318 == 2   ? (_B318 ? _U31 : _I31)                   \
-                                                                   : (_B318 ? _W31 : _L31),                    \
-           _V318 = _O318 == 0 ? _K31 : _O318 == 1 ? _M31                                                     \
-                                   : _O318 == 2   ? (_B318 ? _G31 : _N31)                                    \
-                                                  : (_B318 ? _J31 : _Y31) };
+#define OBFH_P_CACHE_00 enum{_S00=__obfh_style00,_K00=__obfh_k00,_M00=__obfh_m00,_Z00=__obfh_a00,_R00=__obfh_r00,_X00=__obfh_k10,_T00=_K00>>14,_H00=__obfh_style10,_E00=__obfh_m10,_A00=__obfh_a10,_Y00=__obfh_r10,_N00=(0xb16cu>>(4*_H00+2*((_X00>>8)%12u/6u)))&3u,_F00=_S00==0?0:_S00==1?2:_S00==2?1:3,_G00=_S00==0?3:_S00==1?1:_S00==2?0:2,_J00=(_K00>>8)%12u,_Q00=((_J00<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J00&7u)))&255u};enum{_c00=0x11000035u,_f00=0x1200f281u,_e00=0x1200c069u,_h00=0x1200d269u,_i00=_T00&1u?0x1100002du:0x11000005u,_u00=_T00&2u?0x1200ea81u:0x1200c281u,_l00=_T00&4u?0x0600c8c1u:0x0600c0c1u,_w00=_T00&8u?0x0600cac1u:0x0600c2c1u};enum{_B001=(_N00<4?(((_K00>>0)^0)&1u):((_N00==4)^!!(_T00&32u)))^!!(_T00&16u),_D001=_N00==0?(_B001?_f00:_c00):_N00==1?(_B001?_h00:_e00):_N00==2?(_B001?_u00:_i00):_N00==3?(_B001?_w00:_l00):(_K00&(1u<<(16+_N00)))?(_B001?0x0342148du:0x0350048du):(_B001?0x0200daf7u:0x0200d8f7u),_V001=_N00==0?(_X00):_N00==1?(_E00):_N00==2?((_T00&(_B001?2u:1u))?0u-(_A00):(_A00)):_N00==3?((_T00&(_B001?8u:4u))?32u-(_Y00):(_Y00)):0u};enum{_B002=(_N00<4?(((_K00>>0)^1)&1u):((_N00==4)^!!(_T00&32u)))^!!(_T00&16u),_D002=_N00==0?(_B002?_f00:_c00):_N00==1?(_B002?_h00:_e00):_N00==2?(_B002?_u00:_i00):_N00==3?(_B002?_w00:_l00):(_K00&(1u<<(16+_N00)))?(_B002?0x0340048du:0x0352148du):(_B002?0x0342148du:0x0350048du),_V002=_N00==0?(_X00):_N00==1?(_E00):_N00==2?((_T00&(_B002?2u:1u))?0u-(_A00):(_A00)):_N00==3?((_T00&(_B002?8u:4u))?32u-(_Y00):(_Y00)):0u};enum{_C003=((_Q00>>(2*1))&3u),_O003=(_C003<2?(_C003?_G00:_F00):_C003+2u),_B003=(_O003<4?(((_K00>>1)^2)&1u):((_O003==4)^!!(_T00&32u)))^!!(_T00&16u),_D003=_O003==0?(_B003?_f00:_c00):_O003==1?(_B003?_h00:_e00):_O003==2?(_B003?_u00:_i00):_O003==3?(_B003?_w00:_l00):(_K00&(1u<<(16+_O003)))?(_B003?0x0342148du:0x0350048du):(_B003?0x0200daf7u:0x0200d8f7u),_V003=_O003==0?(_K00):_O003==1?(_M00):_O003==2?((_T00&(_B003?2u:1u))?0u-(_Z00):(_Z00)):_O003==3?((_T00&(_B003?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B004=(_O003<4?(((_K00>>1)^3)&1u):((_O003==4)^!!(_T00&32u)))^!!(_T00&16u),_D004=_O003==0?(_B004?_f00:_c00):_O003==1?(_B004?_h00:_e00):_O003==2?(_B004?_u00:_i00):_O003==3?(_B004?_w00:_l00):(_K00&(1u<<(16+_O003)))?(_B004?0x0340048du:0x0352148du):(_B004?0x0342148du:0x0350048du),_V004=_O003==0?(_K00):_O003==1?(_M00):_O003==2?((_T00&(_B004?2u:1u))?0u-(_Z00):(_Z00)):_O003==3?((_T00&(_B004?8u:4u))?32u-(_R00):(_R00)):0u};enum{_C005=((_Q00>>(2*2))&3u),_O005=(_C005<2?(_C005?_G00:_F00):_C005+2u),_B005=(_O005<4?(((_K00>>2)^4)&1u):((_O005==4)^!!(_T00&32u)))^!!(_T00&16u),_D005=_O005==0?(_B005?_f00:_c00):_O005==1?(_B005?_h00:_e00):_O005==2?(_B005?_u00:_i00):_O005==3?(_B005?_w00:_l00):(_K00&(1u<<(16+_O005)))?(_B005?0x0342148du:0x0350048du):(_B005?0x0200daf7u:0x0200d8f7u),_V005=_O005==0?(_K00):_O005==1?(_M00):_O005==2?((_T00&(_B005?2u:1u))?0u-(_Z00):(_Z00)):_O005==3?((_T00&(_B005?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B006=(_O005<4?(((_K00>>2)^5)&1u):((_O005==4)^!!(_T00&32u)))^!!(_T00&16u),_D006=_O005==0?(_B006?_f00:_c00):_O005==1?(_B006?_h00:_e00):_O005==2?(_B006?_u00:_i00):_O005==3?(_B006?_w00:_l00):(_K00&(1u<<(16+_O005)))?(_B006?0x0340048du:0x0352148du):(_B006?0x0342148du:0x0350048du),_V006=_O005==0?(_K00):_O005==1?(_M00):_O005==2?((_T00&(_B006?2u:1u))?0u-(_Z00):(_Z00)):_O005==3?((_T00&(_B006?8u:4u))?32u-(_R00):(_R00)):0u};enum{_C007=((_Q00>>(2*3))&3u),_O007=(_C007<2?(_C007?_G00:_F00):_C007+2u),_B007=(_O007<4?(((_K00>>3)^6)&1u):((_O007==4)^!!(_T00&32u)))^!!(_T00&16u),_D007=_O007==0?(_B007?_f00:_c00):_O007==1?(_B007?_h00:_e00):_O007==2?(_B007?_u00:_i00):_O007==3?(_B007?_w00:_l00):(_K00&(1u<<(16+_O007)))?(_B007?0x0342148du:0x0350048du):(_B007?0x0200daf7u:0x0200d8f7u),_V007=_O007==0?(_K00):_O007==1?(_M00):_O007==2?((_T00&(_B007?2u:1u))?0u-(_Z00):(_Z00)):_O007==3?((_T00&(_B007?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B008=(_O007<4?(((_K00>>3)^7)&1u):((_O007==4)^!!(_T00&32u)))^!!(_T00&16u),_D008=_O007==0?(_B008?_f00:_c00):_O007==1?(_B008?_h00:_e00):_O007==2?(_B008?_u00:_i00):_O007==3?(_B008?_w00:_l00):(_K00&(1u<<(16+_O007)))?(_B008?0x0340048du:0x0352148du):(_B008?0x0342148du:0x0350048du),_V008=_O007==0?(_K00):_O007==1?(_M00):_O007==2?((_T00&(_B008?2u:1u))?0u-(_Z00):(_Z00)):_O007==3?((_T00&(_B008?8u:4u))?32u-(_R00):(_R00)):0u};
+#define OBFH_P_ARGS_00 [d1] "i"(_D001), [v1] "i"(_V001), [d2] "i"(_D002), [v2] "i"(_V002), [d3] "i"(_D003), [v3] "i"(_V003), [d4] "i"(_D004), [v4] "i"(_V004), [d5] "i"(_D005), [v5] "i"(_V005), [d6] "i"(_D006), [v6] "i"(_V006), [d7] "i"(_D007), [v7] "i"(_V007), [d8] "i"(_D008), [v8] "i"(_V008)
+#define OBFH_P_CACHE_01 enum{_S01=__obfh_style01,_K01=__obfh_k01,_M01=__obfh_m01,_Z01=__obfh_a01,_R01=__obfh_r01,_X01=__obfh_k10,_T01=_K01>>14,_H01=__obfh_style10,_E01=__obfh_m10,_A01=__obfh_a10,_Y01=__obfh_r10,_N01=(0xb16cu>>(4*_H01+2*((_X01>>8)%12u/6u)))&3u,_F01=_S01==0?0:_S01==1?2:_S01==2?1:3,_G01=_S01==0?3:_S01==1?1:_S01==2?0:2,_J01=(_K01>>8)%12u,_Q01=((_J01<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J01&7u)))&255u};enum{_c01=0x11000035u,_f01=0x1200f281u,_e01=0x1200c069u,_h01=0x1200d269u,_i01=_T01&1u?0x1100002du:0x11000005u,_u01=_T01&2u?0x1200ea81u:0x1200c281u,_l01=_T01&4u?0x0600c8c1u:0x0600c0c1u,_w01=_T01&8u?0x0600cac1u:0x0600c2c1u};enum{_B011=(_N01<4?(((_K01>>0)^0)&1u):((_N01==4)^!!(_T01&32u)))^!!(_T01&16u),_D011=_N01==0?(_B011?_f01:_c01):_N01==1?(_B011?_h01:_e01):_N01==2?(_B011?_u01:_i01):_N01==3?(_B011?_w01:_l01):(_K01&(1u<<(16+_N01)))?(_B011?0x0342148du:0x0350048du):(_B011?0x0200daf7u:0x0200d8f7u),_V011=_N01==0?(_X01):_N01==1?(_E01):_N01==2?((_T01&(_B011?2u:1u))?0u-(_A01):(_A01)):_N01==3?((_T01&(_B011?8u:4u))?32u-(_Y01):(_Y01)):0u};enum{_B012=(_N01<4?(((_K01>>0)^1)&1u):((_N01==4)^!!(_T01&32u)))^!!(_T01&16u),_D012=_N01==0?(_B012?_f01:_c01):_N01==1?(_B012?_h01:_e01):_N01==2?(_B012?_u01:_i01):_N01==3?(_B012?_w01:_l01):(_K01&(1u<<(16+_N01)))?(_B012?0x0340048du:0x0352148du):(_B012?0x0342148du:0x0350048du),_V012=_N01==0?(_X01):_N01==1?(_E01):_N01==2?((_T01&(_B012?2u:1u))?0u-(_A01):(_A01)):_N01==3?((_T01&(_B012?8u:4u))?32u-(_Y01):(_Y01)):0u};enum{_C013=((_Q01>>(2*1))&3u),_O013=(_C013<2?(_C013?_G01:_F01):_C013+2u),_B013=(_O013<4?(((_K01>>1)^2)&1u):((_O013==4)^!!(_T01&32u)))^!!(_T01&16u),_D013=_O013==0?(_B013?_f01:_c01):_O013==1?(_B013?_h01:_e01):_O013==2?(_B013?_u01:_i01):_O013==3?(_B013?_w01:_l01):(_K01&(1u<<(16+_O013)))?(_B013?0x0342148du:0x0350048du):(_B013?0x0200daf7u:0x0200d8f7u),_V013=_O013==0?(_K01):_O013==1?(_M01):_O013==2?((_T01&(_B013?2u:1u))?0u-(_Z01):(_Z01)):_O013==3?((_T01&(_B013?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B014=(_O013<4?(((_K01>>1)^3)&1u):((_O013==4)^!!(_T01&32u)))^!!(_T01&16u),_D014=_O013==0?(_B014?_f01:_c01):_O013==1?(_B014?_h01:_e01):_O013==2?(_B014?_u01:_i01):_O013==3?(_B014?_w01:_l01):(_K01&(1u<<(16+_O013)))?(_B014?0x0340048du:0x0352148du):(_B014?0x0342148du:0x0350048du),_V014=_O013==0?(_K01):_O013==1?(_M01):_O013==2?((_T01&(_B014?2u:1u))?0u-(_Z01):(_Z01)):_O013==3?((_T01&(_B014?8u:4u))?32u-(_R01):(_R01)):0u};enum{_C015=((_Q01>>(2*2))&3u),_O015=(_C015<2?(_C015?_G01:_F01):_C015+2u),_B015=(_O015<4?(((_K01>>2)^4)&1u):((_O015==4)^!!(_T01&32u)))^!!(_T01&16u),_D015=_O015==0?(_B015?_f01:_c01):_O015==1?(_B015?_h01:_e01):_O015==2?(_B015?_u01:_i01):_O015==3?(_B015?_w01:_l01):(_K01&(1u<<(16+_O015)))?(_B015?0x0342148du:0x0350048du):(_B015?0x0200daf7u:0x0200d8f7u),_V015=_O015==0?(_K01):_O015==1?(_M01):_O015==2?((_T01&(_B015?2u:1u))?0u-(_Z01):(_Z01)):_O015==3?((_T01&(_B015?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B016=(_O015<4?(((_K01>>2)^5)&1u):((_O015==4)^!!(_T01&32u)))^!!(_T01&16u),_D016=_O015==0?(_B016?_f01:_c01):_O015==1?(_B016?_h01:_e01):_O015==2?(_B016?_u01:_i01):_O015==3?(_B016?_w01:_l01):(_K01&(1u<<(16+_O015)))?(_B016?0x0340048du:0x0352148du):(_B016?0x0342148du:0x0350048du),_V016=_O015==0?(_K01):_O015==1?(_M01):_O015==2?((_T01&(_B016?2u:1u))?0u-(_Z01):(_Z01)):_O015==3?((_T01&(_B016?8u:4u))?32u-(_R01):(_R01)):0u};enum{_C017=((_Q01>>(2*3))&3u),_O017=(_C017<2?(_C017?_G01:_F01):_C017+2u),_B017=(_O017<4?(((_K01>>3)^6)&1u):((_O017==4)^!!(_T01&32u)))^!!(_T01&16u),_D017=_O017==0?(_B017?_f01:_c01):_O017==1?(_B017?_h01:_e01):_O017==2?(_B017?_u01:_i01):_O017==3?(_B017?_w01:_l01):(_K01&(1u<<(16+_O017)))?(_B017?0x0342148du:0x0350048du):(_B017?0x0200daf7u:0x0200d8f7u),_V017=_O017==0?(_K01):_O017==1?(_M01):_O017==2?((_T01&(_B017?2u:1u))?0u-(_Z01):(_Z01)):_O017==3?((_T01&(_B017?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B018=(_O017<4?(((_K01>>3)^7)&1u):((_O017==4)^!!(_T01&32u)))^!!(_T01&16u),_D018=_O017==0?(_B018?_f01:_c01):_O017==1?(_B018?_h01:_e01):_O017==2?(_B018?_u01:_i01):_O017==3?(_B018?_w01:_l01):(_K01&(1u<<(16+_O017)))?(_B018?0x0340048du:0x0352148du):(_B018?0x0342148du:0x0350048du),_V018=_O017==0?(_K01):_O017==1?(_M01):_O017==2?((_T01&(_B018?2u:1u))?0u-(_Z01):(_Z01)):_O017==3?((_T01&(_B018?8u:4u))?32u-(_R01):(_R01)):0u};
+#define OBFH_P_ARGS_01 [d1] "i"(_D011), [v1] "i"(_V011), [d2] "i"(_D012), [v2] "i"(_V012), [d3] "i"(_D013), [v3] "i"(_V013), [d4] "i"(_D014), [v4] "i"(_V014), [d5] "i"(_D015), [v5] "i"(_V015), [d6] "i"(_D016), [v6] "i"(_V016), [d7] "i"(_D017), [v7] "i"(_V017), [d8] "i"(_D018), [v8] "i"(_V018)
+#define OBFH_P_CACHE_10 enum{_S10=__obfh_style10,_K10=__obfh_k10,_M10=__obfh_m10,_Z10=__obfh_a10,_R10=__obfh_r10,_X10=__obfh_k00,_T10=_K10>>14,_H10=__obfh_style00,_E10=__obfh_m00,_A10=__obfh_a00,_Y10=__obfh_r00,_N10=(0xb16cu>>(4*_H10+2*((_X10>>8)%12u/6u)))&3u,_F10=_S10==0?0:_S10==1?2:_S10==2?1:3,_G10=_S10==0?3:_S10==1?1:_S10==2?0:2,_J10=(_K10>>8)%12u,_Q10=((_J10<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J10&7u)))&255u};enum{_c10=0x11000035u,_f10=0x1200f281u,_e10=0x1200c069u,_h10=0x1200d269u,_i10=_T10&1u?0x1100002du:0x11000005u,_u10=_T10&2u?0x1200ea81u:0x1200c281u,_l10=_T10&4u?0x0600c8c1u:0x0600c0c1u,_w10=_T10&8u?0x0600cac1u:0x0600c2c1u};enum{_B101=(_N10<4?(((_K10>>0)^0)&1u):((_N10==4)^!!(_T10&32u)))^!!(_T10&16u),_D101=_N10==0?(_B101?_f10:_c10):_N10==1?(_B101?_h10:_e10):_N10==2?(_B101?_u10:_i10):_N10==3?(_B101?_w10:_l10):(_K10&(1u<<(16+_N10)))?(_B101?0x0342148du:0x0350048du):(_B101?0x0200daf7u:0x0200d8f7u),_V101=_N10==0?(_X10):_N10==1?(_E10):_N10==2?((_T10&(_B101?2u:1u))?0u-(_A10):(_A10)):_N10==3?((_T10&(_B101?8u:4u))?32u-(_Y10):(_Y10)):0u};enum{_B102=(_N10<4?(((_K10>>0)^1)&1u):((_N10==4)^!!(_T10&32u)))^!!(_T10&16u),_D102=_N10==0?(_B102?_f10:_c10):_N10==1?(_B102?_h10:_e10):_N10==2?(_B102?_u10:_i10):_N10==3?(_B102?_w10:_l10):(_K10&(1u<<(16+_N10)))?(_B102?0x0340048du:0x0352148du):(_B102?0x0342148du:0x0350048du),_V102=_N10==0?(_X10):_N10==1?(_E10):_N10==2?((_T10&(_B102?2u:1u))?0u-(_A10):(_A10)):_N10==3?((_T10&(_B102?8u:4u))?32u-(_Y10):(_Y10)):0u};enum{_C103=((_Q10>>(2*1))&3u),_O103=(_C103<2?(_C103?_G10:_F10):_C103+2u),_B103=(_O103<4?(((_K10>>1)^2)&1u):((_O103==4)^!!(_T10&32u)))^!!(_T10&16u),_D103=_O103==0?(_B103?_f10:_c10):_O103==1?(_B103?_h10:_e10):_O103==2?(_B103?_u10:_i10):_O103==3?(_B103?_w10:_l10):(_K10&(1u<<(16+_O103)))?(_B103?0x0342148du:0x0350048du):(_B103?0x0200daf7u:0x0200d8f7u),_V103=_O103==0?(_K10):_O103==1?(_M10):_O103==2?((_T10&(_B103?2u:1u))?0u-(_Z10):(_Z10)):_O103==3?((_T10&(_B103?8u:4u))?32u-(_R10):(_R10)):0u};enum{_B104=(_O103<4?(((_K10>>1)^3)&1u):((_O103==4)^!!(_T10&32u)))^!!(_T10&16u),_D104=_O103==0?(_B104?_f10:_c10):_O103==1?(_B104?_h10:_e10):_O103==2?(_B104?_u10:_i10):_O103==3?(_B104?_w10:_l10):(_K10&(1u<<(16+_O103)))?(_B104?0x0340048du:0x0352148du):(_B104?0x0342148du:0x0350048du),_V104=_O103==0?(_K10):_O103==1?(_M10):_O103==2?((_T10&(_B104?2u:1u))?0u-(_Z10):(_Z10)):_O103==3?((_T10&(_B104?8u:4u))?32u-(_R10):(_R10)):0u};enum{_C105=((_Q10>>(2*2))&3u),_O105=(_C105<2?(_C105?_G10:_F10):_C105+2u),_B105=(_O105<4?(((_K10>>2)^4)&1u):((_O105==4)^!!(_T10&32u)))^!!(_T10&16u),_D105=_O105==0?(_B105?_f10:_c10):_O105==1?(_B105?_h10:_e10):_O105==2?(_B105?_u10:_i10):_O105==3?(_B105?_w10:_l10):(_K10&(1u<<(16+_O105)))?(_B105?0x0342148du:0x0350048du):(_B105?0x0200daf7u:0x0200d8f7u),_V105=_O105==0?(_K10):_O105==1?(_M10):_O105==2?((_T10&(_B105?2u:1u))?0u-(_Z10):(_Z10)):_O105==3?((_T10&(_B105?8u:4u))?32u-(_R10):(_R10)):0u};enum{_B106=(_O105<4?(((_K10>>2)^5)&1u):((_O105==4)^!!(_T10&32u)))^!!(_T10&16u),_D106=_O105==0?(_B106?_f10:_c10):_O105==1?(_B106?_h10:_e10):_O105==2?(_B106?_u10:_i10):_O105==3?(_B106?_w10:_l10):(_K10&(1u<<(16+_O105)))?(_B106?0x0340048du:0x0352148du):(_B106?0x0342148du:0x0350048du),_V106=_O105==0?(_K10):_O105==1?(_M10):_O105==2?((_T10&(_B106?2u:1u))?0u-(_Z10):(_Z10)):_O105==3?((_T10&(_B106?8u:4u))?32u-(_R10):(_R10)):0u};enum{_C107=((_Q10>>(2*3))&3u),_O107=(_C107<2?(_C107?_G10:_F10):_C107+2u),_B107=(_O107<4?(((_K10>>3)^6)&1u):((_O107==4)^!!(_T10&32u)))^!!(_T10&16u),_D107=_O107==0?(_B107?_f10:_c10):_O107==1?(_B107?_h10:_e10):_O107==2?(_B107?_u10:_i10):_O107==3?(_B107?_w10:_l10):(_K10&(1u<<(16+_O107)))?(_B107?0x0342148du:0x0350048du):(_B107?0x0200daf7u:0x0200d8f7u),_V107=_O107==0?(_K10):_O107==1?(_M10):_O107==2?((_T10&(_B107?2u:1u))?0u-(_Z10):(_Z10)):_O107==3?((_T10&(_B107?8u:4u))?32u-(_R10):(_R10)):0u};enum{_B108=(_O107<4?(((_K10>>3)^7)&1u):((_O107==4)^!!(_T10&32u)))^!!(_T10&16u),_D108=_O107==0?(_B108?_f10:_c10):_O107==1?(_B108?_h10:_e10):_O107==2?(_B108?_u10:_i10):_O107==3?(_B108?_w10:_l10):(_K10&(1u<<(16+_O107)))?(_B108?0x0340048du:0x0352148du):(_B108?0x0342148du:0x0350048du),_V108=_O107==0?(_K10):_O107==1?(_M10):_O107==2?((_T10&(_B108?2u:1u))?0u-(_Z10):(_Z10)):_O107==3?((_T10&(_B108?8u:4u))?32u-(_R10):(_R10)):0u};
+#define OBFH_P_ARGS_10 [d1] "i"(_D101), [v1] "i"(_V101), [d2] "i"(_D102), [v2] "i"(_V102), [d3] "i"(_D103), [v3] "i"(_V103), [d4] "i"(_D104), [v4] "i"(_V104), [d5] "i"(_D105), [v5] "i"(_V105), [d6] "i"(_D106), [v6] "i"(_V106), [d7] "i"(_D107), [v7] "i"(_V107), [d8] "i"(_D108), [v8] "i"(_V108)
+#define OBFH_P_CACHE_11 enum{_S11=__obfh_style11,_K11=__obfh_k11,_M11=__obfh_m11,_Z11=__obfh_a11,_R11=__obfh_r11,_X11=__obfh_k00,_T11=_K11>>14,_H11=__obfh_style00,_E11=__obfh_m00,_A11=__obfh_a00,_Y11=__obfh_r00,_N11=(0xb16cu>>(4*_H11+2*((_X11>>8)%12u/6u)))&3u,_F11=_S11==0?0:_S11==1?2:_S11==2?1:3,_G11=_S11==0?3:_S11==1?1:_S11==2?0:2,_J11=(_K11>>8)%12u,_Q11=((_J11<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J11&7u)))&255u};enum{_c11=0x11000035u,_f11=0x1200f281u,_e11=0x1200c069u,_h11=0x1200d269u,_i11=_T11&1u?0x1100002du:0x11000005u,_u11=_T11&2u?0x1200ea81u:0x1200c281u,_l11=_T11&4u?0x0600c8c1u:0x0600c0c1u,_w11=_T11&8u?0x0600cac1u:0x0600c2c1u};enum{_B111=(_N11<4?(((_K11>>0)^0)&1u):((_N11==4)^!!(_T11&32u)))^!!(_T11&16u),_D111=_N11==0?(_B111?_f11:_c11):_N11==1?(_B111?_h11:_e11):_N11==2?(_B111?_u11:_i11):_N11==3?(_B111?_w11:_l11):(_K11&(1u<<(16+_N11)))?(_B111?0x0342148du:0x0350048du):(_B111?0x0200daf7u:0x0200d8f7u),_V111=_N11==0?(_X11):_N11==1?(_E11):_N11==2?((_T11&(_B111?2u:1u))?0u-(_A11):(_A11)):_N11==3?((_T11&(_B111?8u:4u))?32u-(_Y11):(_Y11)):0u};enum{_B112=(_N11<4?(((_K11>>0)^1)&1u):((_N11==4)^!!(_T11&32u)))^!!(_T11&16u),_D112=_N11==0?(_B112?_f11:_c11):_N11==1?(_B112?_h11:_e11):_N11==2?(_B112?_u11:_i11):_N11==3?(_B112?_w11:_l11):(_K11&(1u<<(16+_N11)))?(_B112?0x0340048du:0x0352148du):(_B112?0x0342148du:0x0350048du),_V112=_N11==0?(_X11):_N11==1?(_E11):_N11==2?((_T11&(_B112?2u:1u))?0u-(_A11):(_A11)):_N11==3?((_T11&(_B112?8u:4u))?32u-(_Y11):(_Y11)):0u};enum{_C113=((_Q11>>(2*1))&3u),_O113=(_C113<2?(_C113?_G11:_F11):_C113+2u),_B113=(_O113<4?(((_K11>>1)^2)&1u):((_O113==4)^!!(_T11&32u)))^!!(_T11&16u),_D113=_O113==0?(_B113?_f11:_c11):_O113==1?(_B113?_h11:_e11):_O113==2?(_B113?_u11:_i11):_O113==3?(_B113?_w11:_l11):(_K11&(1u<<(16+_O113)))?(_B113?0x0342148du:0x0350048du):(_B113?0x0200daf7u:0x0200d8f7u),_V113=_O113==0?(_K11):_O113==1?(_M11):_O113==2?((_T11&(_B113?2u:1u))?0u-(_Z11):(_Z11)):_O113==3?((_T11&(_B113?8u:4u))?32u-(_R11):(_R11)):0u};enum{_B114=(_O113<4?(((_K11>>1)^3)&1u):((_O113==4)^!!(_T11&32u)))^!!(_T11&16u),_D114=_O113==0?(_B114?_f11:_c11):_O113==1?(_B114?_h11:_e11):_O113==2?(_B114?_u11:_i11):_O113==3?(_B114?_w11:_l11):(_K11&(1u<<(16+_O113)))?(_B114?0x0340048du:0x0352148du):(_B114?0x0342148du:0x0350048du),_V114=_O113==0?(_K11):_O113==1?(_M11):_O113==2?((_T11&(_B114?2u:1u))?0u-(_Z11):(_Z11)):_O113==3?((_T11&(_B114?8u:4u))?32u-(_R11):(_R11)):0u};enum{_C115=((_Q11>>(2*2))&3u),_O115=(_C115<2?(_C115?_G11:_F11):_C115+2u),_B115=(_O115<4?(((_K11>>2)^4)&1u):((_O115==4)^!!(_T11&32u)))^!!(_T11&16u),_D115=_O115==0?(_B115?_f11:_c11):_O115==1?(_B115?_h11:_e11):_O115==2?(_B115?_u11:_i11):_O115==3?(_B115?_w11:_l11):(_K11&(1u<<(16+_O115)))?(_B115?0x0342148du:0x0350048du):(_B115?0x0200daf7u:0x0200d8f7u),_V115=_O115==0?(_K11):_O115==1?(_M11):_O115==2?((_T11&(_B115?2u:1u))?0u-(_Z11):(_Z11)):_O115==3?((_T11&(_B115?8u:4u))?32u-(_R11):(_R11)):0u};enum{_B116=(_O115<4?(((_K11>>2)^5)&1u):((_O115==4)^!!(_T11&32u)))^!!(_T11&16u),_D116=_O115==0?(_B116?_f11:_c11):_O115==1?(_B116?_h11:_e11):_O115==2?(_B116?_u11:_i11):_O115==3?(_B116?_w11:_l11):(_K11&(1u<<(16+_O115)))?(_B116?0x0340048du:0x0352148du):(_B116?0x0342148du:0x0350048du),_V116=_O115==0?(_K11):_O115==1?(_M11):_O115==2?((_T11&(_B116?2u:1u))?0u-(_Z11):(_Z11)):_O115==3?((_T11&(_B116?8u:4u))?32u-(_R11):(_R11)):0u};enum{_C117=((_Q11>>(2*3))&3u),_O117=(_C117<2?(_C117?_G11:_F11):_C117+2u),_B117=(_O117<4?(((_K11>>3)^6)&1u):((_O117==4)^!!(_T11&32u)))^!!(_T11&16u),_D117=_O117==0?(_B117?_f11:_c11):_O117==1?(_B117?_h11:_e11):_O117==2?(_B117?_u11:_i11):_O117==3?(_B117?_w11:_l11):(_K11&(1u<<(16+_O117)))?(_B117?0x0342148du:0x0350048du):(_B117?0x0200daf7u:0x0200d8f7u),_V117=_O117==0?(_K11):_O117==1?(_M11):_O117==2?((_T11&(_B117?2u:1u))?0u-(_Z11):(_Z11)):_O117==3?((_T11&(_B117?8u:4u))?32u-(_R11):(_R11)):0u};enum{_B118=(_O117<4?(((_K11>>3)^7)&1u):((_O117==4)^!!(_T11&32u)))^!!(_T11&16u),_D118=_O117==0?(_B118?_f11:_c11):_O117==1?(_B118?_h11:_e11):_O117==2?(_B118?_u11:_i11):_O117==3?(_B118?_w11:_l11):(_K11&(1u<<(16+_O117)))?(_B118?0x0340048du:0x0352148du):(_B118?0x0342148du:0x0350048du),_V118=_O117==0?(_K11):_O117==1?(_M11):_O117==2?((_T11&(_B118?2u:1u))?0u-(_Z11):(_Z11)):_O117==3?((_T11&(_B118?8u:4u))?32u-(_R11):(_R11)):0u};
+#define OBFH_P_ARGS_11 [d1] "i"(_D111), [v1] "i"(_V111), [d2] "i"(_D112), [v2] "i"(_V112), [d3] "i"(_D113), [v3] "i"(_V113), [d4] "i"(_D114), [v4] "i"(_V114), [d5] "i"(_D115), [v5] "i"(_V115), [d6] "i"(_D116), [v6] "i"(_V116), [d7] "i"(_D117), [v7] "i"(_V117), [d8] "i"(_D118), [v8] "i"(_V118)
+#define OBFH_P_CACHE_20 enum{_S20=__obfh_style20,_K20=__obfh_k20,_M20=__obfh_m20,_Z20=__obfh_a20,_R20=__obfh_r20,_X20=__obfh_k30,_T20=_K20>>14,_H20=__obfh_style30,_E20=__obfh_m30,_A20=__obfh_a30,_Y20=__obfh_r30,_N20=(0xb16cu>>(4*_H20+2*((_X20>>8)%12u/6u)))&3u,_F20=_S20==0?0:_S20==1?2:_S20==2?1:3,_G20=_S20==0?3:_S20==1?1:_S20==2?0:2,_J20=(_K20>>8)%12u,_Q20=((_J20<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J20&7u)))&255u};enum{_c20=0x11000035u,_f20=0x1200f281u,_e20=0x1200c069u,_h20=0x1200d269u,_i20=_T20&1u?0x1100002du:0x11000005u,_u20=_T20&2u?0x1200ea81u:0x1200c281u,_l20=_T20&4u?0x0600c8c1u:0x0600c0c1u,_w20=_T20&8u?0x0600cac1u:0x0600c2c1u};enum{_B201=(_N20<4?(((_K20>>0)^0)&1u):((_N20==4)^!!(_T20&32u)))^!!(_T20&16u),_D201=_N20==0?(_B201?_f20:_c20):_N20==1?(_B201?_h20:_e20):_N20==2?(_B201?_u20:_i20):_N20==3?(_B201?_w20:_l20):(_K20&(1u<<(16+_N20)))?(_B201?0x0342148du:0x0350048du):(_B201?0x0200daf7u:0x0200d8f7u),_V201=_N20==0?(_X20):_N20==1?(_E20):_N20==2?((_T20&(_B201?2u:1u))?0u-(_A20):(_A20)):_N20==3?((_T20&(_B201?8u:4u))?32u-(_Y20):(_Y20)):0u};enum{_B202=(_N20<4?(((_K20>>0)^1)&1u):((_N20==4)^!!(_T20&32u)))^!!(_T20&16u),_D202=_N20==0?(_B202?_f20:_c20):_N20==1?(_B202?_h20:_e20):_N20==2?(_B202?_u20:_i20):_N20==3?(_B202?_w20:_l20):(_K20&(1u<<(16+_N20)))?(_B202?0x0340048du:0x0352148du):(_B202?0x0342148du:0x0350048du),_V202=_N20==0?(_X20):_N20==1?(_E20):_N20==2?((_T20&(_B202?2u:1u))?0u-(_A20):(_A20)):_N20==3?((_T20&(_B202?8u:4u))?32u-(_Y20):(_Y20)):0u};enum{_C203=((_Q20>>(2*1))&3u),_O203=(_C203<2?(_C203?_G20:_F20):_C203+2u),_B203=(_O203<4?(((_K20>>1)^2)&1u):((_O203==4)^!!(_T20&32u)))^!!(_T20&16u),_D203=_O203==0?(_B203?_f20:_c20):_O203==1?(_B203?_h20:_e20):_O203==2?(_B203?_u20:_i20):_O203==3?(_B203?_w20:_l20):(_K20&(1u<<(16+_O203)))?(_B203?0x0342148du:0x0350048du):(_B203?0x0200daf7u:0x0200d8f7u),_V203=_O203==0?(_K20):_O203==1?(_M20):_O203==2?((_T20&(_B203?2u:1u))?0u-(_Z20):(_Z20)):_O203==3?((_T20&(_B203?8u:4u))?32u-(_R20):(_R20)):0u};enum{_B204=(_O203<4?(((_K20>>1)^3)&1u):((_O203==4)^!!(_T20&32u)))^!!(_T20&16u),_D204=_O203==0?(_B204?_f20:_c20):_O203==1?(_B204?_h20:_e20):_O203==2?(_B204?_u20:_i20):_O203==3?(_B204?_w20:_l20):(_K20&(1u<<(16+_O203)))?(_B204?0x0340048du:0x0352148du):(_B204?0x0342148du:0x0350048du),_V204=_O203==0?(_K20):_O203==1?(_M20):_O203==2?((_T20&(_B204?2u:1u))?0u-(_Z20):(_Z20)):_O203==3?((_T20&(_B204?8u:4u))?32u-(_R20):(_R20)):0u};enum{_C205=((_Q20>>(2*2))&3u),_O205=(_C205<2?(_C205?_G20:_F20):_C205+2u),_B205=(_O205<4?(((_K20>>2)^4)&1u):((_O205==4)^!!(_T20&32u)))^!!(_T20&16u),_D205=_O205==0?(_B205?_f20:_c20):_O205==1?(_B205?_h20:_e20):_O205==2?(_B205?_u20:_i20):_O205==3?(_B205?_w20:_l20):(_K20&(1u<<(16+_O205)))?(_B205?0x0342148du:0x0350048du):(_B205?0x0200daf7u:0x0200d8f7u),_V205=_O205==0?(_K20):_O205==1?(_M20):_O205==2?((_T20&(_B205?2u:1u))?0u-(_Z20):(_Z20)):_O205==3?((_T20&(_B205?8u:4u))?32u-(_R20):(_R20)):0u};enum{_B206=(_O205<4?(((_K20>>2)^5)&1u):((_O205==4)^!!(_T20&32u)))^!!(_T20&16u),_D206=_O205==0?(_B206?_f20:_c20):_O205==1?(_B206?_h20:_e20):_O205==2?(_B206?_u20:_i20):_O205==3?(_B206?_w20:_l20):(_K20&(1u<<(16+_O205)))?(_B206?0x0340048du:0x0352148du):(_B206?0x0342148du:0x0350048du),_V206=_O205==0?(_K20):_O205==1?(_M20):_O205==2?((_T20&(_B206?2u:1u))?0u-(_Z20):(_Z20)):_O205==3?((_T20&(_B206?8u:4u))?32u-(_R20):(_R20)):0u};enum{_C207=((_Q20>>(2*3))&3u),_O207=(_C207<2?(_C207?_G20:_F20):_C207+2u),_B207=(_O207<4?(((_K20>>3)^6)&1u):((_O207==4)^!!(_T20&32u)))^!!(_T20&16u),_D207=_O207==0?(_B207?_f20:_c20):_O207==1?(_B207?_h20:_e20):_O207==2?(_B207?_u20:_i20):_O207==3?(_B207?_w20:_l20):(_K20&(1u<<(16+_O207)))?(_B207?0x0342148du:0x0350048du):(_B207?0x0200daf7u:0x0200d8f7u),_V207=_O207==0?(_K20):_O207==1?(_M20):_O207==2?((_T20&(_B207?2u:1u))?0u-(_Z20):(_Z20)):_O207==3?((_T20&(_B207?8u:4u))?32u-(_R20):(_R20)):0u};enum{_B208=(_O207<4?(((_K20>>3)^7)&1u):((_O207==4)^!!(_T20&32u)))^!!(_T20&16u),_D208=_O207==0?(_B208?_f20:_c20):_O207==1?(_B208?_h20:_e20):_O207==2?(_B208?_u20:_i20):_O207==3?(_B208?_w20:_l20):(_K20&(1u<<(16+_O207)))?(_B208?0x0340048du:0x0352148du):(_B208?0x0342148du:0x0350048du),_V208=_O207==0?(_K20):_O207==1?(_M20):_O207==2?((_T20&(_B208?2u:1u))?0u-(_Z20):(_Z20)):_O207==3?((_T20&(_B208?8u:4u))?32u-(_R20):(_R20)):0u};
+#define OBFH_P_ARGS_20 [d1] "i"(_D201), [v1] "i"(_V201), [d2] "i"(_D202), [v2] "i"(_V202), [d3] "i"(_D203), [v3] "i"(_V203), [d4] "i"(_D204), [v4] "i"(_V204), [d5] "i"(_D205), [v5] "i"(_V205), [d6] "i"(_D206), [v6] "i"(_V206), [d7] "i"(_D207), [v7] "i"(_V207), [d8] "i"(_D208), [v8] "i"(_V208)
+#define OBFH_P_CACHE_21 enum{_S21=__obfh_style21,_K21=__obfh_k21,_M21=__obfh_m21,_Z21=__obfh_a21,_R21=__obfh_r21,_X21=__obfh_k30,_T21=_K21>>14,_H21=__obfh_style30,_E21=__obfh_m30,_A21=__obfh_a30,_Y21=__obfh_r30,_N21=(0xb16cu>>(4*_H21+2*((_X21>>8)%12u/6u)))&3u,_F21=_S21==0?0:_S21==1?2:_S21==2?1:3,_G21=_S21==0?3:_S21==1?1:_S21==2?0:2,_J21=(_K21>>8)%12u,_Q21=((_J21<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J21&7u)))&255u};enum{_c21=0x11000035u,_f21=0x1200f281u,_e21=0x1200c069u,_h21=0x1200d269u,_i21=_T21&1u?0x1100002du:0x11000005u,_u21=_T21&2u?0x1200ea81u:0x1200c281u,_l21=_T21&4u?0x0600c8c1u:0x0600c0c1u,_w21=_T21&8u?0x0600cac1u:0x0600c2c1u};enum{_B211=(_N21<4?(((_K21>>0)^0)&1u):((_N21==4)^!!(_T21&32u)))^!!(_T21&16u),_D211=_N21==0?(_B211?_f21:_c21):_N21==1?(_B211?_h21:_e21):_N21==2?(_B211?_u21:_i21):_N21==3?(_B211?_w21:_l21):(_K21&(1u<<(16+_N21)))?(_B211?0x0342148du:0x0350048du):(_B211?0x0200daf7u:0x0200d8f7u),_V211=_N21==0?(_X21):_N21==1?(_E21):_N21==2?((_T21&(_B211?2u:1u))?0u-(_A21):(_A21)):_N21==3?((_T21&(_B211?8u:4u))?32u-(_Y21):(_Y21)):0u};enum{_B212=(_N21<4?(((_K21>>0)^1)&1u):((_N21==4)^!!(_T21&32u)))^!!(_T21&16u),_D212=_N21==0?(_B212?_f21:_c21):_N21==1?(_B212?_h21:_e21):_N21==2?(_B212?_u21:_i21):_N21==3?(_B212?_w21:_l21):(_K21&(1u<<(16+_N21)))?(_B212?0x0340048du:0x0352148du):(_B212?0x0342148du:0x0350048du),_V212=_N21==0?(_X21):_N21==1?(_E21):_N21==2?((_T21&(_B212?2u:1u))?0u-(_A21):(_A21)):_N21==3?((_T21&(_B212?8u:4u))?32u-(_Y21):(_Y21)):0u};enum{_C213=((_Q21>>(2*1))&3u),_O213=(_C213<2?(_C213?_G21:_F21):_C213+2u),_B213=(_O213<4?(((_K21>>1)^2)&1u):((_O213==4)^!!(_T21&32u)))^!!(_T21&16u),_D213=_O213==0?(_B213?_f21:_c21):_O213==1?(_B213?_h21:_e21):_O213==2?(_B213?_u21:_i21):_O213==3?(_B213?_w21:_l21):(_K21&(1u<<(16+_O213)))?(_B213?0x0342148du:0x0350048du):(_B213?0x0200daf7u:0x0200d8f7u),_V213=_O213==0?(_K21):_O213==1?(_M21):_O213==2?((_T21&(_B213?2u:1u))?0u-(_Z21):(_Z21)):_O213==3?((_T21&(_B213?8u:4u))?32u-(_R21):(_R21)):0u};enum{_B214=(_O213<4?(((_K21>>1)^3)&1u):((_O213==4)^!!(_T21&32u)))^!!(_T21&16u),_D214=_O213==0?(_B214?_f21:_c21):_O213==1?(_B214?_h21:_e21):_O213==2?(_B214?_u21:_i21):_O213==3?(_B214?_w21:_l21):(_K21&(1u<<(16+_O213)))?(_B214?0x0340048du:0x0352148du):(_B214?0x0342148du:0x0350048du),_V214=_O213==0?(_K21):_O213==1?(_M21):_O213==2?((_T21&(_B214?2u:1u))?0u-(_Z21):(_Z21)):_O213==3?((_T21&(_B214?8u:4u))?32u-(_R21):(_R21)):0u};enum{_C215=((_Q21>>(2*2))&3u),_O215=(_C215<2?(_C215?_G21:_F21):_C215+2u),_B215=(_O215<4?(((_K21>>2)^4)&1u):((_O215==4)^!!(_T21&32u)))^!!(_T21&16u),_D215=_O215==0?(_B215?_f21:_c21):_O215==1?(_B215?_h21:_e21):_O215==2?(_B215?_u21:_i21):_O215==3?(_B215?_w21:_l21):(_K21&(1u<<(16+_O215)))?(_B215?0x0342148du:0x0350048du):(_B215?0x0200daf7u:0x0200d8f7u),_V215=_O215==0?(_K21):_O215==1?(_M21):_O215==2?((_T21&(_B215?2u:1u))?0u-(_Z21):(_Z21)):_O215==3?((_T21&(_B215?8u:4u))?32u-(_R21):(_R21)):0u};enum{_B216=(_O215<4?(((_K21>>2)^5)&1u):((_O215==4)^!!(_T21&32u)))^!!(_T21&16u),_D216=_O215==0?(_B216?_f21:_c21):_O215==1?(_B216?_h21:_e21):_O215==2?(_B216?_u21:_i21):_O215==3?(_B216?_w21:_l21):(_K21&(1u<<(16+_O215)))?(_B216?0x0340048du:0x0352148du):(_B216?0x0342148du:0x0350048du),_V216=_O215==0?(_K21):_O215==1?(_M21):_O215==2?((_T21&(_B216?2u:1u))?0u-(_Z21):(_Z21)):_O215==3?((_T21&(_B216?8u:4u))?32u-(_R21):(_R21)):0u};enum{_C217=((_Q21>>(2*3))&3u),_O217=(_C217<2?(_C217?_G21:_F21):_C217+2u),_B217=(_O217<4?(((_K21>>3)^6)&1u):((_O217==4)^!!(_T21&32u)))^!!(_T21&16u),_D217=_O217==0?(_B217?_f21:_c21):_O217==1?(_B217?_h21:_e21):_O217==2?(_B217?_u21:_i21):_O217==3?(_B217?_w21:_l21):(_K21&(1u<<(16+_O217)))?(_B217?0x0342148du:0x0350048du):(_B217?0x0200daf7u:0x0200d8f7u),_V217=_O217==0?(_K21):_O217==1?(_M21):_O217==2?((_T21&(_B217?2u:1u))?0u-(_Z21):(_Z21)):_O217==3?((_T21&(_B217?8u:4u))?32u-(_R21):(_R21)):0u};enum{_B218=(_O217<4?(((_K21>>3)^7)&1u):((_O217==4)^!!(_T21&32u)))^!!(_T21&16u),_D218=_O217==0?(_B218?_f21:_c21):_O217==1?(_B218?_h21:_e21):_O217==2?(_B218?_u21:_i21):_O217==3?(_B218?_w21:_l21):(_K21&(1u<<(16+_O217)))?(_B218?0x0340048du:0x0352148du):(_B218?0x0342148du:0x0350048du),_V218=_O217==0?(_K21):_O217==1?(_M21):_O217==2?((_T21&(_B218?2u:1u))?0u-(_Z21):(_Z21)):_O217==3?((_T21&(_B218?8u:4u))?32u-(_R21):(_R21)):0u};
+#define OBFH_P_ARGS_21 [d1] "i"(_D211), [v1] "i"(_V211), [d2] "i"(_D212), [v2] "i"(_V212), [d3] "i"(_D213), [v3] "i"(_V213), [d4] "i"(_D214), [v4] "i"(_V214), [d5] "i"(_D215), [v5] "i"(_V215), [d6] "i"(_D216), [v6] "i"(_V216), [d7] "i"(_D217), [v7] "i"(_V217), [d8] "i"(_D218), [v8] "i"(_V218)
+#define OBFH_P_CACHE_30 enum{_S30=__obfh_style30,_K30=__obfh_k30,_M30=__obfh_m30,_Z30=__obfh_a30,_R30=__obfh_r30,_X30=__obfh_k20,_T30=_K30>>14,_H30=__obfh_style20,_E30=__obfh_m20,_A30=__obfh_a20,_Y30=__obfh_r20,_N30=(0xb16cu>>(4*_H30+2*((_X30>>8)%12u/6u)))&3u,_F30=_S30==0?0:_S30==1?2:_S30==2?1:3,_G30=_S30==0?3:_S30==1?1:_S30==2?0:2,_J30=(_K30>>8)%12u,_Q30=((_J30<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J30&7u)))&255u};enum{_c30=0x11000035u,_f30=0x1200f281u,_e30=0x1200c069u,_h30=0x1200d269u,_i30=_T30&1u?0x1100002du:0x11000005u,_u30=_T30&2u?0x1200ea81u:0x1200c281u,_l30=_T30&4u?0x0600c8c1u:0x0600c0c1u,_w30=_T30&8u?0x0600cac1u:0x0600c2c1u};enum{_B301=(_N30<4?(((_K30>>0)^0)&1u):((_N30==4)^!!(_T30&32u)))^!!(_T30&16u),_D301=_N30==0?(_B301?_f30:_c30):_N30==1?(_B301?_h30:_e30):_N30==2?(_B301?_u30:_i30):_N30==3?(_B301?_w30:_l30):(_K30&(1u<<(16+_N30)))?(_B301?0x0342148du:0x0350048du):(_B301?0x0200daf7u:0x0200d8f7u),_V301=_N30==0?(_X30):_N30==1?(_E30):_N30==2?((_T30&(_B301?2u:1u))?0u-(_A30):(_A30)):_N30==3?((_T30&(_B301?8u:4u))?32u-(_Y30):(_Y30)):0u};enum{_B302=(_N30<4?(((_K30>>0)^1)&1u):((_N30==4)^!!(_T30&32u)))^!!(_T30&16u),_D302=_N30==0?(_B302?_f30:_c30):_N30==1?(_B302?_h30:_e30):_N30==2?(_B302?_u30:_i30):_N30==3?(_B302?_w30:_l30):(_K30&(1u<<(16+_N30)))?(_B302?0x0340048du:0x0352148du):(_B302?0x0342148du:0x0350048du),_V302=_N30==0?(_X30):_N30==1?(_E30):_N30==2?((_T30&(_B302?2u:1u))?0u-(_A30):(_A30)):_N30==3?((_T30&(_B302?8u:4u))?32u-(_Y30):(_Y30)):0u};enum{_C303=((_Q30>>(2*1))&3u),_O303=(_C303<2?(_C303?_G30:_F30):_C303+2u),_B303=(_O303<4?(((_K30>>1)^2)&1u):((_O303==4)^!!(_T30&32u)))^!!(_T30&16u),_D303=_O303==0?(_B303?_f30:_c30):_O303==1?(_B303?_h30:_e30):_O303==2?(_B303?_u30:_i30):_O303==3?(_B303?_w30:_l30):(_K30&(1u<<(16+_O303)))?(_B303?0x0342148du:0x0350048du):(_B303?0x0200daf7u:0x0200d8f7u),_V303=_O303==0?(_K30):_O303==1?(_M30):_O303==2?((_T30&(_B303?2u:1u))?0u-(_Z30):(_Z30)):_O303==3?((_T30&(_B303?8u:4u))?32u-(_R30):(_R30)):0u};enum{_B304=(_O303<4?(((_K30>>1)^3)&1u):((_O303==4)^!!(_T30&32u)))^!!(_T30&16u),_D304=_O303==0?(_B304?_f30:_c30):_O303==1?(_B304?_h30:_e30):_O303==2?(_B304?_u30:_i30):_O303==3?(_B304?_w30:_l30):(_K30&(1u<<(16+_O303)))?(_B304?0x0340048du:0x0352148du):(_B304?0x0342148du:0x0350048du),_V304=_O303==0?(_K30):_O303==1?(_M30):_O303==2?((_T30&(_B304?2u:1u))?0u-(_Z30):(_Z30)):_O303==3?((_T30&(_B304?8u:4u))?32u-(_R30):(_R30)):0u};enum{_C305=((_Q30>>(2*2))&3u),_O305=(_C305<2?(_C305?_G30:_F30):_C305+2u),_B305=(_O305<4?(((_K30>>2)^4)&1u):((_O305==4)^!!(_T30&32u)))^!!(_T30&16u),_D305=_O305==0?(_B305?_f30:_c30):_O305==1?(_B305?_h30:_e30):_O305==2?(_B305?_u30:_i30):_O305==3?(_B305?_w30:_l30):(_K30&(1u<<(16+_O305)))?(_B305?0x0342148du:0x0350048du):(_B305?0x0200daf7u:0x0200d8f7u),_V305=_O305==0?(_K30):_O305==1?(_M30):_O305==2?((_T30&(_B305?2u:1u))?0u-(_Z30):(_Z30)):_O305==3?((_T30&(_B305?8u:4u))?32u-(_R30):(_R30)):0u};enum{_B306=(_O305<4?(((_K30>>2)^5)&1u):((_O305==4)^!!(_T30&32u)))^!!(_T30&16u),_D306=_O305==0?(_B306?_f30:_c30):_O305==1?(_B306?_h30:_e30):_O305==2?(_B306?_u30:_i30):_O305==3?(_B306?_w30:_l30):(_K30&(1u<<(16+_O305)))?(_B306?0x0340048du:0x0352148du):(_B306?0x0342148du:0x0350048du),_V306=_O305==0?(_K30):_O305==1?(_M30):_O305==2?((_T30&(_B306?2u:1u))?0u-(_Z30):(_Z30)):_O305==3?((_T30&(_B306?8u:4u))?32u-(_R30):(_R30)):0u};enum{_C307=((_Q30>>(2*3))&3u),_O307=(_C307<2?(_C307?_G30:_F30):_C307+2u),_B307=(_O307<4?(((_K30>>3)^6)&1u):((_O307==4)^!!(_T30&32u)))^!!(_T30&16u),_D307=_O307==0?(_B307?_f30:_c30):_O307==1?(_B307?_h30:_e30):_O307==2?(_B307?_u30:_i30):_O307==3?(_B307?_w30:_l30):(_K30&(1u<<(16+_O307)))?(_B307?0x0342148du:0x0350048du):(_B307?0x0200daf7u:0x0200d8f7u),_V307=_O307==0?(_K30):_O307==1?(_M30):_O307==2?((_T30&(_B307?2u:1u))?0u-(_Z30):(_Z30)):_O307==3?((_T30&(_B307?8u:4u))?32u-(_R30):(_R30)):0u};enum{_B308=(_O307<4?(((_K30>>3)^7)&1u):((_O307==4)^!!(_T30&32u)))^!!(_T30&16u),_D308=_O307==0?(_B308?_f30:_c30):_O307==1?(_B308?_h30:_e30):_O307==2?(_B308?_u30:_i30):_O307==3?(_B308?_w30:_l30):(_K30&(1u<<(16+_O307)))?(_B308?0x0340048du:0x0352148du):(_B308?0x0342148du:0x0350048du),_V308=_O307==0?(_K30):_O307==1?(_M30):_O307==2?((_T30&(_B308?2u:1u))?0u-(_Z30):(_Z30)):_O307==3?((_T30&(_B308?8u:4u))?32u-(_R30):(_R30)):0u};
+#define OBFH_P_ARGS_30 [d1] "i"(_D301), [v1] "i"(_V301), [d2] "i"(_D302), [v2] "i"(_V302), [d3] "i"(_D303), [v3] "i"(_V303), [d4] "i"(_D304), [v4] "i"(_V304), [d5] "i"(_D305), [v5] "i"(_V305), [d6] "i"(_D306), [v6] "i"(_V306), [d7] "i"(_D307), [v7] "i"(_V307), [d8] "i"(_D308), [v8] "i"(_V308)
+#define OBFH_P_CACHE_31 enum{_S31=__obfh_style31,_K31=__obfh_k31,_M31=__obfh_m31,_Z31=__obfh_a31,_R31=__obfh_r31,_X31=__obfh_k20,_T31=_K31>>14,_H31=__obfh_style20,_E31=__obfh_m20,_A31=__obfh_a20,_Y31=__obfh_r20,_N31=(0xb16cu>>(4*_H31+2*((_X31>>8)%12u/6u)))&3u,_F31=_S31==0?0:_S31==1?2:_S31==2?1:3,_G31=_S31==0?3:_S31==1?1:_S31==2?0:2,_J31=(_K31>>8)%12u,_Q31=((_J31<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J31&7u)))&255u};enum{_c31=0x11000035u,_f31=0x1200f281u,_e31=0x1200c069u,_h31=0x1200d269u,_i31=_T31&1u?0x1100002du:0x11000005u,_u31=_T31&2u?0x1200ea81u:0x1200c281u,_l31=_T31&4u?0x0600c8c1u:0x0600c0c1u,_w31=_T31&8u?0x0600cac1u:0x0600c2c1u};enum{_B311=(_N31<4?(((_K31>>0)^0)&1u):((_N31==4)^!!(_T31&32u)))^!!(_T31&16u),_D311=_N31==0?(_B311?_f31:_c31):_N31==1?(_B311?_h31:_e31):_N31==2?(_B311?_u31:_i31):_N31==3?(_B311?_w31:_l31):(_K31&(1u<<(16+_N31)))?(_B311?0x0342148du:0x0350048du):(_B311?0x0200daf7u:0x0200d8f7u),_V311=_N31==0?(_X31):_N31==1?(_E31):_N31==2?((_T31&(_B311?2u:1u))?0u-(_A31):(_A31)):_N31==3?((_T31&(_B311?8u:4u))?32u-(_Y31):(_Y31)):0u};enum{_B312=(_N31<4?(((_K31>>0)^1)&1u):((_N31==4)^!!(_T31&32u)))^!!(_T31&16u),_D312=_N31==0?(_B312?_f31:_c31):_N31==1?(_B312?_h31:_e31):_N31==2?(_B312?_u31:_i31):_N31==3?(_B312?_w31:_l31):(_K31&(1u<<(16+_N31)))?(_B312?0x0340048du:0x0352148du):(_B312?0x0342148du:0x0350048du),_V312=_N31==0?(_X31):_N31==1?(_E31):_N31==2?((_T31&(_B312?2u:1u))?0u-(_A31):(_A31)):_N31==3?((_T31&(_B312?8u:4u))?32u-(_Y31):(_Y31)):0u};enum{_C313=((_Q31>>(2*1))&3u),_O313=(_C313<2?(_C313?_G31:_F31):_C313+2u),_B313=(_O313<4?(((_K31>>1)^2)&1u):((_O313==4)^!!(_T31&32u)))^!!(_T31&16u),_D313=_O313==0?(_B313?_f31:_c31):_O313==1?(_B313?_h31:_e31):_O313==2?(_B313?_u31:_i31):_O313==3?(_B313?_w31:_l31):(_K31&(1u<<(16+_O313)))?(_B313?0x0342148du:0x0350048du):(_B313?0x0200daf7u:0x0200d8f7u),_V313=_O313==0?(_K31):_O313==1?(_M31):_O313==2?((_T31&(_B313?2u:1u))?0u-(_Z31):(_Z31)):_O313==3?((_T31&(_B313?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B314=(_O313<4?(((_K31>>1)^3)&1u):((_O313==4)^!!(_T31&32u)))^!!(_T31&16u),_D314=_O313==0?(_B314?_f31:_c31):_O313==1?(_B314?_h31:_e31):_O313==2?(_B314?_u31:_i31):_O313==3?(_B314?_w31:_l31):(_K31&(1u<<(16+_O313)))?(_B314?0x0340048du:0x0352148du):(_B314?0x0342148du:0x0350048du),_V314=_O313==0?(_K31):_O313==1?(_M31):_O313==2?((_T31&(_B314?2u:1u))?0u-(_Z31):(_Z31)):_O313==3?((_T31&(_B314?8u:4u))?32u-(_R31):(_R31)):0u};enum{_C315=((_Q31>>(2*2))&3u),_O315=(_C315<2?(_C315?_G31:_F31):_C315+2u),_B315=(_O315<4?(((_K31>>2)^4)&1u):((_O315==4)^!!(_T31&32u)))^!!(_T31&16u),_D315=_O315==0?(_B315?_f31:_c31):_O315==1?(_B315?_h31:_e31):_O315==2?(_B315?_u31:_i31):_O315==3?(_B315?_w31:_l31):(_K31&(1u<<(16+_O315)))?(_B315?0x0342148du:0x0350048du):(_B315?0x0200daf7u:0x0200d8f7u),_V315=_O315==0?(_K31):_O315==1?(_M31):_O315==2?((_T31&(_B315?2u:1u))?0u-(_Z31):(_Z31)):_O315==3?((_T31&(_B315?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B316=(_O315<4?(((_K31>>2)^5)&1u):((_O315==4)^!!(_T31&32u)))^!!(_T31&16u),_D316=_O315==0?(_B316?_f31:_c31):_O315==1?(_B316?_h31:_e31):_O315==2?(_B316?_u31:_i31):_O315==3?(_B316?_w31:_l31):(_K31&(1u<<(16+_O315)))?(_B316?0x0340048du:0x0352148du):(_B316?0x0342148du:0x0350048du),_V316=_O315==0?(_K31):_O315==1?(_M31):_O315==2?((_T31&(_B316?2u:1u))?0u-(_Z31):(_Z31)):_O315==3?((_T31&(_B316?8u:4u))?32u-(_R31):(_R31)):0u};enum{_C317=((_Q31>>(2*3))&3u),_O317=(_C317<2?(_C317?_G31:_F31):_C317+2u),_B317=(_O317<4?(((_K31>>3)^6)&1u):((_O317==4)^!!(_T31&32u)))^!!(_T31&16u),_D317=_O317==0?(_B317?_f31:_c31):_O317==1?(_B317?_h31:_e31):_O317==2?(_B317?_u31:_i31):_O317==3?(_B317?_w31:_l31):(_K31&(1u<<(16+_O317)))?(_B317?0x0342148du:0x0350048du):(_B317?0x0200daf7u:0x0200d8f7u),_V317=_O317==0?(_K31):_O317==1?(_M31):_O317==2?((_T31&(_B317?2u:1u))?0u-(_Z31):(_Z31)):_O317==3?((_T31&(_B317?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B318=(_O317<4?(((_K31>>3)^7)&1u):((_O317==4)^!!(_T31&32u)))^!!(_T31&16u),_D318=_O317==0?(_B318?_f31:_c31):_O317==1?(_B318?_h31:_e31):_O317==2?(_B318?_u31:_i31):_O317==3?(_B318?_w31:_l31):(_K31&(1u<<(16+_O317)))?(_B318?0x0340048du:0x0352148du):(_B318?0x0342148du:0x0350048du),_V318=_O317==0?(_K31):_O317==1?(_M31):_O317==2?((_T31&(_B318?2u:1u))?0u-(_Z31):(_Z31)):_O317==3?((_T31&(_B318?8u:4u))?32u-(_R31):(_R31)):0u};
+#define OBFH_P_ARGS_31 [d1] "i"(_D311), [v1] "i"(_V311), [d2] "i"(_D312), [v2] "i"(_V312), [d3] "i"(_D313), [v3] "i"(_V313), [d4] "i"(_D314), [v4] "i"(_V314), [d5] "i"(_D315), [v5] "i"(_V315), [d6] "i"(_D316), [v6] "i"(_V316), [d7] "i"(_D317), [v7] "i"(_V317), [d8] "i"(_D318), [v8] "i"(_V318)
 // V1 has one graph: do not instantiate the unused second-stage constants.
 #if CFLOW_V2
-#define OBFH_P_SECOND_PREPARE \
-    OBFH_P_PREPARE(2, 0);     \
-    OBFH_P_PREPARE(2, 1);     \
-    OBFH_P_PREPARE(3, 0);     \
+#define OBFH_P_SECOND_PREPARE                                            \
+    OBFH_P_SELECTOR_META(2); OBFH_P_SELECTOR_META(3); OBFH_P_PREPARE(2, 0); \
+    OBFH_P_PREPARE(2, 1);                                                \
+    OBFH_P_PREPARE(3, 0);                                                \
     OBFH_P_PREPARE(3, 1);
 #define OBFH_P_SECOND_GRAPH OBFH_P_GRAPH(__obfh_flow_second, 2, 3, 1)
 #else
 #define OBFH_P_SECOND_PREPARE
 #define OBFH_P_SECOND_GRAPH ((void)0)
 #endif
-#define OBFH_P_STEP(s, p)                          \
-    ({                                             \
-        OBFH_P_BEFORE                              \
-        OBFH_P_PERMUTE(s, p, OBFH_P_INSTRUCTIONS); \
-        OBFH_P_TRACE(s, p);                        \
+// Reuse four skipped bytes per insertion at existing graph jumps. No new jump.
+#define OBFH_P_GAP(shift, part, split)                                   \
+    __obfh_asm__(".fill 1,%c0,%c1;" : :                                  \
+                 "i"((CFLOW_V2 ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
+                 "i"(__obfh_flow_hash ^ (0x9e3779b9u * ((shift) + 1u))))
+
+#define OBFH_P_STEP(s, p)                                                \
+    ({                                                                   \
+        OBFH_P_BEFORE                                                    \
+        OBFH_P_PERMUTE(s, p, OBFH_P_INSTRUCTIONS);                       \
+        OBFH_P_TRACE(s, p);                                              \
     })
-#define OBFH_P_FINISH_ASM(instructions)                                                                   \
-    ({                                                                                                    \
-        __obfh_flow_result = (__obfh_flow_hash & 2u) ? __obfh_flow_tag : __obfh_flow_state;               \
+#define OBFH_P_FINISH_ASM(instructions)                                  \
+    ({                                                                   \
+        __obfh_flow_result = (__obfh_flow_hash & 2u) ? __obfh_flow_tag : __obfh_flow_state; \
         unsigned int __obfh_finish_other = (__obfh_flow_hash & 2u) ? __obfh_flow_state : __obfh_flow_tag; \
-        __obfh_asm__(instructions                                                                         \
-                     : "+a"(__obfh_flow_result)                                                           \
-                     : [tag] "r"(__obfh_finish_other)                                                     \
-                     : "ecx", "cc", "memory");                                                            \
+        __obfh_asm__(instructions                                        \
+                     : "+a"(__obfh_flow_result)                          \
+                     : [tag] "r"(__obfh_finish_other)                    \
+                     : "ecx", "cc", "memory");                           \
     })
 #define OBFH_P_EXIT_0 OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; addl $1, %%eax;")
 #define OBFH_P_EXIT_1 OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
 #define OBFH_P_EXIT_2 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; movl $0, %%eax; movl $1, %%ecx; cmovel %%ecx, %%eax;")
 #define OBFH_P_EXIT_3 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax;")
-#define OBFH_P_EXIT_4 \
+#define OBFH_P_EXIT_4                                                    \
     OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; notl %%eax; andl $1, %%eax;")
 #define OBFH_P_EXIT_5 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
-#define OBFH_P_EXIT_6  \
-    OBFH_P_FINISH_ASM( \
+#define OBFH_P_EXIT_6                                                    \
+    OBFH_P_FINISH_ASM(                                                   \
         "xorl %[tag], %%eax; movl %%eax, %%ecx; negl %%ecx; orl %%ecx, %%eax; shrl $31, %%eax; xorl $1, %%eax;")
-#define OBFH_P_EXIT_7 \
+#define OBFH_P_EXIT_7                                                    \
     OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jz 9f; movl $0, %%eax; 9:")
 #define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6, OBFH_P_EXIT_7)
-#define OBFH_P_EXIT_SELECT_5(style) \
+#define OBFH_P_EXIT_SELECT_5(style)                                      \
     __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5, OBFH_P_EXIT_SELECT_6(style))
-#define OBFH_P_EXIT_SELECT_4(style) \
+#define OBFH_P_EXIT_SELECT_4(style)                                      \
     __builtin_choose_expr(((style)&7u) == 4u, OBFH_P_EXIT_4, OBFH_P_EXIT_SELECT_5(style))
-#define OBFH_P_EXIT_SELECT_3(style) \
+#define OBFH_P_EXIT_SELECT_3(style)                                      \
     __builtin_choose_expr(((style)&7u) == 3u, OBFH_P_EXIT_3, OBFH_P_EXIT_SELECT_4(style))
-#define OBFH_P_EXIT_SELECT_2(style) \
+#define OBFH_P_EXIT_SELECT_2(style)                                      \
     __builtin_choose_expr(((style)&7u) == 2u, OBFH_P_EXIT_2, OBFH_P_EXIT_SELECT_3(style))
-#define OBFH_P_EXIT_SELECT_1(style) \
+#define OBFH_P_EXIT_SELECT_1(style)                                      \
     __builtin_choose_expr(((style)&7u) == 1u, OBFH_P_EXIT_1, OBFH_P_EXIT_SELECT_2(style))
-#define OBFH_P_EXIT_SELECT_0(style) \
+#define OBFH_P_EXIT_SELECT_0(style)                                      \
     __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0, OBFH_P_EXIT_SELECT_1(style))
 #define OBFH_P_FINISH(style) OBFH_P_EXIT_SELECT_0(style)
 // Graph families: sequential diamonds, split selectors, crossed paths, split exits.
-#define OBFH_P_GRAPH_0(s, t, last)        \
-    ({                                    \
-        __label__ a, b, c, d, join, done; \
-        OBFH_P_MASK(s, a, b);             \
-    a:                                    \
-        OBFH_P_STEP(s, 0);                \
-        goto join;                        \
-    b:                                    \
-        OBFH_P_STEP(s, 1);                \
-    join:                                 \
-        OBFH_P_MASK(t, c, d);             \
-    c:                                    \
-        OBFH_P_STEP(t, 0);                \
-        goto done;                        \
-    d:                                    \
-        OBFH_P_STEP(t, 1);                \
-    done:                                 \
-        __obfh_flow_state;                \
+#define OBFH_P_GRAPH_0(s, t, last)                                       \
+    ({                                                                   \
+        __label__ a, b, c, d, join, done;                                \
+        OBFH_P_MASK(s, a, b);                                            \
+    a:                                                                   \
+        OBFH_P_STEP(s, 0);                                               \
+        goto join;                                                       \
+        OBFH_P_GAP(s, 0, 1);                                             \
+    b:                                                                   \
+        OBFH_P_STEP(s, 1);                                               \
+    join:                                                                \
+        OBFH_P_MASK(t, c, d);                                            \
+    c:                                                                   \
+        OBFH_P_STEP(t, 0);                                               \
+        goto done;                                                       \
+        OBFH_P_GAP(s, 1, 1);                                             \
+    d:                                                                   \
+        OBFH_P_STEP(t, 1);                                               \
+    done:                                                                \
+        __obfh_flow_state;                                               \
     })
-#define OBFH_P_GRAPH_1(s, t, last)        \
-    ({                                    \
-        __label__ a, b, c, d, join, done; \
-        OBFH_P_TABLE(s, a, b);            \
-    a:                                    \
-        OBFH_P_STEP(s, 0);                \
-        OBFH_P_TABLE(t, c, d);            \
-    b:                                    \
-        OBFH_P_STEP(s, 1);                \
-        OBFH_P_TABLE(t, d, c);            \
-    c:                                    \
-        OBFH_P_STEP(t, 0);                \
-        goto done;                        \
-    d:                                    \
-        OBFH_P_STEP(t, 1);                \
-    done:                                 \
-        __obfh_flow_state;                \
+#define OBFH_P_GRAPH_1(s, t, last)                                       \
+    ({                                                                   \
+        __label__ a, b, c, d, join, done;                                \
+        OBFH_P_TABLE(s, a, b);                                           \
+    a:                                                                   \
+        OBFH_P_STEP(s, 0);                                               \
+        OBFH_P_TABLE(t, c, d);                                           \
+    b:                                                                   \
+        OBFH_P_STEP(s, 1);                                               \
+        OBFH_P_TABLE(t, d, c);                                           \
+    c:                                                                   \
+        OBFH_P_STEP(t, 0);                                               \
+        goto done;                                                       \
+        OBFH_P_GAP(s, 0, 0);                                             \
+    d:                                                                   \
+        OBFH_P_STEP(t, 1);                                               \
+    done: __obfh_flow_state;                                             \
     })
-#define OBFH_P_GRAPH_2(s, t, last)                                                           \
-    ({                                                                                       \
-        __label__ a, b, c, d, join, done;                                                    \
-        OBFH_P_MASK(s, a, b);                                                                \
-    b:                                                                                       \
-        OBFH_P_STEP(s, 1);                                                                   \
-        OBFH_P_MASK(t, c, d);                                                                \
-    c:                                                                                       \
-        OBFH_P_STEP(t, 0);                                                                   \
+#define OBFH_P_GRAPH_2(s, t, last)                                       \
+    ({                                                                   \
+        __label__ a, b, c, d, join, done;                                \
+        OBFH_P_MASK(s, a, b);                                            \
+    b:                                                                   \
+        OBFH_P_STEP(s, 1);                                               \
+        OBFH_P_MASK(t, c, d);                                            \
+    c:                                                                   \
+        OBFH_P_STEP(t, 0);                                               \
         __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit ^ 5u); }), ((void)0)); \
-        goto done;                                                                           \
-    a:                                                                                       \
-        OBFH_P_STEP(s, 0);                                                                   \
-        OBFH_P_MASK(t, d, c);                                                                \
-    d:                                                                                       \
-        OBFH_P_STEP(t, 1);                                                                   \
-        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));      \
-    done:                                                                                    \
-        __obfh_flow_state;                                                                   \
+        goto done;                                                       \
+        OBFH_P_GAP(s, 0, 0);                                             \
+    a:                                                                   \
+        OBFH_P_STEP(s, 0);                                               \
+        OBFH_P_MASK(t, d, c);                                            \
+    d:                                                                   \
+        OBFH_P_STEP(t, 1);                                               \
+        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0)); \
+    done:                                                                \
+        __obfh_flow_state;                                               \
     })
-#define OBFH_P_GRAPH_3(s, t, last)                                                           \
-    ({                                                                                       \
-        __label__ a, b, c, d, join, done;                                                    \
-        OBFH_P_TABLE(s, a, b);                                                               \
-    a:                                                                                       \
-        OBFH_P_STEP(s, 0);                                                                   \
-        OBFH_P_TABLE(t, c, d);                                                               \
-    d:                                                                                       \
-        OBFH_P_STEP(t, 1);                                                                   \
+#define OBFH_P_GRAPH_3(s, t, last)                                       \
+    ({                                                                   \
+        __label__ a, b, c, d, join, done;                                \
+        OBFH_P_TABLE(s, a, b);                                           \
+    a:                                                                   \
+        OBFH_P_STEP(s, 0);                                               \
+        OBFH_P_TABLE(t, c, d);                                           \
+    d:                                                                   \
+        OBFH_P_STEP(t, 1);                                               \
         __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit ^ 3u); }), ((void)0)); \
-        goto done;                                                                           \
-    b:                                                                                       \
-        OBFH_P_STEP(s, 1);                                                                   \
-        OBFH_P_TABLE(t, c, d);                                                               \
-    c:                                                                                       \
-        OBFH_P_STEP(t, 0);                                                                   \
-        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));      \
-    done:                                                                                    \
-        __obfh_flow_state;                                                                   \
+        goto done;                                                       \
+        OBFH_P_GAP(s, 0, 0);                                             \
+    b:                                                                   \
+        OBFH_P_STEP(s, 1);                                               \
+        OBFH_P_TABLE(t, c, d);                                           \
+    c:                                                                   \
+        OBFH_P_STEP(t, 0);                                               \
+        __builtin_choose_expr(last, ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0)); \
+    done:                                                                \
+        __obfh_flow_state;                                               \
     })
-#define OBFH_P_GRAPH(f, s, t, last)                                 \
-    __builtin_choose_expr(                                          \
-        (f) == 0, OBFH_P_GRAPH_0(s, t, last),                       \
-        __builtin_choose_expr((f) == 1, OBFH_P_GRAPH_1(s, t, last), \
+#define OBFH_P_GRAPH(f, s, t, last)                                      \
+    __builtin_choose_expr(                                               \
+        (f) == 0, OBFH_P_GRAPH_0(s, t, last),                            \
+        __builtin_choose_expr((f) == 1, OBFH_P_GRAPH_1(s, t, last),      \
                               __builtin_choose_expr((f) == 2, OBFH_P_GRAPH_2(s, t, last), OBFH_P_GRAPH_3(s, t, last))))
 // Capture the condition once; all later stages use only local encoded state.
-#define OBFH_FLOW_CONDITION(condition, site_value, ...)                                                               \
-    ({                                                                                                                \
-        enum {                                                                                                        \
-            __obfh_flow_site = (site_value),                                                                          \
-            __obfh_flow_hash =                                                                                        \
+#define OBFH_FLOW_CONDITION(condition, site_value, ...)                  \
+    ({                                                                   \
+        enum {                                                           \
+            __obfh_flow_site = (site_value),                             \
+            __obfh_flow_hash =                                           \
                 OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u)), \
-            __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u),                                             \
-            __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu,                                                           \
-            __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u,                                                         \
-            __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u),                                            \
-            __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u),                   \
-            __obfh_flow_first = CFLOW_V2 ? (__obfh_flow_layout == 0 || __obfh_flow_layout == 2   ? 0                  \
-                                            : __obfh_flow_layout == 1 || __obfh_flow_layout == 4 ? 1                  \
-                                            : __obfh_flow_layout == 5 || __obfh_flow_layout == 6 ? 2                  \
-                                                                                                 : 3)                 \
-                                         : __obfh_flow_layout,                                                        \
-            __obfh_flow_second = __obfh_flow_layout == 0 || __obfh_flow_layout == 5   ? 1                             \
-                                 : __obfh_flow_layout == 1 || __obfh_flow_layout == 3 ? 0                             \
-                                 : __obfh_flow_layout == 2 || __obfh_flow_layout == 6 ? 3                             \
-                                                                                      : 2,                            \
-            __obfh_k00 = OBFH_MIX_A(__obfh_flow_hash ^ 2654435769u),                                                  \
-            __obfh_m00 = ((__obfh_k00 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a00 = OBFH_MIX_B(__obfh_k00 ^ 0x85ebca6bu),                                                        \
-            __obfh_r00 = ((__obfh_k00 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style00 = (__obfh_k00 >> 11) & 3u,                                                                 \
-            __obfh_k01 = OBFH_MIX_A(__obfh_flow_hash ^ 3532493122u),                                                  \
-            __obfh_m01 = ((__obfh_k01 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a01 = OBFH_MIX_B(__obfh_k01 ^ 0x85ebca6bu),                                                        \
-            __obfh_r01 = ((__obfh_k01 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style01 = (__obfh_k01 >> 11) & 3u,                                                                 \
-            __obfh_k10 = OBFH_MIX_A(__obfh_flow_hash ^ 2671344829u),                                                  \
-            __obfh_m10 = ((__obfh_k10 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a10 = OBFH_MIX_B(__obfh_k10 ^ 0x85ebca6bu),                                                        \
-            __obfh_r10 = ((__obfh_k10 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style10 = (__obfh_k10 >> 11) & 3u,                                                                 \
-            __obfh_k11 = OBFH_MIX_A(__obfh_flow_hash ^ 3549402182u),                                                  \
-            __obfh_m11 = ((__obfh_k11 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a11 = OBFH_MIX_B(__obfh_k11 ^ 0x85ebca6bu),                                                        \
-            __obfh_r11 = ((__obfh_k11 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style11 = (__obfh_k11 >> 11) & 3u,                                                                 \
-            __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u),                                                  \
-            __obfh_m20 = ((__obfh_k20 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu),                                                        \
-            __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style20 = (__obfh_k20 >> 11) & 3u,                                                                 \
-            __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u),                                                  \
-            __obfh_m21 = ((__obfh_k21 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu),                                                        \
-            __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style21 = (__obfh_k21 >> 11) & 3u,                                                                 \
-            __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u),                                                  \
-            __obfh_m30 = ((__obfh_k30 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu),                                                        \
-            __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style30 = (__obfh_k30 >> 11) & 3u,                                                                 \
-            __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u),                                                  \
-            __obfh_m31 = ((__obfh_k31 >> 17) & 65535u) | 1u,                                                          \
-            __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu),                                                        \
-            __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u,                                                             \
-            __obfh_style31 = (__obfh_k31 >> 11) & 3u                                                                  \
-        };                                                                                                            \
-        OBFH_P_PREPARE(0, 0);                                                                                         \
-        OBFH_P_PREPARE(0, 1);                                                                                         \
-        OBFH_P_PREPARE(1, 0);                                                                                         \
-        OBFH_P_PREPARE(1, 1);                                                                                         \
-        OBFH_P_SECOND_PREPARE                                                                                         \
-        /* Random polarity permutes tags, never negates the user expression. */                                       \
-        unsigned int __obfh_flow_state = (condition)                                                                  \
-                                             ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag)           \
-                                             : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag);          \
-        __builtin_choose_expr(__obfh_flow_hash & 1u, (void)0,                                                         \
-                              (void)(__obfh_flow_state ^= __obfh_false_tag ^ __obfh_true_tag));                       \
-        unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result;                                           \
-        ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash;                 \
-        __obfh_asm__(                                                                                                 \
-            "jmp 7f; .byte %c[byte], %c[extra]; .long %c[payload]; .fill %c[gap],1,%c[byte]; 7:"                      \
-            : "+a"(                                                                                                   \
-                __obfh_flow_state)                                                                                    \
-            : [byte] "i"(OBFH_FLOW_OPCODE(OBFH_JUNK_BYTE & 7u)),                                                      \
-              [extra] "i"(OBFH_JUNK_BYTE), [payload] "i"(OBFH_JUNK_WORD), [gap] "i"(OBFH_JUNK_BYTE & 7u)              \
-            : "memory");                                                                                              \
-        __VA_ARGS__;                                                                                                  \
-        OBFH_P_GRAPH(__obfh_flow_first, 0, 1, !CFLOW_V2);                                                             \
-        OBFH_P_SECOND_GRAPH;                                                                                          \
-        __builtin_choose_expr(CFLOW_V2 ? __obfh_flow_second < 2 : __obfh_flow_first < 2,                              \
-                              ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0));                                     \
-        __obfh_flow_result;                                                                                           \
+            __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u), \
+            __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu,              \
+            __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u,            \
+            __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u), \
+            __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u), \
+            __obfh_flow_first = CFLOW_V2 ? (__obfh_flow_layout == 0 || __obfh_flow_layout == 2   ? 0 \
+                                            : __obfh_flow_layout == 1 || __obfh_flow_layout == 4 ? 1 \
+                                            : __obfh_flow_layout == 5 || __obfh_flow_layout == 6 ? 2 \
+                                                                                                 : 3) \
+                                         : __obfh_flow_layout,           \
+            __obfh_flow_second = __obfh_flow_layout == 0 || __obfh_flow_layout == 5   ? 1 \
+                                 : __obfh_flow_layout == 1 || __obfh_flow_layout == 3 ? 0 \
+                                 : __obfh_flow_layout == 2 || __obfh_flow_layout == 6 ? 3 \
+                                                                                      : 2, \
+            __obfh_k00 = OBFH_MIX_A(__obfh_flow_hash ^ 2654435769u),     \
+            __obfh_m00 = ((__obfh_k00 >> 17) & 65535u) | 1u,             \
+            __obfh_a00 = OBFH_MIX_B(__obfh_k00 ^ 0x85ebca6bu),           \
+            __obfh_r00 = ((__obfh_k00 >> 27) % 31u) + 1u,                \
+            __obfh_style00 = (__obfh_k00 >> 11) & 3u,                    \
+            __obfh_k01 = OBFH_MIX_A(__obfh_flow_hash ^ 3532493122u),     \
+            __obfh_m01 = ((__obfh_k01 >> 17) & 65535u) | 1u,             \
+            __obfh_a01 = OBFH_MIX_B(__obfh_k01 ^ 0x85ebca6bu),           \
+            __obfh_r01 = ((__obfh_k01 >> 27) % 31u) + 1u,                \
+            __obfh_style01 = (__obfh_k01 >> 11) & 3u,                    \
+            __obfh_k10 = OBFH_MIX_A(__obfh_flow_hash ^ 2671344829u),     \
+            __obfh_m10 = ((__obfh_k10 >> 17) & 65535u) | 1u,             \
+            __obfh_a10 = OBFH_MIX_B(__obfh_k10 ^ 0x85ebca6bu),           \
+            __obfh_r10 = ((__obfh_k10 >> 27) % 31u) + 1u,                \
+            __obfh_style10 = (__obfh_k10 >> 11) & 3u,                    \
+            __obfh_k11 = OBFH_MIX_A(__obfh_flow_hash ^ 3549402182u),     \
+            __obfh_m11 = ((__obfh_k11 >> 17) & 65535u) | 1u,             \
+            __obfh_a11 = OBFH_MIX_B(__obfh_k11 ^ 0x85ebca6bu),           \
+            __obfh_r11 = ((__obfh_k11 >> 27) % 31u) + 1u,                \
+            __obfh_style11 = (__obfh_k11 >> 11) & 3u,                    \
+            __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u),     \
+            __obfh_m20 = ((__obfh_k20 >> 17) & 65535u) | 1u,             \
+            __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu),           \
+            __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u,                \
+            __obfh_style20 = (__obfh_k20 >> 11) & 3u,                    \
+            __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u),     \
+            __obfh_m21 = ((__obfh_k21 >> 17) & 65535u) | 1u,             \
+            __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu),           \
+            __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u,                \
+            __obfh_style21 = (__obfh_k21 >> 11) & 3u,                    \
+            __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u),     \
+            __obfh_m30 = ((__obfh_k30 >> 17) & 65535u) | 1u,             \
+            __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu),           \
+            __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u,                \
+            __obfh_style30 = (__obfh_k30 >> 11) & 3u,                    \
+            __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u),     \
+            __obfh_m31 = ((__obfh_k31 >> 17) & 65535u) | 1u,             \
+            __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu),           \
+            __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u,                \
+            __obfh_style31 = (__obfh_k31 >> 11) & 3u                     \
+        };                                                               \
+        OBFH_P_SELECTOR_META(0); OBFH_P_SELECTOR_META(1); OBFH_P_PREPARE(0, 0); \
+        OBFH_P_PREPARE(0, 1);                                            \
+        OBFH_P_PREPARE(1, 0);                                            \
+        OBFH_P_PREPARE(1, 1);                                            \
+        OBFH_P_SECOND_PREPARE                                            \
+        /* Random polarity permutes tags, never negates the user expression. */ \
+        unsigned int __obfh_flow_state = (condition)                     \
+                                             ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag) \
+                                             : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag); \
+        __builtin_choose_expr(__obfh_flow_hash & 1u, (void)0,            \
+                              (void)(__obfh_flow_state ^= __obfh_false_tag ^ __obfh_true_tag)); \
+        unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
+        ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash; \
+        __obfh_asm__(                                                    \
+            "jmp 7f; .byte %c[byte], %c[extra]; .fill %c[gap],1,%c[byte]; 7:" \
+            : "+a"(                                                      \
+                __obfh_flow_state)                                       \
+            : [byte] "i"(OBFH_FLOW_OPCODE(OBFH_JUNK_BYTE & 7u)),         \
+              [extra] "i"(OBFH_JUNK_BYTE), [payload] "i"(OBFH_JUNK_WORD), [gap] "i"(OBFH_JUNK_BYTE & 7u) \
+            : "memory");                                                 \
+        __VA_ARGS__;                                                     \
+        OBFH_P_GRAPH(__obfh_flow_first, 0, 1, !CFLOW_V2);                \
+        OBFH_P_SECOND_GRAPH;                                             \
+        __builtin_choose_expr(CFLOW_V2 ? __obfh_flow_second < 2 : __obfh_flow_first < 2, \
+                              ({ OBFH_P_FINISH(__obfh_flow_exit); }), ((void)0)); \
+        __obfh_flow_result;                                              \
     })
 
 #endif /* CFLOW helpers; kernel precedes keyword interception. */
