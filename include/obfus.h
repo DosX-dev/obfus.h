@@ -4326,8 +4326,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         goto done;                        \
     d:                                    \
         OBFH_P_STEP(t, 1);                \
-        \ 
-    done : __obfh_flow_state;             \
+    done:                                 \
+        __obfh_flow_state;                \
     })
 #define OBFH_P_GRAPH_2(s, t, last)                                                           \
     ({                                                                                       \
