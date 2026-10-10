@@ -215,7 +215,7 @@ void _start(void) {
 > ![](pics/how-it-works.png)
 
 ## 🛠 Compiler (important)
-Use **TinyCC `0.9.28rc` from [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**, which includes the Windows headers, libraries and `obfh-update.cmd`. This package preserves explicitly named PE sections used by `FAKE_SIGNS`. TinyCC `0.9.27`, **Visual C**, **GCC** and **Clang** are not supported.
+Use **TinyCC `0.9.28rc` from [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**, which includes the Windows headers, libraries and `obfh-update.cmd`. TinyCC `0.9.27`, **Visual C**, **GCC** and **Clang** are not supported.
 
 > [!NOTE]
 > Originally created by Fabrice Bellard, TinyCC is now maintained by the community. To build the latest version yourself, download [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder) and double-click `build.cmd`; sources and dependencies are downloaded automatically.
