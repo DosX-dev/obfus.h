@@ -3719,11 +3719,12 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     __obfh_asm__(OBFH_P_MASK_CAPTURE_##swapped instructions \
                  : [target] output(__obfh_target) \
                  : "a"(__obfh_flow_state), \
-                   [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [maskreg] "i"((swapped) ? 2 : 1), [carry] "i"(__obfh_mask_carry##shift), [bit] "i"(shift), [rotate] "i"((shift) + 1), [zero] "m"(__obfh_target_zero), \
+                   [tag] "m"(__obfh_selector_expected), [cookie] "m"(__obfh_cookie), [maskreg] "i"((swapped) ? 2 : 1), [carry] "i"(__obfh_mask_carry##shift), [bit] "i"(shift), [rotate] "i"((shift) + 1), [zero] "m"(__obfh_target_zero), \
                    [one] "m"(__obfh_target_one), [key] "i"(__obfh_address_disp##shift), [copy] "i"(__obfh_flow_hash), [decode] "i"((__obfh_sel_decode##shift) - ((swapped) * (__obfh_sel_lea##shift ? 0x900u : 0x100u))), [cmovreg] "i"((swapped) ? 0xca : 0xd1), [cmov] "i"(__obfh_sel_cmov##shift), [branch] "i"(__obfh_sel_branch##shift) \
                  : scratch, "cc", "memory");
 #define OBFH_P_MASK(shift, label_false, label_true) \
     ({ \
+        unsigned int __obfh_selector_expected = __obfh_point##shift; \
         ULONG_PTR __obfh_target; \
         ULONG_PTR __obfh_target_zero, __obfh_target_one; \
         OBFH_P_ADDRESS_PAIR(shift, label_false, label_true, __obfh_target_zero, __obfh_target_one); \
@@ -3736,12 +3737,13 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     __obfh_asm__(instructions \
                  : [target] "=&d"(__obfh_target) \
                  : "a"(__obfh_flow_state), \
-                   [tag] "m"(__obfh_flow_tag), [cookie] "m"(__obfh_cookie), [bitcode] "i"(__obfh_bitcode##shift), \
+                   [tag] "m"(__obfh_selector_expected), [cookie] "m"(__obfh_cookie), [bitcode] "i"(__obfh_bitcode##shift), \
                    [index_op] "i"(__obfh_index_form##shift ? 0xd9 : 0xd1), [parity] "i"(__obfh_index_form##shift), \
                    [table] "m"(__obfh_targets[0]), [key] "i"(__obfh_address_disp##shift), [decode] "i"(__obfh_sel_decode##shift), [cmov] "i"(__obfh_sel_cmov##shift), [branch] "i"(__obfh_sel_branch##shift) \
                  : "ecx", "cc", "memory");
 #define OBFH_P_TABLE(shift, label_false, label_true) \
     ({ \
+        unsigned int __obfh_selector_expected = __obfh_point##shift; \
         ULONG_PTR __obfh_targets[2], __obfh_target; \
         OBFH_P_ADDRESS_PAIR(shift, label_false, label_true, __obfh_targets[0], __obfh_targets[1]); \
         __builtin_choose_expr(__obfh_sel_order##shift, \
@@ -4034,6 +4036,92 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         __builtin_choose_expr((f) == 1, OBFH_P_GRAPH_1(s, t, last), \
                               __builtin_choose_expr((f) == 2, OBFH_P_GRAPH_2(s, t, last), OBFH_P_GRAPH_3(s, t, last))))
 // Capture the condition once; all later stages use only local encoded state.
+// A stage maps a compile-time input representation to its successor.
+// Only the actual lane executes; the true lane is folded into enum constants.
+#define OBFH_C_NEXT_0 1
+#define OBFH_C_NEXT_1 2
+#define OBFH_C_NEXT_2 3
+#define OBFH_C_NEXT_3 4
+#define OBFH_C_POINT_I(s) __obfh_point##s
+#define OBFH_C_POINT(s) OBFH_C_POINT_I(s)
+#define OBFH_C_NEXT_I(s) OBFH_C_NEXT_##s
+#define OBFH_C_NEXT(s) OBFH_C_NEXT_I(s)
+#define OBFH_C_IMM(x, k, f) ((f) == 0 ? ((unsigned)(x) ^ (unsigned)(k)) : (f) == 1 ? ((unsigned)(x) + (unsigned)(k)) \
+                                                                                   : ((unsigned)(x) - (unsigned)(k)))
+#define OBFH_C_ROT(x, r, f) ((f) == 0 ? (((unsigned)(x) << (r)) | ((unsigned)(x) >> (32u - (r)))) : (f) == 1 ? (((unsigned)(x) >> (r)) | ((unsigned)(x) << (32u - (r)))) \
+                                                                                                : (f) == 2   ? ~(unsigned)(x) \
+                                                                                                             : (0u - (unsigned)(x)))
+#define OBFH_C_VALUE(s, p, n, previous) \
+    enum { __c_kind##s##p##n = (__c_order##s##p >> (2 * ((n)-1))) & 3u, \
+           __c_rotated##s##p##n = OBFH_C_ROT(__c_value##s##p##previous, __obfh_r##s##p, __c_rotation##s##p), \
+           __c_rform##s##p##n = __c_rotated##s##p##n == __c_value##s##p##previous ? 2 : __c_rotation##s##p, \
+           __c_scaled##s##p##n = (unsigned)__c_value##s##p##previous * (1u + (2u << __c_scale##s##p)), \
+           __c_lform##s##p##n = __c_scaled##s##p##n == __c_value##s##p##previous, \
+           __c_key##s##p##n = (__c_kind##s##p##n == 0 ? __obfh_k##s##p : __obfh_a##s##p) | 1u, \
+           __c_form##s##p##n = __c_kind##s##p##n == 0 ? __c_forma##s##p : __c_formb##s##p, \
+           __c_value##s##p##n = __c_kind##s##p##n == 1   ? (__c_rotated##s##p##n == __c_value##s##p##previous ? ~(unsigned)__c_value##s##p##previous : (unsigned)__c_rotated##s##p##n) \
+                                : __c_kind##s##p##n == 2 ? (__c_lform##s##p##n ? ~(unsigned)__c_value##s##p##previous : (unsigned)__c_scaled##s##p##n) \
+                                                         : OBFH_C_IMM(__c_value##s##p##previous, __c_key##s##p##n, __c_form##s##p##n) };
+#define OBFH_C_FIELDS(s, p) \
+    enum { __c_rank##s##p = (__obfh_k##s##p >> 8) % 24u, \
+           __c_first##s##p = __c_rank##s##p / 6u, \
+           __c_second##s##p = ((__c_rank##s##p / 2u) % 3u) + (((__c_rank##s##p / 2u) % 3u) >= __c_first##s##p), \
+           __c_z##s##p = (__c_rank##s##p & 1u) + ((__c_rank##s##p & 1u) >= (__c_first##s##p < __c_second##s##p ? __c_first##s##p : __c_second##s##p)), \
+           __c_third##s##p = __c_z##s##p + (__c_z##s##p >= (__c_first##s##p > __c_second##s##p ? __c_first##s##p : __c_second##s##p)), \
+           __c_order##s##p = __c_first##s##p | (__c_second##s##p << 2) | (__c_third##s##p << 4) | ((6u - __c_first##s##p - __c_second##s##p - __c_third##s##p) << 6), \
+           __c_forma##s##p = (__obfh_k##s##p >> 24) % 3u, \
+           __c_formb##s##p = (__obfh_k##s##p >> 21) % 3u, \
+           __c_rotation##s##p = (__obfh_k##s##p >> 16) & 3u, \
+           __c_scale##s##p = (__obfh_k##s##p >> 20) % 3u, \
+           __c_value##s##p##0 = OBFH_C_POINT(s) }; \
+    OBFH_C_VALUE(s, p, 1, 0) \
+    OBFH_C_VALUE(s, p, 2, 1) OBFH_C_VALUE(s, p, 3, 2) OBFH_C_VALUE(s, p, 4, 3) \
+        OBFH_C_ENCODING(s, p, 1) OBFH_C_ENCODING(s, p, 2) OBFH_C_ENCODING(s, p, 3) OBFH_C_ENCODING(s, p, 4)
+#define OBFH_C_BAD(s, v) ((v) == __c_value##s##0##4 || (v) == __c_value##s##1##4 || (v) == OBFH_C_POINT(s))
+#define OBFH_C_TARGET(s) \
+    enum { __c_base##s = __obfh_k##s##0 ^ __obfh_k##s##1, \
+           __c_avoid##s = OBFH_C_BAD(s, (unsigned int)__c_base##s), \
+           __c_avoidb##s = OBFH_C_BAD(s, (unsigned int)__c_base##s + __c_avoid##s), \
+           __c_avoidc##s = OBFH_C_BAD(s, (unsigned int)__c_base##s + __c_avoid##s + __c_avoidb##s), \
+           OBFH_C_POINT(OBFH_C_NEXT(s)) = (unsigned int)__c_base##s + __c_avoid##s + __c_avoidb##s + __c_avoidc##s };
+#define OBFH_C_PREPARE_0(s) OBFH_C_FIELDS(s, 0)
+#define OBFH_C_PREPARE_1(s) OBFH_C_FIELDS(s, 1) OBFH_C_TARGET(s)
+#define OBFH_C_PREPARE_I(s, p) OBFH_C_PREPARE_##p(s)
+#undef OBFH_P_PREPARE
+#define OBFH_P_PREPARE(s, p) OBFH_C_PREPARE_I(s, p)
+#define OBFH_C_SLOT(n) ".fill 1,%c[len" #n "],%c[code" #n "]; .fill %c[imm" #n "],4,%c[key" #n "];"
+#define OBFH_C_TEXT OBFH_C_SLOT(1) OBFH_C_SLOT(2) OBFH_C_SLOT(3) OBFH_C_SLOT(4) "addl $%c[correction], %%eax;"
+#define OBFH_C_ENCODING(s, p, n) \
+    enum { __obfh_primitive_len##s##p##n = __c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 ? 1 : __c_kind##s##p##n == 1 && __c_rform##s##p##n >= 2 || __c_kind##s##p##n == 2 && __c_lform##s##p##n ? 2 \
+                                                                                                                                                                                                    : 3, \
+           __obfh_primitive_imm##s##p##n = __c_kind##s##p##n == 0 || __c_kind##s##p##n == 3, \
+           __obfh_primitive_key##s##p##n = __c_key##s##p##n, \
+           __obfh_primitive_code##s##p##n = __c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 ? (__c_form##s##p##n == 0 ? 0x35 : __c_form##s##p##n == 1 ? 0x05 \
+                                                                                                                                                       : 0x2d) \
+                                            : __c_kind##s##p##n == 1                         ? (__c_rform##s##p##n < 2 ? 0xc0c1 + (__c_rform##s##p##n << 11) + (__obfh_r##s##p << 16) : __c_rform##s##p##n == 2 ? 0xd0f7 \
+                                                                                                                                                                                                                : 0xd8f7) \
+                                                                                             : (__c_lform##s##p##n ? 0xd0f7 : 0x40048d + (__c_scale##s##p << 22)) };
+#define OBFH_C_ARG(s, p, n) \
+    [len##n] "i"(__obfh_primitive_len##s##p##n), \
+        [imm##n] "i"(__obfh_primitive_imm##s##p##n), \
+        [key##n] "i"(__obfh_primitive_key##s##p##n), \
+        [code##n] "i"(__obfh_primitive_code##s##p##n)
+#define OBFH_C_ARGS(s, p) OBFH_C_ARG(s, p, 1), OBFH_C_ARG(s, p, 2), OBFH_C_ARG(s, p, 3), OBFH_C_ARG(s, p, 4), \
+                          [correction] "i"((unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)) - (unsigned)__c_value##s##p##4)
+#undef OBFH_P_STEP
+#define OBFH_P_STEP(s, p) \
+    ({ __obfh_asm__(OBFH_C_TEXT \
+                    : "+a"(__obfh_flow_state) \
+                    : OBFH_C_ARGS(s, p) \
+                    : "cc"); })
+#undef OBFH_P_TERMINAL
+#define OBFH_P_TERMINAL(s, p, style) \
+    ({ __obfh_asm__(OBFH_C_TEXT "movl $%c[expected], %%edx;" OBFH_P_TERMINAL_TEXT \
+                    : "=&a"(__obfh_flow_result) \
+                    : "0"(__obfh_flow_state), OBFH_C_ARGS(s, p), [expected] "i"(OBFH_C_POINT(OBFH_C_NEXT(s))), \
+                      [finish] "i"((style)&7u), [zero_form] "i"((__obfh_flow_hash >> 11) % 3u) \
+                    : "edx", "ecx", "cc"); })
+
 #define OBFH_FLOW_CONDITION(condition, site_value, ...) \
     ({ \
         enum { \
@@ -4097,6 +4185,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         }; \
         OBFH_P_SELECTOR_META(0); \
         OBFH_P_SELECTOR_META(1); \
+        enum { __obfh_point0 = __obfh_true_tag }; \
         OBFH_P_PREPARE(0, 0); \
         OBFH_P_PREPARE(0, 1); \
         OBFH_P_PREPARE(1, 0); \
@@ -4118,6 +4207,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
               [extra] "i"(OBFH_JUNK_BYTE), [payload] "i"(OBFH_JUNK_WORD), [gap] "i"(OBFH_JUNK_BYTE & 7u) \
             : "memory"); \
         __VA_ARGS__; \
+        __obfh_flow_state ^= __obfh_flow_tag ^ __obfh_point0; \
         OBFH_P_FIRST_GRAPH; \
         OBFH_P_SECOND_GRAPH; \
         __obfh_flow_result; \

@@ -122,12 +122,12 @@ function killTree(pid) {
         if (killed.error || killed.status !== 0) {
             try {
                 process.kill(pid, 'SIGKILL');
-            } catch {}
+            } catch { }
         }
     } else {
         try {
             process.kill(pid, 'SIGKILL');
-        } catch {}
+        } catch { }
     }
 }
 process.once('SIGINT', async () => {
@@ -169,17 +169,17 @@ async function run(command, args, options = {}) {
         };
         child.stdout.on('data', (data) => collect('stdout', data));
         child.stderr.on('data', (data) => collect('stderr', data));
-        child.stdin.on('error', () => {});
+        child.stdin.on('error', () => { });
         child.stdin.end(options.input ?? '');
         const progress = pool
             ? undefined
             : setInterval(
-                  async () =>
-                      console.log(
-                          `RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`
-                      ),
-                  5000
-              );
+                async () =>
+                    console.log(
+                        `RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`
+                    ),
+                5000
+            );
         const timer = setTimeout(async () => {
             failure = new Error(`timeout ${timeout}ms: ${path.basename(command)}${phase ? ' [' + phase + ']' : ''}`);
             failure.code = 'ETIMEDOUT';
@@ -228,12 +228,12 @@ async function discover() {
     const desktop =
         process.platform === 'win32'
             ? (
-                  await run('powershell.exe', [
-                      '-NoProfile',
-                      '-Command',
-                      '[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); [Environment]::GetFolderPath("Desktop")'
-                  ])
-              ).stdout.trim()
+                await run('powershell.exe', [
+                    '-NoProfile',
+                    '-Command',
+                    '[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); [Environment]::GetFolderPath("Desktop")'
+                ])
+            ).stdout.trim()
             : '';
     const candidates = [
         argument?.slice(10),
@@ -368,7 +368,7 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
     fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
-    const traced = source
+    const traced = source.replace("#define OBFH_FLOW_CONDITION(", require('./cflow_single_lane').trace + "\n#define OBFH_FLOW_CONDITION(")
         .replace(
             '#define OBFH_P_TERMINAL_TRACE(style) ((void)0)',
             '#define OBFH_P_TERMINAL_TRACE(style) obfh_test_flow_exit((style)&7u,__obfh_flow_state,__obfh_flow_tag,__obfh_flow_result)'
@@ -512,9 +512,9 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
         proxyOracleResult.status === 1 && !proxyOracleResult.stdout.includes('FLOW_PROXY_PASS'),
         'guard removal preserved the untraced condition-state contract'
     );
-    const permutation = traced.match(/#define OBFH_P_PERMUTE\(s,\s*p,\s*instructions\)[\s\S]*?(?=\r?\n#define)/)?.[0];
+    const permutation = traced.match(/#define OBFH_P_STEP\(s,\s*p\)[\s\S]*?(?=\r?\n#define)/)?.[0];
     assert(permutation, 'stage mutation target missing');
-    fs.writeFileSync(header, traced + '\n#undef OBFH_P_PERMUTE\n#define OBFH_P_PERMUTE(s,p,instructions) ((void)0)\n');
+    fs.writeFileSync(header, traced + '\n#undef OBFH_P_STEP\n#define OBFH_P_STEP(s,p) ((void)0)\n');
     const stageResult = await run(
         await compile(compiler, directory, arch + '-cflow-' + mode + '-stage-bypass.exe', file, flags),
         []
@@ -691,7 +691,7 @@ async function main() {
             try {
                 process.kill(childPid, 0);
                 alive = true;
-            } catch {}
+            } catch { }
             assert(!alive, 'timeout left a child process alive');
         });
         const setup = source.slice(
@@ -1104,8 +1104,8 @@ async function main() {
                                 }
                                 assert(
                                     stopped?.code === 'ETIMEDOUT' &&
-                                        stopped.stdout.includes('RESPONSE_ENTER') &&
-                                        !stopped.stdout.includes('RESPONSE_RETURNED'),
+                                    stopped.stdout.includes('RESPONSE_ENTER') &&
+                                    !stopped.stdout.includes('RESPONSE_RETURNED'),
                                     'remote response crashed or returned'
                                 );
                             }
@@ -1131,8 +1131,8 @@ async function main() {
                     fs.writeFileSync(
                         antiHeader,
                         source.slice(0, start) +
-                            'static int IsDebuggerPresent_proxy(void) { return 1; }\n\n' +
-                            source.slice(end)
+                        'static int IsDebuggerPresent_proxy(void) { return 1; }\n\n' +
+                        source.slice(end)
                     );
                     const exe = await compile(compiler, directory, `${arch}-antidebug-signal.exe`, antiFile, []);
                     let stopped;
@@ -1143,8 +1143,8 @@ async function main() {
                     }
                     assert(
                         stopped?.code === 'ETIMEDOUT' &&
-                            stopped.stdout.includes('RESPONSE_ENTER') &&
-                            !stopped.stdout.includes('RESPONSE_RETURNED'),
+                        stopped.stdout.includes('RESPONSE_ENTER') &&
+                        !stopped.stdout.includes('RESPONSE_RETURNED'),
                         'positive signal did not reach the remote response'
                     );
                 });
@@ -1840,9 +1840,9 @@ async function main() {
                     const messages = errors.stderr.trim().split(/\r?\n/);
                     assert(
                         errors.status === 0 &&
-                            messages.length === 2 &&
-                            messages[0].startsWith('OBFH_PERROR_TEST:') &&
-                            messages[0] === messages[1],
+                        messages.length === 2 &&
+                        messages[0].startsWith('OBFH_PERROR_TEST:') &&
+                        messages[0] === messages[1],
                         'perror changed caller errno during resolution'
                     );
                     const failure = await run(exe, ['puts-error']);
@@ -1850,7 +1850,7 @@ async function main() {
                     const output = await run(exe, ['puts']);
                     assert(
                         output.status === 0 &&
-                            output.stdout.replace(/\r\n/g, '\n') === 'literal %s %n %%\n\nline\n\nCRT_PUTS_PASS\n',
+                        output.stdout.replace(/\r\n/g, '\n') === 'literal %s %n %%\n\nline\n\nCRT_PUTS_PASS\n',
                         'puts output or single evaluation failed'
                     );
                     const input = await run(exe, ['gets'], { input: 'proxy-input\n' });

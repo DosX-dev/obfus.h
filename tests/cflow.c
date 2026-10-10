@@ -95,6 +95,36 @@ static void reference(unsigned *x, unsigned *y, unsigned style, unsigned k, unsi
         }
     }
 }
+
+static unsigned independent_op(unsigned x, unsigned kind, unsigned key, unsigned add, unsigned rot, unsigned effective) {
+    unsigned form = kind == 0 ? (key >> 24) % 3u : (key >> 21) % 3u;
+    unsigned operand = kind == 0 ? (key | 1u) : (add | 1u);
+    if (kind == 0 || kind == 3) return form == 0 ? x ^ operand : form == 1 ? x + operand
+                                                                           : x - operand;
+    if (kind == 2) return effective ? ~x : x * (1u + (2u << ((key >> 20) % 3u)));
+    return effective == 0 ? (x << rot) | (x >> (32 - rot)) : effective == 1 ? (x >> rot) | (x << (32 - rot))
+                                                         : effective == 2   ? ~x
+                                                                            : 0u - x;
+}
+static unsigned single_reference(unsigned actual, unsigned truth, unsigned target, unsigned key, unsigned add, unsigned rot) {
+    unsigned rank = (key >> 8) % 24u, remaining[4] = {0, 1, 2, 3}, count = 4;
+    for (unsigned i = 0; i < 4; i++) {
+        unsigned divisor = i == 0 ? 6 : i == 1 ? 2
+                                               : 1,
+                 pick = rank / divisor;
+        rank %= divisor;
+        unsigned kind = remaining[pick];
+        for (unsigned j = pick; j + 1 < count; j++) remaining[j] = remaining[j + 1];
+        --count;
+        unsigned effective = kind == 1 ? (key >> 16) & 3u : 0;
+        if (kind == 1 && independent_op(truth, kind, key, add, rot, effective) == truth) effective = 2;
+        if (kind == 2 && independent_op(truth, kind, key, add, rot, 0) == truth) effective = 1;
+        actual = independent_op(actual, kind, key, add, rot, effective);
+        truth = independent_op(truth, kind, key, add, rot, effective);
+    }
+    return actual + target - truth;
+}
+
 void obfh_test_flow_stage(unsigned int layout, unsigned int stage, unsigned int branch,
                           unsigned int before_state, unsigned int before_tag,
                           unsigned int after_state, unsigned int after_tag,
@@ -109,7 +139,8 @@ void obfh_test_flow_stage(unsigned int layout, unsigned int stage, unsigned int 
     }
 
     unsigned x = before_state, y = before_tag;
-    reference(&x, &y, style, key, mul, add, rotate, donor, donor_style, donor_mul, donor_add, donor_rot);
+    x = single_reference(before_state, before_tag, after_tag, key, add, rotate);
+    y = after_tag;
     if (x != after_state || y != after_tag || (before_state == before_tag) != (after_state == after_tag))
         InterlockedIncrement(&stage_errors);
     InterlockedIncrement(&stage_routes[layout][stage][branch]);

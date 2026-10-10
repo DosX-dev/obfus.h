@@ -34,7 +34,7 @@ function fixture(header, addressKey = 0x6a39de17) {
                 code +=
                     `static int probe_${id}(unsigned x,unsigned y,unsigned cookie) {\n` +
                     `enum { __obfh_flow_hash=${hash}u, __obfh_flow_key=${addressKey}u };\n` +
-                    'unsigned __obfh_flow_state=x, __obfh_flow_tag=y, __obfh_cookie=cookie;\n' +
+                    'unsigned __obfh_flow_state=x, __obfh_flow_tag=y, __obfh_cookie=cookie, __obfh_point0=y,__obfh_point1=y,__obfh_point2=y,__obfh_point3=y;\n' +
                     `OBFH_P_SELECTOR_META(${shift}); OBFH_P_${kind}(${shift},no,yes); no:return 0; yes:return 1; }\n`;
                 cases.push({ id, shift, polarity });
             }
