@@ -1,7 +1,7 @@
 ![](pics/obfus.h.png)
 # obfus.h
 
-**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time obfuscating C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)** (you can download it here -> [Tiny-C-Compiler/releases](https://github.com/phoenixthrush/Tiny-C-Compiler/releases/tag/0.9.27-win64)). It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
+**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)** (you can download it here -> [Tiny-C-Compiler/releases](https://github.com/phoenixthrush/Tiny-C-Compiler/releases/tag/0.9.27-win64)). It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
 
 ### What features does it have?...
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
@@ -30,9 +30,9 @@ Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/ob
 ```c
 #include "obfus.h"
 ```
-**One header. Powerful protection.** Include it, build your application and make your native code much harder to analyze.
+**One header. Powerful protection.** Include it and build your application: the protection code is baked directly into the output binary, making your native code much harder to analyze.
 
-Protection varies throughout the application and between builds. Define `OBFH_BUILD_SEED` before including the header to choose a build seed. Reusing a seed keeps builds reproducible with the same source and compiler.
+Protection is polymorphic throughout the application: even small changes to the source code can substantially reshape the protection baked into the output binary, changing its instructions, constants and control-flow paths.
 
 Control-flow protection turns straightforward conditions and loops into a tangled graph of branches, junk code and fake functions, making the original logic harder to follow in disassemblers and decompilers. The inserted code varies throughout the program and can change between builds. `CFLOW_V2` adds another layer of control-flow mutation.
 
