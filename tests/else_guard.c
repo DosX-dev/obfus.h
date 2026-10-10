@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <windows.h>
+
 #include "../include/obfus.h"
 #undef if
 #undef else
@@ -28,5 +29,7 @@ int main(void) {
         if (check()) return 1;
 #endif
     printf("ELSE_GUARD_PASS\n");
+    // Flush the completion marker before exit when stdout is a Windows pipe.
+    if (fflush(stdout) == EOF) return 2;
     return 0;
 }

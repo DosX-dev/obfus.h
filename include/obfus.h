@@ -1695,59 +1695,59 @@ OBFH_PD_DEFINE(127);
     enum { __s0 = __si_0a, \
            __s1 = __si_0b }
 #define OBFH_SF_INPUTS \
-    [__obfh_sf_phantom] "i"(__obfh_sf_phantom), \
+    [phantom] "i"(__obfh_sf_phantom), \
         [il] "i"(__si_n), \
-        [__obfh_sf_rotate] "i"(__obfh_sf_rotate), \
-        [__obfh_sf_frame_a] "i"(__obfh_sf_frame_a), \
-        [__obfh_sf_frame_b] "i"(__obfh_sf_frame_b), \
-        [__obfh_sf_frame_c] "i"(__obfh_sf_frame_c), \
-        [__obfh_sf_arg_a] "i"(__obfh_sf_arg_a), \
-        [__obfh_sf_arg_b] "i"(__obfh_sf_arg_b), \
-        [__obfh_sf_key_a] "i"(__obfh_sf_key_a), \
-        [__obfh_sf_key_b] "i"(__obfh_sf_key_b), \
-        [__obfh_sf_factor] "i"(__obfh_sf_factor), \
-        [__obfh_sf_pad] "i"(__obfh_sf_pad), \
-        [__obfh_sf_loops] "i"(__obfh_sf_loops), \
-        [__obfh_sf_mask] "i"(__obfh_sf_mask), \
-        [__obfh_sf_not_mask] "i"(__obfh_sf_not_mask), \
-        [__obfh_sf_frame_d] "i"(__obfh_sf_frame_d), \
-        [__obfh_sf_pad_b] "i"(__obfh_sf_pad_b), \
-        [__obfh_sf_noise_a] "i"(__obfh_sf_noise_a), \
-        [__obfh_sf_noise_b] "i"(__obfh_sf_noise_b), \
-        [__obfh_sf_local_a] "i"(__obfh_sf_local_a), \
-        [__obfh_sf_local_b] "i"(__obfh_sf_local_b), \
-        [__obfh_sf_leaf_frame] "i"(__obfh_sf_leaf_frame), \
-        [__obfh_sf_leaf_slot] "i"(__obfh_sf_leaf_slot), \
-        [__obfh_sf_leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), \
-        [__obfh_sf_leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), \
-        [__obfh_sf_leaf_shift] "i"(__obfh_sf_leaf_shift), \
+        [rotate] "i"(__obfh_sf_rotate), \
+        [frame_a] "i"(__obfh_sf_frame_a), \
+        [frame_b] "i"(__obfh_sf_frame_b), \
+        [frame_c] "i"(__obfh_sf_frame_c), \
+        [arg_a] "i"(__obfh_sf_arg_a), \
+        [arg_b] "i"(__obfh_sf_arg_b), \
+        [key_a] "i"(__obfh_sf_key_a), \
+        [key_b] "i"(__obfh_sf_key_b), \
+        [factor] "i"(__obfh_sf_factor), \
+        [pad] "i"(__obfh_sf_pad), \
+        [loops] "i"(__obfh_sf_loops), \
+        [mask] "i"(__obfh_sf_mask), \
+        [not_mask] "i"(__obfh_sf_not_mask), \
+        [frame_d] "i"(__obfh_sf_frame_d), \
+        [pad_b] "i"(__obfh_sf_pad_b), \
+        [noise_a] "i"(__obfh_sf_noise_a), \
+        [noise_b] "i"(__obfh_sf_noise_b), \
+        [local_a] "i"(__obfh_sf_local_a), \
+        [local_b] "i"(__obfh_sf_local_b), \
+        [leaf_frame] "i"(__obfh_sf_leaf_frame), \
+        [leaf_slot] "i"(__obfh_sf_leaf_slot), \
+        [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), \
+        [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), \
+        [leaf_shift] "i"(__obfh_sf_leaf_shift), \
         [i0] "i"(__s0), [i1] "i"(__s1)
 
 // All choices below assemble only inside skipped native functions. No new
 // RND draws or live-path instructions; existing captured entropy selects forms.
 #define OBFH_SF_BYTES(bit, flip, size, value) \
     ".fill (((" \
-    "%c[__obfh_sf_phantom]" \
+    "%c[phantom]" \
     " >> " bit ") & 1) ^ " flip "), " size ", " value ";"
 #define OBFH_SF_WORD(bit, flip, value) OBFH_SF_BYTES(bit, flip, "4", value)
 // Optional edges exist only in skipped bodies. x64 call sequence is 23 bytes;
 // x86 uses explicit imm32 pushes so its sequence is always 18 bytes.
 #define OBFH_SF_LINK_BYTES(channel, size, value) \
     ".fill (((" \
-    "%c[__obfh_sf_phantom]" \
+    "%c[phantom]" \
     " ^ " \
-    "%c[__obfh_sf_key_a]" \
+    "%c[key_a]" \
     ") >> (12 + 3 * " channel ")) & 1), " size ", " value ";"
 #define OBFH_SF_LINK_GATE(span, channel) \
     OBFH_SF_LINK_BYTES(channel, "2", "0xc085 ^ ((((" \
-                                     "%c[__obfh_sf_phantom]" \
+                                     "%c[phantom]" \
                                      " ^ " \
-                                     "%c[__obfh_sf_key_a]" \
+                                     "%c[key_a]" \
                                      ") >> (14 + 3 * " channel ")) & 1) << 12)") \
     OBFH_SF_LINK_BYTES(channel, "1", "0x74 | (((" \
-                                     "%c[__obfh_sf_phantom]" \
+                                     "%c[phantom]" \
                                      " ^ " \
-                                     "%c[__obfh_sf_key_a]" \
+                                     "%c[key_a]" \
                                      ") >> (13 + 3 * " channel ")) & 1)") \
     OBFH_SF_LINK_BYTES(channel, "1", span)
 #if defined(__x86_64__)
@@ -1776,27 +1776,27 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_BYTES("9", "1", "3", "0x00418d")
 #define OBFH_SF_CALL_ARGS \
     OBFH_SF_BYTES("10", "0", "1", "0xb9") \
-    OBFH_SF_WORD("10", "0", "%c[__obfh_sf_arg_a]") \
+    OBFH_SF_WORD("10", "0", "%c[arg_a]") \
     OBFH_SF_BYTES("10", "0", "1", "0xba") \
-    OBFH_SF_WORD("10", "0", "%c[__obfh_sf_arg_b]") \
+    OBFH_SF_WORD("10", "0", "%c[arg_b]") \
     OBFH_SF_BYTES("10", "1", "1", "0xba") \
-    OBFH_SF_WORD("10", "1", "%c[__obfh_sf_arg_b]") \
+    OBFH_SF_WORD("10", "1", "%c[arg_b]") \
     OBFH_SF_BYTES("10", "1", "1", "0xb9") \
-    OBFH_SF_WORD("10", "1", "%c[__obfh_sf_arg_a]")
+    OBFH_SF_WORD("10", "1", "%c[arg_a]")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
 #define OBFH_SF_LOCAL \
     OBFH_SF_BYTES("8", "0", "2", "0x4589") \
     OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[__obfh_sf_local_a]") \
+                                 "%c[local_a]") \
     OBFH_SF_BYTES("8", "0", "2", "0x5589") \
     OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[__obfh_sf_local_b]") \
+                                 "%c[local_b]") \
     OBFH_SF_BYTES("8", "1", "2", "0x5589") \
     OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[__obfh_sf_local_b]") \
+                                 "%c[local_b]") \
     OBFH_SF_BYTES("8", "1", "2", "0x4589") \
     OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[__obfh_sf_local_a]")
+                                 "%c[local_a]")
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
 #define OBFH_SF_FRAME_HEAD(size) \
@@ -1824,259 +1824,259 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_BYTES("9", "1", "3", "0x08458b") \
     OBFH_SF_BYTES("9", "1", "3", "0x0c558b")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("18", channel) ".byte 0x68; .long " \
-                                                                          "%c[__obfh_sf_arg_b]" \
+                                                                          "%c[arg_b]" \
                                                                           "; .byte 0x68; .long " \
-                                                                          "%c[__obfh_sf_arg_a]" \
+                                                                          "%c[arg_a]" \
                                                                           "; call " target "; addl $8, %%esp;"
 #define OBFH_SF_LOCAL \
     OBFH_SF_BYTES("8", "0", "2", "0x4589") \
     OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[__obfh_sf_local_a]") \
+                                 "%c[local_a]") \
     OBFH_SF_BYTES("8", "0", "2", "0x5589") \
     OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[__obfh_sf_local_b]") \
+                                 "%c[local_b]") \
     OBFH_SF_BYTES("8", "1", "2", "0x5589") \
     OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[__obfh_sf_local_b]") \
+                                 "%c[local_b]") \
     OBFH_SF_BYTES("8", "1", "2", "0x4589") \
     OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[__obfh_sf_local_a]")
+                                 "%c[local_a]")
 #endif
 #define OBFH_SF_CALL(target) OBFH_SF_CALL_AT(target, "0")
 #define OBFH_SF_PADDING ".fill " \
-                        "%c[__obfh_sf_pad]" \
+                        "%c[pad]" \
                         ", 1, 0x90;"
 #define OBFH_SF_GAP ".fill " \
-                    "%c[__obfh_sf_pad_b]" \
+                    "%c[pad_b]" \
                     ", 1, 0x90; .byte " \
-                    "%c[__obfh_sf_noise_a]" \
+                    "%c[noise_a]" \
                     ", " \
-                    "%c[__obfh_sf_noise_b]" \
+                    "%c[noise_b]" \
                     ";"
 #define OBFH_SF_BODY_A OBFH_SF_ARGS "xorl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%eax; imull $" \
-                                    "%c[__obfh_sf_factor]" \
+                                    "%c[factor]" \
                                     ", %%eax; addl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_B OBFH_SF_ARGS "addl $" \
-                                    "%c[__obfh_sf_key_b]" \
+                                    "%c[key_b]" \
                                     ", %%eax; roll $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_C OBFH_SF_ARGS "leal (%%eax, %%eax, 2), %%eax; xorl %%eax, %%edx; addl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_D OBFH_SF_ARGS "notl %%eax; addl %%edx, %%eax; imull $" \
-                                    "%c[__obfh_sf_factor]" \
+                                    "%c[factor]" \
                                     ", %%eax; roll $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax;" OBFH_SF_LOCAL
 
 #define OBFH_SF_BODY_E OBFH_SF_ARGS "bswap %%eax; xorl %%edx, %%eax; roll $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_F OBFH_SF_ARGS "movl $" \
-                                    "%c[__obfh_sf_loops]" \
+                                    "%c[loops]" \
                                     ", %%ecx; 6: addl %%edx, %%eax; imull $" \
-                                    "%c[__obfh_sf_factor]" \
+                                    "%c[factor]" \
                                     ", %%eax; xorl $" \
-                                    "%c[__obfh_sf_key_b]" \
+                                    "%c[key_b]" \
                                     ", %%eax; decl %%ecx; jnz 6b;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_G OBFH_SF_ARGS "movzbl %%al, %%ecx; shrl $8, %%eax; xorl %%edx, %%ecx; leal (%%eax, %%ecx, 4), %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_H OBFH_SF_ARGS "imull %%eax, %%edx; xorl $" \
-                                    "%c[__obfh_sf_key_b]" \
+                                    "%c[key_b]" \
                                     ", %%edx; subl %%edx, %%eax; negl %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_I OBFH_SF_ARGS "movl %%eax, %%ecx; orl $" \
-                                    "%c[__obfh_sf_mask]" \
+                                    "%c[mask]" \
                                     ", %%eax; andl $" \
-                                    "%c[__obfh_sf_mask]" \
+                                    "%c[mask]" \
                                     ", %%ecx; subl %%ecx, %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_J OBFH_SF_ARGS "xorl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%eax; movl %%edx, %%ecx; shll $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%ecx; shrl $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax; orl %%ecx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_K OBFH_SF_ARGS "testl %%edx, %%edx; js 6f; addl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%eax; jmp 7f; 6: negl %%eax; xorl %%edx, %%eax; 7: roll $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_L OBFH_SF_ARGS "movl %%eax, %%ecx; movl %%edx, %%eax; addl %%ecx, %%eax; imull $" \
-                                    "%c[__obfh_sf_factor]" \
+                                    "%c[factor]" \
                                     ", %%eax; notl %%edx; xorl %%edx, %%eax;" OBFH_SF_LOCAL
 
 #define OBFH_SF_BODY_M OBFH_SF_ARGS "movl %%eax, %%ecx; shrl $16, %%ecx; xorl %%ecx, %%eax; imull $" \
-                                    "%c[__obfh_sf_factor]" \
+                                    "%c[factor]" \
                                     ", %%eax; xorl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_N OBFH_SF_ARGS "addl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%eax; adcl $" \
-                                    "%c[__obfh_sf_key_b]" \
+                                    "%c[key_b]" \
                                     ", %%edx; xorl %%edx, %%eax; rorl $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_O OBFH_SF_ARGS "xchgl %%eax, %%edx; subl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%eax; bswap %%edx; addl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_P OBFH_SF_ARGS "movl $" \
-                                    "%c[__obfh_sf_factor]" \
+                                    "%c[factor]" \
                                     ", %%ecx; xorl %%edx, %%edx; divl %%ecx; xorl %%edx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_Q OBFH_SF_ARGS "movzbl %%al, %%ecx; movzbl %%dl, %%edx; imull %%edx, %%ecx; shrl $8, %%eax; addl %%ecx, %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_R OBFH_SF_ARGS "movl $" \
-                                    "%c[__obfh_sf_loops]" \
+                                    "%c[loops]" \
                                     ", %%ecx; 6: xorl %%edx, %%eax; roll $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%eax; addl $" \
-                                    "%c[__obfh_sf_key_a]" \
+                                    "%c[key_a]" \
                                     ", %%edx; decl %%ecx; jnz 6b;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_S OBFH_SF_ARGS "shldl $" \
-                                    "%c[__obfh_sf_rotate]" \
+                                    "%c[rotate]" \
                                     ", %%edx, %%eax; subl $" \
-                                    "%c[__obfh_sf_key_b]" \
+                                    "%c[key_b]" \
                                     ", %%eax; xorl $" \
-                                    "%c[__obfh_sf_mask]" \
+                                    "%c[mask]" \
                                     ", %%eax;" OBFH_SF_LOCAL
 #define OBFH_SF_BODY_T OBFH_SF_ARGS "movl %%eax, %%ecx; shrl $16, %%eax; shll $16, %%ecx; orl %%ecx, %%eax; xorl %%edx, %%eax; negl %%eax;" OBFH_SF_LOCAL
 
 // All fifteen identities hold for arbitrary uint32 inputs, including wraparound.
 #define OBFH_SF_GUARD_0 "imull %%eax, %%eax; testl $2, %%eax; jz 9f;"
 #define OBFH_SF_GUARD_1 "leal 1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 9f;"
-#define OBFH_SF_GUARD_2 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "imull %%eax, %%eax; xorl %%edx, %%eax; testl $1, %%eax; jz 9f;"
-#define OBFH_SF_GUARD_3 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "notl %%edx; addl %%eax, %%edx; cmpl $-1, %%edx; je 9f;"
+#define OBFH_SF_GUARD_2 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "imull %%eax, %%eax; xorl %%edx, %%eax; testl $1, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_3 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "notl %%edx; addl %%eax, %%edx; cmpl $-1, %%edx; je 9f;"
 
-#define OBFH_SF_GUARD_4 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") OBFH_ASM_MOV32("1", "0", "%c[__obfh_sf_phantom]", "15") "orl $" \
-                                                                                                                                        "%c[__obfh_sf_mask]" \
-                                                                                                                                        ", %%eax; andl $" \
-                                                                                                                                        "%c[__obfh_sf_mask]" \
-                                                                                                                                        ", %%edx; addl %%edx, %%eax; addl $" \
-                                                                                                                                        "%c[__obfh_sf_mask]" \
-                                                                                                                                        ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[__obfh_sf_phantom]", "16") " je 9f;"
-#define OBFH_SF_GUARD_5 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") OBFH_ASM_ROTATE_PAIR("0", "%c[__obfh_sf_rotate]", "%c[__obfh_sf_phantom]", "0") OBFH_ASM_ROTATE_PAIR("0", "%c[__obfh_sf_rotate]", "%c[__obfh_sf_phantom]", "1") OBFH_ASM_EQ32("0", "2", "%c[__obfh_sf_phantom]", "16") " je 9f;"
-#define OBFH_SF_GUARD_6 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "bswap %%eax; bswap %%eax; " OBFH_ASM_EQ32("0", "2", "%c[__obfh_sf_phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_4 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") OBFH_ASM_MOV32("1", "0", "%c[phantom]", "15") "orl $" \
+                                                                                                                    "%c[mask]" \
+                                                                                                                    ", %%eax; andl $" \
+                                                                                                                    "%c[mask]" \
+                                                                                                                    ", %%edx; addl %%edx, %%eax; addl $" \
+                                                                                                                    "%c[mask]" \
+                                                                                                                    ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_5 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") OBFH_ASM_ROTATE_PAIR("0", "%c[rotate]", "%c[phantom]", "0") OBFH_ASM_ROTATE_PAIR("0", "%c[rotate]", "%c[phantom]", "1") OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_6 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "bswap %%eax; bswap %%eax; " OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") " je 9f;"
 #define OBFH_SF_GUARD_7 "leal -1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 9f;"
-#define OBFH_SF_GUARD_8 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "notl %%edx; xorl $" \
-                                                                                "%c[__obfh_sf_key_a]" \
-                                                                                ", %%eax; xorl $" \
-                                                                                "%c[__obfh_sf_key_a]" \
-                                                                                ", %%edx; xorl %%edx, %%eax; cmpl $-1, %%eax; je 9f;"
+#define OBFH_SF_GUARD_8 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "notl %%edx; xorl $" \
+                                                                      "%c[key_a]" \
+                                                                      ", %%eax; xorl $" \
+                                                                      "%c[key_a]" \
+                                                                      ", %%edx; xorl %%edx, %%eax; cmpl $-1, %%eax; je 9f;"
 
-#define OBFH_SF_GUARD_9 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "xorl $" \
-                                                                                                     "%c[__obfh_sf_mask]" \
-                                                                                                     ", %%eax; andl $" \
-                                                                                                     "%c[__obfh_sf_mask]" \
-                                                                                                     ", %%edx; leal (%%eax, %%edx, 2), %%eax; addl $" \
-                                                                                                     "%c[__obfh_sf_mask]" \
-                                                                                                     ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[__obfh_sf_phantom]", "16") " je 9f;"
-#define OBFH_SF_GUARD_10 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
-#define OBFH_SF_GUARD_11 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") OBFH_ASM_MOV32("1", "0", "%c[__obfh_sf_phantom]", "15") "andl $" \
-                                                                                                                                         "%c[__obfh_sf_mask]" \
-                                                                                                                                         ", %%eax; andl $" \
-                                                                                                                                         "%c[__obfh_sf_not_mask]" \
-                                                                                                                                         ", %%edx; imull $" \
-                                                                                                                                         "%c[__obfh_sf_factor]" \
-                                                                                                                                         ", %%eax; imull $" \
-                                                                                                                                         "%c[__obfh_sf_factor]" \
-                                                                                                                                         ", %%edx; addl %%edx, %%eax; imull $" \
-                                                                                                                                         "%c[__obfh_sf_factor]" \
-                                                                                                                                         ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[__obfh_sf_phantom]", "16") " je 9f;"
-#define OBFH_SF_GUARD_12 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "addl $" \
-                                                                                 "%c[__obfh_sf_key_a]" \
-                                                                                 ", %%eax; imull $" \
-                                                                                 "%c[__obfh_sf_factor]" \
-                                                                                 ", %%eax; imull $" \
-                                                                                 "%c[__obfh_sf_factor]" \
-                                                                                 ", %%edx; movl $" \
-                                                                                 "%c[__obfh_sf_key_a]" \
-                                                                                 ", %%ecx; imull $" \
-                                                                                 "%c[__obfh_sf_factor]" \
-                                                                                 ", %%ecx; addl %%edx, %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[__obfh_sf_phantom]", "16") " je 9f;"
-#define OBFH_SF_GUARD_13 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "addl $" \
-                                                                                                      "%c[__obfh_sf_key_a]" \
-                                                                                                      ", %%eax; imull %%eax, %%eax; imull %%ecx, %%ecx; subl %%ecx, %%eax; imull $" \
-                                                                                                      "%c[__obfh_sf_key_a]" \
-                                                                                                      ", %%edx; addl %%edx, %%edx; subl %%edx, %%eax; movl $" \
-                                                                                                      "%c[__obfh_sf_key_a]" \
-                                                                                                      ", %%edx; imull %%edx, %%edx; " OBFH_ASM_EQ32("0", "2", "%c[__obfh_sf_phantom]", "16") " je 9f;"
-#define OBFH_SF_GUARD_14 OBFH_ASM_MOV32("2", "0", "%c[__obfh_sf_phantom]", "15") "roll $16, %%eax; roll $16, %%eax; " OBFH_ASM_EQ32("0", "2", "%c[__obfh_sf_phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_9 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "xorl $" \
+                                                                                           "%c[mask]" \
+                                                                                           ", %%eax; andl $" \
+                                                                                           "%c[mask]" \
+                                                                                           ", %%edx; leal (%%eax, %%edx, 2), %%eax; addl $" \
+                                                                                           "%c[mask]" \
+                                                                                           ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_10 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_11 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") OBFH_ASM_MOV32("1", "0", "%c[phantom]", "15") "andl $" \
+                                                                                                                     "%c[mask]" \
+                                                                                                                     ", %%eax; andl $" \
+                                                                                                                     "%c[not_mask]" \
+                                                                                                                     ", %%edx; imull $" \
+                                                                                                                     "%c[factor]" \
+                                                                                                                     ", %%eax; imull $" \
+                                                                                                                     "%c[factor]" \
+                                                                                                                     ", %%edx; addl %%edx, %%eax; imull $" \
+                                                                                                                     "%c[factor]" \
+                                                                                                                     ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_12 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "addl $" \
+                                                                       "%c[key_a]" \
+                                                                       ", %%eax; imull $" \
+                                                                       "%c[factor]" \
+                                                                       ", %%eax; imull $" \
+                                                                       "%c[factor]" \
+                                                                       ", %%edx; movl $" \
+                                                                       "%c[key_a]" \
+                                                                       ", %%ecx; imull $" \
+                                                                       "%c[factor]" \
+                                                                       ", %%ecx; addl %%edx, %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_13 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "addl $" \
+                                                                                            "%c[key_a]" \
+                                                                                            ", %%eax; imull %%eax, %%eax; imull %%ecx, %%ecx; subl %%ecx, %%eax; imull $" \
+                                                                                            "%c[key_a]" \
+                                                                                            ", %%edx; addl %%edx, %%edx; subl %%edx, %%eax; movl $" \
+                                                                                            "%c[key_a]" \
+                                                                                            ", %%edx; imull %%edx, %%edx; " OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") " je 9f;"
+#define OBFH_SF_GUARD_14 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "roll $16, %%eax; roll $16, %%eax; " OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") " je 9f;"
 
 #define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body ".fill ((" \
-                                                                                       "%c[__obfh_sf_phantom]" \
+                                                                                       "%c[phantom]" \
                                                                                        " >> " label ") & 1), 1, 0x90;"
 #define OBFH_SF_ENTRY(label, frame, body) label ": " OBFH_SF_FRAME(frame) body ".fill ((" \
-                                                                               "%c[__obfh_sf_phantom]" \
+                                                                               "%c[phantom]" \
                                                                                " >> " label ") & 1), 1, 0x90;"
 // Physical order, finite link graphs, and shared/tail continuations vary.
 #define OBFH_SF_LAYOUT_0(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "1") \
     OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_1(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     "leave; jmp 2f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+        OBFH_SF_ENTRY("2", "frame_b", b) \
             OBFH_SF_EPILOGUE
 #define OBFH_SF_LAYOUT_2(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "1") \
     OBFH_SF_CALL_AT("3b", "2") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_3(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     "leave; jmp 3f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+        OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3b", "2") "5:" OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_4(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3f", "1") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE
 #define OBFH_SF_LAYOUT_5(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "1") \
     OBFH_SF_CALL_AT("3b", "2") \
     OBFH_SF_EPILOGUE_ALT
@@ -2084,24 +2084,24 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "1") \
     "leave; jmp 3f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
-            OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+        OBFH_SF_ENTRY_ALT("2", "frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
+            OBFH_SF_ENTRY("3", "frame_c", c) \
                 OBFH_SF_EPILOGUE
 #define OBFH_SF_LAYOUT_7(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3b", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_EPILOGUE_ALT
@@ -2110,40 +2110,40 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("2f", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("3b", "2") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_9(a, b, c) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("3b", "1") "4:" OBFH_SF_EPILOGUE_ALT \
         OBFH_SF_GAP \
-            OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) "leave; jmp 2b;"
+            OBFH_SF_ENTRY("1", "frame_a", a) "leave; jmp 2b;"
 
 #define OBFH_SF_LAYOUT_10(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3b", "1") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_EPILOGUE
 
@@ -2151,70 +2151,70 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3f", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_CALL_AT("3f", "3") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_12(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "1") \
     OBFH_SF_CALL_AT("8f", "2") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3f", "3") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("8", "__obfh_sf_frame_d", d) \
+    OBFH_SF_ENTRY("8", "frame_d", d) \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_13(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3f", "2") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     "leave; jmp 8f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY("8", "__obfh_sf_frame_d", d) \
+        OBFH_SF_ENTRY("8", "frame_d", d) \
             OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_14(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("8", "__obfh_sf_frame_d", d) \
+    OBFH_SF_ENTRY("8", "frame_d", d) \
     OBFH_SF_CALL_AT("1f", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "2") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("3b", "3") \
     OBFH_SF_CALL_AT("8b", "4") \
     OBFH_SF_EPILOGUE
@@ -2223,44 +2223,44 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("8f", "2") "5:" OBFH_SF_EPILOGUE_ALT \
         OBFH_SF_GAP \
-            OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+            OBFH_SF_ENTRY("2", "frame_b", b) \
                 OBFH_SF_CALL_AT("3f", "3") \
                     OBFH_SF_EPILOGUE \
                         OBFH_SF_GAP \
-                            OBFH_SF_ENTRY("8", "__obfh_sf_frame_d", d) \
+                            OBFH_SF_ENTRY("8", "frame_d", d) \
                                 OBFH_SF_CALL_AT("3f", "4") \
                                     OBFH_SF_EPILOGUE \
                                         OBFH_SF_GAP \
-                                            OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+                                            OBFH_SF_ENTRY("3", "frame_c", c) \
                                                 OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_16(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL_AT("2b", "2") "4:" OBFH_SF_CALL_AT("3f", "3") \
         OBFH_SF_EPILOGUE \
             OBFH_SF_GAP \
-                OBFH_SF_ENTRY_ALT("3", "__obfh_sf_frame_c", c) \
+                OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
                     OBFH_SF_EPILOGUE_ALT
 
 #define OBFH_SF_LAYOUT_17(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     "cmpl %%edx, %%eax; jb 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "2") "5:" OBFH_SF_EPILOGUE \
         OBFH_SF_GAP \
-            OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
-                OBFH_SF_ENTRY_ALT("3", "__obfh_sf_frame_c", c) \
+            OBFH_SF_ENTRY("2", "frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
+                OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
                     OBFH_SF_CALL_AT("1b", "3") \
                         OBFH_SF_EPILOGUE_ALT
 
@@ -2268,28 +2268,28 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("3f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_CALL_AT("1b", "1") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_CALL_AT("2b", "2") \
     OBFH_SF_EPILOGUE
 
 #define OBFH_SF_LAYOUT_19(a, b, c, d) \
     "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("1f", "0") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "1") "5:" OBFH_SF_EPILOGUE \
         OBFH_SF_GAP \
-            OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+            OBFH_SF_ENTRY("1", "frame_a", a) \
                 OBFH_SF_CALL_AT("2f", "2") \
                     OBFH_SF_EPILOGUE \
                         OBFH_SF_GAP \
-                            OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) \
+                            OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_CALL_AT("2b", "3") \
     OBFH_SF_EPILOGUE
 
@@ -2297,18 +2297,18 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("8f", "1") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("8", "__obfh_sf_frame_d", d) \
+    OBFH_SF_ENTRY_ALT("8", "frame_d", d) \
     OBFH_SF_CALL_AT("3f", "2") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     "testl $1, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "3") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "4") "5:" OBFH_SF_EPILOGUE \
         OBFH_SF_GAP \
-            OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+            OBFH_SF_ENTRY("3", "frame_c", c) \
                 OBFH_SF_CALL_AT("1b", "5") \
                     OBFH_SF_EPILOGUE
 
@@ -2316,18 +2316,18 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "__obfh_sf_frame_c", c) \
+    OBFH_SF_ENTRY("3", "frame_c", c) \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("8", "__obfh_sf_frame_d", d) \
+    OBFH_SF_ENTRY_ALT("8", "frame_d", d) \
     OBFH_SF_CALL_AT("3b", "1") \
     OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("8b", "2") \
     OBFH_SF_EPILOGUE \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "3") \
     OBFH_SF_CALL_AT("3b", "4") \
     OBFH_SF_EPILOGUE
@@ -2336,82 +2336,82 @@ OBFH_PD_DEFINE(127);
 // Their arithmetic/opcodes vary per expansion; all stack edits follow the live guard.
 #if defined(__x86_64__)
 #define OBFH_SF_LEAF_ARGS OBFH_SF_ARGS ".fill (" \
-                                       "%c[__obfh_sf_phantom]" \
+                                       "%c[phantom]" \
                                        " & 1), 1, 0x90;"
 #define OBFH_SF_LEAF_ENTER "subq $" \
-                           "%c[__obfh_sf_leaf_frame]" \
+                           "%c[leaf_frame]" \
                            ", %%rsp;"
 #define OBFH_SF_LEAF_STORE "movl %%eax, " \
-                           "%c[__obfh_sf_leaf_slot]" \
+                           "%c[leaf_slot]" \
                            "(%%rsp);"
 #define OBFH_SF_LEAF_LOAD "movl " \
-                          "%c[__obfh_sf_leaf_slot]" \
+                          "%c[leaf_slot]" \
                           "(%%rsp), %%ecx;"
 #define OBFH_SF_LEAF_EXIT "addq $" \
-                          "%c[__obfh_sf_leaf_frame]" \
+                          "%c[leaf_frame]" \
                           ", %%rsp; ret;"
 #else
 #define OBFH_SF_LEAF_ARGS "movl 4(%%esp), %%eax; movl 8(%%esp), %%edx; .fill (" \
-                          "%c[__obfh_sf_phantom]" \
+                          "%c[phantom]" \
                           " & 1), 1, 0x90;"
 #define OBFH_SF_LEAF_ENTER "subl $" \
-                           "%c[__obfh_sf_leaf_frame]" \
+                           "%c[leaf_frame]" \
                            ", %%esp;"
 #define OBFH_SF_LEAF_STORE "movl %%eax, " \
-                           "%c[__obfh_sf_leaf_slot]" \
+                           "%c[leaf_slot]" \
                            "(%%esp);"
 #define OBFH_SF_LEAF_LOAD "movl " \
-                          "%c[__obfh_sf_leaf_slot]" \
+                          "%c[leaf_slot]" \
                           "(%%esp), %%ecx;"
 #define OBFH_SF_LEAF_EXIT "addl $" \
-                          "%c[__obfh_sf_leaf_frame]" \
+                          "%c[leaf_frame]" \
                           ", %%esp; ret;"
 #endif
 // Only valid register ALU/shift encodings are selected. These are instructions,
 // not arbitrary bytes: immediate lengths and register operands remain fixed.
 #define OBFH_SF_LEAF_ALU_A ".byte " \
-                           "%c[__obfh_sf_leaf_alu_a]" \
+                           "%c[leaf_alu_a]" \
                            "; .long " \
-                           "%c[__obfh_sf_key_a]" \
+                           "%c[key_a]" \
                            ";"
 #define OBFH_SF_LEAF_ALU_B ".byte 0x81, " \
-                           "%c[__obfh_sf_leaf_alu_b]" \
+                           "%c[leaf_alu_b]" \
                            "; .long " \
-                           "%c[__obfh_sf_key_b]" \
+                           "%c[key_b]" \
                            ";"
 #define OBFH_SF_LEAF_SHIFT ".byte 0xc1, " \
-                           "%c[__obfh_sf_leaf_shift]" \
+                           "%c[leaf_shift]" \
                            ", " \
-                           "%c[__obfh_sf_rotate]" \
+                           "%c[rotate]" \
                            ";"
 #define OBFH_SF_LEAF_A OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ALU_A "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_SHIFT "subl %%edx, %%eax; ret; 6:" OBFH_SF_LEAF_ALU_B "leal (%%eax, %%edx, 2), %%eax; ret;"
 #define OBFH_SF_LEAF_B OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax; addl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_C OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl %%edx, %%ecx; roll $" \
-                                                                               "%c[__obfh_sf_rotate]" \
+                                                                               "%c[rotate]" \
                                                                                ", %%ecx; cmpl %%ecx, %%eax; jge 6f;" OBFH_SF_LEAF_ALU_A "xorl %%ecx, %%eax; jmp 7f; 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_D OBFH_SF_LEAF_ARGS "movl $" \
-                                         "%c[__obfh_sf_loops]" \
+                                         "%c[loops]" \
                                          ", %%ecx; 6:" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_ALU_B "addl %%edx, %%eax; decl %%ecx; jnz 6b; ret;"
 #define OBFH_SF_LEAF_E OBFH_SF_LEAF_ARGS "cmpl $" \
-                                         "%c[__obfh_sf_key_a]" \
+                                         "%c[key_a]" \
                                          ", %%eax; jb 6f; bswap %%eax;" OBFH_SF_LEAF_ALU_A "ret; 6: movl $" \
-                                         "%c[__obfh_sf_factor]" \
+                                         "%c[factor]" \
                                          ", %%ecx; xorl %%edx, %%edx; divl %%ecx; xorl %%edx, %%eax;" OBFH_SF_LEAF_SHIFT "ret;"
 #define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "subl %%edx, %%eax; negl %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_B "adcl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_G OBFH_SF_LEAF_ARGS "movl %%eax, %%ecx;" OBFH_SF_LEAF_SHIFT "testl $" \
-                                         "%c[__obfh_sf_mask]" \
+                                         "%c[mask]" \
                                          ", %%ecx; jnz 6f;" OBFH_SF_LEAF_ALU_A "ret; 6: imull $" \
-                                         "%c[__obfh_sf_factor]" \
+                                         "%c[factor]" \
                                          ", %%eax;" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_H OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl $" \
-                                                                               "%c[__obfh_sf_loops]" \
+                                                                               "%c[loops]" \
                                                                                ", %%ecx; 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; decl %%ecx; jnz 6b;" OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_I OBFH_SF_LEAF_ARGS "bswap %%eax;" OBFH_SF_LEAF_ALU_A "cmpl %%edx, %%eax; jne 6f;" OBFH_SF_LEAF_SHIFT "ret; 6: imull $" \
-                                         "%c[__obfh_sf_factor]" \
+                                         "%c[factor]" \
                                          ", %%eax; subl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_J OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_ALU_B "testl %%edx, %%edx; js 6f;" OBFH_SF_LEAF_SHIFT "jmp 7f; 6: negl %%eax; 7:" OBFH_SF_LEAF_LOAD "addl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_K OBFH_SF_LEAF_ARGS "movzbl %%al, %%ecx; shrl $8, %%eax; imull $" \
-                                         "%c[__obfh_sf_factor]" \
+                                         "%c[factor]" \
                                          ", %%ecx; xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_L OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_ALU_A "jmp 7f; 6:" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
@@ -2420,7 +2420,7 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_EPILOGUE OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("2", c) \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "1") \
     OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_23(a, b, c, d) \
@@ -2431,7 +2431,7 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LAYOUT_24(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) OBFH_SF_CALL_AT("3f", "1") OBFH_SF_CALL_AT("2f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
+        OBFH_SF_ENTRY_ALT("1", "frame_a", a) OBFH_SF_CALL_AT("3f", "1") OBFH_SF_CALL_AT("2f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
             OBFH_SF_LEAF_ENTRY("2", c) \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d)
 #define OBFH_SF_LAYOUT_25(a, b, c, d) \
@@ -2439,16 +2439,16 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("3", d) \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2f", "1") \
     OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("2", "__obfh_sf_frame_b", b) OBFH_SF_CALL_AT("3b", "2") OBFH_SF_EPILOGUE_ALT
+        OBFH_SF_ENTRY_ALT("2", "frame_b", b) OBFH_SF_CALL_AT("3b", "2") OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_LAYOUT_26(a, b, c, d) \
     OBFH_SF_CALL_AT("1f", "0") \
     OBFH_SF_EPILOGUE OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("2", c) \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
     "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "4:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("3", d)
 #define OBFH_SF_LAYOUT_27(a, b, c, d) \
@@ -2457,7 +2457,7 @@ OBFH_PD_DEFINE(127);
         OBFH_SF_LEAF_ENTRY("1", c) \
     OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d) \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "__obfh_sf_frame_b", b) \
+    OBFH_SF_ENTRY("2", "frame_b", b) \
     OBFH_SF_CALL_AT("1b", "1") \
     OBFH_SF_CALL_AT("3b", "2") \
     OBFH_SF_EPILOGUE
@@ -2467,11 +2467,11 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_EPILOGUE OBFH_SF_GAP \
         OBFH_SF_LEAF_ENTRY("2", c) \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "__obfh_sf_frame_a", a) \
+    OBFH_SF_ENTRY("1", "frame_a", a) \
     OBFH_SF_CALL_AT("2b", "1") \
     OBFH_SF_CALL_AT("3f", "2") \
     OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("3", "__obfh_sf_frame_b", b) \
+        OBFH_SF_ENTRY_ALT("3", "frame_b", b) \
             OBFH_SF_CALL_AT("8f", "3") \
                 OBFH_SF_CALL_AT("10f", "4") \
                     OBFH_SF_CALL_AT("11f", "5") \
@@ -2480,7 +2480,7 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_GAP \
     OBFH_SF_LEAF_ENTRY("10", c) \
     OBFH_SF_GAP \
-    OBFH_SF_ENTRY("11", "__obfh_sf_frame_d", a) \
+    OBFH_SF_ENTRY("11", "frame_d", a) \
     OBFH_SF_CALL_AT("13f", "1") \
     OBFH_SF_CALL_AT("12f", "2") \
     OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
@@ -2493,303 +2493,303 @@ OBFH_PD_DEFINE(127);
 // BEGIN COMPACT ASM CACHE
 #if defined(__x86_64__)
 #undef OBFH_SF_BYTES
-#define OBFH_SF_BYTES(bit, flip, size, value) ".fill (((%c[__obfh_sf_phantom] >> " bit ") & 1) ^ " flip ")," size "," value ";"
+#define OBFH_SF_BYTES(bit, flip, size, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip ")," size "," value ";"
 #undef OBFH_SF_WORD
-#define OBFH_SF_WORD(bit, flip, value) ".fill (((%c[__obfh_sf_phantom] >> " bit ") & 1) ^ " flip "),4," value ";"
+#define OBFH_SF_WORD(bit, flip, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip "),4," value ";"
 #undef OBFH_SF_LINK_BYTES
-#define OBFH_SF_LINK_BYTES(channel, size, value) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1)," size "," value ";"
+#define OBFH_SF_LINK_BYTES(channel, size, value) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1)," size "," value ";"
 #undef OBFH_SF_LINK_GATE
-#define OBFH_SF_LINK_GATE(span, channel) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1," span ";"
+#define OBFH_SF_LINK_GATE(span, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1," span ";"
 #undef OBFH_SF_INPUT
 #define OBFH_SF_INPUT "movl %%esp,%%eax;"
 #undef OBFH_SF_FRAME_HEAD
-#define OBFH_SF_FRAME_HEAD(size) "pushq %%rbp;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;"
+#define OBFH_SF_FRAME_HEAD(size) "pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;"
 #undef OBFH_SF_FRAME
-#define OBFH_SF_FRAME(size) "pushq %%rbp;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];"
+#define OBFH_SF_FRAME(size) "pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];"
 #undef OBFH_SF_FRAME_ALT
-#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,4,0x24ac8d48;.long %c[" size "];"
+#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,4,0x24ac8d48;.long %c[" size "];"
 #undef OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_EPILOGUE_ALT ".fill (((%c[__obfh_sf_phantom] >> 7) & 1) ^ 0),3,0xec8948;.fill (((%c[__obfh_sf_phantom] >> 7) & 1) ^ 1),4,0x00658d48;popq %%rbp;ret;"
+#define OBFH_SF_EPILOGUE_ALT ".fill (((%c[phantom] >> 7) & 1) ^ 0),3,0xec8948;.fill (((%c[phantom] >> 7) & 1) ^ 1),4,0x00658d48;popq %%rbp;ret;"
 #undef OBFH_SF_EPILOGUE
-#define OBFH_SF_EPILOGUE ".fill (((%c[__obfh_sf_phantom] >> 6) & 1) ^ 0),1,0xc9;.fill (((%c[__obfh_sf_phantom] >> 6) & 1) ^ 1),4,0x5dec8948;ret;"
+#define OBFH_SF_EPILOGUE ".fill (((%c[phantom] >> 6) & 1) ^ 0),1,0xc9;.fill (((%c[phantom] >> 6) & 1) ^ 1),4,0x5dec8948;ret;"
 #undef OBFH_SF_ARGS
-#define OBFH_SF_ARGS ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;"
+#define OBFH_SF_ARGS ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;"
 #undef OBFH_SF_CALL_ARGS
-#define OBFH_SF_CALL_ARGS ".fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),4,%c[__obfh_sf_arg_a];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),4,%c[__obfh_sf_arg_b];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),4,%c[__obfh_sf_arg_b];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),4,%c[__obfh_sf_arg_a];"
+#define OBFH_SF_CALL_ARGS ".fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_a];.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_a];"
 #undef OBFH_SF_CALL_AT
-#define OBFH_SF_CALL_AT(target, channel) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1,23;subq $32,%%rsp;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),4,%c[__obfh_sf_arg_a];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),4,%c[__obfh_sf_arg_b];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),4,%c[__obfh_sf_arg_b];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),4,%c[__obfh_sf_arg_a];call " target ";addq $32,%%rsp;"
+#define OBFH_SF_CALL_AT(target, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,23;subq $32,%%rsp;.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_a];.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_a];call " target ";addq $32,%%rsp;"
 #undef OBFH_SF_LOCAL
-#define OBFH_SF_LOCAL ".fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_LOCAL ".fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_CALL
-#define OBFH_SF_CALL(target) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * 0)) & 1),2,0xc085 ^ ((((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (14 + 3 * 0)) & 1) << 12);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * 0)) & 1),1,0x74 | (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (13 + 3 * 0)) & 1);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * 0)) & 1),1,23;subq $32,%%rsp;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),4,%c[__obfh_sf_arg_a];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 0),4,%c[__obfh_sf_arg_b];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),4,%c[__obfh_sf_arg_b];.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[__obfh_sf_phantom] >> 10) & 1) ^ 1),4,%c[__obfh_sf_arg_a];call " target ";addq $32,%%rsp;"
+#define OBFH_SF_CALL(target) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * 0)) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * 0)) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,23;subq $32,%%rsp;.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_a];.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_a];call " target ";addq $32,%%rsp;"
 #undef OBFH_SF_PADDING
-#define OBFH_SF_PADDING ".fill %c[__obfh_sf_pad],1,0x90;"
+#define OBFH_SF_PADDING ".fill %c[pad],1,0x90;"
 #undef OBFH_SF_GAP
-#define OBFH_SF_GAP ".fill %c[__obfh_sf_pad_b],1,0x90;.byte %c[__obfh_sf_noise_a],%c[__obfh_sf_noise_b];"
+#define OBFH_SF_GAP ".fill %c[pad_b],1,0x90;.byte %c[noise_a],%c[noise_b];"
 #undef OBFH_SF_BODY_A
-#define OBFH_SF_BODY_A ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;xorl $%c[__obfh_sf_key_a],%%eax;imull $%c[__obfh_sf_factor],%%eax;addl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;xorl $%c[key_a],%%eax;imull $%c[factor],%%eax;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_B
-#define OBFH_SF_BODY_B ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;addl $%c[__obfh_sf_key_b],%%eax;roll $%c[__obfh_sf_rotate],%%eax;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;addl $%c[key_b],%%eax;roll $%c[rotate],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_C
-#define OBFH_SF_BODY_C ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;leal (%%eax,%%eax,2),%%eax;xorl %%eax,%%edx;addl $%c[__obfh_sf_key_a],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;leal (%%eax,%%eax,2),%%eax;xorl %%eax,%%edx;addl $%c[key_a],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_D
-#define OBFH_SF_BODY_D ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;notl %%eax;addl %%edx,%%eax;imull $%c[__obfh_sf_factor],%%eax;roll $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;notl %%eax;addl %%edx,%%eax;imull $%c[factor],%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_E
-#define OBFH_SF_BODY_E ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;bswap %%eax;xorl %%edx,%%eax;roll $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;bswap %%eax;xorl %%edx,%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_F
-#define OBFH_SF_BODY_F ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[__obfh_sf_loops],%%ecx;6:addl %%edx,%%eax;imull $%c[__obfh_sf_factor],%%eax;xorl $%c[__obfh_sf_key_b],%%eax;decl %%ecx;jnz 6b;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[loops],%%ecx;6:addl %%edx,%%eax;imull $%c[factor],%%eax;xorl $%c[key_b],%%eax;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_G
-#define OBFH_SF_BODY_G ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movzbl %%al,%%ecx;shrl $8,%%eax;xorl %%edx,%%ecx;leal (%%eax,%%ecx,4),%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movzbl %%al,%%ecx;shrl $8,%%eax;xorl %%edx,%%ecx;leal (%%eax,%%ecx,4),%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_H
-#define OBFH_SF_BODY_H ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;imull %%eax,%%edx;xorl $%c[__obfh_sf_key_b],%%edx;subl %%edx,%%eax;negl %%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_H ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;imull %%eax,%%edx;xorl $%c[key_b],%%edx;subl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_I
-#define OBFH_SF_BODY_I ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;orl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_mask],%%ecx;subl %%ecx,%%eax;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_I ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;orl $%c[mask],%%eax;andl $%c[mask],%%ecx;subl %%ecx,%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_J
-#define OBFH_SF_BODY_J ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;xorl $%c[__obfh_sf_key_a],%%eax;movl %%edx,%%ecx;shll $%c[__obfh_sf_rotate],%%ecx;shrl $%c[__obfh_sf_rotate],%%eax;orl %%ecx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_J ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;xorl $%c[key_a],%%eax;movl %%edx,%%ecx;shll $%c[rotate],%%ecx;shrl $%c[rotate],%%eax;orl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_K
-#define OBFH_SF_BODY_K ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;testl %%edx,%%edx;js 6f;addl $%c[__obfh_sf_key_a],%%eax;jmp 7f;6:negl %%eax;xorl %%edx,%%eax;7:roll $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_K ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;testl %%edx,%%edx;js 6f;addl $%c[key_a],%%eax;jmp 7f;6:negl %%eax;xorl %%edx,%%eax;7:roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_L
-#define OBFH_SF_BODY_L ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;movl %%edx,%%eax;addl %%ecx,%%eax;imull $%c[__obfh_sf_factor],%%eax;notl %%edx;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_L ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;movl %%edx,%%eax;addl %%ecx,%%eax;imull $%c[factor],%%eax;notl %%edx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_M
-#define OBFH_SF_BODY_M ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;shrl $16,%%ecx;xorl %%ecx,%%eax;imull $%c[__obfh_sf_factor],%%eax;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_M ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;shrl $16,%%ecx;xorl %%ecx,%%eax;imull $%c[factor],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_N
-#define OBFH_SF_BODY_N ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;addl $%c[__obfh_sf_key_a],%%eax;adcl $%c[__obfh_sf_key_b],%%edx;xorl %%edx,%%eax;rorl $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_N ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;addl $%c[key_a],%%eax;adcl $%c[key_b],%%edx;xorl %%edx,%%eax;rorl $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_O
-#define OBFH_SF_BODY_O ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;xchgl %%eax,%%edx;subl $%c[__obfh_sf_key_a],%%eax;bswap %%edx;addl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_O ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;xchgl %%eax,%%edx;subl $%c[key_a],%%eax;bswap %%edx;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_P
-#define OBFH_SF_BODY_P ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[__obfh_sf_factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_P ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_Q
-#define OBFH_SF_BODY_Q ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movzbl %%al,%%ecx;movzbl %%dl,%%edx;imull %%edx,%%ecx;shrl $8,%%eax;addl %%ecx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_Q ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movzbl %%al,%%ecx;movzbl %%dl,%%edx;imull %%edx,%%ecx;shrl $8,%%eax;addl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_R
-#define OBFH_SF_BODY_R ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[__obfh_sf_loops],%%ecx;6:xorl %%edx,%%eax;roll $%c[__obfh_sf_rotate],%%eax;addl $%c[__obfh_sf_key_a],%%edx;decl %%ecx;jnz 6b;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_R ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[loops],%%ecx;6:xorl %%edx,%%eax;roll $%c[rotate],%%eax;addl $%c[key_a],%%edx;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_S
-#define OBFH_SF_BODY_S ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;shldl $%c[__obfh_sf_rotate],%%edx,%%eax;subl $%c[__obfh_sf_key_b],%%eax;xorl $%c[__obfh_sf_mask],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_S ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;shldl $%c[rotate],%%edx,%%eax;subl $%c[key_b],%%eax;xorl $%c[mask],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_T
-#define OBFH_SF_BODY_T ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;shrl $16,%%eax;shll $16,%%ecx;orl %%ecx,%%eax;xorl %%edx,%%eax;negl %%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_T ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;shrl $16,%%eax;shll $16,%%ecx;orl %%ecx,%%eax;xorl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_GUARD_0
 #define OBFH_SF_GUARD_0 "imull %%eax,%%eax;testl $2,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_1
 #define OBFH_SF_GUARD_1 "leal 1(%%eax),%%edx;imull %%edx,%%eax;testl $1,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_2
-#define OBFH_SF_GUARD_2 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;imull %%eax,%%eax;xorl %%edx,%%eax;testl $1,%%eax;jz 9f;"
+#define OBFH_SF_GUARD_2 ".short 49801+((%c[phantom]>>15)&1)*3586;imull %%eax,%%eax;xorl %%edx,%%eax;testl $1,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_3
-#define OBFH_SF_GUARD_3 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;notl %%edx;addl %%eax,%%edx;cmpl $-1,%%edx;je 9f;"
+#define OBFH_SF_GUARD_3 ".short 49801+((%c[phantom]>>15)&1)*3586;notl %%edx;addl %%eax,%%edx;cmpl $-1,%%edx;je 9f;"
 #undef OBFH_SF_GUARD_4
-#define OBFH_SF_GUARD_4 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;.short 49545+((%c[__obfh_sf_phantom]>>15)&1)*1794;orl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_mask],%%edx;addl %%edx,%%eax;addl $%c[__obfh_sf_mask],%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_4 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;orl $%c[mask],%%eax;andl $%c[mask],%%edx;addl %%edx,%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_5
-#define OBFH_SF_GUARD_5 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;.fill ((%c[__obfh_sf_rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^0));.fill ((%c[__obfh_sf_rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^0))+65536*%c[__obfh_sf_rotate];.fill ((%c[__obfh_sf_rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^1));.fill ((%c[__obfh_sf_rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^1))+65536*%c[__obfh_sf_rotate];.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate];.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate];.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_6
-#define OBFH_SF_GUARD_6 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_6 ".short 49801+((%c[phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_7
 #define OBFH_SF_GUARD_7 "leal -1(%%eax),%%edx;imull %%edx,%%eax;testl $1,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_8
-#define OBFH_SF_GUARD_8 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;notl %%edx;xorl $%c[__obfh_sf_key_a],%%eax;xorl $%c[__obfh_sf_key_a],%%edx;xorl %%edx,%%eax;cmpl $-1,%%eax;je 9f;"
+#define OBFH_SF_GUARD_8 ".short 49801+((%c[phantom]>>15)&1)*3586;notl %%edx;xorl $%c[key_a],%%eax;xorl $%c[key_a],%%edx;xorl %%edx,%%eax;cmpl $-1,%%eax;je 9f;"
 #undef OBFH_SF_GUARD_9
-#define OBFH_SF_GUARD_9 "movl %%eax,%%ecx;.short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;xorl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_mask],%%edx;leal (%%eax,%%edx,2),%%eax;addl $%c[__obfh_sf_mask],%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_9 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;xorl $%c[mask],%%eax;andl $%c[mask],%%edx;leal (%%eax,%%edx,2),%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_10
-#define OBFH_SF_GUARD_10 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;negl %%edx;andl %%edx,%%eax;leal -1(%%eax),%%edx;andl %%edx,%%eax;testl %%eax,%%eax;jz 9f;"
+#define OBFH_SF_GUARD_10 ".short 49801+((%c[phantom]>>15)&1)*3586;negl %%edx;andl %%edx,%%eax;leal -1(%%eax),%%edx;andl %%edx,%%eax;testl %%eax,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_11
-#define OBFH_SF_GUARD_11 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;.short 49545+((%c[__obfh_sf_phantom]>>15)&1)*1794;andl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_not_mask],%%edx;imull $%c[__obfh_sf_factor],%%eax;imull $%c[__obfh_sf_factor],%%edx;addl %%edx,%%eax;imull $%c[__obfh_sf_factor],%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_11 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;andl $%c[mask],%%eax;andl $%c[not_mask],%%edx;imull $%c[factor],%%eax;imull $%c[factor],%%edx;addl %%edx,%%eax;imull $%c[factor],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_12
-#define OBFH_SF_GUARD_12 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;addl $%c[__obfh_sf_key_a],%%eax;imull $%c[__obfh_sf_factor],%%eax;imull $%c[__obfh_sf_factor],%%edx;movl $%c[__obfh_sf_key_a],%%ecx;imull $%c[__obfh_sf_factor],%%ecx;addl %%edx,%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_12 ".short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull $%c[factor],%%eax;imull $%c[factor],%%edx;movl $%c[key_a],%%ecx;imull $%c[factor],%%ecx;addl %%edx,%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_13
-#define OBFH_SF_GUARD_13 "movl %%eax,%%ecx;.short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;addl $%c[__obfh_sf_key_a],%%eax;imull %%eax,%%eax;imull %%ecx,%%ecx;subl %%ecx,%%eax;imull $%c[__obfh_sf_key_a],%%edx;addl %%edx,%%edx;subl %%edx,%%eax;movl $%c[__obfh_sf_key_a],%%edx;imull %%edx,%%edx;.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_13 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull %%eax,%%eax;imull %%ecx,%%ecx;subl %%ecx,%%eax;imull $%c[key_a],%%edx;addl %%edx,%%edx;subl %%edx,%%eax;movl $%c[key_a],%%edx;imull %%edx,%%edx;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_14
-#define OBFH_SF_GUARD_14 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_14 ".short 49801+((%c[phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_ENTRY_ALT
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushq %%rbp;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,4,0x24ac8d48;.long %c[" frame "];" body ".fill ((%c[__obfh_sf_phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,4,0x24ac8d48;.long %c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_ENTRY
-#define OBFH_SF_ENTRY(label, frame, body) label ":pushq %%rbp;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];" body ".fill ((%c[__obfh_sf_phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_ENTRY(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_LEAF_ARGS
-#define OBFH_SF_LEAF_ARGS ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;"
+#define OBFH_SF_LEAF_ARGS ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;"
 #undef OBFH_SF_LEAF_ENTER
-#define OBFH_SF_LEAF_ENTER "subq $%c[__obfh_sf_leaf_frame],%%rsp;"
+#define OBFH_SF_LEAF_ENTER "subq $%c[leaf_frame],%%rsp;"
 #undef OBFH_SF_LEAF_STORE
-#define OBFH_SF_LEAF_STORE "movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);"
+#define OBFH_SF_LEAF_STORE "movl %%eax,%c[leaf_slot](%%rsp);"
 #undef OBFH_SF_LEAF_LOAD
-#define OBFH_SF_LEAF_LOAD "movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;"
+#define OBFH_SF_LEAF_LOAD "movl %c[leaf_slot](%%rsp),%%ecx;"
 #undef OBFH_SF_LEAF_EXIT
-#define OBFH_SF_LEAF_EXIT "addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_EXIT "addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_ALU_A
-#define OBFH_SF_LEAF_ALU_A ".byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];"
+#define OBFH_SF_LEAF_ALU_A ".byte %c[leaf_alu_a];.long %c[key_a];"
 #undef OBFH_SF_LEAF_ALU_B
-#define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];"
+#define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[leaf_alu_b];.long %c[key_b];"
 #undef OBFH_SF_LEAF_SHIFT
-#define OBFH_SF_LEAF_SHIFT ".byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];"
+#define OBFH_SF_LEAF_SHIFT ".byte 0xc1,%c[leaf_shift],%c[rotate];"
 #undef OBFH_SF_LEAF_A
-#define OBFH_SF_LEAF_A ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];cmpl %%edx,%%eax;jbe 6f;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];leal (%%eax,%%edx,2),%%eax;ret;"
+#define OBFH_SF_LEAF_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jbe 6f;.byte 0xc1,%c[leaf_shift],%c[rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];leal (%%eax,%%edx,2),%%eax;ret;"
 #undef OBFH_SF_LEAF_B
-#define OBFH_SF_LEAF_B ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subq $%c[__obfh_sf_leaf_frame],%%rsp;movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xc1,%c[leaf_shift],%c[rotate];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_C
-#define OBFH_SF_LEAF_C ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subq $%c[__obfh_sf_leaf_frame],%%rsp;movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);movl %%edx,%%ecx;roll $%c[__obfh_sf_rotate],%%ecx;cmpl %%ecx,%%eax;jge 6f;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];xorl %%ecx,%%eax;jmp 7f;6:.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];addl %%edx,%%eax;7:movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;cmpl %%ecx,%%eax;jge 6f;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;jmp 7f;6:.byte 0xc1,%c[leaf_shift],%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_D
-#define OBFH_SF_LEAF_D ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;movl $%c[__obfh_sf_loops],%%ecx;6:.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
+#define OBFH_SF_LEAF_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movl $%c[loops],%%ecx;6:.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xc1,%c[leaf_shift],%c[rotate];.byte 0x81,%c[leaf_alu_b];.long %c[key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
 #undef OBFH_SF_LEAF_E
-#define OBFH_SF_LEAF_E ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;cmpl $%c[__obfh_sf_key_a],%%eax;jb 6f;bswap %%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];ret;6:movl $%c[__obfh_sf_factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];ret;"
+#define OBFH_SF_LEAF_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;cmpl $%c[key_a],%%eax;jb 6f;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte 0xc1,%c[leaf_shift],%c[rotate];ret;"
 #undef OBFH_SF_LEAF_F
-#define OBFH_SF_LEAF_F ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subq $%c[__obfh_sf_leaf_frame],%%rsp;movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);subl %%edx,%%eax;negl %%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];adcl %%edx,%%eax;addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);subl %%edx,%%eax;negl %%eax;.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_G
-#define OBFH_SF_LEAF_G ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];testl $%c[__obfh_sf_mask],%%ecx;jnz 6f;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];ret;6:imull $%c[__obfh_sf_factor],%%eax;.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];xorl %%edx,%%eax;ret;"
+#define OBFH_SF_LEAF_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte 0xc1,%c[leaf_shift],%c[rotate];testl $%c[mask],%%ecx;jnz 6f;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:imull $%c[factor],%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_H
-#define OBFH_SF_LEAF_H ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subq $%c[__obfh_sf_leaf_frame],%%rsp;movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);movl $%c[__obfh_sf_loops],%%ecx;6:.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];addl %%edx,%%eax;decl %%ecx;jnz 6b;movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_H ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);movl $%c[loops],%%ecx;6:.byte 0xc1,%c[leaf_shift],%c[rotate];addl %%edx,%%eax;decl %%ecx;jnz 6b;movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_I
-#define OBFH_SF_LEAF_I ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;bswap %%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];cmpl %%edx,%%eax;jne 6f;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];ret;6:imull $%c[__obfh_sf_factor],%%eax;subl %%edx,%%eax;ret;"
+#define OBFH_SF_LEAF_I ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jne 6f;.byte 0xc1,%c[leaf_shift],%c[rotate];ret;6:imull $%c[factor],%%eax;subl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_J
-#define OBFH_SF_LEAF_J ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subq $%c[__obfh_sf_leaf_frame],%%rsp;movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];testl %%edx,%%edx;js 6f;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];jmp 7f;6:negl %%eax;7:movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;addl %%ecx,%%eax;addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_J ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.byte 0x81,%c[leaf_alu_b];.long %c[key_b];testl %%edx,%%edx;js 6f;.byte 0xc1,%c[leaf_shift],%c[rotate];jmp 7f;6:negl %%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;addl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_K
-#define OBFH_SF_LEAF_K ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;movzbl %%al,%%ecx;shrl $8,%%eax;imull $%c[__obfh_sf_factor],%%ecx;xorl %%ecx,%%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];addl %%edx,%%eax;ret;"
+#define OBFH_SF_LEAF_K ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movzbl %%al,%%ecx;shrl $8,%%eax;imull $%c[factor],%%ecx;xorl %%ecx,%%eax;.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xc1,%c[leaf_shift],%c[rotate];addl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_L
-#define OBFH_SF_LEAF_L ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subq $%c[__obfh_sf_leaf_frame],%%rsp;movl %%eax,%c[__obfh_sf_leaf_slot](%%rsp);cmpl %%edx,%%eax;jbe 6f;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];jmp 7f;6:.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];xorl %%edx,%%eax;7:movl %c[__obfh_sf_leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[__obfh_sf_leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_L ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);cmpl %%edx,%%eax;jbe 6f;.byte %c[leaf_alu_a];.long %c[key_a];jmp 7f;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_ENTRY
 #define OBFH_SF_LEAF_ENTRY(label, body) label ":" body
 
 #else
 #undef OBFH_SF_BYTES
-#define OBFH_SF_BYTES(bit, flip, size, value) ".fill (((%c[__obfh_sf_phantom] >> " bit ") & 1) ^ " flip ")," size "," value ";"
+#define OBFH_SF_BYTES(bit, flip, size, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip ")," size "," value ";"
 #undef OBFH_SF_WORD
-#define OBFH_SF_WORD(bit, flip, value) ".fill (((%c[__obfh_sf_phantom] >> " bit ") & 1) ^ " flip "),4," value ";"
+#define OBFH_SF_WORD(bit, flip, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip "),4," value ";"
 #undef OBFH_SF_LINK_BYTES
-#define OBFH_SF_LINK_BYTES(channel, size, value) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1)," size "," value ";"
+#define OBFH_SF_LINK_BYTES(channel, size, value) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1)," size "," value ";"
 #undef OBFH_SF_LINK_GATE
-#define OBFH_SF_LINK_GATE(span, channel) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1," span ";"
+#define OBFH_SF_LINK_GATE(span, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1," span ";"
 #undef OBFH_SF_INPUT
 #define OBFH_SF_INPUT "movl %%esp,%%eax;"
 #undef OBFH_SF_FRAME_HEAD
-#define OBFH_SF_FRAME_HEAD(size) "pushl %%ebp;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;"
+#define OBFH_SF_FRAME_HEAD(size) "pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;"
 #undef OBFH_SF_FRAME
-#define OBFH_SF_FRAME(size) "pushl %%ebp;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];"
+#define OBFH_SF_FRAME(size) "pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];"
 #undef OBFH_SF_FRAME_ALT
-#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,3,0x24ac8d;.long %c[" size "];"
+#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,3,0x24ac8d;.long %c[" size "];"
 #undef OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_EPILOGUE_ALT ".fill (((%c[__obfh_sf_phantom] >> 7) & 1) ^ 0),2,0xec89;.fill (((%c[__obfh_sf_phantom] >> 7) & 1) ^ 1),3,0x00658d;popl %%ebp;ret;"
+#define OBFH_SF_EPILOGUE_ALT ".fill (((%c[phantom] >> 7) & 1) ^ 0),2,0xec89;.fill (((%c[phantom] >> 7) & 1) ^ 1),3,0x00658d;popl %%ebp;ret;"
 #undef OBFH_SF_EPILOGUE
-#define OBFH_SF_EPILOGUE ".fill (((%c[__obfh_sf_phantom] >> 6) & 1) ^ 0),1,0xc9;.fill (((%c[__obfh_sf_phantom] >> 6) & 1) ^ 1),3,0x5dec89;ret;"
+#define OBFH_SF_EPILOGUE ".fill (((%c[phantom] >> 6) & 1) ^ 0),1,0xc9;.fill (((%c[phantom] >> 6) & 1) ^ 1),3,0x5dec89;ret;"
 #undef OBFH_SF_ARGS
-#define OBFH_SF_ARGS ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;"
+#define OBFH_SF_ARGS ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;"
 #undef OBFH_SF_CALL_AT
-#define OBFH_SF_CALL_AT(target, channel) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * " channel ")) & 1),1,18;.byte 0x68;.long %c[__obfh_sf_arg_b];.byte 0x68;.long %c[__obfh_sf_arg_a];call " target ";addl $8,%%esp;"
+#define OBFH_SF_CALL_AT(target, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,18;.byte 0x68;.long %c[arg_b];.byte 0x68;.long %c[arg_a];call " target ";addl $8,%%esp;"
 #undef OBFH_SF_LOCAL
-#define OBFH_SF_LOCAL ".fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_LOCAL ".fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_CALL
-#define OBFH_SF_CALL(target) ".fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * 0)) & 1),2,0xc085 ^ ((((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (14 + 3 * 0)) & 1) << 12);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * 0)) & 1),1,0x74 | (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (13 + 3 * 0)) & 1);.fill (((%c[__obfh_sf_phantom] ^ %c[__obfh_sf_key_a]) >> (12 + 3 * 0)) & 1),1,18;.byte 0x68;.long %c[__obfh_sf_arg_b];.byte 0x68;.long %c[__obfh_sf_arg_a];call " target ";addl $8,%%esp;"
+#define OBFH_SF_CALL(target) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * 0)) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * 0)) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,18;.byte 0x68;.long %c[arg_b];.byte 0x68;.long %c[arg_a];call " target ";addl $8,%%esp;"
 #undef OBFH_SF_PADDING
-#define OBFH_SF_PADDING ".fill %c[__obfh_sf_pad],1,0x90;"
+#define OBFH_SF_PADDING ".fill %c[pad],1,0x90;"
 #undef OBFH_SF_GAP
-#define OBFH_SF_GAP ".fill %c[__obfh_sf_pad_b],1,0x90;.byte %c[__obfh_sf_noise_a],%c[__obfh_sf_noise_b];"
+#define OBFH_SF_GAP ".fill %c[pad_b],1,0x90;.byte %c[noise_a],%c[noise_b];"
 #undef OBFH_SF_BODY_A
-#define OBFH_SF_BODY_A ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;xorl $%c[__obfh_sf_key_a],%%eax;imull $%c[__obfh_sf_factor],%%eax;addl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;xorl $%c[key_a],%%eax;imull $%c[factor],%%eax;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_B
-#define OBFH_SF_BODY_B ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;addl $%c[__obfh_sf_key_b],%%eax;roll $%c[__obfh_sf_rotate],%%eax;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;addl $%c[key_b],%%eax;roll $%c[rotate],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_C
-#define OBFH_SF_BODY_C ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;leal (%%eax,%%eax,2),%%eax;xorl %%eax,%%edx;addl $%c[__obfh_sf_key_a],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;leal (%%eax,%%eax,2),%%eax;xorl %%eax,%%edx;addl $%c[key_a],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_D
-#define OBFH_SF_BODY_D ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;notl %%eax;addl %%edx,%%eax;imull $%c[__obfh_sf_factor],%%eax;roll $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;notl %%eax;addl %%edx,%%eax;imull $%c[factor],%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_E
-#define OBFH_SF_BODY_E ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;bswap %%eax;xorl %%edx,%%eax;roll $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;bswap %%eax;xorl %%edx,%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_F
-#define OBFH_SF_BODY_F ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[__obfh_sf_loops],%%ecx;6:addl %%edx,%%eax;imull $%c[__obfh_sf_factor],%%eax;xorl $%c[__obfh_sf_key_b],%%eax;decl %%ecx;jnz 6b;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[loops],%%ecx;6:addl %%edx,%%eax;imull $%c[factor],%%eax;xorl $%c[key_b],%%eax;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_G
-#define OBFH_SF_BODY_G ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movzbl %%al,%%ecx;shrl $8,%%eax;xorl %%edx,%%ecx;leal (%%eax,%%ecx,4),%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movzbl %%al,%%ecx;shrl $8,%%eax;xorl %%edx,%%ecx;leal (%%eax,%%ecx,4),%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_H
-#define OBFH_SF_BODY_H ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;imull %%eax,%%edx;xorl $%c[__obfh_sf_key_b],%%edx;subl %%edx,%%eax;negl %%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_H ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;imull %%eax,%%edx;xorl $%c[key_b],%%edx;subl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_I
-#define OBFH_SF_BODY_I ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;orl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_mask],%%ecx;subl %%ecx,%%eax;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_I ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;orl $%c[mask],%%eax;andl $%c[mask],%%ecx;subl %%ecx,%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_J
-#define OBFH_SF_BODY_J ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;xorl $%c[__obfh_sf_key_a],%%eax;movl %%edx,%%ecx;shll $%c[__obfh_sf_rotate],%%ecx;shrl $%c[__obfh_sf_rotate],%%eax;orl %%ecx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_J ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;xorl $%c[key_a],%%eax;movl %%edx,%%ecx;shll $%c[rotate],%%ecx;shrl $%c[rotate],%%eax;orl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_K
-#define OBFH_SF_BODY_K ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;testl %%edx,%%edx;js 6f;addl $%c[__obfh_sf_key_a],%%eax;jmp 7f;6:negl %%eax;xorl %%edx,%%eax;7:roll $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_K ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;testl %%edx,%%edx;js 6f;addl $%c[key_a],%%eax;jmp 7f;6:negl %%eax;xorl %%edx,%%eax;7:roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_L
-#define OBFH_SF_BODY_L ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;movl %%edx,%%eax;addl %%ecx,%%eax;imull $%c[__obfh_sf_factor],%%eax;notl %%edx;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_L ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;movl %%edx,%%eax;addl %%ecx,%%eax;imull $%c[factor],%%eax;notl %%edx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_M
-#define OBFH_SF_BODY_M ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;shrl $16,%%ecx;xorl %%ecx,%%eax;imull $%c[__obfh_sf_factor],%%eax;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_M ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;shrl $16,%%ecx;xorl %%ecx,%%eax;imull $%c[factor],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_N
-#define OBFH_SF_BODY_N ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;addl $%c[__obfh_sf_key_a],%%eax;adcl $%c[__obfh_sf_key_b],%%edx;xorl %%edx,%%eax;rorl $%c[__obfh_sf_rotate],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_N ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;addl $%c[key_a],%%eax;adcl $%c[key_b],%%edx;xorl %%edx,%%eax;rorl $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_O
-#define OBFH_SF_BODY_O ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;xchgl %%eax,%%edx;subl $%c[__obfh_sf_key_a],%%eax;bswap %%edx;addl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_O ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;xchgl %%eax,%%edx;subl $%c[key_a],%%eax;bswap %%edx;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_P
-#define OBFH_SF_BODY_P ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[__obfh_sf_factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_P ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_Q
-#define OBFH_SF_BODY_Q ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movzbl %%al,%%ecx;movzbl %%dl,%%edx;imull %%edx,%%ecx;shrl $8,%%eax;addl %%ecx,%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_Q ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movzbl %%al,%%ecx;movzbl %%dl,%%edx;imull %%edx,%%ecx;shrl $8,%%eax;addl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_R
-#define OBFH_SF_BODY_R ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[__obfh_sf_loops],%%ecx;6:xorl %%edx,%%eax;roll $%c[__obfh_sf_rotate],%%eax;addl $%c[__obfh_sf_key_a],%%edx;decl %%ecx;jnz 6b;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_R ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[loops],%%ecx;6:xorl %%edx,%%eax;roll $%c[rotate],%%eax;addl $%c[key_a],%%edx;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_S
-#define OBFH_SF_BODY_S ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;shldl $%c[__obfh_sf_rotate],%%edx,%%eax;subl $%c[__obfh_sf_key_b],%%eax;xorl $%c[__obfh_sf_mask],%%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_S ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;shldl $%c[rotate],%%edx,%%eax;subl $%c[key_b],%%eax;xorl $%c[mask],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_BODY_T
-#define OBFH_SF_BODY_T ".fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[__obfh_sf_phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;shrl $16,%%eax;shll $16,%%ecx;orl %%ecx,%%eax;xorl %%edx,%%eax;negl %%eax;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_a];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 0),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_b];.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[__obfh_sf_phantom] >> 8) & 1) ^ 1),1,-%c[__obfh_sf_local_a];"
+#define OBFH_SF_BODY_T ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;shrl $16,%%eax;shll $16,%%ecx;orl %%ecx,%%eax;xorl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
 #undef OBFH_SF_GUARD_0
 #define OBFH_SF_GUARD_0 "imull %%eax,%%eax;testl $2,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_1
 #define OBFH_SF_GUARD_1 "leal 1(%%eax),%%edx;imull %%edx,%%eax;testl $1,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_2
-#define OBFH_SF_GUARD_2 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;imull %%eax,%%eax;xorl %%edx,%%eax;testl $1,%%eax;jz 9f;"
+#define OBFH_SF_GUARD_2 ".short 49801+((%c[phantom]>>15)&1)*3586;imull %%eax,%%eax;xorl %%edx,%%eax;testl $1,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_3
-#define OBFH_SF_GUARD_3 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;notl %%edx;addl %%eax,%%edx;cmpl $-1,%%edx;je 9f;"
+#define OBFH_SF_GUARD_3 ".short 49801+((%c[phantom]>>15)&1)*3586;notl %%edx;addl %%eax,%%edx;cmpl $-1,%%edx;je 9f;"
 #undef OBFH_SF_GUARD_4
-#define OBFH_SF_GUARD_4 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;.short 49545+((%c[__obfh_sf_phantom]>>15)&1)*1794;orl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_mask],%%edx;addl %%edx,%%eax;addl $%c[__obfh_sf_mask],%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_4 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;orl $%c[mask],%%eax;andl $%c[mask],%%edx;addl %%edx,%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_5
-#define OBFH_SF_GUARD_5 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;.fill ((%c[__obfh_sf_rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^0));.fill ((%c[__obfh_sf_rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^0))+65536*%c[__obfh_sf_rotate];.fill ((%c[__obfh_sf_rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^1));.fill ((%c[__obfh_sf_rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[__obfh_sf_phantom]>>14)&1)^1))+65536*%c[__obfh_sf_rotate];.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate];.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate];.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_6
-#define OBFH_SF_GUARD_6 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_6 ".short 49801+((%c[phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_7
 #define OBFH_SF_GUARD_7 "leal -1(%%eax),%%edx;imull %%edx,%%eax;testl $1,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_8
-#define OBFH_SF_GUARD_8 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;notl %%edx;xorl $%c[__obfh_sf_key_a],%%eax;xorl $%c[__obfh_sf_key_a],%%edx;xorl %%edx,%%eax;cmpl $-1,%%eax;je 9f;"
+#define OBFH_SF_GUARD_8 ".short 49801+((%c[phantom]>>15)&1)*3586;notl %%edx;xorl $%c[key_a],%%eax;xorl $%c[key_a],%%edx;xorl %%edx,%%eax;cmpl $-1,%%eax;je 9f;"
 #undef OBFH_SF_GUARD_9
-#define OBFH_SF_GUARD_9 "movl %%eax,%%ecx;.short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;xorl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_mask],%%edx;leal (%%eax,%%edx,2),%%eax;addl $%c[__obfh_sf_mask],%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_9 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;xorl $%c[mask],%%eax;andl $%c[mask],%%edx;leal (%%eax,%%edx,2),%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_10
-#define OBFH_SF_GUARD_10 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;negl %%edx;andl %%edx,%%eax;leal -1(%%eax),%%edx;andl %%edx,%%eax;testl %%eax,%%eax;jz 9f;"
+#define OBFH_SF_GUARD_10 ".short 49801+((%c[phantom]>>15)&1)*3586;negl %%edx;andl %%edx,%%eax;leal -1(%%eax),%%edx;andl %%edx,%%eax;testl %%eax,%%eax;jz 9f;"
 #undef OBFH_SF_GUARD_11
-#define OBFH_SF_GUARD_11 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;.short 49545+((%c[__obfh_sf_phantom]>>15)&1)*1794;andl $%c[__obfh_sf_mask],%%eax;andl $%c[__obfh_sf_not_mask],%%edx;imull $%c[__obfh_sf_factor],%%eax;imull $%c[__obfh_sf_factor],%%edx;addl %%edx,%%eax;imull $%c[__obfh_sf_factor],%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_11 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;andl $%c[mask],%%eax;andl $%c[not_mask],%%edx;imull $%c[factor],%%eax;imull $%c[factor],%%edx;addl %%edx,%%eax;imull $%c[factor],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_12
-#define OBFH_SF_GUARD_12 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;addl $%c[__obfh_sf_key_a],%%eax;imull $%c[__obfh_sf_factor],%%eax;imull $%c[__obfh_sf_factor],%%edx;movl $%c[__obfh_sf_key_a],%%ecx;imull $%c[__obfh_sf_factor],%%ecx;addl %%edx,%%ecx;.short 51257+((%c[__obfh_sf_phantom]>>16)&1)*-1792;je 9f;"
+#define OBFH_SF_GUARD_12 ".short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull $%c[factor],%%eax;imull $%c[factor],%%edx;movl $%c[key_a],%%ecx;imull $%c[factor],%%ecx;addl %%edx,%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_13
-#define OBFH_SF_GUARD_13 "movl %%eax,%%ecx;.short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;addl $%c[__obfh_sf_key_a],%%eax;imull %%eax,%%eax;imull %%ecx,%%ecx;subl %%ecx,%%eax;imull $%c[__obfh_sf_key_a],%%edx;addl %%edx,%%edx;subl %%edx,%%eax;movl $%c[__obfh_sf_key_a],%%edx;imull %%edx,%%edx;.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_13 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull %%eax,%%eax;imull %%ecx,%%ecx;subl %%ecx,%%eax;imull $%c[key_a],%%edx;addl %%edx,%%edx;subl %%edx,%%eax;movl $%c[key_a],%%edx;imull %%edx,%%edx;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_14
-#define OBFH_SF_GUARD_14 ".short 49801+((%c[__obfh_sf_phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[__obfh_sf_phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_14 ".short 49801+((%c[phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_ENTRY_ALT
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushl %%ebp;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,3,0x24ac8d;.long %c[" frame "];" body ".fill ((%c[__obfh_sf_phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,3,0x24ac8d;.long %c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_ENTRY
-#define OBFH_SF_ENTRY(label, frame, body) label ":pushl %%ebp;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[__obfh_sf_phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[__obfh_sf_phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];" body ".fill ((%c[__obfh_sf_phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_ENTRY(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_LEAF_ARGS
-#define OBFH_SF_LEAF_ARGS "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;"
+#define OBFH_SF_LEAF_ARGS "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;"
 #undef OBFH_SF_LEAF_ENTER
-#define OBFH_SF_LEAF_ENTER "subl $%c[__obfh_sf_leaf_frame],%%esp;"
+#define OBFH_SF_LEAF_ENTER "subl $%c[leaf_frame],%%esp;"
 #undef OBFH_SF_LEAF_STORE
-#define OBFH_SF_LEAF_STORE "movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);"
+#define OBFH_SF_LEAF_STORE "movl %%eax,%c[leaf_slot](%%esp);"
 #undef OBFH_SF_LEAF_LOAD
-#define OBFH_SF_LEAF_LOAD "movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;"
+#define OBFH_SF_LEAF_LOAD "movl %c[leaf_slot](%%esp),%%ecx;"
 #undef OBFH_SF_LEAF_EXIT
-#define OBFH_SF_LEAF_EXIT "addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_EXIT "addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_ALU_A
-#define OBFH_SF_LEAF_ALU_A ".byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];"
+#define OBFH_SF_LEAF_ALU_A ".byte %c[leaf_alu_a];.long %c[key_a];"
 #undef OBFH_SF_LEAF_ALU_B
-#define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];"
+#define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[leaf_alu_b];.long %c[key_b];"
 #undef OBFH_SF_LEAF_SHIFT
-#define OBFH_SF_LEAF_SHIFT ".byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];"
+#define OBFH_SF_LEAF_SHIFT ".byte 0xc1,%c[leaf_shift],%c[rotate];"
 #undef OBFH_SF_LEAF_A
-#define OBFH_SF_LEAF_A "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];cmpl %%edx,%%eax;jbe 6f;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];leal (%%eax,%%edx,2),%%eax;ret;"
+#define OBFH_SF_LEAF_A "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jbe 6f;.byte 0xc1,%c[leaf_shift],%c[rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];leal (%%eax,%%edx,2),%%eax;ret;"
 #undef OBFH_SF_LEAF_B
-#define OBFH_SF_LEAF_B "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subl $%c[__obfh_sf_leaf_frame],%%esp;movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_B "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xc1,%c[leaf_shift],%c[rotate];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_C
-#define OBFH_SF_LEAF_C "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subl $%c[__obfh_sf_leaf_frame],%%esp;movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);movl %%edx,%%ecx;roll $%c[__obfh_sf_rotate],%%ecx;cmpl %%ecx,%%eax;jge 6f;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];xorl %%ecx,%%eax;jmp 7f;6:.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];addl %%edx,%%eax;7:movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_C "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;cmpl %%ecx,%%eax;jge 6f;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;jmp 7f;6:.byte 0xc1,%c[leaf_shift],%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_D
-#define OBFH_SF_LEAF_D "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;movl $%c[__obfh_sf_loops],%%ecx;6:.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
+#define OBFH_SF_LEAF_D "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movl $%c[loops],%%ecx;6:.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xc1,%c[leaf_shift],%c[rotate];.byte 0x81,%c[leaf_alu_b];.long %c[key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
 #undef OBFH_SF_LEAF_E
-#define OBFH_SF_LEAF_E "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;cmpl $%c[__obfh_sf_key_a],%%eax;jb 6f;bswap %%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];ret;6:movl $%c[__obfh_sf_factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];ret;"
+#define OBFH_SF_LEAF_E "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;cmpl $%c[key_a],%%eax;jb 6f;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte 0xc1,%c[leaf_shift],%c[rotate];ret;"
 #undef OBFH_SF_LEAF_F
-#define OBFH_SF_LEAF_F "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subl $%c[__obfh_sf_leaf_frame],%%esp;movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);subl %%edx,%%eax;negl %%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];adcl %%edx,%%eax;addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_F "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);subl %%edx,%%eax;negl %%eax;.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_G
-#define OBFH_SF_LEAF_G "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];testl $%c[__obfh_sf_mask],%%ecx;jnz 6f;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];ret;6:imull $%c[__obfh_sf_factor],%%eax;.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];xorl %%edx,%%eax;ret;"
+#define OBFH_SF_LEAF_G "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte 0xc1,%c[leaf_shift],%c[rotate];testl $%c[mask],%%ecx;jnz 6f;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:imull $%c[factor],%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_H
-#define OBFH_SF_LEAF_H "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subl $%c[__obfh_sf_leaf_frame],%%esp;movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);movl $%c[__obfh_sf_loops],%%ecx;6:.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];addl %%edx,%%eax;decl %%ecx;jnz 6b;movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_H "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);movl $%c[loops],%%ecx;6:.byte 0xc1,%c[leaf_shift],%c[rotate];addl %%edx,%%eax;decl %%ecx;jnz 6b;movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_I
-#define OBFH_SF_LEAF_I "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;bswap %%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];cmpl %%edx,%%eax;jne 6f;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];ret;6:imull $%c[__obfh_sf_factor],%%eax;subl %%edx,%%eax;ret;"
+#define OBFH_SF_LEAF_I "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jne 6f;.byte 0xc1,%c[leaf_shift],%c[rotate];ret;6:imull $%c[factor],%%eax;subl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_J
-#define OBFH_SF_LEAF_J "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subl $%c[__obfh_sf_leaf_frame],%%esp;movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];testl %%edx,%%edx;js 6f;.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];jmp 7f;6:negl %%eax;7:movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;addl %%ecx,%%eax;addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_J "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.byte 0x81,%c[leaf_alu_b];.long %c[key_b];testl %%edx,%%edx;js 6f;.byte 0xc1,%c[leaf_shift],%c[rotate];jmp 7f;6:negl %%eax;7:movl %c[leaf_slot](%%esp),%%ecx;addl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_K
-#define OBFH_SF_LEAF_K "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;movzbl %%al,%%ecx;shrl $8,%%eax;imull $%c[__obfh_sf_factor],%%ecx;xorl %%ecx,%%eax;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];.byte 0xc1,%c[__obfh_sf_leaf_shift],%c[__obfh_sf_rotate];addl %%edx,%%eax;ret;"
+#define OBFH_SF_LEAF_K "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movzbl %%al,%%ecx;shrl $8,%%eax;imull $%c[factor],%%ecx;xorl %%ecx,%%eax;.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xc1,%c[leaf_shift],%c[rotate];addl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_L
-#define OBFH_SF_LEAF_L "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[__obfh_sf_phantom] & 1),1,0x90;subl $%c[__obfh_sf_leaf_frame],%%esp;movl %%eax,%c[__obfh_sf_leaf_slot](%%esp);cmpl %%edx,%%eax;jbe 6f;.byte %c[__obfh_sf_leaf_alu_a];.long %c[__obfh_sf_key_a];jmp 7f;6:.byte 0x81,%c[__obfh_sf_leaf_alu_b];.long %c[__obfh_sf_key_b];xorl %%edx,%%eax;7:movl %c[__obfh_sf_leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[__obfh_sf_leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_L "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);cmpl %%edx,%%eax;jbe 6f;.byte %c[leaf_alu_a];.long %c[key_a];jmp 7f;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;7:movl %c[leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_ENTRY
 #define OBFH_SF_LEAF_ENTRY(label, body) label ":" body
 
@@ -3501,6 +3501,24 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                                                                  __builtin_choose_expr(__si_f == 2, __obfh_live_input - __obfh_sf_salt, __obfh_live_input ^ __obfh_sf_salt)); \
     __obfh_live_transformed = __builtin_choose_expr(__si_f == 3, OBFH_INPUT_BSWAP(__obfh_live_transformed), \
                                                     (__obfh_live_transformed << __obfh_sf_rotate) | (__obfh_live_transformed >> (32u - __obfh_sf_rotate))); \
+    enum { __obfh_sf_guard = __obfh_sf_variant < 16 ? __obfh_sf_variant / 4 : __obfh_sf_variant < 46 ? 4 + (__obfh_sf_variant - 16) / 6 \
+                                                                          : __obfh_sf_variant < 100  ? (__obfh_sf_variant - 46) / 6 \
+                                                                                                     : 9 + (__obfh_sf_variant - 100) / 6 }; \
+    __obfh_live_expected = __builtin_choose_expr(__obfh_sf_guard == 0u, OBFH_SF_GUARD_0_VALUE(__obfh_live_transformed), \
+                                                 __builtin_choose_expr(__obfh_sf_guard == 1u, OBFH_SF_GUARD_1_VALUE(__obfh_live_transformed), \
+                                                                       __builtin_choose_expr(__obfh_sf_guard == 2u, OBFH_SF_GUARD_2_VALUE(__obfh_live_transformed), \
+                                                                                             __builtin_choose_expr(__obfh_sf_guard == 3u, OBFH_SF_GUARD_3_VALUE(__obfh_live_transformed), \
+                                                                                                                   __builtin_choose_expr(__obfh_sf_guard == 4u, OBFH_SF_GUARD_4_VALUE(__obfh_live_transformed), \
+                                                                                                                                         __builtin_choose_expr(__obfh_sf_guard == 5u, OBFH_SF_GUARD_5_VALUE(__obfh_live_transformed), \
+                                                                                                                                                               __builtin_choose_expr(__obfh_sf_guard == 6u, OBFH_SF_GUARD_6_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                     __builtin_choose_expr(__obfh_sf_guard == 7u, OBFH_SF_GUARD_7_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                                           __builtin_choose_expr(__obfh_sf_guard == 8u, OBFH_SF_GUARD_8_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                                                                 __builtin_choose_expr(__obfh_sf_guard == 9u, OBFH_SF_GUARD_9_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                                                                                       __builtin_choose_expr(__obfh_sf_guard == 10u, OBFH_SF_GUARD_10_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                                                                                                             __builtin_choose_expr(__obfh_sf_guard == 11u, OBFH_SF_GUARD_11_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                                                                                                                                   __builtin_choose_expr(__obfh_sf_guard == 12u, OBFH_SF_GUARD_12_VALUE(__obfh_live_transformed), \
+                                                                                                                                                                                                                                                                                                                         OBFH_SF_GUARD_13_VALUE(__obfh_live_transformed)))))))))))))); \
+    __obfh_live_actual = __obfh_live_input; \
     (void)0
 // Commit outside the layout choice: one expansion and direct memory updates.
 // Each output remains dependent on the live value; no ABI or frame changes.
@@ -3523,8 +3541,6 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                           ({ OBFH_SF_FLOW_COMMIT_ASM(OBFH_SF_FLOW_COMMIT_ALT_TEXT); }), \
                           ({ OBFH_SF_FLOW_COMMIT_ASM(OBFH_SF_FLOW_COMMIT_TEXT); }))
 #define OBFH_SF_FLOW_EMIT(guard, layout) ({ \
-    __obfh_live_expected = guard##_VALUE(__obfh_live_transformed); \
-    __obfh_live_actual = __obfh_live_input; \
     __obfh_asm__(".long %c[i0];.fill 1,%c[il]-4,%c[i1];" guard layout "9: xorl %[li], %%eax;" \
                  : "+a"(__obfh_live_actual) \
                  : [li] "m"(__obfh_live_input), OBFH_SF_INPUTS \
@@ -3533,7 +3549,9 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_PROXY ({ \
     unsigned int __obfh_live_actual, __obfh_live_expected, __obfh_live_input; \
     enum { __obfh_sf_id = __COUNTER__, \
-           __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
+           __obfh_sf_seed = (unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u, \
+           __obfh_sf_mixed = OBFH_MIX_A(__obfh_sf_seed), \
+           __obfh_sf_variant = OBFH_MIX_B(__obfh_sf_mixed) % OBFH_SF_VARIANT_COUNT }; \
     __builtin_choose_expr((__obfh_sf_variant & 3u) == 0u, OBFH_P_CHAIN(__obfh_true_tag), ((void)0)); \
     OBFH_SF_SELECT_PREPARED(__obfh_sf_variant, OBFH_SF_FLOW_EMIT, OBFH_SF_FLOW_PREPARE); \
     OBFH_SF_FLOW_COMMIT; \
@@ -3619,7 +3637,15 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
            __obfh_sel_lea##s = __obfh_address_form##s != 0 && ((__obfh_flow_hash >> ((s) + 19)) & 1u), \
            __obfh_sel_decode##s = __obfh_sel_lea##s ? 0x928du : 0x81u | ((__obfh_address_form##s == 0 ? 0xf2u : (__obfh_address_form##s == 1 ? 0xc2u : 0xeau)) << 8), \
            __obfh_address_disp##s = __obfh_sel_lea##s && __obfh_address_form##s == 2 ? 0u - __obfh_flow_key : __obfh_flow_key, \
-           __obfh_sel_cmov##s = 0x44u + ((__obfh_flow_hash >> ((s) + 20)) & 1u) };
+           __obfh_sel_cmov##s = 0x44u + ((__obfh_flow_hash >> ((s) + 20)) & 1u), \
+           __obfh_address_encode_a##s = __obfh_address_form##s == 0 ? 0xf0 : __obfh_address_form##s == 1 ? 0xe8 \
+                                                                                                         : 0xc0, \
+           __obfh_address_encode_d##s = __obfh_address_form##s == 0 ? 0xf2 : __obfh_address_form##s == 1 ? 0xea \
+                                                                                                         : 0xc2, \
+           __obfh_address_not_a##s = __obfh_address_form##s == 0 && __obfh_sel_order##s, \
+           __obfh_address_not_d##s = __obfh_address_form##s == 0 && !__obfh_sel_order##s, \
+           __obfh_address_key_a##s = __obfh_address_form##s == 0 && __obfh_sel_order##s ? ~__obfh_flow_key : __obfh_flow_key, \
+           __obfh_address_key_d##s = __obfh_address_form##s == 0 && !__obfh_sel_order##s ? ~__obfh_flow_key : __obfh_flow_key };
 // One encoded pair, with matched raw-label inputs. The XOR form complements
 // one register and the immediate: ~(address XOR ~key) == address XOR key.
 // This remains pointer-width arithmetic, including sign extension on x64.
@@ -3631,14 +3657,12 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
           "=d"(__builtin_choose_expr(__obfh_sel_order##shift, zero, one)) \
         : "0"(__builtin_choose_expr(__obfh_sel_order##shift, (ULONG_PTR) && label_true, (ULONG_PTR) && label_false)), \
           "1"(__builtin_choose_expr(__obfh_sel_order##shift, (ULONG_PTR) && label_false, (ULONG_PTR) && label_true)), \
-          [encode_a] "i"(__obfh_address_form##shift == 0 ? 0xf0 : __obfh_address_form##shift == 1 ? 0xe8 \
-                                                                                                  : 0xc0), \
-          [encode_d] "i"(__obfh_address_form##shift == 0 ? 0xf2 : __obfh_address_form##shift == 1 ? 0xea \
-                                                                                                  : 0xc2), \
-          [not_a] "i"(__obfh_address_form##shift == 0 && __obfh_sel_order##shift), \
-          [not_d] "i"(__obfh_address_form##shift == 0 && !__obfh_sel_order##shift), \
-          [key_a] "i"(__obfh_address_form##shift == 0 && __obfh_sel_order##shift ? ~__obfh_flow_key : __obfh_flow_key), \
-          [key_d] "i"(__obfh_address_form##shift == 0 && !__obfh_sel_order##shift ? ~__obfh_flow_key : __obfh_flow_key) \
+          [encode_a] "i"(__obfh_address_encode_a##shift), \
+          [encode_d] "i"(__obfh_address_encode_d##shift), \
+          [not_a] "i"(__obfh_address_not_a##shift), \
+          [not_d] "i"(__obfh_address_not_d##shift), \
+          [key_a] "i"(__obfh_address_key_a##shift), \
+          [key_d] "i"(__obfh_address_key_d##shift) \
         : "cc")
 #define OBFH_P_STRINGIFY_INNER(value) #value
 #define OBFH_P_STRINGIFY(value) OBFH_P_STRINGIFY_INNER(value)
@@ -4075,7 +4099,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
            __c_scale##s##p = (__obfh_k##s##p >> 20) % 3u, \
            __c_value##s##p##0 = OBFH_C_POINT(s) }; \
     OBFH_C_VALUE(s, p, 1, 0) \
-    OBFH_C_VALUE(s, p, 2, 1) OBFH_C_VALUE(s, p, 3, 2) OBFH_C_VALUE(s, p, 4, 3) \
+    OBFH_C_VALUE(s, p, 2, 1) \
+    OBFH_C_VALUE(s, p, 3, 2) OBFH_C_VALUE(s, p, 4, 3) \
         OBFH_C_ENCODING(s, p, 1) OBFH_C_ENCODING(s, p, 2) OBFH_C_ENCODING(s, p, 3) OBFH_C_ENCODING(s, p, 4)
 #define OBFH_C_BAD(s, v) ((v) == __c_value##s##0##4 || (v) == __c_value##s##1##4 || (v) == OBFH_C_POINT(s))
 #define OBFH_C_TARGET(s) \
@@ -4126,8 +4151,9 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     ({ \
         enum { \
             __obfh_flow_site = (site_value), \
-            __obfh_flow_hash = \
-                OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u)), \
+            __obfh_flow_seed = (unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u, \
+            __obfh_flow_mixed = OBFH_MIX_A(__obfh_flow_seed), \
+            __obfh_flow_hash = OBFH_MIX_B(__obfh_flow_mixed), \
             __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u), \
             __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu, \
             __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u, \

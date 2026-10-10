@@ -27,7 +27,8 @@
 #endif
 #define DEFINE_PROXY(index) \
     static int proxy_##index(unsigned int value, unsigned int truth) { \
-        enum { __obfh_flow_hash = 0x6c89d137u }; \
+        enum { __obfh_flow_hash = 0x6c89d137u, \
+               __obfh_sf_variant = index }; \
         unsigned int __obfh_flow_state = value, __obfh_flow_tag = truth ? value : value ^ 0x13579bdfu; \
         ULONG_PTR __obfh_cookie = (ULONG_PTR)&value ^ value; \
         ULONG_PTR before, after; \
