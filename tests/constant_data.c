@@ -18,6 +18,7 @@ enum { data_counter_after = __COUNTER__ };
         if (puts("") < 0) return 6; \
     } while (0)
 int main(void) {
+    OBFH_LOADER;
     if (data_counter_after != data_counter_before + 1) return 7;
     if (_a != 'a' || sizeof(_a) != 1 || sizeof(_s_a) != 2 || _s_a[0] != 'a' || _s_a[1] != 0) return 1;
     if (_b != 'b' || sizeof(_b) != 1 || sizeof(_s_b) != 2 || _s_b[0] != 'b' || _s_b[1] != 0) return 1;

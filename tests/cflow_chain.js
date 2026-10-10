@@ -67,7 +67,7 @@ function unwindFixture() {
             )
             .replace('if(n>=count)return 82;', 'if(node>=16)return 82;')
             .replace(
-                '((NativeFn)((unsigned char *)carriers[n]+11))(123u);',
+                '((NativeFn)carriers[n])(123u,NULL,NULL);',
                 'OBFH_PD_LIVE_NODE(0)(123u, (void *)OBFH_PD_LIVE_NODE(1), (void *)OBFH_PD_LIVE_NODE(node));'
             )
     );

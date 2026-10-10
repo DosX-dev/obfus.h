@@ -52,6 +52,10 @@
 #define __attribute__(...)
 #endif
 
+#if defined(__TINYC__) && __TINYC__ < 928
+#error obfus.h requires TinyCC 0.9.28rc or newer from TinyCC-builder.
+#endif
+
 // Editor detection never substitutes a real TCC build.
 #if defined(__INTELLISENSE__) && !defined(__TINYC__)
 #define OBFH_EDITOR_VIEW 1
@@ -83,6 +87,10 @@
 #include <string.h>
 #include <wchar.h>
 #include <windows.h>
+#endif
+
+#if NO_OBF || OBFH_EDITOR_VIEW
+#define OBFH_LOADER ((void)0)
 #endif
 
 // Lightweight editor interface; runtime protection is defined below.
@@ -350,9 +358,9 @@ static const char *FAKE_DONGLE[] = {"skeydrv.dll", "HASPDOSDRV",
 
 #endif
 
-// TCC encodes custom-section function RVAs relative to .text. Keep code in
-// .text when publishing unwind-backed decoys; protected data stays separate.
-#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+// TCC unwind RVAs are relative to .text. Code also needs executable PE flags.
+// Keep functions in .text on both architectures; protected data stays separate.
+#if defined(__TINYC__) && defined(_WIN32)
 #define OBFH_CODE_SECTION_ATTRIBUTE TEXT_SECTION_ATTRIBUTE
 #define OBFH_DATA_CODE_SECTION_ATTRIBUTE TEXT_SECTION_ATTRIBUTE
 #else
@@ -373,14 +381,110 @@ typedef enum {
     SALT_SHIFT = RND(0xBAD, 0xBEEF)
 } VAR_ADDR_SHIFT;
 
-// Mutate the address as a pointer-width integer, preserving the value type.
+// Pointer-width transport: independently selected reversible stages, separated
+// by volatile storage. Only the recovered address is dereferenced; the value's
+// type, bits and ABI remain unchanged, including aggregate and floating returns.
+#if defined(__x86_64__)
+#define OBFH_RET_WIDTH "q"
+#else
+#define OBFH_RET_WIDTH "l"
+#endif
+
+#define OBFH_RET_MIX(address, key, form, inverse) \
+    __builtin_choose_expr((form) == 0, ({ \
+                              __obfh_asm__("xor" OBFH_RET_WIDTH " %1, %0" \
+                                           : "+&r"(address) \
+                                           : "r"(key) \
+                                           : "cc"); \
+                          }), \
+                          __builtin_choose_expr((form) == 1, ({ \
+                                                    __builtin_choose_expr(inverse, ({ \
+                                                                              __obfh_asm__("sub" OBFH_RET_WIDTH " %1, %0" \
+                                                                                           : "+&r"(address) \
+                                                                                           : "r"(key) \
+                                                                                           : "cc"); \
+                                                                          }), \
+                                                                          ({ \
+                                                                              __obfh_asm__("add" OBFH_RET_WIDTH " %1, %0" \
+                                                                                           : "+&r"(address) \
+                                                                                           : "r"(key) \
+                                                                                           : "cc"); \
+                                                                          })); \
+                                                }), \
+                                                __builtin_choose_expr((form) == 2, ({ \
+                                                                          __builtin_choose_expr(inverse, ({ \
+                                                                                                    __obfh_asm__("add" OBFH_RET_WIDTH " %1, %0" \
+                                                                                                                 : "+&r"(address) \
+                                                                                                                 : "r"(key) \
+                                                                                                                 : "cc"); \
+                                                                                                }), \
+                                                                                                ({ \
+                                                                                                    __obfh_asm__("sub" OBFH_RET_WIDTH " %1, %0" \
+                                                                                                                 : "+&r"(address) \
+                                                                                                                 : "r"(key) \
+                                                                                                                 : "cc"); \
+                                                                                                })); \
+                                                                      }), \
+                                                                      ({ \
+                                                                          __builtin_choose_expr(inverse, ({ \
+                                                                                                    __obfh_asm__("xor" OBFH_RET_WIDTH " %1, %0; neg" OBFH_RET_WIDTH " %0" \
+                                                                                                                 : "+&r"(address) \
+                                                                                                                 : "r"(key) \
+                                                                                                                 : "cc"); \
+                                                                                                }), \
+                                                                                                ({ \
+                                                                                                    __obfh_asm__("neg" OBFH_RET_WIDTH " %0; xor" OBFH_RET_WIDTH " %1, %0" \
+                                                                                                                 : "+&r"(address) \
+                                                                                                                 : "r"(key) \
+                                                                                                                 : "cc"); \
+                                                                                                })); \
+                                                                      }))))
+
+#define OBFH_RET_ROTATE(address, count, right) \
+    __builtin_choose_expr(right, ({ \
+                              __obfh_asm__("ror" OBFH_RET_WIDTH " $%c1, %0" \
+                                           : "+r"(address) \
+                                           : "i"(count) \
+                                           : "cc"); \
+                          }), \
+                          ({ \
+                              __obfh_asm__("rol" OBFH_RET_WIDTH " $%c1, %0" \
+                                           : "+r"(address) \
+                                           : "i"(count) \
+                                           : "cc"); \
+                          }))
+
+// Each stage also chooses whether rotation precedes or follows its key mix.
+#define OBFH_RET_STAGE(address, key, draw, inverse) \
+    ({ \
+        enum { __obfh_ret_rotate_first = (((draw) >> 3) & 1u) ^ (inverse), \
+               __obfh_ret_rotate_right = (((draw) >> 2) & 1u) ^ (inverse), \
+               __obfh_ret_rotate_count = 1u + (((draw) >> 4) % (sizeof(ULONG_PTR) * 8u - 1u)) }; \
+        __builtin_choose_expr(__obfh_ret_rotate_first, ({ \
+                                  OBFH_RET_ROTATE(address, __obfh_ret_rotate_count, __obfh_ret_rotate_right); \
+                                  OBFH_RET_MIX(address, key, (draw)&3u, inverse); \
+                              }), \
+                              ({ \
+                                  OBFH_RET_MIX(address, key, (draw)&3u, inverse); \
+                                  OBFH_RET_ROTATE(address, __obfh_ret_rotate_count, __obfh_ret_rotate_right); \
+                              })); \
+    })
+
 #define RET_BY_VAR(value) \
     { \
-        enum { __obfh_ret_mode = RND(0, 2) }; \
-        volatile ULONG_PTR __obfh_ret_shift = (ULONG_PTR)OBFH_JUNK_WORD; \
-        __obfh_ret_shift ^= (ULONG_PTR)OBFH_JUNK_WORD << (sizeof(ULONG_PTR) == 8 ? 32 : 0); \
-        ULONG_PTR __obfh_ret_address = __builtin_choose_expr(__obfh_ret_mode == 0, (ULONG_PTR) & (value) ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, (ULONG_PTR) & (value) + __obfh_ret_shift, (ULONG_PTR) & (value)-__obfh_ret_shift)); \
-        return *(__typeof__(&(value)))__builtin_choose_expr(__obfh_ret_mode == 0, __obfh_ret_address ^ __obfh_ret_shift, __builtin_choose_expr(__obfh_ret_mode == 1, __obfh_ret_address - __obfh_ret_shift, __obfh_ret_address + __obfh_ret_shift)); \
+        enum { __obfh_ret_first = OBFH_DATA_DRAW(__COUNTER__), \
+               __obfh_ret_second_draw = OBFH_DATA_DRAW(__COUNTER__), \
+               __obfh_ret_second = (__obfh_ret_second_draw & ~3u) | (((__obfh_ret_first & 3u) + 1u + ((__obfh_ret_second_draw >> 8) % 3u)) & 3u) }; \
+        volatile ULONG_PTR __obfh_ret_address_slot; \
+        ULONG_PTR __obfh_ret_key = (ULONG_PTR)&__obfh_ret_address_slot ^ (ULONG_PTR)__obfh_ret_first; \
+        ULONG_PTR __obfh_ret_address = (ULONG_PTR) & (value); \
+        OBFH_RET_STAGE(__obfh_ret_address, __obfh_ret_key, __obfh_ret_first, 0); \
+        OBFH_RET_STAGE(__obfh_ret_address, __obfh_ret_key ^ (ULONG_PTR)(__obfh_ret_second | 1u), __obfh_ret_second, 0); \
+        __obfh_ret_address_slot = __obfh_ret_address; \
+        __obfh_ret_address = __obfh_ret_address_slot; \
+        OBFH_RET_STAGE(__obfh_ret_address, __obfh_ret_key ^ (ULONG_PTR)(__obfh_ret_second | 1u), __obfh_ret_second, 1); \
+        OBFH_RET_STAGE(__obfh_ret_address, __obfh_ret_key, __obfh_ret_first, 1); \
+        return *(__typeof__(&(value)))__obfh_ret_address; \
     }
 
 // Mix separate compile-time draws so the payload is not an affine byte pattern.
@@ -388,13 +492,40 @@ typedef enum {
 #define OBFH_JUNK_WORD ((RND(0, 65535) * 2246822519u) ^ ((unsigned int)RND(0, 65535) << 16) ^ (RND(0, 65535) * 3266489917u))
 #define OBFH_MIX_A(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) * 2246822507u)
 #define OBFH_MIX_B(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 13)) * 3266489909u)
+// Compile-time index forms: 4/6 literal, 1/6 scalar byte, 1/6 protected call.
+// Digits are ready before any name builder; no runtime selection branch.
+static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
+#define OBFH_NAME_INDEX_PICK(index, draw) \
+    __builtin_choose_expr((draw) % 6u < 4u, (index), __builtin_choose_expr((draw) % 6u == 4u, OBFH_NAME_BYTE_##index + ((index) / 10) * 10, obfh_int_proxy(index)))
+#define OBFH_NAME_INDEX(index) OBFH_NAME_INDEX_PICK(index, OBFH_DATA_DRAW(__COUNTER__))
+#define OBFH_NAME_BYTE_0 _0
+#define OBFH_NAME_BYTE_1 _1
+#define OBFH_NAME_BYTE_2 _2
+#define OBFH_NAME_BYTE_3 _3
+#define OBFH_NAME_BYTE_4 _4
+#define OBFH_NAME_BYTE_5 _5
+#define OBFH_NAME_BYTE_6 _6
+#define OBFH_NAME_BYTE_7 _7
+#define OBFH_NAME_BYTE_8 _8
+#define OBFH_NAME_BYTE_9 _9
+#define OBFH_NAME_BYTE_10 _0
+#define OBFH_NAME_BYTE_11 _1
+#define OBFH_NAME_BYTE_12 _2
+#define OBFH_NAME_BYTE_13 _3
+#define OBFH_NAME_BYTE_14 _4
+#define OBFH_NAME_BYTE_15 _5
+#define OBFH_NAME_BYTE_16 _6
+#define OBFH_NAME_BYTE_17 _7
 
 // Select stores at compile time; each use has its own captured parameters.
-#define OBFH_NAME_ORDER(forward, reverse) ({ \
+#define OBFH_NAME_ORDER_FOR(groups, forward, reverse) ({ \
+    OBFH_LOADER_FOR(groups); \
     enum { __obfh_name_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; \
     __builtin_choose_expr(__obfh_name_order, forward, reverse); \
 })
 
+#define OBFH_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER_FOR(OBFH_ALPHA_ALL, forward, reverse)
+#define OBFH_CRT_NAME_ORDER_FOR(groups, forward, reverse) OBFH_NAME_ORDER_FOR(groups, forward, reverse)
 #define OBFH_CRT_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER(forward, reverse)
 
 #define OBFH_DATA_DRAW(salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u)))
@@ -441,38 +572,84 @@ OBFH_STRING_CONST(_s_w, "w");
 OBFH_STRING_CONST(_s_x, "x");
 OBFH_STRING_CONST(_s_y, "y");
 OBFH_STRING_CONST(_s_z, "z");
-OBFH_CHAR_CONST(_a, 'a', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_b, 'b', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_c, 'c', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_d, 'd', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_e, 'e', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_f, 'f', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_g, 'g', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_h, 'h', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_i, 'i', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_j, 'j', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_k, 'k', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_l, 'l', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_m, 'm', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_n, 'n', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_o, 'o', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_p, 'p', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_q, 'q', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_r, 'r', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_s, 's', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_t, 't', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_u, 'u', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_v, 'v', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_w, 'w', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_x, 'x', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_y, 'y', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_z, 'z', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_S, 'S', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_L, 'L', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_A, 'A', DATA_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_I, 'I', OBFH_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_D, 'D', TEXT_SECTION_ATTRIBUTE);
-OBFH_CHAR_CONST(_P, 'P', OBFH_SECTION_ATTRIBUTE);
+// Only name-building letters are lazy. Scalar digits remain available to CFLOW.
+// Each group has one native initializer, independent of the protected call chain.
+#define OBFH_ALPHA_ROL(value, shift) ((((unsigned)(value) << (shift)) | ((unsigned)(value) >> (8u - (shift)))) & 255u)
+#define OBFH_ALPHA_ROR(value, shift) OBFH_ALPHA_ROL(value, 8u - (shift))
+#define OBFH_ALPHA_CONST(name, value, section) \
+    enum { __obfh_alpha_key_##name = (OBFH_DATA_DRAW(value) & 255u) | 1u, \
+           __obfh_alpha_form_##name = (OBFH_DATA_DRAW((value) + 257u) >> 8) % 7u, \
+           __obfh_alpha_shift_##name = 1u + OBFH_DATA_DRAW((value) + 521u) % 7u, \
+           __obfh_alpha_rotate_##name = OBFH_ALPHA_ROL(value, __obfh_alpha_shift_##name) == (value) ? 1u : __obfh_alpha_shift_##name }; \
+    static volatile char name DATA_SECTION_ATTRIBUTE = (char)(unsigned char)(__obfh_alpha_form_##name == 0 ? (value) ^ __obfh_alpha_key_##name : __obfh_alpha_form_##name == 1 ? (value) + __obfh_alpha_key_##name \
+                                                                                                                                             : __obfh_alpha_form_##name == 2   ? (value)-__obfh_alpha_key_##name \
+                                                                                                                                             : __obfh_alpha_form_##name == 3   ? ~(value) \
+                                                                                                                                             : __obfh_alpha_form_##name == 4   ? -(value) \
+                                                                                                                                             : __obfh_alpha_form_##name == 5   ? OBFH_ALPHA_ROR(value, __obfh_alpha_rotate_##name) \
+                                                                                                                                                                               : OBFH_ALPHA_ROL(value, __obfh_alpha_rotate_##name)); \
+    OBFH_DATA_JUNK(name, section)
+// Byte-sized in-place operations keep the one-time loader compact.
+#define OBFH_ALPHA_BYTE(op, name) ({ \
+    __asm__ __volatile__(op " $%c1, %0" \
+                         : "+m"(name) \
+                         : "i"(__obfh_alpha_key_##name) \
+                         : "cc"); \
+})
+#define OBFH_ALPHA_UNARY(op, name) ({ \
+    __asm__ __volatile__(op " %0" \
+                         : "+m"(name)::"cc"); \
+})
+#define OBFH_ALPHA_ROTATE(op, name) ({ \
+    __asm__ __volatile__(op " $%c1, %0" \
+                         : "+m"(name) \
+                         : "i"(__obfh_alpha_rotate_##name) \
+                         : "cc"); \
+})
+// Independent pairs change order without a runtime branch or additional operation.
+#define OBFH_ALPHA_PAIR(first, second) \
+    __builtin_choose_expr(OBFH_DATA_DRAW(__obfh_alpha_key_##first + __obfh_alpha_key_##second) & 1u, \
+                          ({ OBFH_ALPHA_DECODE(first); OBFH_ALPHA_DECODE(second); }), \
+                          ({ OBFH_ALPHA_DECODE(second); OBFH_ALPHA_DECODE(first); }))
+#define OBFH_ALPHA_DECODE(name) \
+    __builtin_choose_expr(__obfh_alpha_form_##name == 0, OBFH_ALPHA_BYTE("xorb", name), \
+                          __builtin_choose_expr(__obfh_alpha_form_##name == 1, OBFH_ALPHA_BYTE("subb", name), \
+                                                __builtin_choose_expr(__obfh_alpha_form_##name == 2, OBFH_ALPHA_BYTE("addb", name), \
+                                                                      __builtin_choose_expr(__obfh_alpha_form_##name == 3, OBFH_ALPHA_UNARY("notb", name), \
+                                                                                            __builtin_choose_expr(__obfh_alpha_form_##name == 4, OBFH_ALPHA_UNARY("negb", name), \
+                                                                                                                  __builtin_choose_expr(__obfh_alpha_form_##name == 5, OBFH_ALPHA_ROTATE("rolb", name), OBFH_ALPHA_ROTATE("rorb", name)))))))
+
+OBFH_ALPHA_CONST(_a, 'a', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_b, 'b', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_c, 'c', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_d, 'd', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_e, 'e', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_f, 'f', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_g, 'g', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_h, 'h', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_i, 'i', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_j, 'j', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_k, 'k', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_l, 'l', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_m, 'm', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_n, 'n', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_o, 'o', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_p, 'p', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_q, 'q', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_r, 'r', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_s, 's', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_t, 't', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_u, 'u', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_v, 'v', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_w, 'w', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_x, 'x', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_y, 'y', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_z, 'z', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_S, 'S', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_L, 'L', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_A, 'A', DATA_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_I, 'I', OBFH_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_D, 'D', TEXT_SECTION_ATTRIBUTE);
+OBFH_ALPHA_CONST(_P, 'P', OBFH_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_0, 0, TEXT_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_1, 1, OBFH_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_2, 2, DATA_SECTION_ATTRIBUTE);
@@ -483,6 +660,80 @@ OBFH_CHAR_CONST(_6, 6, TEXT_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_7, 7, OBFH_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_8, 8, DATA_SECTION_ATTRIBUTE);
 OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
+
+// Aligned x86/x64 loads acquire the published bytes without a locked warm-path read.
+// The memory clobber keeps subsequent letter reads after readiness observation.
+#define OBFH_LOADER_READ(state) ({ \
+    LONG __obfh_alpha_ready; \
+    __asm__ __volatile__("movl %1, %0" \
+                         : "=r"(__obfh_alpha_ready) \
+                         : "m"(state) \
+                         : "memory"); \
+    __obfh_alpha_ready; \
+})
+
+static volatile LONG obfh_alpha_low_state;
+static void obfh_alpha_low_load(void) {
+    if (InterlockedCompareExchange(&obfh_alpha_low_state, 1, 0) == 0) {
+        OBFH_ALPHA_PAIR(_a, _h);
+        OBFH_ALPHA_PAIR(_b, _i);
+        OBFH_ALPHA_PAIR(_c, _j);
+        OBFH_ALPHA_PAIR(_d, _k);
+        OBFH_ALPHA_PAIR(_e, _l);
+        OBFH_ALPHA_PAIR(_f, _m);
+        OBFH_ALPHA_DECODE(_g);
+        InterlockedExchange(&obfh_alpha_low_state, 2);
+    } else {
+        while (OBFH_LOADER_READ(obfh_alpha_low_state) != 2)
+            __asm__ __volatile__("pause" ::
+                                     : "memory");
+    }
+}
+
+static volatile LONG obfh_alpha_high_state;
+static void obfh_alpha_high_load(void) {
+    if (InterlockedCompareExchange(&obfh_alpha_high_state, 1, 0) == 0) {
+        OBFH_ALPHA_PAIR(_n, _u);
+        OBFH_ALPHA_PAIR(_o, _v);
+        OBFH_ALPHA_PAIR(_p, _w);
+        OBFH_ALPHA_PAIR(_q, _x);
+        OBFH_ALPHA_PAIR(_r, _y);
+        OBFH_ALPHA_PAIR(_s, _z);
+        OBFH_ALPHA_DECODE(_t);
+        InterlockedExchange(&obfh_alpha_high_state, 2);
+    } else {
+        while (OBFH_LOADER_READ(obfh_alpha_high_state) != 2)
+            __asm__ __volatile__("pause" ::
+                                     : "memory");
+    }
+}
+
+static volatile LONG obfh_alpha_upper_state;
+static void obfh_alpha_upper_load(void) {
+    if (InterlockedCompareExchange(&obfh_alpha_upper_state, 1, 0) == 0) {
+        OBFH_ALPHA_PAIR(_S, _I);
+        OBFH_ALPHA_PAIR(_L, _D);
+        OBFH_ALPHA_PAIR(_A, _P);
+        InterlockedExchange(&obfh_alpha_upper_state, 2);
+    } else {
+        while (OBFH_LOADER_READ(obfh_alpha_upper_state) != 2)
+            __asm__ __volatile__("pause" ::
+                                     : "memory");
+    }
+}
+
+enum { OBFH_ALPHA_LOW = 1u,
+       OBFH_ALPHA_HIGH = 2u,
+       OBFH_ALPHA_UPPER = 4u,
+       OBFH_ALPHA_ALL = 7u };
+#define OBFH_LOADER_GROUP(state, load) (OBFH_LOADER_READ(state) == 2 ? (void)0 : (load)())
+#define OBFH_LOADER_FOR(groups) ({ \
+    __builtin_choose_expr(!!((groups)&OBFH_ALPHA_LOW), OBFH_LOADER_GROUP(obfh_alpha_low_state, obfh_alpha_low_load), (void)0); \
+    __builtin_choose_expr(!!((groups)&OBFH_ALPHA_HIGH), OBFH_LOADER_GROUP(obfh_alpha_high_state, obfh_alpha_high_load), (void)0); \
+    __builtin_choose_expr(!!((groups)&OBFH_ALPHA_UPPER), OBFH_LOADER_GROUP(obfh_alpha_upper_state, obfh_alpha_upper_load), (void)0); \
+    (void)0; \
+})
+#define OBFH_LOADER OBFH_LOADER_FOR(OBFH_ALPHA_ALL)
 
 #if defined(__TINYC__)
 #define __obfh_asm__(...) asm(__VA_ARGS__)
@@ -496,7 +747,7 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 #define PHANTOM_NOP \
     ({ \
         enum { __obfh_phantom_site = __LINE__ }; \
-        __obfh_asm__(".fill %c0, 1, 0x90;" \
+        __obfh_asm__(".fill %c0, 1,((( 0x90)&0xffffffff)^0x80000000)-0x80000000;" \
                      : \
                      : "i"(OBFH_PHANTOM_DRAW(__obfh_phantom_site) & 1u)); \
     })
@@ -506,8 +757,8 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 // ============================================================================
 
 // Static PE unwind-backed decoys. TCC alone supplies the RVA relocations.
-// Its function-table range begins after the carrier's 11-byte prologue;
-// an independent native entry there matches its PUSH_RBP / SET_FPREG info.
+// TCC 0.9.28rc records the actual C entry. Let it allocate the native frame;
+// the ASM body uses a Windows-recognized epilogue matching that unwind info.
 #if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
 #define OBFH_PD_MIX_A(value) ((((value) ^ ((value) >> 16)) * 2246822519u) & 0xffffffffu)
 #define OBFH_PD_MIX_B(value) ((((value) ^ ((value) >> 13)) * 3266489917u) & 0xffffffffu)
@@ -536,11 +787,11 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 #define OBFH_PD_BODY_15 "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; xorl %[key], %%eax; addl %[key2], %%eax;"
 #define OBFH_PD_ASM(body) \
     __obfh_asm__( \
-        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame]; " \
+        "" \
         "movl %%ecx, %%eax; movl %%eax, -%c[slot](%%rbp); " body \
-        ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;" \
+        ".fill %c[phantom], 1,((( 0x90)&0xffffffff)^0x80000000)-0x80000000; .byte 0x48, 0x8d, 0x65, 0, 0x5d, 0xc3;" \
         : \
-        : [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot), \
+        : [scratch] "m"(__obfh_pd_scratch), [frame] "i"(__obfh_pd_frame), [slot] "i"(__obfh_pd_slot), \
           [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), [mul] "i"(__obfh_pd_mul), \
           [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops), \
           [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u) \
@@ -579,15 +830,15 @@ enum {
 #define OBFH_PD_LIVE_PRE_7 OBFH_PD_BODY_10
 #define OBFH_PD_LIVE_ASM(pre) \
     __obfh_asm__( \
-        "pushq %%rbp; movq %%rsp, %%rbp; .byte 0x48, 0x81, 0xec; .long %c[frame];" \
+        "" \
         "movq %%rdx, -8(%%rbp); movq %%r8, -16(%%rbp); movl %%ecx, %%eax;" pre \
         "cmpq $0, -8(%%rbp); je 1f; movl %%eax, %%ecx; movq -16(%%rbp), %%rdx;" \
         "xorl %%r8d, %%r8d; call *-8(%%rbp); 1:" \
         "testl $1, %%eax; jz 2f; xorl %[even_key], %%eax; imull %[mul], %%eax; addl %[even_add], %%eax; jmp 3f;" \
         "2: imull %[mul], %%eax; addl %[even_add], %%eax; xorl %[even_key], %%eax; 3:" \
-        ".fill %c[phantom], 1, 0x90; .byte 0x48, 0x81, 0xc4; .long %c[frame]; popq %%rbp; ret;" \
+        ".fill %c[phantom], 1,((( 0x90)&0xffffffff)^0x80000000)-0x80000000; .byte 0x48, 0x8d, 0x65, 0, 0x5d, 0xc3;" \
         : \
-        : [frame] "i"(__obfh_pd_frame), [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), \
+        : [scratch] "m"(__obfh_pd_scratch), [frame] "i"(__obfh_pd_frame), [key] "i"(__obfh_pd_key), [key2] "i"(__obfh_pd_key2), \
           [mul] "i"(__obfh_pd_mul), [rotate] "i"(__obfh_pd_rotate), \
           [even_key] "i"(__obfh_pd_key2 & ~1u), [even_add] "i"(__obfh_pd_key & ~1u), \
           [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u) \
@@ -601,8 +852,8 @@ enum {
                                                 __builtin_choose_expr((kind) == 4u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_4); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_5); })), \
                                                 __builtin_choose_expr((kind) == 6u, ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_6); }), ({ OBFH_PD_LIVE_ASM(OBFH_PD_LIVE_PRE_7); }))))
 #define OBFH_PD_DEFINE(site) \
-    static void __obfh_pdata_decoy_##site(void) __attribute__((noinline, used)); \
-    static void __obfh_pdata_decoy_##site(void) { \
+    static unsigned int __obfh_pdata_decoy_##site(unsigned int __input, void *__child, void *__context) __attribute__((noinline, used)); \
+    static unsigned int __obfh_pdata_decoy_##site(unsigned int __input, void *__child, void *__context) { \
         enum { \
             __obfh_pd_kind = OBFH_PD_DRAW(site, 1u) & 15u, \
             __obfh_pd_frame = 48u + 16u * (OBFH_PD_DRAW(site, 2u) % 14u), \
@@ -613,6 +864,7 @@ enum {
             __obfh_pd_rotate = 1u + (OBFH_PD_DRAW(site, 7u) % 31u), \
             __obfh_pd_loops = 2u + (OBFH_PD_DRAW(site, 8u) % 6u) \
         }; \
+        unsigned char __obfh_pd_scratch[__obfh_pd_frame]; \
         __builtin_choose_expr(OBFH_PD_LIVE_INDEX(site) < 16u && OBFH_PD_LIVE_ENABLED, OBFH_PD_LIVE_SELECT(__obfh_pd_kind & 7u), \
                               __builtin_choose_expr(__obfh_pd_kind < 8u, \
                                                     __builtin_choose_expr(__obfh_pd_kind < 4u, \
@@ -873,9 +1125,9 @@ OBFH_PD_DEFINE(127);
                                           : OBFH_CFLOW_CLOBBERS)
 
 // Payload lengths stay fixed; word-sized fill and opcode choices reuse existing immediate draws.
-#define OBFH_JUNK_PAYLOAD ".byte %c2, %c3, %c4, %c5; .long %c6; .fill %c0, 1, %c1;"
-#define OBFH_STACK_JUNK_PAYLOAD ".byte %c3, %c4, %c5, %c6; .long %c7; .fill %c1, 1, %c2;"
-#define OBFH_CFLOW_FILL ".fill (%c1 >> 2), 4, %c3; .fill (%c1 & 3), 1, %c2;"
+#define OBFH_JUNK_PAYLOAD ".byte %c2, %c3, %c4, %c5; .long %c6; .fill %c0, 1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;"
+#define OBFH_STACK_JUNK_PAYLOAD ".byte %c3, %c4, %c5, %c6; .long %c7; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;"
+#define OBFH_CFLOW_FILL ".fill (%c1 >> 2), 4,((( %c3)&0xffffffff)^0x80000000)-0x80000000; .fill (%c1 & 3), 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_CFLOW_PAYLOAD_CALL ".byte (0xE8 + (%c3 & 1)); " OBFH_CFLOW_FILL
 #define OBFH_CFLOW_PAYLOAD_INDIRECT ".byte 0xFF, (0x15 + ((%c3 >> 4) & 1) * 16); .long %c3; " OBFH_CFLOW_FILL
 #define OBFH_CFLOW_PAYLOAD_MOV ".byte (0x48 + ((%c3 >> 8) & 1)), (0xB8 + ((%c3 >> 9) & 7)); .long %c3; .long %c3; " OBFH_CFLOW_FILL
@@ -934,28 +1186,28 @@ OBFH_PD_DEFINE(127);
 // Zeroing forms require dead incoming flags. MOV preserves them; XOR/SUB do not.
 // Supported register indices are the existing EAX/ECX/EDX primitive roles.
 #define OBFH_ASM_ZERO32(index, form) \
-    ".fill ((" form "!=2)&1),2,0xc031+2304*" index "-8*((" form "==1)&1);" \
-    ".fill ((" form "==2)&1),1,0xb8+" index ";.fill ((" form "==2)&1),4,0;"
+    ".fill ((" form "!=2)&1),2,(((0xc031+2304*" index "-8*((" form "==1)&1))&0xffffffff)^0x80000000)-0x80000000;" \
+    ".fill ((" form "==2)&1),1,(((0xb8+" index ")&0xffffffff)^0x80000000)-0x80000000;.fill ((" form "==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_ASM_MOV32(dst, src, key, bit) \
     ".short 0x89+256*(0xc0+8*" src "+" dst ")+((" key ">>" bit ")&1)*(2+1792*(" dst "-" src "));"
 // Only equality consumers may reverse the operands: other CMP flags differ.
 #define OBFH_ASM_EQ32(dst, src, key, bit) \
     ".short 0x39+256*(0xc0+8*" src "+" dst ")+((" key ">>" bit ")&1)*1792*(" dst "-" src ");"
 #define OBFH_ASM_XOR32(index, value, enabled) \
-    ".fill " enabled ",1,0x35+76*((" index "!=0)&1);.fill (" enabled ")*((" index "!=0)&1),1,0xf0+" index ";.fill " enabled ",4," value ";"
+    ".fill " enabled ",1,(((0x35+76*((" index "!=0)&1))&0xffffffff)^0x80000000)-0x80000000;.fill (" enabled ")*((" index "!=0)&1),1,(((0xf0+" index ")&0xffffffff)^0x80000000)-0x80000000;.fill " enabled ",4,(((" value ")&0xffffffff)^0x80000000)-0x80000000;"
 // Keep the two-byte rotate-by-one spelling; all other input rotates stay three bytes.
 #define OBFH_ASM_INPUT_ROTATE(index, rotate, key) \
-    ".fill ((" rotate "==1)&1),2,0xc0d1+256*" index ";" \
-    ".fill ((" rotate "!=1)&1),3,0xc1+256*(0xc0+" index "+8*((" key ">>13)&1))+65536*(" rotate "+((" key ">>13)&1)*(32-2*" rotate "));"
+    ".fill ((" rotate "==1)&1),2,(((0xc0d1+256*" index ")&0xffffffff)^0x80000000)-0x80000000;" \
+    ".fill ((" rotate "!=1)&1),3,(((0xc1+256*(0xc0+" index "+8*((" key ">>13)&1))+65536*(" rotate "+((" key ">>13)&1)*(32-2*" rotate ")))&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_ASM_XOR_ROTATE(index, salt, rotate, key) \
     OBFH_ASM_XOR32(index, salt, "((" key ">>12)&1)^1") \
     OBFH_ASM_INPUT_ROTATE(index, rotate, key) \
     OBFH_ASM_XOR32(index, "((" salt "<<" rotate ")|(" salt ">>(32-" rotate ")))", "((" key ">>12)&1)")
 #define OBFH_ASM_ROTATE_PAIR(index, rotate, key, flip) \
-    ".fill ((" rotate "==1)&1),2,0xd1+256*(0xc0+" index "+8*(((" key ">>14)&1)^" flip "));" \
-    ".fill ((" rotate "!=1)&1),3,0xc1+256*(0xc0+" index "+8*(((" key ">>14)&1)^" flip "))+65536*" rotate ";"
+    ".fill ((" rotate "==1)&1),2,(((0xd1+256*(0xc0+" index "+8*(((" key ">>14)&1)^" flip ")))&0xffffffff)^0x80000000)-0x80000000;" \
+    ".fill ((" rotate "!=1)&1),3,(((0xc1+256*(0xc0+" index "+8*(((" key ">>14)&1)^" flip "))+65536*" rotate ")&0xffffffff)^0x80000000)-0x80000000;"
 // END SHORT ASM FORMS
-#define OBFH_CFLOW_INPUT(reg, index) ".short 0xe089+256*" index "+((%c[junk_key]>>5)&1)*(1792*" index "-7166);.long %c[i" index "a];.fill 1,4-((" index "==0)&1)*(8-%c[il]),%c[i" index "b];.fill ((" index "!=0)&1)*(%c[il]-7),1,%c[it];"
+#define OBFH_CFLOW_INPUT(reg, index) ".short 0xe089+256*" index "+((%c[junk_key]>>5)&1)*(1792*" index "-7166);.long %c[i" index "a];.fill 1,4-((" index "==0)&1)*(8-%c[il]),(((%c[i" index "b])&0xffffffff)^0x80000000)-0x80000000;.fill ((" index "!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_CFLOW_DATA ".byte %c4, %c5, %c6, %c7; .long %c8;" OBFH_CFLOW_FILL
 #define OBFH_CFLOW_DATA_CALL ".byte (0xE8 + ((%c3 >> 15) & 1)); .long %c3;" OBFH_CFLOW_DATA
 #define OBFH_CFLOW_DATA_STACK ".byte 0x48, 0xBC; .long %c8; .long %c3; .byte 0xFF, 0xE4;" OBFH_CFLOW_DATA
@@ -1212,52 +1464,52 @@ OBFH_PD_DEFINE(127);
     OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP " 2:")
 
 #define OBFH_CFLOW_TEMPLATE_32 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_33 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $2, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $2, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_34 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_35 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $1, %%eax; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $1, %%eax; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_36 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_37 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $1, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_38 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $7, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $7, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") " testl $7, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $7, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_39 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") " testl $3, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $3, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl %0, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") " testl $3, %%edx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $3, %%edx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_40 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") " testl $14, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $14, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") " testl $14, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $14, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_41 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_42 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%ecx; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") " testl $1, %%ecx; jnz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%ecx; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_43 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $1, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl %0, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") " testl $1, %%ecx; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $1, %%ecx; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_44 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_45 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_46 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") " testl $1, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV " 1: testl $1, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_47 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $2, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1, %c2; 2:")
+    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl %0, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") " testl $2, %%eax; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP " 1: testl $2, %%eax; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill %c1, 1,((( %c2)&0xffffffff)^0x80000000)-0x80000000; 2:")
 
 #define OBFH_CFLOW_TEMPLATE_48 \
     OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") " testl $1, %%eax; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL " 2: testl $1, %%eax; jz 3f; .byte 0xFF, 0x25; .long %c3; 3:")
@@ -1762,7 +2014,7 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]")
 #define OBFH_SF_FRAME_ALT(size) \
     "pushq %%rbp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8148") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
-        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24a48d48") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 4, 0x24ac8d48; .long %c[" size "];"
+        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24a48d48") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 4,((( 0x24ac8d48)&0xffffffff)^0x80000000)-0x80000000; .long %c[" size "];"
 #define OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_BYTES("7", "0", "3", "0xec8948") \
     OBFH_SF_BYTES("7", "1", "4", "0x00658d48") \
@@ -1809,7 +2061,7 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]")
 #define OBFH_SF_FRAME_ALT(size) \
     "pushl %%ebp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec81") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "0", "%c[" size "]") \
-        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24a48d") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 3, 0x24ac8d; .long %c[" size "];"
+        OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24a48d") OBFH_SF_WORD("(4 + ((%c[" size "] >> 4) & 3))", "1", "-%c[" size "]") ".fill 1, 3,((( 0x24ac8d)&0xffffffff)^0x80000000)-0x80000000; .long %c[" size "];"
 #define OBFH_SF_EPILOGUE_ALT \
     OBFH_SF_BYTES("7", "0", "2", "0xec89") \
     OBFH_SF_BYTES("7", "1", "3", "0x00658d") \
@@ -2507,7 +2759,7 @@ OBFH_PD_DEFINE(127);
 #undef OBFH_SF_FRAME
 #define OBFH_SF_FRAME(size) "pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];"
 #undef OBFH_SF_FRAME_ALT
-#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,4,0x24ac8d48;.long %c[" size "];"
+#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,4,((( 0x24ac8d48)&0xffffffff)^0x80000000)-0x80000000;.long %c[" size "];"
 #undef OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_EPILOGUE_ALT ".fill (((%c[phantom] >> 7) & 1) ^ 0),3,0xec8948;.fill (((%c[phantom] >> 7) & 1) ^ 1),4,0x00658d48;popq %%rbp;ret;"
 #undef OBFH_SF_EPILOGUE
@@ -2577,7 +2829,7 @@ OBFH_PD_DEFINE(127);
 #undef OBFH_SF_GUARD_4
 #define OBFH_SF_GUARD_4 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;orl $%c[mask],%%eax;andl $%c[mask],%%edx;addl %%edx,%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_5
-#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate];.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate];.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_6
 #define OBFH_SF_GUARD_6 ".short 49801+((%c[phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_7
@@ -2597,7 +2849,7 @@ OBFH_PD_DEFINE(127);
 #undef OBFH_SF_GUARD_14
 #define OBFH_SF_GUARD_14 ".short 49801+((%c[phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_ENTRY_ALT
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,4,0x24ac8d48;.long %c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,4,((( 0x24ac8d48)&0xffffffff)^0x80000000)-0x80000000;.long %c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_ENTRY
 #define OBFH_SF_ENTRY(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8148;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24a48d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_LEAF_ARGS
@@ -2659,7 +2911,7 @@ OBFH_PD_DEFINE(127);
 #undef OBFH_SF_FRAME
 #define OBFH_SF_FRAME(size) "pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];"
 #undef OBFH_SF_FRAME_ALT
-#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,3,0x24ac8d;.long %c[" size "];"
+#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),4,%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,-%c[" size "];.fill 1,3,((( 0x24ac8d)&0xffffffff)^0x80000000)-0x80000000;.long %c[" size "];"
 #undef OBFH_SF_EPILOGUE_ALT
 #define OBFH_SF_EPILOGUE_ALT ".fill (((%c[phantom] >> 7) & 1) ^ 0),2,0xec89;.fill (((%c[phantom] >> 7) & 1) ^ 1),3,0x00658d;popl %%ebp;ret;"
 #undef OBFH_SF_EPILOGUE
@@ -2727,7 +2979,7 @@ OBFH_PD_DEFINE(127);
 #undef OBFH_SF_GUARD_4
 #define OBFH_SF_GUARD_4 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;orl $%c[mask],%%eax;andl $%c[mask],%%edx;addl %%edx,%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
 #undef OBFH_SF_GUARD_5
-#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate];.fill ((%c[rotate]==1)&1),2,0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1));.fill ((%c[rotate]!=1)&1),3,0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate];.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
+#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_6
 #define OBFH_SF_GUARD_6 ".short 49801+((%c[phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_GUARD_7
@@ -2747,7 +2999,7 @@ OBFH_PD_DEFINE(127);
 #undef OBFH_SF_GUARD_14
 #define OBFH_SF_GUARD_14 ".short 49801+((%c[phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
 #undef OBFH_SF_ENTRY_ALT
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,3,0x24ac8d;.long %c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];.fill 1,3,((( 0x24ac8d)&0xffffffff)^0x80000000)-0x80000000;.long %c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_ENTRY
 #define OBFH_SF_ENTRY(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec81;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),4,%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24a48d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,-%c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
 #undef OBFH_SF_LEAF_ARGS
@@ -2798,7 +3050,7 @@ OBFH_PD_DEFINE(127);
 
 // Shared source parameters stay local to each insertion; all guards/layouts remain.
 #define OBFH_SF_EMIT(guard, layout) \
-    __obfh_asm__(OBFH_SF_INPUT ".long %c[i0];.fill 1,%c[il]-4,%c[i1];" guard layout "9:" \
+    __obfh_asm__(OBFH_SF_INPUT ".long %c[i0];.fill 1,%c[il]-4,(((%c[i1])&0xffffffff)^0x80000000)-0x80000000;" guard layout "9:" \
                  : \
                  : OBFH_SF_INPUTS \
                  : "eax", "edx", "ecx", "cc", "memory")
@@ -3151,9 +3403,9 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key);
 static void *malloc_proxy(size_t size) {
     OBFH_CRT_PROXY_ENTER;
     char name[7];
-    OBFH_NAME_ORDER(
-        (name[0] = _m, name[1] = _a, name[2] = _l, name[3] = _l, name[4] = _o, name[5] = _c, name[6] = _0),
-        (name[6] = _0, name[5] = _c, name[4] = _o, name[3] = _l, name[2] = _l, name[1] = _a, name[0] = _m));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _m, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _c, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _c, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(0)] = _m));
     PHANTOM_NOP;
     void *result = OBFH_CRT_TARGET(void *(*)(size_t), name)(size);
     STACK_PROXY_FUNCTIONS;
@@ -3164,7 +3416,7 @@ static void *malloc_proxy(size_t size) {
 static float rndValueToProxy = RND(0, 10);
 
 static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE {
-    BREAK_STACK_CFLOW;
+    // Keep index calls small; the value still uses protected return transport.
     PHANTOM_NOP;
     RET_BY_VAR(value);
 }
@@ -3366,7 +3618,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #define OBFH_FLOW_DEAD_BYTES \
     ({ \
         enum { __obfh_dead_kind = OBFH_JUNK_BYTE & 7u }; \
-        __obfh_asm__(".byte %c0, %c1, %c2, %c3; .long %c4; .fill %c5, 1, %c6;" \
+        __obfh_asm__(".byte %c0, %c1, %c2, %c3; .long %c4; .fill %c5, 1,((( %c6)&0xffffffff)^0x80000000)-0x80000000;" \
                      : \
                      : "i"(OBFH_FLOW_OPCODE(__obfh_dead_kind)), \
                        "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), "i"(OBFH_JUNK_BYTE), \
@@ -3409,7 +3661,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
 // The third argument becomes the next node's second argument; NULL ends a ladder.
 typedef unsigned int (*OBFH_PD_LIVE_FN)(unsigned int, void *, void *);
-#define OBFH_PD_LIVE_ADDRESS(site) ((OBFH_PD_LIVE_FN)((unsigned char *)__obfh_pdata_decoy_##site + 11))
+#define OBFH_PD_LIVE_ADDRESS(site) ((OBFH_PD_LIVE_FN)__obfh_pdata_decoy_##site)
 static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     OBFH_PD_LIVE_ADDRESS(0), OBFH_PD_LIVE_ADDRESS(1), OBFH_PD_LIVE_ADDRESS(2), OBFH_PD_LIVE_ADDRESS(3),
     OBFH_PD_LIVE_ADDRESS(4), OBFH_PD_LIVE_ADDRESS(5), OBFH_PD_LIVE_ADDRESS(6), OBFH_PD_LIVE_ADDRESS(7),
@@ -3541,7 +3793,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                           ({ OBFH_SF_FLOW_COMMIT_ASM(OBFH_SF_FLOW_COMMIT_ALT_TEXT); }), \
                           ({ OBFH_SF_FLOW_COMMIT_ASM(OBFH_SF_FLOW_COMMIT_TEXT); }))
 #define OBFH_SF_FLOW_EMIT(guard, layout) ({ \
-    __obfh_asm__(".long %c[i0];.fill 1,%c[il]-4,%c[i1];" guard layout "9: xorl %[li], %%eax;" \
+    __obfh_asm__(".long %c[i0];.fill 1,%c[il]-4,(((%c[i1])&0xffffffff)^0x80000000)-0x80000000;" guard layout "9: xorl %[li], %%eax;" \
                  : "+a"(__obfh_live_actual) \
                  : [li] "m"(__obfh_live_input), OBFH_SF_INPUTS \
                  : "edx", "ecx", "cc", "memory"); \
@@ -3580,11 +3832,11 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_ADDRESS_NOT_D 0xd2f748
 #define OBFH_P_ADDRESS_PREFIX ".byte 0x48;"
 #define OBFH_P_MASK_CAPTURE_0 \
-    "movq %[cookie], %%rcx; .fill (%c[carry]^1),3,0xc8c148+65536*%c[maskreg]; .fill (%c[carry]^1),1,%c[rotate]; " \
-    ".fill %c[carry],4,0xe0ba0f48+16777216*%c[maskreg]; .fill %c[carry],1,%c[bit]; sbbq %%rcx, %%rcx;"
+    "movq %[cookie], %%rcx; .fill (%c[carry]^1),3,(((0xc8c148+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[carry],4,(((0xe0ba0f48+16777216*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbq %%rcx, %%rcx;"
 #define OBFH_P_MASK_CAPTURE_1 \
-    "movq %[cookie], %%rdx; .fill (%c[carry]^1),3,0xc8c148+65536*%c[maskreg]; .fill (%c[carry]^1),1,%c[rotate]; " \
-    ".fill %c[carry],4,0xe0ba0f48+16777216*%c[maskreg]; .fill %c[carry],1,%c[bit]; sbbq %%rdx, %%rdx;"
+    "movq %[cookie], %%rdx; .fill (%c[carry]^1),3,(((0xc8c148+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[carry],4,(((0xe0ba0f48+16777216*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbq %%rdx, %%rdx;"
 #define OBFH_P_WORD "q"
 #define OBFH_P_CX "%%rcx"
 #define OBFH_P_DX "%%rdx"
@@ -3604,11 +3856,11 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_ADDRESS_NOT_D 0xd2f7
 #define OBFH_P_ADDRESS_PREFIX ""
 #define OBFH_P_MASK_CAPTURE_0 \
-    "movl %[cookie], %%ecx; .fill (%c[carry]^1),2,0xc8c1+256*%c[maskreg]; .fill (%c[carry]^1),1,%c[rotate]; " \
-    ".fill %c[carry],3,0xe0ba0f+65536*%c[maskreg]; .fill %c[carry],1,%c[bit]; sbbl %%ecx, %%ecx;"
+    "movl %[cookie], %%ecx; .fill (%c[carry]^1),2,(((0xc8c1+256*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[carry],3,(((0xe0ba0f+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbl %%ecx, %%ecx;"
 #define OBFH_P_MASK_CAPTURE_1 \
-    "movl %[cookie], %%edx; .fill (%c[carry]^1),2,0xc8c1+256*%c[maskreg]; .fill (%c[carry]^1),1,%c[rotate]; " \
-    ".fill %c[carry],3,0xe0ba0f+65536*%c[maskreg]; .fill %c[carry],1,%c[bit]; sbbl %%edx, %%edx;"
+    "movl %[cookie], %%edx; .fill (%c[carry]^1),2,(((0xc8c1+256*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[carry],3,(((0xe0ba0f+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbl %%edx, %%edx;"
 #define OBFH_P_WORD "l"
 #define OBFH_P_CX "%%ecx"
 #define OBFH_P_DX "%%edx"
@@ -3651,8 +3903,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // This remains pointer-width arithmetic, including sign extension on x64.
 #define OBFH_P_ADDRESS_PAIR(shift, label_false, label_true, zero, one) \
     __obfh_asm__( \
-        ".fill %c[not_a]," OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_WIDTH) "," OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_A) "; " OBFH_P_ADDRESS_PREFIX ".byte 0x81; .byte %c[encode_a]; .long %c[key_a]; " OBFH_P_ADDRESS_PREFIX ".byte 0x81; .byte %c[encode_d]; .long %c[key_d]; " \
-                                                                                                                 ".fill %c[not_d]," OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_WIDTH) "," OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_D) "; " \
+        ".fill %c[not_a]," OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_WIDTH) ",(((" OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_A) ")&0xffffffff)^0x80000000)-0x80000000; " OBFH_P_ADDRESS_PREFIX ".byte 0x81; .byte %c[encode_a]; .long %c[key_a]; " OBFH_P_ADDRESS_PREFIX ".byte 0x81; .byte %c[encode_d]; .long %c[key_d]; " \
+                                                                                                                    ".fill %c[not_d]," OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_WIDTH) ",(((" OBFH_P_STRINGIFY(OBFH_P_ADDRESS_NOT_D) ")&0xffffffff)^0x80000000)-0x80000000; " \
         : "=a"(__builtin_choose_expr(__obfh_sel_order##shift, one, zero)), \
           "=d"(__builtin_choose_expr(__obfh_sel_order##shift, zero, one)) \
         : "0"(__builtin_choose_expr(__obfh_sel_order##shift, (ULONG_PTR) && label_true, (ULONG_PTR) && label_false)), \
@@ -3674,8 +3926,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX \
     "; " \
     "cmpl %[tag], %%eax; " \
-    ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH "," OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg]; " \
-    ".fill %c[branch],2,(0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH "; .fill %c[branch]," OBFH_P_COPY_WIDTH "," OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
+    ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH ",(((" OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH ")&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch]," OBFH_P_COPY_WIDTH ",(((" OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 // Arithmetic blending produces the same ordered candidate pair modulo pointer width.
 // Consume the mask before reusing its register for the complementary candidate.
 #define OBFH_P_MASK_ARITH_TEXT \
@@ -3684,8 +3936,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     "mov" OBFH_P_WORD " %[one], " OBFH_P_CX "; " \
     "sub" OBFH_P_WORD " %[target], " OBFH_P_CX "; add" OBFH_P_WORD " %[zero], %[target]; " \
     "cmpl %%eax, %[tag]; " \
-    ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH "," OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg]; " \
-    ".fill %c[branch],2,(0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH "; .fill %c[branch]," OBFH_P_COPY_WIDTH "," OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
+    ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH ",(((" OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH ")&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch]," OBFH_P_COPY_WIDTH ",(((" OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 #define OBFH_P_MASK_ALT_TEXT \
     "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD \
     " %[one], %[target]; " \
@@ -3694,48 +3946,48 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     "xor" OBFH_P_WORD " %[one], " OBFH_P_CX "; xor" OBFH_P_WORD " %[zero], %[target]" \
     "; " \
     "cmpl %%eax, %[tag]; " \
-    ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH "," OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg]; " \
-    ".fill %c[branch],2,(0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH "; .fill %c[branch]," OBFH_P_COPY_WIDTH "," OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
+    ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH ",(((" OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH ")&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch]," OBFH_P_COPY_WIDTH ",(((" OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 // Select the index before obtaining the table base. EDX holds the index,
 // ECX becomes the base afterwards; no fourth register or callee-save push is needed.
 #define OBFH_P_TABLE_TEXT \
-    "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
-    "movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,0xc1ff; .fill (%c[parity]^1),3,0x01e183; cmpl %[tag], %%eax; " \
-    ".fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*0xd1; " \
-    ".fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*0xca; " \
+    "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; " \
+    "movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,(((0xc1ff)&0xffffffff)^0x80000000)-0x80000000; .fill (%c[parity]^1),3,(((0x01e183)&0xffffffff)^0x80000000)-0x80000000; cmpl %[tag], %%eax; " \
+    ".fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; " \
     "lea" OBFH_P_WORD " %[table], " OBFH_P_CX "; mov" OBFH_P_WORD " (" OBFH_P_CX ", " OBFH_P_DX ", " OBFH_P_SCALE "), %[target]; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 #define OBFH_P_TABLE_ALT_TEXT \
-    "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
+    "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; " \
     "movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; " \
-    ".fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*0xd1; " \
-    ".fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*0xca; " \
+    ".fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; " \
+    ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; " \
     "lea" OBFH_P_WORD " %[table], " OBFH_P_CX "; mov" OBFH_P_WORD " (" OBFH_P_CX ", " OBFH_P_DX ", " OBFH_P_SCALE "), %[target]; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 #define OBFH_P_TABLE_INDEX_TEXT \
-    "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; " \
-    "cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,0xca31; .fill %c[parity],2,0xca01; .fill %c[parity],3,0x01e283; " \
+    "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; " \
+    "cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,(((0xca31)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],2,(((0xca01)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],3,(((0x01e283)&0xffffffff)^0x80000000)-0x80000000; " \
     "lea" OBFH_P_WORD " %[table], " OBFH_P_CX "; mov" OBFH_P_WORD " (" OBFH_P_CX ", " OBFH_P_DX ", " OBFH_P_SCALE "), %[target]; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 // BEGIN GENERATED CFLOW SELECTORS
 // clang-format off
 #if defined(__x86_64__)
-#define OBFH_P_MASK_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rcx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[zero], %[target]; xorq %[one], %%rcx; cmpl %[tag], %%eax; .fill (%c[branch]^1),4,0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*3; .fill %c[branch],3,0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rdx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[zero], %[target]; xorq %[one], %%rdx; cmpl %[tag], %%eax; .fill (%c[branch]^1),4,0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*3; .fill %c[branch],3,0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rcx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[one], %%rcx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*3; .fill %c[branch],3,0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rdx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[one], %%rdx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*3; .fill %c[branch],3,0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_INSTRUCTIONS "movq %[one], %[target]; subq %[zero], %[target]; andq %%rcx, %[target]; movq %[one], %%rcx; subq %[target], %%rcx; addq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*3; .fill %c[branch],3,0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS "movq %[one], %[target]; subq %[zero], %[target]; andq %%rdx, %[target]; movq %[one], %%rdx; subq %[target], %%rdx; addq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*3; .fill %c[branch],3,0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,0xc1ff; .fill (%c[parity]^1),3,0x01e183; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*0xd1; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*0xca; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*0xd1; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*0xca; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INDEX_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,0xca31; .fill %c[parity],2,0xca01; .fill %c[parity],3,0x01e283; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rcx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[zero], %[target]; xorq %[one], %%rcx; cmpl %[tag], %%eax; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rdx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[zero], %[target]; xorq %[one], %%rdx; cmpl %[tag], %%eax; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rcx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[one], %%rcx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rdx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[one], %%rdx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ARITH_INSTRUCTIONS "movq %[one], %[target]; subq %[zero], %[target]; andq %%rcx, %[target]; movq %[one], %%rcx; subq %[target], %%rcx; addq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS "movq %[one], %[target]; subq %[zero], %[target]; andq %%rdx, %[target]; movq %[one], %%rdx; subq %[target], %%rdx; addq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,(((0xc1ff)&0xffffffff)^0x80000000)-0x80000000; .fill (%c[parity]^1),3,(((0x01e183)&0xffffffff)^0x80000000)-0x80000000; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_INDEX_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,(((0xca31)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],2,(((0xca01)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],3,(((0x01e283)&0xffffffff)^0x80000000)-0x80000000; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
 #else
-#define OBFH_P_MASK_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%ecx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[zero], %[target]; xorl %[one], %%ecx; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%edx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[zero], %[target]; xorl %[one], %%edx; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%ecx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[one], %%ecx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%edx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[one], %%edx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_INSTRUCTIONS "movl %[one], %[target]; subl %[zero], %[target]; andl %%ecx, %[target]; movl %[one], %%ecx; subl %[target], %%ecx; addl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS "movl %[one], %[target]; subl %[zero], %[target]; andl %%edx, %[target]; movl %[one], %%edx; subl %[target], %%edx; addl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*%c[cmovreg]; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)); .short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,0xc1ff; .fill (%c[parity]^1),3,0x01e183; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*0xd1; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*0xca; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,0x0f+256*%c[cmov]+65536*0xd1; .fill %c[branch],2,(0x75-(%c[cmov]&1))+256*2; .fill %c[branch],2,0x89+256*0xca; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INDEX_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,%c[bitcode]; andl $1, %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,0xca31; .fill %c[parity],2,0xca01; .fill %c[parity],3,0x01e283; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%ecx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[zero], %[target]; xorl %[one], %%ecx; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%edx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[zero], %[target]; xorl %[one], %%edx; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%ecx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[one], %%ecx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%edx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[one], %%edx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ARITH_INSTRUCTIONS "movl %[one], %[target]; subl %[zero], %[target]; andl %%ecx, %[target]; movl %[one], %%ecx; subl %[target], %%ecx; addl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
+#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS "movl %[one], %[target]; subl %[zero], %[target]; andl %%edx, %[target]; movl %[one], %%edx; subl %[target], %%edx; addl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,(((0xc1ff)&0xffffffff)^0x80000000)-0x80000000; .fill (%c[parity]^1),3,(((0x01e183)&0xffffffff)^0x80000000)-0x80000000; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
+#define OBFH_P_TABLE_INDEX_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,3,(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,(((0xca31)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],2,(((0xca01)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],3,(((0x01e283)&0xffffffff)^0x80000000)-0x80000000; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
 #endif
 // clang-format on
 // END GENERATED CFLOW SELECTORS
@@ -3800,14 +4052,14 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // Opcode [0..23], opcode width [24..25], immediate width [26..28].
 // Emit separately: TCC .fill values are limited to 32 bits.
 #define OBFH_P_INSTRUCTIONS \
-    ".fill 1, ((%c[d1] >> 24) & 3), %c[d1]; .fill 1, ((%c[d1] >> 26) & 7), %c[v1];\
-     .fill 1, ((%c[d2] >> 24) & 3), %c[d2]; .fill 1, ((%c[d2] >> 26) & 7), %c[v2];\
-     .fill 1, ((%c[d3] >> 24) & 3), %c[d3]; .fill 1, ((%c[d3] >> 26) & 7), %c[v3];\
-     .fill 1, ((%c[d4] >> 24) & 3), %c[d4]; .fill 1, ((%c[d4] >> 26) & 7), %c[v4];\
-     .fill 1, ((%c[d5] >> 24) & 3), %c[d5]; .fill 1, ((%c[d5] >> 26) & 7), %c[v5];\
-     .fill 1, ((%c[d6] >> 24) & 3), %c[d6]; .fill 1, ((%c[d6] >> 26) & 7), %c[v6];\
-     .fill 1, ((%c[d7] >> 24) & 3), %c[d7]; .fill 1, ((%c[d7] >> 26) & 7), %c[v7];\
-     .fill 1, ((%c[d8] >> 24) & 3), %c[d8]; .fill 1, ((%c[d8] >> 26) & 7), %c[v8];"
+    ".fill 1, ((%c[d1] >> 24) & 3),((( %c[d1])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d1] >> 26) & 7),((( %c[v1])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d2] >> 24) & 3),((( %c[d2])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d2] >> 26) & 7),((( %c[v2])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d3] >> 24) & 3),((( %c[d3])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d3] >> 26) & 7),((( %c[v3])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d4] >> 24) & 3),((( %c[d4])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d4] >> 26) & 7),((( %c[v4])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d5] >> 24) & 3),((( %c[d5])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d5] >> 26) & 7),((( %c[v5])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d6] >> 24) & 3),((( %c[d6])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d6] >> 26) & 7),((( %c[v6])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d7] >> 24) & 3),((( %c[d7])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d7] >> 26) & 7),((( %c[v7])&0xffffffff)^0x80000000)-0x80000000;\
+     .fill 1, ((%c[d8] >> 24) & 3),((( %c[d8])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d8] >> 26) & 7),((( %c[v8])&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_P_INPUT(id, n) [d##n] "i"(_D##id##n), [v##n] "i"(_V##id##n)
 #define OBFH_P_ROLE(s, p, reverse) \
     __builtin_choose_expr(!!(_T##s##p & 16u) ^ (reverse), __obfh_flow_tag, __obfh_flow_state)
@@ -3896,7 +4148,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #endif
 // Reuse four skipped bytes per insertion at existing graph jumps. No new jump.
 #define OBFH_P_GAP(shift, part, split) \
-    __obfh_asm__(".fill 1,%c0,%c1;" \
+    __obfh_asm__(".fill 1,%c0,(((%c1)&0xffffffff)^0x80000000)-0x80000000;" \
                  : \
                  : "i"((CFLOW_V2 ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
                    "i"(__obfh_flow_hash ^ (0x9e3779b9u * ((shift) + 1u))))
@@ -3946,8 +4198,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // Terminal coordinates stay in EAX/EDX through the last permutation and completion.
 // Each row is an existing exit family, emitted once with assembler-time selection.
 #define OBFH_P_TERMINAL_TEXT \
-    ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,0xc931-8*((%c[zero_form]==1)&1);" \
-    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,0xb9; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,0;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,0xd8f7d029; .fill ((%c[finish]==0)&1),4,0xc083c019; .fill ((%c[finish]==0)&1),1,0x1;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,0xe883d031; .fill ((%c[finish]==1)&1),4,0xf7c01901; .fill ((%c[finish]==1)&1),1,0xd8;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,0x1b8d039; .fill ((%c[finish]==2)&1),4,0xf000000; .fill ((%c[finish]==2)&1),2,0xc145;" /* cmp edx; sete; movzx */ ".fill ((%c[finish]==3)&1),4,0x940fd039; .fill ((%c[finish]==3)&1),4,0xc1b60fc1;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,0xd8f7d029; .fill ((%c[finish]==4)&1),4,0xd0f7c019; .fill ((%c[finish]==4)&1),3,0x1e083;" /* cmp edx; setne; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,0x950fd039; .fill ((%c[finish]==5)&1),4,0xc1b60fc1; .fill ((%c[finish]==5)&1),3,0x1f083;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,0xc189d031; .fill ((%c[finish]==6)&1),4,0xc809d9f7; .fill ((%c[finish]==6)&1),4,0x831fe8c1; .fill ((%c[finish]==6)&1),2,0x1f0;" /* xor edx; test; mov 1; jz +5; mov 0 */ ".fill ((%c[finish]==7)&1),4,0xc085d031; .fill ((%c[finish]==7)&1),4,0x1b8; .fill ((%c[finish]==7)&1),4,0xb8057400; .fill ((%c[finish]==7)&1),4,0x0;"
+    ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;" \
+    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; test; mov 1; jz +5; mov 0 */ ".fill ((%c[finish]==7)&1),4,(((0xc085d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057400)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
 
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_TERMINAL_SAVE "movl %%eax, %[saved_a]; movl %%edx, %[saved_b];"
@@ -4100,7 +4352,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
            __c_value##s##p##0 = OBFH_C_POINT(s) }; \
     OBFH_C_VALUE(s, p, 1, 0) \
     OBFH_C_VALUE(s, p, 2, 1) \
-    OBFH_C_VALUE(s, p, 3, 2) OBFH_C_VALUE(s, p, 4, 3) \
+    OBFH_C_VALUE(s, p, 3, 2) \
+    OBFH_C_VALUE(s, p, 4, 3) \
         OBFH_C_ENCODING(s, p, 1) OBFH_C_ENCODING(s, p, 2) OBFH_C_ENCODING(s, p, 3) OBFH_C_ENCODING(s, p, 4)
 #define OBFH_C_BAD(s, v) ((v) == __c_value##s##0##4 || (v) == __c_value##s##1##4 || (v) == OBFH_C_POINT(s))
 #define OBFH_C_TARGET(s) \
@@ -4114,7 +4367,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_C_PREPARE_I(s, p) OBFH_C_PREPARE_##p(s)
 #undef OBFH_P_PREPARE
 #define OBFH_P_PREPARE(s, p) OBFH_C_PREPARE_I(s, p)
-#define OBFH_C_SLOT(n) ".fill 1,%c[len" #n "],%c[code" #n "]; .fill %c[imm" #n "],4,%c[key" #n "];"
+#define OBFH_C_SLOT(n) ".fill 1,%c[len" #n "],(((%c[code" #n "])&0xffffffff)^0x80000000)-0x80000000; .fill %c[imm" #n "],4,(((%c[key" #n "])&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_C_TEXT OBFH_C_SLOT(1) OBFH_C_SLOT(2) OBFH_C_SLOT(3) OBFH_C_SLOT(4) "addl $%c[correction], %%eax;"
 #define OBFH_C_ENCODING(s, p, n) \
     enum { __obfh_primitive_len##s##p##n = __c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 ? 1 : __c_kind##s##p##n == 1 && __c_rform##s##p##n >= 2 || __c_kind##s##p##n == 2 && __c_lform##s##p##n ? 2 \
@@ -4226,7 +4479,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
         ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash; \
         __obfh_asm__( \
-            "jmp 7f; .byte %c[byte], %c[extra]; .fill %c[gap],1,%c[byte]; 7:" \
+            "jmp 7f; .byte %c[byte], %c[extra]; .fill %c[gap],1,(((%c[byte])&0xffffffff)^0x80000000)-0x80000000; 7:" \
             : "+a"( \
                 __obfh_flow_state) \
             : [byte] "i"(OBFH_FLOW_OPCODE(OBFH_JUNK_BYTE & 7u)), \
@@ -6033,9 +6286,9 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 static char *getKernel32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER(
-        (name[0] = _k, name[1] = _e, name[2] = _r, name[3] = _n, name[4] = _e, name[5] = _l, name[6] = ('3'), name[7] = ('2'), name[8] = _0),
-        (name[8] = _0, name[7] = ('2'), name[6] = ('3'), name[5] = _l, name[4] = _e, name[3] = _n, name[2] = _r, name[1] = _e, name[0] = _k));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _k, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _e, name[OBFH_NAME_INDEX(5)] = _l, name[6] = ('3'), name[7] = ('2'), name[OBFH_NAME_INDEX(8)] = _0),
+                        (name[OBFH_NAME_INDEX(8)] = _0, name[7] = ('2'), name[6] = ('3'), name[OBFH_NAME_INDEX(5)] = _l, name[OBFH_NAME_INDEX(4)] = _e, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _k));
     PHANTOM_NOP;
     return name;
 }
@@ -6043,9 +6296,9 @@ static char *getKernel32Name_proxy(char *name) {
 static char *getUser32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER(
-        (name[0] = _u, name[1] = _s, name[2] = _e, name[3] = _r, name[4] = ('3'), name[5] = ('2'), name[6] = _0),
-        (name[6] = _0, name[5] = ('2'), name[4] = ('3'), name[3] = _r, name[2] = _e, name[1] = _s, name[0] = _u));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _u, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _r, name[4] = ('3'), name[5] = ('2'), name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[5] = ('2'), name[4] = ('3'), name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _u));
     PHANTOM_NOP;
     return name;
 }
@@ -6053,9 +6306,9 @@ static char *getUser32Name_proxy(char *name) {
 static char *getGdi32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER(
-        (name[0] = _g, name[1] = _d, name[2] = _i, name[3] = ('3'), name[4] = ('2'), name[5] = _0),
-        (name[5] = _0, name[4] = ('2'), name[3] = ('3'), name[2] = _i, name[1] = _d, name[0] = _g));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW,
+                        (name[OBFH_NAME_INDEX(0)] = _g, name[OBFH_NAME_INDEX(1)] = _d, name[OBFH_NAME_INDEX(2)] = _i, name[3] = ('3'), name[4] = ('2'), name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[4] = ('2'), name[3] = ('3'), name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(1)] = _d, name[OBFH_NAME_INDEX(0)] = _g));
     PHANTOM_NOP;
     return name;
 }
@@ -6063,9 +6316,9 @@ static char *getGdi32Name_proxy(char *name) {
 static char *getAdvapi32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER(
-        (name[0] = _a, name[1] = _d, name[2] = _v, name[3] = _a, name[4] = _p, name[5] = _i, name[6] = ('3'), name[7] = ('2'), name[8] = _0),
-        (name[8] = _0, name[7] = ('2'), name[6] = ('3'), name[5] = _i, name[4] = _p, name[3] = _a, name[2] = _v, name[1] = _d, name[0] = _a));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _a, name[OBFH_NAME_INDEX(1)] = _d, name[OBFH_NAME_INDEX(2)] = _v, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(5)] = _i, name[6] = ('3'), name[7] = ('2'), name[OBFH_NAME_INDEX(8)] = _0),
+                        (name[OBFH_NAME_INDEX(8)] = _0, name[7] = ('2'), name[6] = ('3'), name[OBFH_NAME_INDEX(5)] = _i, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _v, name[OBFH_NAME_INDEX(1)] = _d, name[OBFH_NAME_INDEX(0)] = _a));
     PHANTOM_NOP;
     return name;
 }
@@ -6087,9 +6340,9 @@ static char *getLoaderName_proxy(char *name) {
 static char *getDebuggerName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER(
-        (name[0] = _I, name[1] = _s, name[2] = _D, name[3] = _e, name[4] = _b, name[5] = _u, name[6] = _g, name[7] = _g, name[8] = _e, name[9] = _r, name[10] = _P, name[11] = _r, name[12] = _e, name[13] = _s, name[14] = _e, name[15] = _n, name[16] = _t, name[17] = _0),
-        (name[17] = _0, name[16] = _t, name[15] = _n, name[14] = _e, name[13] = _s, name[12] = _e, name[11] = _r, name[10] = _P, name[9] = _r, name[8] = _e, name[7] = _g, name[6] = _g, name[5] = _u, name[4] = _b, name[3] = _e, name[2] = _D, name[1] = _s, name[0] = _I));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH | OBFH_ALPHA_UPPER,
+                        (name[OBFH_NAME_INDEX(0)] = _I, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _D, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _b, name[OBFH_NAME_INDEX(5)] = _u, name[OBFH_NAME_INDEX(6)] = _g, name[OBFH_NAME_INDEX(7)] = _g, name[OBFH_NAME_INDEX(8)] = _e, name[OBFH_NAME_INDEX(9)] = _r, name[OBFH_NAME_INDEX(10)] = _P, name[OBFH_NAME_INDEX(11)] = _r, name[OBFH_NAME_INDEX(12)] = _e, name[OBFH_NAME_INDEX(13)] = _s, name[OBFH_NAME_INDEX(14)] = _e, name[OBFH_NAME_INDEX(15)] = _n, name[OBFH_NAME_INDEX(16)] = _t, name[OBFH_NAME_INDEX(17)] = _0),
+                        (name[OBFH_NAME_INDEX(17)] = _0, name[OBFH_NAME_INDEX(16)] = _t, name[OBFH_NAME_INDEX(15)] = _n, name[OBFH_NAME_INDEX(14)] = _e, name[OBFH_NAME_INDEX(13)] = _s, name[OBFH_NAME_INDEX(12)] = _e, name[OBFH_NAME_INDEX(11)] = _r, name[OBFH_NAME_INDEX(10)] = _P, name[OBFH_NAME_INDEX(9)] = _r, name[OBFH_NAME_INDEX(8)] = _e, name[OBFH_NAME_INDEX(7)] = _g, name[OBFH_NAME_INDEX(6)] = _g, name[OBFH_NAME_INDEX(5)] = _u, name[OBFH_NAME_INDEX(4)] = _b, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _D, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _I));
     PHANTOM_NOP;
     return name;
 }
@@ -6789,9 +7042,9 @@ static char *getStdLibName_proxy(char *name, size_t capacity) {
     if (!name || capacity < sizeof("msvcrt"))
         return NULL;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER(
-        (name[0] = _m, name[1] = _s, name[2] = _v, name[3] = _c, name[4] = _r, name[5] = _t, name[6] = _0),
-        (name[6] = _0, name[5] = _t, name[4] = _r, name[3] = _c, name[2] = _v, name[1] = _s, name[0] = _m));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _m, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _v, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _v, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _m));
     PHANTOM_NOP;
     return name;
 }
@@ -6820,6 +7073,7 @@ static FARPROC obfh_crt_lookup(const char *name) {
 
 // A count conversion writes to user memory and must not run in a sizing pass.
 static int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE {
+    OBFH_LOADER_FOR(OBFH_ALPHA_HIGH);
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     for (const char *cursor = format; *cursor; ++cursor) {
@@ -6856,17 +7110,17 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
     obfh_junk_func_args((int)((ULONG_PTR)console & 0x3fffffff) + junk);
     va_start(args, format);
     char functionName[8];
-    OBFH_NAME_ORDER(
-        (functionName[0] = _v, functionName[1] = _p, functionName[2] = _r, functionName[3] = _i, functionName[4] = _n, functionName[5] = _t, functionName[6] = _f, functionName[7] = _0),
-        (functionName[7] = _0, functionName[6] = _f, functionName[5] = _t, functionName[4] = _n, functionName[3] = _i, functionName[2] = _r, functionName[1] = _p, functionName[0] = _v));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (functionName[OBFH_NAME_INDEX(0)] = _v, functionName[OBFH_NAME_INDEX(1)] = _p, functionName[OBFH_NAME_INDEX(2)] = _r, functionName[OBFH_NAME_INDEX(3)] = _i, functionName[OBFH_NAME_INDEX(4)] = _n, functionName[OBFH_NAME_INDEX(5)] = _t, functionName[OBFH_NAME_INDEX(6)] = _f, functionName[OBFH_NAME_INDEX(7)] = _0),
+                        (functionName[OBFH_NAME_INDEX(7)] = _0, functionName[OBFH_NAME_INDEX(6)] = _f, functionName[OBFH_NAME_INDEX(5)] = _t, functionName[OBFH_NAME_INDEX(4)] = _n, functionName[OBFH_NAME_INDEX(3)] = _i, functionName[OBFH_NAME_INDEX(2)] = _r, functionName[OBFH_NAME_INDEX(1)] = _p, functionName[OBFH_NAME_INDEX(0)] = _v));
     int result;
     DWORD mode;
     PHANTOM_NOP;
     if (GetConsoleMode(console, &mode) && !obfh_format_has_count(format)) {
         char countName[11];
-        OBFH_NAME_ORDER(
-            (countName[0] = '_', countName[1] = _v, countName[2] = _s, countName[3] = _c, countName[4] = _p, countName[5] = _r, countName[6] = _i, countName[7] = _n, countName[8] = _t, countName[9] = _f, countName[10] = _0),
-            (countName[10] = _0, countName[9] = _f, countName[8] = _t, countName[7] = _n, countName[6] = _i, countName[5] = _r, countName[4] = _p, countName[3] = _c, countName[2] = _s, countName[1] = _v, countName[0] = '_'));
+        OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                            (countName[OBFH_NAME_INDEX(0)] = '_', countName[OBFH_NAME_INDEX(1)] = _v, countName[OBFH_NAME_INDEX(2)] = _s, countName[OBFH_NAME_INDEX(3)] = _c, countName[OBFH_NAME_INDEX(4)] = _p, countName[OBFH_NAME_INDEX(5)] = _r, countName[OBFH_NAME_INDEX(6)] = _i, countName[OBFH_NAME_INDEX(7)] = _n, countName[OBFH_NAME_INDEX(8)] = _t, countName[OBFH_NAME_INDEX(9)] = _f, countName[OBFH_NAME_INDEX(10)] = _0),
+                            (countName[OBFH_NAME_INDEX(10)] = _0, countName[OBFH_NAME_INDEX(9)] = _f, countName[OBFH_NAME_INDEX(8)] = _t, countName[OBFH_NAME_INDEX(7)] = _n, countName[OBFH_NAME_INDEX(6)] = _i, countName[OBFH_NAME_INDEX(5)] = _r, countName[OBFH_NAME_INDEX(4)] = _p, countName[OBFH_NAME_INDEX(3)] = _c, countName[OBFH_NAME_INDEX(2)] = _s, countName[OBFH_NAME_INDEX(1)] = _v, countName[OBFH_NAME_INDEX(0)] = '_'));
         va_list countArgs;
         va_copy(countArgs, args);
         int length = OBFH_CRT_TARGET(int (*)(const char *, va_list), countName)(format, countArgs);
@@ -6903,9 +7157,9 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
 #define puts(string) ({ \
     const char *__obfh_puts_string = (string); \
     char __obfh_puts_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_puts_name[0] = _p, __obfh_puts_name[1] = _u, __obfh_puts_name[2] = _t, __obfh_puts_name[3] = _s, __obfh_puts_name[4] = _0), \
-        (__obfh_puts_name[4] = _0, __obfh_puts_name[3] = _s, __obfh_puts_name[2] = _t, __obfh_puts_name[1] = _u, __obfh_puts_name[0] = _p)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH, \
+                        (__obfh_puts_name[OBFH_NAME_INDEX(0)] = _p, __obfh_puts_name[OBFH_NAME_INDEX(1)] = _u, __obfh_puts_name[OBFH_NAME_INDEX(2)] = _t, __obfh_puts_name[OBFH_NAME_INDEX(3)] = _s, __obfh_puts_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_puts_name[OBFH_NAME_INDEX(4)] = _0, __obfh_puts_name[OBFH_NAME_INDEX(3)] = _s, __obfh_puts_name[OBFH_NAME_INDEX(2)] = _t, __obfh_puts_name[OBFH_NAME_INDEX(1)] = _u, __obfh_puts_name[OBFH_NAME_INDEX(0)] = _p)); \
     OBFH_CRT_TARGET(int (*)(const char *), __obfh_puts_name) \
     (__obfh_puts_string); \
 })
@@ -6924,9 +7178,9 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
 
 static char *getScanfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _c, name[2] = _a, name[3] = _n, name[4] = _f, name[5] = _0),
-        (name[5] = _0, name[4] = _f, name[3] = _n, name[2] = _a, name[1] = _c, name[0] = _s));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -6940,117 +7194,117 @@ static char *getScanfName_proxy(char *name) {
 // ============================================================================
 
 static char *getFreeName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _r, name[2] = _e, name[3] = _e, name[4] = _0),
-        (name[4] = _0, name[3] = _e, name[2] = _e, name[1] = _r, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _0),
+                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define free(...) OBFH_CRT_COMPACT_CALL(getFreeName_proxy, void (*)(void *), __VA_ARGS__)
 
 static char *getAtofName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _a, name[1] = _t, name[2] = _o, name[3] = _f, name[4] = _0),
-        (name[4] = _0, name[3] = _f, name[2] = _o, name[1] = _t, name[0] = _a));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _a, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(4)] = _0),
+                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _a));
     PHANTOM_NOP;
     return name;
 }
 #define atof(...) OBFH_CRT_COMPACT_CALL(getAtofName_proxy, double (*)(const char *), __VA_ARGS__)
 
 static char *getStrtodName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _d, name[6] = _0),
-        (name[6] = _0, name[5] = _d, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
     return name;
 }
 #define strtod(...) OBFH_CRT_COMPACT_CALL(getStrtodName_proxy, double (*)(const char *, char **), __VA_ARGS__)
 
 static char *getSrandName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _r, name[2] = _a, name[3] = _n, name[4] = _d, name[5] = _0),
-        (name[5] = _0, name[4] = _d, name[3] = _n, name[2] = _a, name[1] = _r, name[0] = _s));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
     return name;
 }
 #define srand(...) OBFH_CRT_COMPACT_CALL(getSrandName_proxy, void (*)(unsigned int), __VA_ARGS__)
 
 static char *getFgetsName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _g, name[2] = _e, name[3] = _t, name[4] = _s, name[5] = _0),
-        (name[5] = _0, name[4] = _s, name[3] = _t, name[2] = _e, name[1] = _g, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fgets(...) OBFH_CRT_COMPACT_CALL(getFgetsName_proxy, char *(*)(char *, int, FILE *), __VA_ARGS__)
 
 static char *getFputsName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _p, name[2] = _u, name[3] = _t, name[4] = _s, name[5] = _0),
-        (name[5] = _0, name[4] = _s, name[3] = _t, name[2] = _u, name[1] = _p, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fputs(...) OBFH_CRT_COMPACT_CALL(getFputsName_proxy, int (*)(const char *, FILE *), __VA_ARGS__)
 
 static char *getFprintfName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _p, name[2] = _r, name[3] = _i, name[4] = _n, name[5] = _t, name[6] = _f, name[7] = _0),
-        (name[7] = _0, name[6] = _f, name[5] = _t, name[4] = _n, name[3] = _i, name[2] = _r, name[1] = _p, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
+                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fprintf(...) OBFH_CRT_COMPACT_CALL(getFprintfName_proxy, int (*)(FILE *, const char *, ...), __VA_ARGS__)
 
 static char *getFflushName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _f, name[2] = _l, name[3] = _u, name[4] = _s, name[5] = _h, name[6] = _0),
-        (name[6] = _0, name[5] = _h, name[4] = _s, name[3] = _u, name[2] = _l, name[1] = _f, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _f, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _u, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _h, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _h, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _u, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _f, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fflush(...) OBFH_CRT_COMPACT_CALL(getFflushName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getFseekName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _s, name[2] = _e, name[3] = _e, name[4] = _k, name[5] = _0),
-        (name[5] = _0, name[4] = _k, name[3] = _e, name[2] = _e, name[1] = _s, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fseek(...) OBFH_CRT_COMPACT_CALL(getFseekName_proxy, int (*)(FILE *, long, int), __VA_ARGS__)
 
 static char *getFtellName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _t, name[2] = _e, name[3] = _l, name[4] = _l, name[5] = _0),
-        (name[5] = _0, name[4] = _l, name[3] = _l, name[2] = _e, name[1] = _t, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define ftell(...) OBFH_CRT_COMPACT_CALL(getFtellName_proxy, long (*)(FILE *), __VA_ARGS__)
 
 static char *getFgetcName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _g, name[2] = _e, name[3] = _t, name[4] = _c, name[5] = _0),
-        (name[5] = _0, name[4] = _c, name[3] = _t, name[2] = _e, name[1] = _g, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fgetc(...) OBFH_CRT_COMPACT_CALL(getFgetcName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getFputcName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _p, name[2] = _u, name[3] = _t, name[4] = _c, name[5] = _0),
-        (name[5] = _0, name[4] = _c, name[3] = _t, name[2] = _u, name[1] = _p, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
 #define fputc(...) OBFH_CRT_COMPACT_CALL(getFputcName_proxy, int (*)(int, FILE *), __VA_ARGS__)
 
 static char *getGetcharName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _g, name[1] = _e, name[2] = _t, name[3] = _c, name[4] = _h, name[5] = _a, name[6] = _r, name[7] = _0),
-        (name[7] = _0, name[6] = _r, name[5] = _a, name[4] = _h, name[3] = _c, name[2] = _t, name[1] = _e, name[0] = _g));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _g, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0),
+                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _g));
     PHANTOM_NOP;
     return name;
 }
@@ -7058,9 +7312,9 @@ static char *getGetcharName_proxy(char *name) {
 #define getchar(...) OBFH_CRT_COMPACT_CALL(getGetcharName_proxy, int (*)(void), __VA_ARGS__)
 
 static char *getPutcharName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _p, name[1] = _u, name[2] = _t, name[3] = _c, name[4] = _h, name[5] = _a, name[6] = _r, name[7] = _0),
-        (name[7] = _0, name[6] = _r, name[5] = _a, name[4] = _h, name[3] = _c, name[2] = _t, name[1] = _u, name[0] = _p));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0),
+                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(0)] = _p));
     PHANTOM_NOP;
     return name;
 }
@@ -7068,9 +7322,9 @@ static char *getPutcharName_proxy(char *name) {
 #define putchar(...) OBFH_CRT_COMPACT_CALL(getPutcharName_proxy, int (*)(int), __VA_ARGS__)
 
 static char *getFeofName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _e, name[2] = _o, name[3] = _f, name[4] = _0),
-        (name[4] = _0, name[3] = _f, name[2] = _o, name[1] = _e, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(4)] = _0),
+                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -7078,9 +7332,9 @@ static char *getFeofName_proxy(char *name) {
 #define feof(...) OBFH_CRT_COMPACT_CALL(getFeofName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getFerrorName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _e, name[2] = _r, name[3] = _r, name[4] = _o, name[5] = _r, name[6] = _0),
-        (name[6] = _0, name[5] = _r, name[4] = _o, name[3] = _r, name[2] = _r, name[1] = _e, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -7088,9 +7342,9 @@ static char *getFerrorName_proxy(char *name) {
 #define ferror(...) OBFH_CRT_COMPACT_CALL(getFerrorName_proxy, int (*)(FILE *), __VA_ARGS__)
 
 static char *getClearerrName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _c, name[1] = _l, name[2] = _e, name[3] = _a, name[4] = _r, name[5] = _e, name[6] = _r, name[7] = _r, name[8] = _0),
-        (name[8] = _0, name[7] = _r, name[6] = _r, name[5] = _e, name[4] = _r, name[3] = _a, name[2] = _e, name[1] = _l, name[0] = _c));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _c, name[OBFH_NAME_INDEX(1)] = _l, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _r, name[OBFH_NAME_INDEX(8)] = _0),
+                        (name[OBFH_NAME_INDEX(8)] = _0, name[OBFH_NAME_INDEX(7)] = _r, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _l, name[OBFH_NAME_INDEX(0)] = _c));
     PHANTOM_NOP;
     return name;
 }
@@ -7098,9 +7352,9 @@ static char *getClearerrName_proxy(char *name) {
 #define clearerr(...) OBFH_CRT_COMPACT_CALL(getClearerrName_proxy, void (*)(FILE *), __VA_ARGS__)
 
 static char *getRewindName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _r, name[1] = _e, name[2] = _w, name[3] = _i, name[4] = _n, name[5] = _d, name[6] = _0),
-        (name[6] = _0, name[5] = _d, name[4] = _n, name[3] = _i, name[2] = _w, name[1] = _e, name[0] = _r));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
     return name;
 }
@@ -7108,9 +7362,9 @@ static char *getRewindName_proxy(char *name) {
 #define rewind(...) OBFH_CRT_COMPACT_CALL(getRewindName_proxy, void (*)(FILE *), __VA_ARGS__)
 
 static char *getRemoveName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _r, name[1] = _e, name[2] = _m, name[3] = _o, name[4] = _v, name[5] = _e, name[6] = _0),
-        (name[6] = _0, name[5] = _e, name[4] = _v, name[3] = _o, name[2] = _m, name[1] = _e, name[0] = _r));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
     return name;
 }
@@ -7118,9 +7372,9 @@ static char *getRemoveName_proxy(char *name) {
 #define remove(...) OBFH_CRT_COMPACT_CALL(getRemoveName_proxy, int (*)(const char *), __VA_ARGS__)
 
 static char *getRenameName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _r, name[1] = _e, name[2] = _n, name[3] = _a, name[4] = _m, name[5] = _e, name[6] = _0),
-        (name[6] = _0, name[5] = _e, name[4] = _m, name[3] = _a, name[2] = _n, name[1] = _e, name[0] = _r));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
     return name;
 }
@@ -7128,9 +7382,9 @@ static char *getRenameName_proxy(char *name) {
 #define rename(...) OBFH_CRT_COMPACT_CALL(getRenameName_proxy, int (*)(const char *, const char *), __VA_ARGS__)
 
 static char *getFreopenName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _r, name[2] = _e, name[3] = _o, name[4] = _p, name[5] = _e, name[6] = _n, name[7] = _0),
-        (name[7] = _0, name[6] = _n, name[5] = _e, name[4] = _p, name[3] = _o, name[2] = _e, name[1] = _r, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(7)] = _0),
+                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -7138,9 +7392,9 @@ static char *getFreopenName_proxy(char *name) {
 #define freopen(...) OBFH_CRT_COMPACT_CALL(getFreopenName_proxy, FILE *(*)(const char *, const char *, FILE *), __VA_ARGS__)
 
 static char *getQsortName_proxy(char *name) {
-    OBFH_NAME_ORDER(
-        (name[0] = _q, name[1] = _s, name[2] = _o, name[3] = _r, name[4] = _t, name[5] = _0),
-        (name[5] = _0, name[4] = _t, name[3] = _r, name[2] = _o, name[1] = _s, name[0] = _q));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _q, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _q));
     PHANTOM_NOP;
     return name;
 }
@@ -7152,9 +7406,9 @@ static char *getQsortName_proxy(char *name) {
 static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
     int saved_errno = errno;
     char name[7];
-    OBFH_NAME_ORDER(
-        (name[0] = _p, name[1] = _e, name[2] = _r, name[3] = _r, name[4] = _o, name[5] = _r, name[6] = _0),
-        (name[6] = _0, name[5] = _r, name[4] = _o, name[3] = _r, name[2] = _r, name[1] = _e, name[0] = _p));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _p));
     PHANTOM_NOP;
     FARPROC function = obfh_crt_resolve(name);
     errno = saved_errno;
@@ -7164,9 +7418,9 @@ static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
 
 static char *getSprintfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _p, name[2] = _r, name[3] = _i, name[4] = _n, name[5] = _t, name[6] = _f, name[7] = _0),
-        (name[7] = _0, name[6] = _f, name[5] = _t, name[4] = _n, name[3] = _i, name[2] = _r, name[1] = _p, name[0] = _s));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
+                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7177,9 +7431,9 @@ static char *getSprintfName_proxy(char *name) {
 
 static char *getFcloseName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _c, name[2] = _l, name[3] = _o, name[4] = _s, name[5] = _e, name[6] = _0),
-        (name[6] = _0, name[5] = _e, name[4] = _s, name[3] = _o, name[2] = _l, name[1] = _c, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7190,9 +7444,9 @@ static char *getFcloseName_proxy(char *name) {
 
 static char *getFopenName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _o, name[2] = _p, name[3] = _e, name[4] = _n, name[5] = _0),
-        (name[5] = _0, name[4] = _n, name[3] = _e, name[2] = _p, name[1] = _o, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7203,9 +7457,9 @@ static char *getFopenName_proxy(char *name) {
 
 static char *getFreadName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _r, name[2] = _e, name[3] = _a, name[4] = _d, name[5] = _0),
-        (name[5] = _0, name[4] = _d, name[3] = _a, name[2] = _e, name[1] = _r, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
+                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7216,9 +7470,9 @@ static char *getFreadName_proxy(char *name) {
 
 static char *getFwriteName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _f, name[1] = _w, name[2] = _r, name[3] = _i, name[4] = _t, name[5] = _e, name[6] = _0),
-        (name[6] = _0, name[5] = _e, name[4] = _t, name[3] = _i, name[2] = _r, name[1] = _w, name[0] = _f));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7229,9 +7483,9 @@ static char *getFwriteName_proxy(char *name) {
 
 static char *getExitName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _e, name[1] = _x, name[2] = _i, name[3] = _t, name[4] = _0),
-        (name[4] = _0, name[3] = _t, name[2] = _i, name[1] = _x, name[0] = _e));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _e, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _0),
+                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(0)] = _e));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7242,9 +7496,9 @@ static char *getExitName_proxy(char *name) {
 
 static char *getStrtokName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _s, name[1] = _t, name[2] = _r, name[3] = _t, name[4] = _o, name[5] = _k, name[6] = _0),
-        (name[6] = _0, name[5] = _k, name[4] = _o, name[3] = _t, name[2] = _r, name[1] = _t, name[0] = _s));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(6)] = _0),
+                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7256,9 +7510,9 @@ static char *getStrtokName_proxy(char *name) {
 
 static char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _r, name[1] = _a, name[2] = _n, name[3] = _d, name[4] = _0),
-        (name[4] = _0, name[3] = _d, name[2] = _n, name[1] = _a, name[0] = _r));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(4)] = _0),
+                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7269,9 +7523,9 @@ static char *getRandName_proxy(char *name) {
 
 static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
-    OBFH_NAME_ORDER(
-        (name[0] = _r, name[1] = _e, name[2] = _a, name[3] = _l, name[4] = _l, name[5] = _o, name[6] = _c, name[7] = _0),
-        (name[7] = _0, name[6] = _c, name[5] = _o, name[4] = _l, name[3] = _l, name[2] = _a, name[1] = _e, name[0] = _r));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(7)] = _0),
+                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
 #if CFLOW_V2
     BREAK_STACK_CFLOW;
@@ -7287,9 +7541,9 @@ static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
 static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _c, __obfh_resolved_name[1] = _a, __obfh_resolved_name[2] = _l, __obfh_resolved_name[3] = _l, __obfh_resolved_name[4] = _o, __obfh_resolved_name[5] = _c, __obfh_resolved_name[6] = _0),
-        (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _c, __obfh_resolved_name[4] = _o, __obfh_resolved_name[3] = _l, __obfh_resolved_name[2] = _l, __obfh_resolved_name[1] = _a, __obfh_resolved_name[0] = _c));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _c));
     void *result = OBFH_CRT_TARGET(void *(*)(size_t, size_t), __obfh_resolved_name)(nmemb, size);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7309,9 +7563,9 @@ static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
 static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[5];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _g, __obfh_resolved_name[1] = _e, __obfh_resolved_name[2] = _t, __obfh_resolved_name[3] = _s, __obfh_resolved_name[4] = _0),
-        (__obfh_resolved_name[4] = _0, __obfh_resolved_name[3] = _s, __obfh_resolved_name[2] = _t, __obfh_resolved_name[1] = _e, __obfh_resolved_name[0] = _g));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(4)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g));
     char *result = OBFH_CRT_TARGET(char *(*)(char *), __obfh_resolved_name)(s);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7332,9 +7586,9 @@ static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_
 static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[9];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _v, __obfh_resolved_name[1] = _s, __obfh_resolved_name[2] = _p, __obfh_resolved_name[3] = _r, __obfh_resolved_name[4] = _i, __obfh_resolved_name[5] = _n, __obfh_resolved_name[6] = _t, __obfh_resolved_name[7] = _f, __obfh_resolved_name[8] = _0),
-        (__obfh_resolved_name[8] = _0, __obfh_resolved_name[7] = _f, __obfh_resolved_name[6] = _t, __obfh_resolved_name[5] = _n, __obfh_resolved_name[4] = _i, __obfh_resolved_name[3] = _r, __obfh_resolved_name[2] = _p, __obfh_resolved_name[1] = _s, __obfh_resolved_name[0] = _v));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _f, __obfh_resolved_name[OBFH_NAME_INDEX(8)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(8)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _f, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _v));
     int result = OBFH_CRT_TARGET(int (*)(char *, const char *, va_list), __obfh_resolved_name)(str, format, args);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7351,9 +7605,9 @@ static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list a
 static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _g, __obfh_resolved_name[1] = _e, __obfh_resolved_name[2] = _t, __obfh_resolved_name[3] = _e, __obfh_resolved_name[4] = _n, __obfh_resolved_name[5] = _v, __obfh_resolved_name[6] = _0),
-        (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _v, __obfh_resolved_name[4] = _n, __obfh_resolved_name[3] = _e, __obfh_resolved_name[2] = _t, __obfh_resolved_name[1] = _e, __obfh_resolved_name[0] = _g));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g));
     char *result = OBFH_CRT_TARGET(char *(*)(const char *), __obfh_resolved_name)(name);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7362,9 +7616,9 @@ static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
 static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _s, __obfh_resolved_name[1] = _y, __obfh_resolved_name[2] = _s, __obfh_resolved_name[3] = _t, __obfh_resolved_name[4] = _e, __obfh_resolved_name[5] = _m, __obfh_resolved_name[6] = _0),
-        (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _m, __obfh_resolved_name[4] = _e, __obfh_resolved_name[3] = _t, __obfh_resolved_name[2] = _s, __obfh_resolved_name[1] = _y, __obfh_resolved_name[0] = _s));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _y, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _m, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _m, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _y, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _s));
     int result = OBFH_CRT_TARGET(int (*)(const char *), __obfh_resolved_name)(command);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7374,9 +7628,9 @@ static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     PHANTOM_NOP;
     char __obfh_resolved_name[6];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _a, __obfh_resolved_name[1] = _b, __obfh_resolved_name[2] = _o, __obfh_resolved_name[3] = _r, __obfh_resolved_name[4] = _t, __obfh_resolved_name[5] = _0),
-        (__obfh_resolved_name[5] = _0, __obfh_resolved_name[4] = _t, __obfh_resolved_name[3] = _r, __obfh_resolved_name[2] = _o, __obfh_resolved_name[1] = _b, __obfh_resolved_name[0] = _a));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _b, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(5)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _b, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a));
     OBFH_CRT_TARGET(void (*)(void), __obfh_resolved_name)
     ();
 }
@@ -7385,9 +7639,9 @@ static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
 static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _a, __obfh_resolved_name[1] = _t, __obfh_resolved_name[2] = _e, __obfh_resolved_name[3] = _x, __obfh_resolved_name[4] = _i, __obfh_resolved_name[5] = _t, __obfh_resolved_name[6] = _0),
-        (__obfh_resolved_name[6] = _0, __obfh_resolved_name[5] = _t, __obfh_resolved_name[4] = _i, __obfh_resolved_name[3] = _x, __obfh_resolved_name[2] = _e, __obfh_resolved_name[1] = _t, __obfh_resolved_name[0] = _a));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _x, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _x, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a));
     int result = OBFH_CRT_TARGET(int (*)(void (*)(void)), __obfh_resolved_name)(func);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7396,9 +7650,9 @@ static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
 static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = '_', __obfh_resolved_name[1] = _g, __obfh_resolved_name[2] = _e, __obfh_resolved_name[3] = _t, __obfh_resolved_name[4] = _c, __obfh_resolved_name[5] = _w, __obfh_resolved_name[6] = _d, __obfh_resolved_name[7] = _0),
-        (__obfh_resolved_name[7] = _0, __obfh_resolved_name[6] = _d, __obfh_resolved_name[5] = _w, __obfh_resolved_name[4] = _c, __obfh_resolved_name[3] = _t, __obfh_resolved_name[2] = _e, __obfh_resolved_name[1] = _g, __obfh_resolved_name[0] = '_'));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = '_', __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _d, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _d, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = '_'));
     char *result = OBFH_CRT_TARGET(char *(*)(char *, int), __obfh_resolved_name)(buf, (int)size);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7407,9 +7661,9 @@ static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
 static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _t, __obfh_resolved_name[1] = _o, __obfh_resolved_name[2] = _l, __obfh_resolved_name[3] = _o, __obfh_resolved_name[4] = _w, __obfh_resolved_name[5] = _e, __obfh_resolved_name[6] = _r, __obfh_resolved_name[7] = _0),
-        (__obfh_resolved_name[7] = _0, __obfh_resolved_name[6] = _r, __obfh_resolved_name[5] = _e, __obfh_resolved_name[4] = _w, __obfh_resolved_name[3] = _o, __obfh_resolved_name[2] = _l, __obfh_resolved_name[1] = _o, __obfh_resolved_name[0] = _t));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t));
     int result = OBFH_CRT_TARGET(int (*)(int), __obfh_resolved_name)(c);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -7418,9 +7672,9 @@ static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
-    OBFH_NAME_ORDER(
-        (__obfh_resolved_name[0] = _t, __obfh_resolved_name[1] = _o, __obfh_resolved_name[2] = _u, __obfh_resolved_name[3] = _p, __obfh_resolved_name[4] = _p, __obfh_resolved_name[5] = _e, __obfh_resolved_name[6] = _r, __obfh_resolved_name[7] = _0),
-        (__obfh_resolved_name[7] = _0, __obfh_resolved_name[6] = _r, __obfh_resolved_name[5] = _e, __obfh_resolved_name[4] = _p, __obfh_resolved_name[3] = _p, __obfh_resolved_name[2] = _u, __obfh_resolved_name[1] = _o, __obfh_resolved_name[0] = _t));
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _u, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0),
+                        (__obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _u, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t));
     int result = OBFH_CRT_TARGET(int (*)(int), __obfh_resolved_name)(c);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10604,198 +10858,198 @@ static int obfh_abs_proxy(int value) {
 // Known msvcrt math exports use the same name selector and typed target as other CRT calls.
 #define acos(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _c, __obfh_math_name[2] = _o, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _o, __obfh_math_name[1] = _c, __obfh_math_name[0] = _a)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define asin(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _s, __obfh_math_name[2] = _i, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _i, __obfh_math_name[1] = _s, __obfh_math_name[0] = _a)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define atan(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define atan2(y, x) ({ \
     char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _a, __obfh_math_name[1] = _t, __obfh_math_name[2] = _a, __obfh_math_name[3] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[5] = _0), \
-        (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[3] = _n, __obfh_math_name[2] = _a, __obfh_math_name[1] = _t, __obfh_math_name[0] = _a)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
     OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
     (y, x); \
 })
 
 #define ceil(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _e, __obfh_math_name[2] = _i, __obfh_math_name[3] = _l, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _l, __obfh_math_name[2] = _i, __obfh_math_name[1] = _e, __obfh_math_name[0] = _c)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define cos(x) ({ \
     char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _0), \
-        (__obfh_math_name[3] = _0, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define cosh(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _c, __obfh_math_name[1] = _o, __obfh_math_name[2] = _s, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _s, __obfh_math_name[1] = _o, __obfh_math_name[0] = _c)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define exp(x) ({ \
     char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _e, __obfh_math_name[1] = _x, __obfh_math_name[2] = _p, __obfh_math_name[3] = _0), \
-        (__obfh_math_name[3] = _0, __obfh_math_name[2] = _p, __obfh_math_name[1] = _x, __obfh_math_name[0] = _e)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(0)] = _e)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define fabs(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _a, __obfh_math_name[2] = _b, __obfh_math_name[3] = _s, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _s, __obfh_math_name[2] = _b, __obfh_math_name[1] = _a, __obfh_math_name[0] = _f)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define floor(x) ({ \
     char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _l, __obfh_math_name[2] = _o, __obfh_math_name[3] = _o, __obfh_math_name[4] = _r, __obfh_math_name[5] = _0), \
-        (__obfh_math_name[5] = _0, __obfh_math_name[4] = _r, __obfh_math_name[3] = _o, __obfh_math_name[2] = _o, __obfh_math_name[1] = _l, __obfh_math_name[0] = _f)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define fmod(x, y) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _m, __obfh_math_name[2] = _o, __obfh_math_name[3] = _d, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _d, __obfh_math_name[2] = _o, __obfh_math_name[1] = _m, __obfh_math_name[0] = _f)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
     OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
     (x, y); \
 })
 
 #define frexp(x, y) ({ \
     char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _f, __obfh_math_name[1] = _r, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0), \
-        (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _r, __obfh_math_name[0] = _f)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
     OBFH_CRT_TARGET(double (*)(double, int *), __obfh_math_name) \
     (x, y); \
 })
 
 #define ldexp(x, y) ({ \
     char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _d, __obfh_math_name[2] = _e, __obfh_math_name[3] = _x, __obfh_math_name[4] = _p, __obfh_math_name[5] = _0), \
-        (__obfh_math_name[5] = _0, __obfh_math_name[4] = _p, __obfh_math_name[3] = _x, __obfh_math_name[2] = _e, __obfh_math_name[1] = _d, __obfh_math_name[0] = _l)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)); \
     OBFH_CRT_TARGET(double (*)(double, int), __obfh_math_name) \
     (x, y); \
 })
 
 #define log(x) ({ \
     char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = _0), \
-        (__obfh_math_name[3] = _0, __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define log10(x) ({ \
     char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _l, __obfh_math_name[1] = _o, __obfh_math_name[2] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[5] = _0), \
-        (__obfh_math_name[5] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[2] = _g, __obfh_math_name[1] = _o, __obfh_math_name[0] = _l)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define modf(x, y) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _m, __obfh_math_name[1] = _o, __obfh_math_name[2] = _d, __obfh_math_name[3] = _f, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _f, __obfh_math_name[2] = _d, __obfh_math_name[1] = _o, __obfh_math_name[0] = _m)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _m, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _m)); \
     OBFH_CRT_TARGET(double (*)(double, double *), __obfh_math_name) \
     (x, y); \
 })
 
 #define pow(x, y) ({ \
     char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _p, __obfh_math_name[1] = _o, __obfh_math_name[2] = _w, __obfh_math_name[3] = _0), \
-        (__obfh_math_name[3] = _0, __obfh_math_name[2] = _w, __obfh_math_name[1] = _o, __obfh_math_name[0] = _p)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _p)); \
     OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
     (x, y); \
 })
 
 #define sin(x) ({ \
     char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0), \
-        (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define sinh(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _i, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _i, __obfh_math_name[0] = _s)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define sqrt(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _s, __obfh_math_name[1] = _q, __obfh_math_name[2] = _r, __obfh_math_name[3] = _t, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _t, __obfh_math_name[2] = _r, __obfh_math_name[1] = _q, __obfh_math_name[0] = _s)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define tan(x) ({ \
     char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _0), \
-        (__obfh_math_name[3] = _0, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })
 
 #define tanh(x) ({ \
     char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER( \
-        (__obfh_math_name[0] = _t, __obfh_math_name[1] = _a, __obfh_math_name[2] = _n, __obfh_math_name[3] = _h, __obfh_math_name[4] = _0), \
-        (__obfh_math_name[4] = _0, __obfh_math_name[3] = _h, __obfh_math_name[2] = _n, __obfh_math_name[1] = _a, __obfh_math_name[0] = _t)); \
+    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t)); \
     OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
     (x); \
 })

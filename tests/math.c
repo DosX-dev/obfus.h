@@ -1,10 +1,8 @@
-// Old msvcrt does not export nan/remquo; bridge to UCRT for this test only.
+// TCC supplies inline nan; msvcrt lacks remquo, so bridge only that call to UCRT.
 #include <math.h>
 #include <stdio.h>
 #include <windows.h>
-static double (*native_nan)(const char *);
 static double (*native_remquo)(double, double, int *);
-double nan(const char *tag) { return native_nan(tag); }
 double remquo(double x, double y, int *q) { return native_remquo(x, y, q); }
 #include "../include/obfus.h"
 #define CHECK(x) \
@@ -17,8 +15,6 @@ double remquo(double x, double y, int *q) { return native_remquo(x, y, q); }
 int main(void) {
     HMODULE crt = LoadLibraryA("ucrtbase.dll");
     CHECK(crt);
-    native_nan = (double (*)(const char *))GetProcAddress(crt, "nan");
-    CHECK(native_nan);
     native_remquo = (double (*)(double, double, int *))GetProcAddress(crt, "remquo");
     CHECK(native_remquo);
     const char *tags[] = {"", "123", "0x123"};

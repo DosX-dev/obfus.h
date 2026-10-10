@@ -122,12 +122,12 @@ function killTree(pid) {
         if (killed.error || killed.status !== 0) {
             try {
                 process.kill(pid, 'SIGKILL');
-            } catch { }
+            } catch {}
         }
     } else {
         try {
             process.kill(pid, 'SIGKILL');
-        } catch { }
+        } catch {}
     }
 }
 process.once('SIGINT', async () => {
@@ -169,17 +169,17 @@ async function run(command, args, options = {}) {
         };
         child.stdout.on('data', (data) => collect('stdout', data));
         child.stderr.on('data', (data) => collect('stderr', data));
-        child.stdin.on('error', () => { });
+        child.stdin.on('error', () => {});
         child.stdin.end(options.input ?? '');
         const progress = pool
             ? undefined
             : setInterval(
-                async () =>
-                    console.log(
-                        `RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`
-                    ),
-                5000
-            );
+                  async () =>
+                      console.log(
+                          `RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`
+                      ),
+                  5000
+              );
         const timer = setTimeout(async () => {
             failure = new Error(`timeout ${timeout}ms: ${path.basename(command)}${phase ? ' [' + phase + ']' : ''}`);
             failure.code = 'ETIMEDOUT';
@@ -228,12 +228,12 @@ async function discover() {
     const desktop =
         process.platform === 'win32'
             ? (
-                await run('powershell.exe', [
-                    '-NoProfile',
-                    '-Command',
-                    '[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); [Environment]::GetFolderPath("Desktop")'
-                ])
-            ).stdout.trim()
+                  await run('powershell.exe', [
+                      '-NoProfile',
+                      '-Command',
+                      '[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); [Environment]::GetFolderPath("Desktop")'
+                  ])
+              ).stdout.trim()
             : '';
     const candidates = [
         argument?.slice(10),
@@ -368,7 +368,11 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
     fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
-    const traced = source.replace("#define OBFH_FLOW_CONDITION(", require('./cflow_single_lane').trace + "\n#define OBFH_FLOW_CONDITION(")
+    const traced = source
+        .replace(
+            '#define OBFH_FLOW_CONDITION(',
+            require('./cflow_single_lane').trace + '\n#define OBFH_FLOW_CONDITION('
+        )
         .replace(
             '#define OBFH_P_TERMINAL_TRACE(style) ((void)0)',
             '#define OBFH_P_TERMINAL_TRACE(style) obfh_test_flow_exit((style)&7u,__obfh_flow_state,__obfh_flow_tag,__obfh_flow_result)'
@@ -691,7 +695,7 @@ async function main() {
             try {
                 process.kill(childPid, 0);
                 alive = true;
-            } catch { }
+            } catch {}
             assert(!alive, 'timeout left a child process alive');
         });
         const setup = source.slice(
@@ -711,6 +715,9 @@ async function main() {
             .join('\n');
         const nameSetup =
             '#define OBFH_HIDE_JUNK ((void)0)\n#define OBFH_NAME_ORDER(forward, reverse) ((mode & 1) ? (forward) : (reverse))\n' +
+            '#define OBFH_NAME_ORDER_FOR(groups, forward, reverse) OBFH_NAME_ORDER(forward, reverse)\n' +
+            '#define OBFH_LOADER_FOR(groups) ((void)0)\n' +
+            '#define OBFH_NAME_INDEX(index) (index)\n' +
             [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ']
                 .map((char) => `static volatile char _${char} = '${char}';`)
                 .join('\n') +
@@ -836,6 +843,19 @@ async function main() {
                     ),
                     'RETURN_PASS'
                 );
+            });
+            await check(`${arch}/typed return transport/all seeds`, async () => {
+                for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 0xdeadbeef, 0xffffffff])
+                    await execute(
+                        await compile(
+                            compiler,
+                            directory,
+                            `${arch}-return-transport-${seed}.exe`,
+                            path.join(__dirname, 'return_transport.c'),
+                            ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                        ),
+                        'RETURN_TRANSPORT_PASS'
+                    );
             });
             await check(`${arch}/false else guard transport/all seeds`, async () => {
                 for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
@@ -1104,8 +1124,8 @@ async function main() {
                                 }
                                 assert(
                                     stopped?.code === 'ETIMEDOUT' &&
-                                    stopped.stdout.includes('RESPONSE_ENTER') &&
-                                    !stopped.stdout.includes('RESPONSE_RETURNED'),
+                                        stopped.stdout.includes('RESPONSE_ENTER') &&
+                                        !stopped.stdout.includes('RESPONSE_RETURNED'),
                                     'remote response crashed or returned'
                                 );
                             }
@@ -1131,8 +1151,8 @@ async function main() {
                     fs.writeFileSync(
                         antiHeader,
                         source.slice(0, start) +
-                        'static int IsDebuggerPresent_proxy(void) { return 1; }\n\n' +
-                        source.slice(end)
+                            'static int IsDebuggerPresent_proxy(void) { return 1; }\n\n' +
+                            source.slice(end)
                     );
                     const exe = await compile(compiler, directory, `${arch}-antidebug-signal.exe`, antiFile, []);
                     let stopped;
@@ -1143,13 +1163,38 @@ async function main() {
                     }
                     assert(
                         stopped?.code === 'ETIMEDOUT' &&
-                        stopped.stdout.includes('RESPONSE_ENTER') &&
-                        !stopped.stdout.includes('RESPONSE_RETURNED'),
+                            stopped.stdout.includes('RESPONSE_ENTER') &&
+                            !stopped.stdout.includes('RESPONSE_RETURNED'),
                         'positive signal did not reach the remote response'
                     );
                 });
                 if (process.argv.includes('--only-antidebug')) continue;
                 const constantBuilds = new Map();
+                await check(`${arch}/lazy letters: first use, groups and concurrent publication`, async () => {
+                    for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
+                        const exe = await compile(
+                            compiler,
+                            directory,
+                            `${arch}-constant-loader-${seed}.exe`,
+                            path.join(__dirname, 'constant_loader.c'),
+                            ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                        );
+                        for (const mode of ['groups', 'automatic', 'concurrent'])
+                            await execute(exe, 'CONSTANT_LOADER_PASS', [mode]);
+                    }
+                    for (const flags of [['NO_OBF=1'], ['NO_CFLOW=1'], ['CFLOW_V2=1']])
+                        await execute(
+                            await compile(
+                                compiler,
+                                directory,
+                                `${arch}-constant-loader-${flags[0]}.exe`,
+                                path.join(__dirname, 'constant_loader.c'),
+                                ['NO_ANTIDEBUG=1', ...flags]
+                            ),
+                            'CONSTANT_LOADER_PASS',
+                            ['concurrent']
+                        );
+                });
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/constant data types and binary signatures/seed ${seed}`, async () => {
                         const exe = await compile(
@@ -1840,9 +1885,9 @@ async function main() {
                     const messages = errors.stderr.trim().split(/\r?\n/);
                     assert(
                         errors.status === 0 &&
-                        messages.length === 2 &&
-                        messages[0].startsWith('OBFH_PERROR_TEST:') &&
-                        messages[0] === messages[1],
+                            messages.length === 2 &&
+                            messages[0].startsWith('OBFH_PERROR_TEST:') &&
+                            messages[0] === messages[1],
                         'perror changed caller errno during resolution'
                     );
                     const failure = await run(exe, ['puts-error']);
@@ -1850,7 +1895,7 @@ async function main() {
                     const output = await run(exe, ['puts']);
                     assert(
                         output.status === 0 &&
-                        output.stdout.replace(/\r\n/g, '\n') === 'literal %s %n %%\n\nline\n\nCRT_PUTS_PASS\n',
+                            output.stdout.replace(/\r\n/g, '\n') === 'literal %s %n %%\n\nline\n\nCRT_PUTS_PASS\n',
                         'puts output or single evaluation failed'
                     );
                     const input = await run(exe, ['gets'], { input: 'proxy-input\n' });

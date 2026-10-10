@@ -8,12 +8,13 @@ function fixture() {
 #undef if
 #undef else
 #undef printf
+#undef fflush
 #undef memset
 #undef GetProcAddress
 #undef GetModuleHandleA
 #undef atoi
 #if defined(OBFH_PDATA_DECOY_COUNT) && !NO_PDATA_DECOYS && !NO_OBF && defined(__x86_64__)
-typedef unsigned (*NativeFn)(unsigned);
+typedef unsigned (*NativeFn)(unsigned,void *,void *);
 typedef PRUNTIME_FUNCTION (WINAPI *LookupFn)(DWORD64,PDWORD64,void *);
 typedef PVOID (WINAPI *UnwindFn)(DWORD,DWORD64,DWORD64,PRUNTIME_FUNCTION,PCONTEXT,PVOID *,PDWORD64,PVOID);
 static void (*carriers[])(void) = {
@@ -36,24 +37,24 @@ int main(int argc,char **argv){
     if(argc==2){
         unsigned n=(unsigned)atoi(argv[1]);DWORD old;
         if(n>=count)return 82;
-        patched=(unsigned char *)carriers[n]+22;
+        patched=(unsigned char *)carriers[n]+11;
         if(!VirtualProtect(patched,1,PAGE_EXECUTE_READWRITE,&old))return 83;
         *patched=0xCC;FlushInstructionCache(GetCurrentProcess(),patched,1);
         SetUnhandledExceptionFilter(exception_filter);
-        ((NativeFn)((unsigned char *)carriers[n]+11))(123u);return 84;
+        ((NativeFn)carriers[n])(123u,NULL,NULL);return 84;
     }
     for(i=0;i<count;i++){
-        unsigned char *fn=(unsigned char *)carriers[i]+11;DWORD64 image=0,est=0;PVOID data=NULL;
+        unsigned char *fn=(unsigned char *)carriers[i];DWORD64 image=0,est=0;PVOID data=NULL;
         PRUNTIME_FUNCTION entry=lookup((DWORD64)(uintptr_t)fn,&image,NULL);
         unsigned frame,span,epilogue;int offsets[7];
         if(!entry||image+entry->BeginAddress!=(DWORD64)(uintptr_t)fn)return 85;
         if(fn[0]!=0x55||fn[1]!=0x48||fn[2]!=0x89||fn[3]!=0xE5||fn[4]!=0x48||fn[5]!=0x81||fn[6]!=0xEC)return 86;
         frame=*(unsigned *)(fn+7);span=(unsigned)(image+entry->EndAddress-(DWORD64)(uintptr_t)fn);
         /* A shared epilogue may precede another reachable body in the same range. */
-        for(epilogue=11;epilogue+9<=span;epilogue++)
-            if(fn[epilogue]==0x48&&fn[epilogue+1]==0x81&&fn[epilogue+2]==0xC4&&*(unsigned *)(fn+epilogue+3)==frame&&fn[epilogue+7]==0x5D&&fn[epilogue+8]==0xC3)break;
-        if(span<24||epilogue+9>span)return 87;
-        offsets[0]=0;offsets[1]=1;offsets[2]=4;offsets[3]=11;offsets[4]=epilogue;offsets[5]=epilogue+7;offsets[6]=epilogue+8;
+        for(epilogue=11;epilogue+6<=span;epilogue++)
+            if(fn[epilogue]==0x48&&fn[epilogue+1]==0x8D&&fn[epilogue+2]==0x65&&fn[epilogue+3]==0&&fn[epilogue+4]==0x5D&&fn[epilogue+5]==0xC3)break;
+        if(span<24||epilogue+6>span)return 87;
+        offsets[0]=0;offsets[1]=1;offsets[2]=4;offsets[3]=11;offsets[4]=epilogue;offsets[5]=epilogue+4;offsets[6]=epilogue+5;
         for(k=0;k<7;k++){
             CONTEXT c;unsigned char *blob=(unsigned char *)&c;unsigned z;
             for(z=0;z<sizeof(c);z++)blob[z]=0;
@@ -71,14 +72,14 @@ int main(int argc,char **argv){
             DWORD64 before,after;unsigned x=k*2654435761u,first,second;
             volatile unsigned sentinel[2]={x,~x};
             __asm__ __volatile__("movq %%rsp,%0":"=r"(before));
-            first=((NativeFn)fn)(x);second=((NativeFn)fn)(x);
+            first=((NativeFn)fn)(x,NULL,NULL);second=((NativeFn)fn)(x,NULL,NULL);
             __asm__ __volatile__("movq %%rsp,%0":"=r"(after));
             if(before!=after||sentinel[0]!=x||sentinel[1]!=~x||first!=second)return 89;
             calls+=2;
         }
     }
     HeapFree(GetProcessHeap(),0,stack);
-    printf("PDATA_PASS count=%u states=%u calls=%u\\n",count,states,calls);return 0;
+    printf("PDATA_PASS count=%u states=%u calls=%u\\n",count,states,calls);return fflush(stdout)==EOF ? 90 : 0;
 }
 #else
 int main(void){puts("PDATA_DISABLED");return 0;}

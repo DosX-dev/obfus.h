@@ -1,7 +1,7 @@
 ![](pics/obfus.h.png)
 # obfus.h
 
-**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)** (you can download it here -> [Tiny-C-Compiler/releases](https://github.com/phoenixthrush/Tiny-C-Compiler/releases/tag/0.9.27-win64)). It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
+**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for **TinyCC 0.9.28rc** on Windows x86 and x64. Download the complete compiler package from **[TinyCC-builder releases](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**. **Very reliable armor for your C programs!**
 
 ### What features does it have?...
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
@@ -215,10 +215,10 @@ void _start(void) {
 > ![](pics/how-it-works.png)
 
 ## 🛠 Compiler (important)
-**Tiny C** `0.9.27` is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
+Use **TinyCC `0.9.28rc` from [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**, which includes the Windows headers, libraries and `obfh-update.cmd`. This package preserves explicitly named PE sections used by `FAKE_SIGNS`. TinyCC `0.9.27`, **Visual C**, **GCC** and **Clang** are not supported.
 
 > [!NOTE]
-> Originally created by Fabrice Bellard, TCC is now maintained and developed by the community. You can build the latest development version yourself from the [TCC source mirror](https://github.com/Tiny-C-Compiler/tinycc-mirror-repository).
+> Originally created by Fabrice Bellard, TinyCC is now maintained by the community. To build the latest version yourself, download [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder) and double-click `build.cmd`; sources and dependencies are downloaded automatically.
 
 ## 🌐 obfus.h updater
 You can use [special script](include-updater/obfh-update.cmd) for Windows to get the latest versions of `obfus.h` by downloading the package from the official repository. This is useful if you need to automate security updates without using `git`.
