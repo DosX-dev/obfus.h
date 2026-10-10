@@ -4354,7 +4354,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     OBFH_C_VALUE(s, p, 2, 1) \
     OBFH_C_VALUE(s, p, 3, 2) \
     OBFH_C_VALUE(s, p, 4, 3) \
-        OBFH_C_ENCODING(s, p, 1) OBFH_C_ENCODING(s, p, 2) OBFH_C_ENCODING(s, p, 3) OBFH_C_ENCODING(s, p, 4)
+    OBFH_C_ENCODING(s, p, 1) \
+    OBFH_C_ENCODING(s, p, 2) OBFH_C_ENCODING(s, p, 3) OBFH_C_ENCODING(s, p, 4)
 #define OBFH_C_BAD(s, v) ((v) == __c_value##s##0##4 || (v) == __c_value##s##1##4 || (v) == OBFH_C_POINT(s))
 #define OBFH_C_TARGET(s) \
     enum { __c_base##s = __obfh_k##s##0 ^ __obfh_k##s##1, \

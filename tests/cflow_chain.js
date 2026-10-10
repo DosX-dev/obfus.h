@@ -39,9 +39,9 @@ function trace(source) {
     return source.includes('__obfh_pd_site = (site)')
         ? traced
         : traced.replace(
-              '__obfh_pd_kind = OBFH_PD_DRAW(site, 1u)',
-              '__obfh_pd_site = (site), __obfh_pd_kind = OBFH_PD_DRAW(site, 1u)'
-          );
+            '__obfh_pd_kind = OBFH_PD_DRAW(site, 1u)',
+            '__obfh_pd_site = (site), __obfh_pd_kind = OBFH_PD_DRAW(site, 1u)'
+        );
 }
 
 function unwindFixture() {

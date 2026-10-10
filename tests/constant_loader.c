@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdio.h>
+
 #include "../include/obfus.h"
 #undef if
 #undef else
