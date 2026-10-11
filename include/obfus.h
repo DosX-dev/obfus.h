@@ -79,6 +79,7 @@
 #include <direct.h>
 #include <errno.h>
 #include <limits.h>
+#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -154,6 +155,15 @@
 #define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
 #define strtol_custom(...) strtol(__VA_ARGS__)
 #define strtoul_custom(...) strtoul(__VA_ARGS__)
+#define strtoll_custom(...) _strtoi64(__VA_ARGS__)
+#define strtoull_custom(...) _strtoui64(__VA_ARGS__)
+#define atoll_custom(...) _atoi64(__VA_ARGS__)
+#undef strtoll
+#undef strtoull
+#define strtoll(...) strtoll_custom(__VA_ARGS__)
+#define strtoull(...) strtoull_custom(__VA_ARGS__)
+#define stricmp_custom(...) _stricmp(__VA_ARGS__)
+#define strnicmp_custom(...) _strnicmp(__VA_ARGS__)
 #define atoi_custom(...) atoi(__VA_ARGS__)
 #define atol_custom(...) atol(__VA_ARGS__)
 #define strdup_custom(...) strdup(__VA_ARGS__)
@@ -162,29 +172,47 @@
 #define wcsrev_custom(...) wcsrev(__VA_ARGS__)
 #define strtok_custom(...) strtok(__VA_ARGS__)
 
-static inline size_t obfh_editor_strnlen_s(const char *text, size_t count) {
-    size_t length = 0;
-    if (text)
-        while (length < count && text[length]) ++length;
-    return length;
-}
-#define strnlen_s_custom(...) obfh_editor_strnlen_s(__VA_ARGS__)
-#define strnlen_s(...) strnlen_s_custom(__VA_ARGS__)
-
-static inline size_t obfh_editor_wcsnlen_s(const wchar_t *text, size_t count) {
-    size_t length = 0;
-    if (text)
-        while (length < count && text[length]) ++length;
-    return length;
-}
-#define wcsnlen_s_custom(...) obfh_editor_wcsnlen_s(__VA_ARGS__)
-#define wcsnlen_s(...) wcsnlen_s_custom(__VA_ARGS__)
+#define OBFH_EDITOR_BOUNDED_LENGTH(char_type, text, count) \
+    ({ \
+        struct { \
+            const char_type *p; \
+            size_t n; \
+        } __obfh_editor_args = {(text), (count)}; \
+        size_t __obfh_editor_length = 0; \
+        if (__obfh_editor_args.p) \
+            while (__obfh_editor_length < __obfh_editor_args.n && __obfh_editor_args.p[__obfh_editor_length]) \
+                ++__obfh_editor_length; \
+        __obfh_editor_length; \
+    })
+#define strnlen_s(text, count) OBFH_EDITOR_BOUNDED_LENGTH(char, text, count)
+#define strnlen_s_custom(...) strnlen_s(__VA_ARGS__)
+#define wcsnlen_s(text, count) OBFH_EDITOR_BOUNDED_LENGTH(wchar_t, text, count)
+#define wcsnlen_s_custom(...) wcsnlen_s(__VA_ARGS__)
 
 // Search, output and platform aliases.
 #define bsearch_custom(...) bsearch(__VA_ARGS__)
 #define qsort_custom(...) qsort(__VA_ARGS__)
 #define printf_custom(...) printf(__VA_ARGS__)
 #define GetProcAddress_custom(...) GetProcAddress(__VA_ARGS__)
+
+// The bundled import library omits these tokenizers and lldiv. Keep editor
+// results typed without adding NO_OBF exports.
+#define strtok_s(text, delimiters, context) \
+    ((char *(__cdecl *)(char *, const char *, char **)) \
+         GetProcAddress(GetModuleHandleA("msvcrt"), "strtok_s"))((text), (delimiters), (context))
+#define wcstok_s(text, delimiters, context) \
+    ((wchar_t * (__cdecl *)(wchar_t *, const wchar_t *, wchar_t **)) \
+         GetProcAddress(GetModuleHandleA("msvcrt"), "wcstok_s"))((text), (delimiters), (context))
+#define lldiv(numerator, denominator) \
+    ({ \
+        struct { \
+            long long n, d; \
+        } __obfh_editor_args = {(numerator), (denominator)}; \
+        lldiv_t __obfh_editor_result; \
+        __obfh_editor_result.quot = __obfh_editor_args.n / __obfh_editor_args.d; \
+        __obfh_editor_result.rem = __obfh_editor_args.n - __obfh_editor_result.quot * __obfh_editor_args.d; \
+        __obfh_editor_result; \
+    })
 
 #endif  // OBFH_EDITOR_VIEW
 
@@ -5033,9 +5061,28 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
 // Fall through on false; only the taken exit needs a local jump.
 #define OBFH_INLINE_EXIT(condition, label) ((condition) ? ({ goto label; }) : (void)0)
 
+// One draw per kernel. Selection is folded by TCC; no runtime dispatcher.
+// PAIR is only for independent local updates, never ordered memory accesses.
+#define OBFH_CUSTOM_BEGIN \
+    enum { __obfh_custom_site = __COUNTER__, \
+           __obfh_custom_draw = OBFH_PHANTOM_DRAW(__obfh_custom_site) }
+#define OBFH_CUSTOM_BIT ((__obfh_custom_draw >> (__COUNTER__ & 31u)) & 1u)
+#define OBFH_CUSTOM_SELECT(condition, yes, no) \
+    __builtin_choose_expr(OBFH_CUSTOM_BIT, (condition) ? (yes) : (no), !(condition) ? (no) : (yes))
+#define OBFH_CUSTOM_EXIT(condition, label) OBFH_CUSTOM_SELECT(condition, ({ goto label; }), (void)0)
+#define OBFH_CUSTOM_PAIR(first, second) \
+    __builtin_choose_expr(OBFH_CUSTOM_BIT, ((void)(first), (void)(second)), ((void)(second), (void)(first)))
+#define OBFH_CUSTOM_NOP \
+    __obfh_asm__(".fill %c0, 1, 0x90;" \
+                 : \
+                 : "i"(OBFH_CUSTOM_BIT))
+#define OBFH_CUSTOM_ASM(first, second, ...) \
+    __builtin_choose_expr(OBFH_CUSTOM_BIT, ({ __obfh_asm__(first __VA_ARGS__); }), ({ __obfh_asm__(second __VA_ARGS__); }))
+
 // Inline kernels retain entry protection and native internal control flow.
-#define memchr_custom(...) ({ \
+#define memchr(...) ({ \
     __label__ __obfh_memchr_loop, __obfh_memchr_found, __obfh_memchr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const void *__obfh_memchr_memory; \
         int __obfh_memchr_value; \
@@ -5044,22 +5091,24 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
     unsigned char __obfh_memchr_wanted = (unsigned char)__obfh_memchr_args.__obfh_memchr_value; \
     void *__obfh_memchr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_memchr_loop: \
-    OBFH_INLINE_EXIT(!__obfh_memchr_args.__obfh_memchr_count, __obfh_memchr_done); \
-    OBFH_INLINE_EXIT(*(const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory == __obfh_memchr_wanted, __obfh_memchr_found); \
+    OBFH_CUSTOM_EXIT(!__obfh_memchr_args.__obfh_memchr_count, __obfh_memchr_done); \
+    OBFH_CUSTOM_EXIT(*(const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory == __obfh_memchr_wanted, __obfh_memchr_found); \
     __obfh_memchr_args.__obfh_memchr_memory = (const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory + 1; \
     --__obfh_memchr_args.__obfh_memchr_count; \
     goto __obfh_memchr_loop; \
 __obfh_memchr_found: \
     __obfh_memchr_result = (void *)__obfh_memchr_args.__obfh_memchr_memory; \
 __obfh_memchr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_memchr_result; \
 })
-#define memchr(...) memchr_custom(__VA_ARGS__)
+#define memchr_custom(...) memchr(__VA_ARGS__)
 
-#define strspn_custom(...) ({ \
+#define strspn(...) ({ \
     __label__ __obfh_strspn_loop, __obfh_strspn_match, __obfh_strspn_select, __obfh_strspn_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *__obfh_strspn_text; \
         const char *__obfh_strspn_set; \
@@ -5067,25 +5116,27 @@ __obfh_memchr_done:; \
     const unsigned char *__obfh_strspn_cursor = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text; \
     const unsigned char *__obfh_strspn_member; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strspn_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_strspn_cursor, __obfh_strspn_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strspn_cursor, __obfh_strspn_done); \
     __obfh_strspn_member = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_set; \
 __obfh_strspn_match: \
-    OBFH_INLINE_EXIT(!*__obfh_strspn_member || *__obfh_strspn_member == *__obfh_strspn_cursor, __obfh_strspn_select); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strspn_member || *__obfh_strspn_member == *__obfh_strspn_cursor, __obfh_strspn_select); \
     ++__obfh_strspn_member; \
     goto __obfh_strspn_match; \
 __obfh_strspn_select: \
-    OBFH_INLINE_EXIT(!*__obfh_strspn_member, __obfh_strspn_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strspn_member, __obfh_strspn_done); \
     ++__obfh_strspn_cursor; \
     goto __obfh_strspn_loop; \
 __obfh_strspn_done:; \
+    OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_strspn_cursor - (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text); \
 })
-#define strspn(...) strspn_custom(__VA_ARGS__)
+#define strspn_custom(...) strspn(__VA_ARGS__)
 
-#define strcspn_custom(...) ({ \
+#define strcspn(...) ({ \
     __label__ __obfh_strcspn_loop, __obfh_strcspn_match, __obfh_strcspn_select, __obfh_strcspn_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *__obfh_strcspn_text; \
         const char *__obfh_strcspn_set; \
@@ -5093,25 +5144,27 @@ __obfh_strspn_done:; \
     const unsigned char *__obfh_strcspn_cursor = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text; \
     const unsigned char *__obfh_strcspn_member; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strcspn_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_strcspn_cursor, __obfh_strcspn_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strcspn_cursor, __obfh_strcspn_done); \
     __obfh_strcspn_member = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_set; \
 __obfh_strcspn_match: \
-    OBFH_INLINE_EXIT(!*__obfh_strcspn_member || *__obfh_strcspn_member == *__obfh_strcspn_cursor, __obfh_strcspn_select); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strcspn_member || *__obfh_strcspn_member == *__obfh_strcspn_cursor, __obfh_strcspn_select); \
     ++__obfh_strcspn_member; \
     goto __obfh_strcspn_match; \
 __obfh_strcspn_select: \
-    OBFH_INLINE_EXIT(*__obfh_strcspn_member, __obfh_strcspn_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_strcspn_member, __obfh_strcspn_done); \
     ++__obfh_strcspn_cursor; \
     goto __obfh_strcspn_loop; \
 __obfh_strcspn_done:; \
+    OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_strcspn_cursor - (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text); \
 })
-#define strcspn(...) strcspn_custom(__VA_ARGS__)
+#define strcspn_custom(...) strcspn(__VA_ARGS__)
 
-#define strpbrk_custom(...) ({ \
+#define strpbrk(...) ({ \
     __label__ __obfh_strpbrk_loop, __obfh_strpbrk_match, __obfh_strpbrk_select, __obfh_strpbrk_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *__obfh_strpbrk_text; \
         const char *__obfh_strpbrk_set; \
@@ -5119,25 +5172,27 @@ __obfh_strcspn_done:; \
     const unsigned char *__obfh_strpbrk_cursor = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_text; \
     const unsigned char *__obfh_strpbrk_member; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strpbrk_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_strpbrk_cursor, __obfh_strpbrk_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strpbrk_cursor, __obfh_strpbrk_done); \
     __obfh_strpbrk_member = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_set; \
 __obfh_strpbrk_match: \
-    OBFH_INLINE_EXIT(!*__obfh_strpbrk_member || *__obfh_strpbrk_member == *__obfh_strpbrk_cursor, __obfh_strpbrk_select); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strpbrk_member || *__obfh_strpbrk_member == *__obfh_strpbrk_cursor, __obfh_strpbrk_select); \
     ++__obfh_strpbrk_member; \
     goto __obfh_strpbrk_match; \
 __obfh_strpbrk_select: \
-    OBFH_INLINE_EXIT(*__obfh_strpbrk_member, __obfh_strpbrk_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_strpbrk_member, __obfh_strpbrk_done); \
     ++__obfh_strpbrk_cursor; \
     goto __obfh_strpbrk_loop; \
 __obfh_strpbrk_done:; \
+    OBFH_CUSTOM_NOP; \
     (char *)(*__obfh_strpbrk_cursor ? (char *)__obfh_strpbrk_cursor : NULL); \
 })
-#define strpbrk(...) strpbrk_custom(__VA_ARGS__)
+#define strpbrk_custom(...) strpbrk(__VA_ARGS__)
 
-#define memcmp_custom(...) ({ \
+#define memcmp(...) ({ \
     __label__ __obfh_memcmp_loop, __obfh_memcmp_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const void *__obfh_memcmp_left; \
         const void *__obfh_memcmp_right; \
@@ -5145,22 +5200,24 @@ __obfh_strpbrk_done:; \
     } __obfh_memcmp_args = {__VA_ARGS__}; \
     int __obfh_memcmp_result = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_memcmp_loop: \
-    OBFH_INLINE_EXIT(!__obfh_memcmp_args.__obfh_memcmp_count, __obfh_memcmp_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_memcmp_args.__obfh_memcmp_count, __obfh_memcmp_done); \
     __obfh_memcmp_result = (int)*(const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_left - (int)*(const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_right; \
-    OBFH_INLINE_EXIT(__obfh_memcmp_result, __obfh_memcmp_done); \
+    OBFH_CUSTOM_EXIT(__obfh_memcmp_result, __obfh_memcmp_done); \
     __obfh_memcmp_args.__obfh_memcmp_left = (const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_left + 1; \
     __obfh_memcmp_args.__obfh_memcmp_right = (const unsigned char *)__obfh_memcmp_args.__obfh_memcmp_right + 1; \
     --__obfh_memcmp_args.__obfh_memcmp_count; \
     goto __obfh_memcmp_loop; \
 __obfh_memcmp_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_memcmp_result; \
 })
-#define memcmp(...) memcmp_custom(__VA_ARGS__)
+#define memcmp_custom(...) memcmp(__VA_ARGS__)
 
-#define strncmp_custom(...) ({ \
+#define strncmp(...) ({ \
     __label__ __obfh_strncmp_loop, __obfh_strncmp_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *__obfh_strncmp_left; \
         const char *__obfh_strncmp_right; \
@@ -5168,22 +5225,23 @@ __obfh_memcmp_done:; \
     } __obfh_strncmp_args = {__VA_ARGS__}; \
     int __obfh_strncmp_result = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strncmp_loop: \
-    OBFH_INLINE_EXIT(!__obfh_strncmp_args.__obfh_strncmp_count, __obfh_strncmp_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_strncmp_args.__obfh_strncmp_count, __obfh_strncmp_done); \
     __obfh_strncmp_result = (int)*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_left - (int)*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_right; \
-    OBFH_INLINE_EXIT(__obfh_strncmp_result || !*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_left, __obfh_strncmp_done); \
-    ++__obfh_strncmp_args.__obfh_strncmp_left; \
-    ++__obfh_strncmp_args.__obfh_strncmp_right; \
+    OBFH_CUSTOM_EXIT(__obfh_strncmp_result || !*(const unsigned char *)__obfh_strncmp_args.__obfh_strncmp_left, __obfh_strncmp_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_strncmp_args.__obfh_strncmp_left, ++__obfh_strncmp_args.__obfh_strncmp_right); \
     --__obfh_strncmp_args.__obfh_strncmp_count; \
     goto __obfh_strncmp_loop; \
 __obfh_strncmp_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strncmp_result; \
 })
-#define strncmp(...) strncmp_custom(__VA_ARGS__)
+#define strncmp_custom(...) strncmp(__VA_ARGS__)
 
-#define strstr_custom(...) ({ \
+#define strstr(...) ({ \
     __label__ __obfh_strstr_loop, __obfh_strstr_match, __obfh_strstr_advance, __obfh_strstr_found, __obfh_strstr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *__obfh_strstr_text; \
         const char *__obfh_strstr_pattern; \
@@ -5193,18 +5251,17 @@ __obfh_strncmp_done:; \
     unsigned char __obfh_strstr_first = (unsigned char)*__obfh_strstr_args.__obfh_strstr_pattern; \
     char *__obfh_strstr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
-    OBFH_INLINE_EXIT(!__obfh_strstr_first, __obfh_strstr_found); \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(!__obfh_strstr_first, __obfh_strstr_found); \
 __obfh_strstr_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_strstr_args.__obfh_strstr_text, __obfh_strstr_done); \
-    OBFH_INLINE_EXIT((unsigned char)*__obfh_strstr_args.__obfh_strstr_text != __obfh_strstr_first, __obfh_strstr_advance); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strstr_args.__obfh_strstr_text, __obfh_strstr_done); \
+    OBFH_CUSTOM_EXIT((unsigned char)*__obfh_strstr_args.__obfh_strstr_text != __obfh_strstr_first, __obfh_strstr_advance); \
     __obfh_strstr_a = __obfh_strstr_args.__obfh_strstr_text + 1; \
     __obfh_strstr_b = __obfh_strstr_args.__obfh_strstr_pattern + 1; \
 __obfh_strstr_match: \
-    OBFH_INLINE_EXIT(!*__obfh_strstr_b, __obfh_strstr_found); \
-    OBFH_INLINE_EXIT(*__obfh_strstr_a != *__obfh_strstr_b, __obfh_strstr_advance); \
-    ++__obfh_strstr_a; \
-    ++__obfh_strstr_b; \
+    OBFH_CUSTOM_EXIT(!*__obfh_strstr_b, __obfh_strstr_found); \
+    OBFH_CUSTOM_EXIT(*__obfh_strstr_a != *__obfh_strstr_b, __obfh_strstr_advance); \
+    OBFH_CUSTOM_PAIR(++__obfh_strstr_a, ++__obfh_strstr_b); \
     goto __obfh_strstr_match; \
 __obfh_strstr_advance: \
     ++__obfh_strstr_args.__obfh_strstr_text; \
@@ -5212,15 +5269,17 @@ __obfh_strstr_advance: \
 __obfh_strstr_found: \
     __obfh_strstr_result = (char *)__obfh_strstr_args.__obfh_strstr_text; \
 __obfh_strstr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strstr_result; \
 })
-#define strstr(...) strstr_custom(__VA_ARGS__)
+#define strstr_custom(...) strstr(__VA_ARGS__)
 
 // Local copying, character search and wide-string kernels.
 // REP copy/fill and backward word/SSE2 loads accept unaligned addresses.
 // Backward moves of 64+ bytes require SSE2 on x86/x64; byte tails never change DF.
-#define strchr_custom(...) ({ \
+#define strchr(...) ({ \
     __label__ __obfh_strchr_loop, __obfh_strchr_found, __obfh_strchr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *text; \
         int character; \
@@ -5229,22 +5288,24 @@ __obfh_strstr_done:; \
     unsigned char __obfh_strchr_wanted = (unsigned char)__obfh_strchr_args.character; \
     char *__obfh_strchr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strchr_loop: \
-    OBFH_INLINE_EXIT((unsigned char)*__obfh_strchr_cursor == __obfh_strchr_wanted, __obfh_strchr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_strchr_cursor, __obfh_strchr_done); \
+    OBFH_CUSTOM_EXIT((unsigned char)*__obfh_strchr_cursor == __obfh_strchr_wanted, __obfh_strchr_found); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strchr_cursor, __obfh_strchr_done); \
     ++__obfh_strchr_cursor; \
     goto __obfh_strchr_loop; \
 __obfh_strchr_found: \
     __obfh_strchr_result = (char *)__obfh_strchr_cursor; \
 __obfh_strchr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strchr_result; \
 })
 
-#define strchr(...) strchr_custom(__VA_ARGS__)
+#define strchr_custom(...) strchr(__VA_ARGS__)
 
-#define strrchr_custom(...) ({ \
+#define strrchr(...) ({ \
     __label__ __obfh_strrchr_loop, __obfh_strrchr_found, __obfh_strrchr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *text; \
         int character; \
@@ -5253,25 +5314,27 @@ __obfh_strchr_done:; \
     unsigned char __obfh_strrchr_wanted = (unsigned char)__obfh_strrchr_args.character; \
     char *__obfh_strrchr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strrchr_loop: \
-    OBFH_INLINE_EXIT((unsigned char)*__obfh_strrchr_cursor == __obfh_strrchr_wanted, __obfh_strrchr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done); \
+    OBFH_CUSTOM_EXIT((unsigned char)*__obfh_strrchr_cursor == __obfh_strrchr_wanted, __obfh_strrchr_found); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done); \
     ++__obfh_strrchr_cursor; \
     goto __obfh_strrchr_loop; \
 __obfh_strrchr_found: \
     __obfh_strrchr_result = (char *)__obfh_strrchr_cursor; \
-    OBFH_INLINE_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strrchr_cursor, __obfh_strrchr_done); \
     ++__obfh_strrchr_cursor; \
     goto __obfh_strrchr_loop; \
 __obfh_strrchr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strrchr_result; \
 })
 
-#define strrchr(...) strrchr_custom(__VA_ARGS__)
+#define strrchr_custom(...) strrchr(__VA_ARGS__)
 
-#define wcschr_custom(...) ({ \
+#define wcschr(...) ({ \
     __label__ __obfh_wcschr_loop, __obfh_wcschr_found, __obfh_wcschr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *text; \
         wchar_t character; \
@@ -5280,21 +5343,23 @@ __obfh_strrchr_done:; \
     wchar_t __obfh_wcschr_wanted = (wchar_t)__obfh_wcschr_args.character; \
     wchar_t *__obfh_wcschr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcschr_loop: \
-    OBFH_INLINE_EXIT(*__obfh_wcschr_cursor == __obfh_wcschr_wanted, __obfh_wcschr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_wcschr_cursor, __obfh_wcschr_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_wcschr_cursor == __obfh_wcschr_wanted, __obfh_wcschr_found); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcschr_cursor, __obfh_wcschr_done); \
     ++__obfh_wcschr_cursor; \
     goto __obfh_wcschr_loop; \
 __obfh_wcschr_found: \
     __obfh_wcschr_result = (wchar_t *)__obfh_wcschr_cursor; \
 __obfh_wcschr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcschr_result; \
 })
-#define wcschr(...) wcschr_custom(__VA_ARGS__)
+#define wcschr_custom(...) wcschr(__VA_ARGS__)
 
-#define wcsrchr_custom(...) ({ \
+#define wcsrchr(...) ({ \
     __label__ __obfh_wcsrchr_loop, __obfh_wcsrchr_found, __obfh_wcsrchr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *text; \
         wchar_t character; \
@@ -5303,24 +5368,26 @@ __obfh_wcschr_done:; \
     wchar_t __obfh_wcsrchr_wanted = (wchar_t)__obfh_wcsrchr_args.character; \
     wchar_t *__obfh_wcsrchr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcsrchr_loop: \
-    OBFH_INLINE_EXIT(*__obfh_wcsrchr_cursor == __obfh_wcsrchr_wanted, __obfh_wcsrchr_found); \
-    OBFH_INLINE_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_wcsrchr_cursor == __obfh_wcsrchr_wanted, __obfh_wcsrchr_found); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done); \
     ++__obfh_wcsrchr_cursor; \
     goto __obfh_wcsrchr_loop; \
 __obfh_wcsrchr_found: \
     __obfh_wcsrchr_result = (wchar_t *)__obfh_wcsrchr_cursor; \
-    OBFH_INLINE_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsrchr_cursor, __obfh_wcsrchr_done); \
     ++__obfh_wcsrchr_cursor; \
     goto __obfh_wcsrchr_loop; \
 __obfh_wcsrchr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcsrchr_result; \
 })
-#define wcsrchr(...) wcsrchr_custom(__VA_ARGS__)
+#define wcsrchr_custom(...) wcsrchr(__VA_ARGS__)
 
-#define strcpy_custom(...) ({ \
+#define strcpy(...) ({ \
     __label__ __obfh_strcpy_copy, __obfh_strcpy_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         char *destination; \
         const char *text; \
@@ -5329,21 +5396,23 @@ __obfh_wcsrchr_done:; \
     const char *__obfh_strcpy_source = __obfh_strcpy_args.text; \
     char __obfh_strcpy_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strcpy_copy: \
     __obfh_strcpy_value = *__obfh_strcpy_source; \
     *__obfh_strcpy_target++ = __obfh_strcpy_value; \
-    OBFH_INLINE_EXIT(!__obfh_strcpy_value, __obfh_strcpy_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_strcpy_value, __obfh_strcpy_done); \
     ++__obfh_strcpy_source; \
     goto __obfh_strcpy_copy; \
 __obfh_strcpy_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strcpy_args.destination; \
 })
 
-#define strcpy(...) strcpy_custom(__VA_ARGS__)
+#define strcpy_custom(...) strcpy(__VA_ARGS__)
 
-#define strcat_custom(...) ({ \
+#define strcat(...) ({ \
     __label__ __obfh_strcat_scan, __obfh_strcat_copy, __obfh_strcat_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         char *destination; \
         const char *text; \
@@ -5352,25 +5421,27 @@ __obfh_strcpy_done:; \
     const char *__obfh_strcat_source = __obfh_strcat_args.text; \
     char __obfh_strcat_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strcat_scan: \
-    OBFH_INLINE_EXIT(!*__obfh_strcat_target, __obfh_strcat_copy); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strcat_target, __obfh_strcat_copy); \
     ++__obfh_strcat_target; \
     goto __obfh_strcat_scan; \
 __obfh_strcat_copy: \
     __obfh_strcat_value = *__obfh_strcat_source; \
     *__obfh_strcat_target++ = __obfh_strcat_value; \
-    OBFH_INLINE_EXIT(!__obfh_strcat_value, __obfh_strcat_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_strcat_value, __obfh_strcat_done); \
     ++__obfh_strcat_source; \
     goto __obfh_strcat_copy; \
 __obfh_strcat_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strcat_args.destination; \
 })
 
-#define strcat(...) strcat_custom(__VA_ARGS__)
+#define strcat_custom(...) strcat(__VA_ARGS__)
 
-#define strncpy_custom(...) ({ \
+#define strncpy(...) ({ \
     __label__ __obfh_strncpy_copy, __obfh_strncpy_fill, __obfh_strncpy_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         char *destination; \
         const char *text; \
@@ -5380,28 +5451,30 @@ __obfh_strcat_done:; \
     const char *__obfh_strncpy_source = __obfh_strncpy_args.text; \
     char __obfh_strncpy_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strncpy_copy: \
-    OBFH_INLINE_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done); \
     __obfh_strncpy_value = *__obfh_strncpy_source; \
     *__obfh_strncpy_target++ = __obfh_strncpy_value; \
     --__obfh_strncpy_args.count; \
-    OBFH_INLINE_EXIT(!__obfh_strncpy_value, __obfh_strncpy_fill); \
+    OBFH_CUSTOM_EXIT(!__obfh_strncpy_value, __obfh_strncpy_fill); \
     ++__obfh_strncpy_source; \
     goto __obfh_strncpy_copy; \
 __obfh_strncpy_fill: \
-    OBFH_INLINE_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_strncpy_args.count, __obfh_strncpy_done); \
     *__obfh_strncpy_target++ = 0; \
     --__obfh_strncpy_args.count; \
     goto __obfh_strncpy_fill; \
 __obfh_strncpy_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strncpy_args.destination; \
 })
 
-#define strncpy(...) strncpy_custom(__VA_ARGS__)
+#define strncpy_custom(...) strncpy(__VA_ARGS__)
 
-#define strncat_custom(...) ({ \
+#define strncat(...) ({ \
     __label__ __obfh_strncat_scan, __obfh_strncat_copy, __obfh_strncat_fill, __obfh_strncat_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         char *destination; \
         const char *text; \
@@ -5411,28 +5484,30 @@ __obfh_strncpy_done:; \
     const char *__obfh_strncat_source = __obfh_strncat_args.text; \
     char __obfh_strncat_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strncat_scan: \
-    OBFH_INLINE_EXIT(!*__obfh_strncat_target, __obfh_strncat_copy); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strncat_target, __obfh_strncat_copy); \
     ++__obfh_strncat_target; \
     goto __obfh_strncat_scan; \
 __obfh_strncat_copy: \
-    OBFH_INLINE_EXIT(!__obfh_strncat_args.count, __obfh_strncat_fill); \
+    OBFH_CUSTOM_EXIT(!__obfh_strncat_args.count, __obfh_strncat_fill); \
     __obfh_strncat_value = *__obfh_strncat_source; \
     *__obfh_strncat_target++ = __obfh_strncat_value; \
     --__obfh_strncat_args.count; \
-    OBFH_INLINE_EXIT(!__obfh_strncat_value, __obfh_strncat_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_strncat_value, __obfh_strncat_done); \
     ++__obfh_strncat_source; \
     goto __obfh_strncat_copy; \
 __obfh_strncat_fill: \
     *__obfh_strncat_target = 0; \
 __obfh_strncat_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strncat_args.destination; \
 })
 
-#define strncat(...) strncat_custom(__VA_ARGS__)
+#define strncat_custom(...) strncat(__VA_ARGS__)
 
-#define memcpy_custom(...) ({ \
+#define memcpy(...) ({ \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         void *destination; \
         const void *text; \
@@ -5442,7 +5517,7 @@ __obfh_strncat_done:; \
     const void *__obfh_memcpy_source = __obfh_memcpy_args.text; \
     size_t __obfh_memcpy_count = __obfh_memcpy_args.count; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
     __obfh_asm__("rep movsb" \
                  : "+D"(__obfh_memcpy_target), "+S"(__obfh_memcpy_source), \
                    "+c"(__obfh_memcpy_count) \
@@ -5451,9 +5526,10 @@ __obfh_strncat_done:; \
     __obfh_memcpy_args.destination; \
 })
 
-#define memcpy(...) memcpy_custom(__VA_ARGS__)
+#define memcpy_custom(...) memcpy(__VA_ARGS__)
 
-#define memset_custom(...) ({ \
+#define memset(...) ({ \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         void *destination; \
         int character; \
@@ -5462,7 +5538,7 @@ __obfh_strncat_done:; \
     void *__obfh_memset_target = __obfh_memset_args.destination; \
     size_t __obfh_memset_count = __obfh_memset_args.count; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
     __obfh_asm__("rep stosb" \
                  : "+D"(__obfh_memset_target), "+c"(__obfh_memset_count) \
                  : "a"((unsigned char)__obfh_memset_args.character) \
@@ -5470,19 +5546,35 @@ __obfh_strncat_done:; \
     __obfh_memset_args.destination; \
 })
 
-#define memset(...) memset_custom(__VA_ARGS__)
+#define memset_custom(...) memset(__VA_ARGS__)
 
 #if defined(__x86_64__)
 #define OBFH_MOVE_WIDTH "q"
-#define OBFH_MOVE_REGISTER "%%rax"
+#define OBFH_MOVE_REX ".byte 0x48;"
 #define OBFH_MOVE_STEP "8"
 #else
 #define OBFH_MOVE_WIDTH "l"
-#define OBFH_MOVE_REGISTER "%%eax"
+#define OBFH_MOVE_REX ""
 #define OBFH_MOVE_STEP "4"
 #endif
-#define memmove_custom(...) ({ \
+// Same instructions/access order; only independent pointer updates are permuted.
+#define OBFH_MOVE_BACKWARD_ORDER_A(step) \
+    "sub" OBFH_MOVE_WIDTH " $" step ", %0; sub" OBFH_MOVE_WIDTH " $" step ", %1; "
+#define OBFH_MOVE_BACKWARD_ORDER_B(step) \
+    "sub" OBFH_MOVE_WIDTH " $" step ", %1; sub" OBFH_MOVE_WIDTH " $" step ", %0; "
+#define OBFH_MOVE_TAIL(order) \
+    "test" OBFH_MOVE_WIDTH " %2, %2; jz 2f; 1: .byte 0x8a,(0x06+%c3); .byte 0x88,(0x07+%c3); " order "dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:"
+#define OBFH_MOVE_TAIL_ORDER_A \
+    "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; "
+#define OBFH_MOVE_TAIL_ORDER_B \
+    "dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %0; "
+#define OBFH_MOVE_WORD(order) \
+    "1: " OBFH_MOVE_REX ".byte 0x8b,(0x06+%c3); " OBFH_MOVE_REX ".byte 0x89,(0x07+%c3); " order "dec" OBFH_MOVE_WIDTH " %2; jnz 1b;"
+#define OBFH_MOVE_VECTOR(order) \
+    ".byte 0xf3,0x0f,0x7f,(0x02+%c4); 1: .byte 0xf3,0x0f,0x6f,(0x06+%c4); .byte 0xf3,0x0f,0x7f,(0x07+%c4); " order "dec" OBFH_MOVE_WIDTH " %2; jnz 1b; .byte 0xf3,0x0f,0x6f,(0x02+%c4);"
+#define memmove(...) ({ \
     __label__ __obfh_memmove_backward, __obfh_memmove_vector, __obfh_memmove_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         void *destination; \
         const void *text; \
@@ -5492,9 +5584,9 @@ __obfh_strncat_done:; \
     const void *__obfh_memmove_source = __obfh_memmove_args.text; \
     size_t __obfh_memmove_count = __obfh_memmove_args.count; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
-    OBFH_INLINE_EXIT(!__obfh_memmove_count, __obfh_memmove_done); \
-    OBFH_INLINE_EXIT((ULONG_PTR)__obfh_memmove_target > (ULONG_PTR)__obfh_memmove_source && \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(!__obfh_memmove_count, __obfh_memmove_done); \
+    OBFH_CUSTOM_EXIT((ULONG_PTR)__obfh_memmove_target > (ULONG_PTR)__obfh_memmove_source && \
                          (ULONG_PTR)__obfh_memmove_target - (ULONG_PTR)__obfh_memmove_source < __obfh_memmove_count, \
                      __obfh_memmove_backward); \
     __obfh_asm__("rep movsb" \
@@ -5504,96 +5596,91 @@ __obfh_strncat_done:; \
                  : "memory"); \
     goto __obfh_memmove_done; \
 __obfh_memmove_backward: \
-    OBFH_INLINE_EXIT(__obfh_memmove_count >= 64, __obfh_memmove_vector); \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1; \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1; \
+    OBFH_CUSTOM_EXIT(__obfh_memmove_count >= 64, __obfh_memmove_vector); \
+    OBFH_CUSTOM_PAIR(__obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1, \
+                     __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1); \
     size_t __obfh_memmove_tail = __obfh_memmove_count % sizeof(ULONG_PTR); \
     __obfh_memmove_count /= sizeof(ULONG_PTR); \
-    __obfh_asm__("test" OBFH_MOVE_WIDTH \
-                 " %2, %2; jz 2f; 1: movb (%1), %%al; movb %%al, (%0); " \
-                 "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:" \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_tail) \
-                 : \
-                 : "eax", "cc", "memory"); \
-    OBFH_INLINE_EXIT(!__obfh_memmove_count, __obfh_memmove_done); \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target - (sizeof(ULONG_PTR) - 1); \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - (sizeof(ULONG_PTR) - 1); \
-    __obfh_asm__("1: mov" OBFH_MOVE_WIDTH " (%1), " OBFH_MOVE_REGISTER "; mov" OBFH_MOVE_WIDTH " " OBFH_MOVE_REGISTER \
-                 ", (%0); " \
-                 "sub" OBFH_MOVE_WIDTH " $" OBFH_MOVE_STEP ", %0; sub" OBFH_MOVE_WIDTH " $" OBFH_MOVE_STEP \
-                 ", %1; " \
-                 "dec" OBFH_MOVE_WIDTH " %2; jnz 1b;" \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count) \
-                 : \
-                 : "eax", "cc", "memory"); \
+    OBFH_CUSTOM_ASM(OBFH_MOVE_TAIL(OBFH_MOVE_TAIL_ORDER_A), OBFH_MOVE_TAIL(OBFH_MOVE_TAIL_ORDER_B), \
+                    : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_tail) \
+                    : "i"(((__obfh_custom_draw >> 4) & 1u) * 16u) \
+                    : "eax", "edx", "cc", "memory"); \
+    OBFH_CUSTOM_EXIT(!__obfh_memmove_count, __obfh_memmove_done); \
+    OBFH_CUSTOM_PAIR(__obfh_memmove_target = (unsigned char *)__obfh_memmove_target - (sizeof(ULONG_PTR) - 1), \
+                     __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - (sizeof(ULONG_PTR) - 1)); \
+    OBFH_CUSTOM_ASM(OBFH_MOVE_WORD(OBFH_MOVE_BACKWARD_ORDER_A(OBFH_MOVE_STEP)), \
+                    OBFH_MOVE_WORD(OBFH_MOVE_BACKWARD_ORDER_B(OBFH_MOVE_STEP)), \
+                    : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count) \
+                    : "i"(((__obfh_custom_draw >> 4) & 1u) * 16u) \
+                    : "eax", "edx", "cc", "memory"); \
     goto __obfh_memmove_done; \
 __obfh_memmove_vector: \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1; \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1; \
+    OBFH_CUSTOM_PAIR(__obfh_memmove_target = (unsigned char *)__obfh_memmove_target + __obfh_memmove_count - 1, \
+                     __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source + __obfh_memmove_count - 1); \
     size_t __obfh_memmove_vector_tail = __obfh_memmove_count & 15u; \
     __obfh_memmove_count >>= 4; \
-    __obfh_asm__("test" OBFH_MOVE_WIDTH \
-                 " %2, %2; jz 2f; 1: movb (%1), %%al; movb %%al, (%0); " \
-                 "dec" OBFH_MOVE_WIDTH " %0; dec" OBFH_MOVE_WIDTH " %1; dec" OBFH_MOVE_WIDTH " %2; jnz 1b; 2:" \
-                 : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_vector_tail) \
-                 : \
-                 : "eax", "cc", "memory"); \
-    __obfh_memmove_target = (unsigned char *)__obfh_memmove_target - 15; \
-    __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - 15; \
-    /* TCC lacks MOVDQU syntax and XMM clobbers: fixed D/S/d addresses, save/restore XMM0. */ \
+    OBFH_CUSTOM_ASM(OBFH_MOVE_TAIL(OBFH_MOVE_TAIL_ORDER_A), OBFH_MOVE_TAIL(OBFH_MOVE_TAIL_ORDER_B), \
+                    : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_vector_tail) \
+                    : "i"(((__obfh_custom_draw >> 4) & 1u) * 16u) \
+                    : "eax", "edx", "cc", "memory"); \
+    OBFH_CUSTOM_PAIR(__obfh_memmove_target = (unsigned char *)__obfh_memmove_target - 15, \
+                     __obfh_memmove_source = (const unsigned char *)__obfh_memmove_source - 15); \
+    /* Fixed D/S/d addresses; save/restore the selected XMM0..7 (TCC lacks XMM clobbers). */ \
     unsigned char __obfh_memmove_xmm_save[16]; \
-    __obfh_asm__( \
-        ".byte 0xf3,0x0f,0x7f,0x02; 1: .byte 0xf3,0x0f,0x6f,0x06; .byte 0xf3,0x0f,0x7f,0x07; " \
-        "sub" OBFH_MOVE_WIDTH " $16, %0; sub" OBFH_MOVE_WIDTH \
-        " $16, %1; " \
-        "dec" OBFH_MOVE_WIDTH " %2; jnz 1b; .byte 0xf3,0x0f,0x6f,0x02;" \
-        : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count) \
-        : "d"(__obfh_memmove_xmm_save) \
-        : "cc", "memory"); \
+    OBFH_CUSTOM_ASM(OBFH_MOVE_VECTOR(OBFH_MOVE_BACKWARD_ORDER_A("16")), \
+                    OBFH_MOVE_VECTOR(OBFH_MOVE_BACKWARD_ORDER_B("16")), \
+                    : "+D"(__obfh_memmove_target), "+S"(__obfh_memmove_source), "+c"(__obfh_memmove_count) \
+                    : "d"(__obfh_memmove_xmm_save), "i"(((__obfh_custom_draw >> 8) & 7u) * 8u) \
+                    : "cc", "memory"); \
 __obfh_memmove_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_memmove_args.destination; \
 })
 
-#define memmove(...) memmove_custom(__VA_ARGS__)
-#define wcslen_custom(...) ({ \
+#define memmove_custom(...) memmove(__VA_ARGS__)
+#define wcslen(...) ({ \
     __label__ __obfh_wcslen_loop, __obfh_wcslen_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *text; \
     } __obfh_wcslen_args = {__VA_ARGS__}; \
     size_t __obfh_wcslen_index = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcslen_loop: \
-    OBFH_INLINE_EXIT(!__obfh_wcslen_args.text[__obfh_wcslen_index], __obfh_wcslen_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcslen_args.text[__obfh_wcslen_index], __obfh_wcslen_done); \
     ++__obfh_wcslen_index; \
     goto __obfh_wcslen_loop; \
 __obfh_wcslen_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcslen_index; \
 })
-#define wcslen(...) wcslen_custom(__VA_ARGS__)
+#define wcslen_custom(...) wcslen(__VA_ARGS__)
 
-#define wcscmp_custom(...) ({ \
+#define wcscmp(...) ({ \
     __label__ __obfh_wcscmp_loop, __obfh_wcscmp_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *left; \
         const wchar_t *right; \
     } __obfh_wcscmp_args = {__VA_ARGS__}; \
     int __obfh_wcscmp_result = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcscmp_loop: \
     __obfh_wcscmp_result = (*__obfh_wcscmp_args.left > *__obfh_wcscmp_args.right) - (*__obfh_wcscmp_args.left < *__obfh_wcscmp_args.right); \
-    OBFH_INLINE_EXIT(__obfh_wcscmp_result || !*__obfh_wcscmp_args.left, __obfh_wcscmp_done); \
-    ++__obfh_wcscmp_args.left; \
-    ++__obfh_wcscmp_args.right; \
+    OBFH_CUSTOM_EXIT(__obfh_wcscmp_result || !*__obfh_wcscmp_args.left, __obfh_wcscmp_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_wcscmp_args.left, ++__obfh_wcscmp_args.right); \
     goto __obfh_wcscmp_loop; \
 __obfh_wcscmp_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcscmp_result; \
 })
-#define wcscmp(...) wcscmp_custom(__VA_ARGS__)
+#define wcscmp_custom(...) wcscmp(__VA_ARGS__)
 
-#define wcsncmp_custom(...) ({ \
+#define wcsncmp(...) ({ \
     __label__ __obfh_wcsncmp_loop, __obfh_wcsncmp_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *left; \
         const wchar_t *right; \
@@ -5601,23 +5688,24 @@ __obfh_wcscmp_done:; \
     } __obfh_wcsncmp_args = {__VA_ARGS__}; \
     int __obfh_wcsncmp_result = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcsncmp_loop: \
-    OBFH_INLINE_EXIT(!__obfh_wcsncmp_args.count, __obfh_wcsncmp_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsncmp_args.count, __obfh_wcsncmp_done); \
     __obfh_wcsncmp_result = (*__obfh_wcsncmp_args.left > *__obfh_wcsncmp_args.right) - (*__obfh_wcsncmp_args.left < *__obfh_wcsncmp_args.right); \
-    OBFH_INLINE_EXIT(__obfh_wcsncmp_result || !*__obfh_wcsncmp_args.left, __obfh_wcsncmp_done); \
-    ++__obfh_wcsncmp_args.left; \
-    ++__obfh_wcsncmp_args.right; \
+    OBFH_CUSTOM_EXIT(__obfh_wcsncmp_result || !*__obfh_wcsncmp_args.left, __obfh_wcsncmp_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_wcsncmp_args.left, ++__obfh_wcsncmp_args.right); \
     --__obfh_wcsncmp_args.count; \
     goto __obfh_wcsncmp_loop; \
 __obfh_wcsncmp_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcsncmp_result; \
 })
-#define wcsncmp(...) wcsncmp_custom(__VA_ARGS__)
+#define wcsncmp_custom(...) wcsncmp(__VA_ARGS__)
 
 // Wide copies/searches and bounded lengths retain native internal branches.
-#define wcscpy_custom(...) ({ \
+#define wcscpy(...) ({ \
     __label__ __obfh_wcscpy_copy, __obfh_wcscpy_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
@@ -5626,20 +5714,22 @@ __obfh_wcsncmp_done:; \
     const wchar_t *__obfh_wcscpy_source = __obfh_wcscpy_args.text; \
     wchar_t __obfh_wcscpy_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcscpy_copy: \
     __obfh_wcscpy_value = *__obfh_wcscpy_source; \
     *__obfh_wcscpy_target++ = __obfh_wcscpy_value; \
-    OBFH_INLINE_EXIT(!__obfh_wcscpy_value, __obfh_wcscpy_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcscpy_value, __obfh_wcscpy_done); \
     ++__obfh_wcscpy_source; \
     goto __obfh_wcscpy_copy; \
 __obfh_wcscpy_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcscpy_args.destination; \
 })
-#define wcscpy(...) wcscpy_custom(__VA_ARGS__)
+#define wcscpy_custom(...) wcscpy(__VA_ARGS__)
 
-#define wcscat_custom(...) ({ \
+#define wcscat(...) ({ \
     __label__ __obfh_wcscat_scan, __obfh_wcscat_copy, __obfh_wcscat_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
@@ -5648,24 +5738,26 @@ __obfh_wcscpy_done:; \
     const wchar_t *__obfh_wcscat_source = __obfh_wcscat_args.text; \
     wchar_t __obfh_wcscat_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcscat_scan: \
-    OBFH_INLINE_EXIT(!*__obfh_wcscat_target, __obfh_wcscat_copy); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcscat_target, __obfh_wcscat_copy); \
     ++__obfh_wcscat_target; \
     goto __obfh_wcscat_scan; \
 __obfh_wcscat_copy: \
     __obfh_wcscat_value = *__obfh_wcscat_source; \
     *__obfh_wcscat_target++ = __obfh_wcscat_value; \
-    OBFH_INLINE_EXIT(!__obfh_wcscat_value, __obfh_wcscat_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcscat_value, __obfh_wcscat_done); \
     ++__obfh_wcscat_source; \
     goto __obfh_wcscat_copy; \
 __obfh_wcscat_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcscat_args.destination; \
 })
-#define wcscat(...) wcscat_custom(__VA_ARGS__)
+#define wcscat_custom(...) wcscat(__VA_ARGS__)
 
-#define wcsncpy_custom(...) ({ \
+#define wcsncpy(...) ({ \
     __label__ __obfh_wcsncpy_copy, __obfh_wcsncpy_fill, __obfh_wcsncpy_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
@@ -5675,27 +5767,29 @@ __obfh_wcscat_done:; \
     const wchar_t *__obfh_wcsncpy_source = __obfh_wcsncpy_args.text; \
     wchar_t __obfh_wcsncpy_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcsncpy_copy: \
-    OBFH_INLINE_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done); \
     __obfh_wcsncpy_value = *__obfh_wcsncpy_source; \
     *__obfh_wcsncpy_target++ = __obfh_wcsncpy_value; \
     --__obfh_wcsncpy_args.count; \
-    OBFH_INLINE_EXIT(!__obfh_wcsncpy_value, __obfh_wcsncpy_fill); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsncpy_value, __obfh_wcsncpy_fill); \
     ++__obfh_wcsncpy_source; \
     goto __obfh_wcsncpy_copy; \
 __obfh_wcsncpy_fill: \
-    OBFH_INLINE_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsncpy_args.count, __obfh_wcsncpy_done); \
     *__obfh_wcsncpy_target++ = 0; \
     --__obfh_wcsncpy_args.count; \
     goto __obfh_wcsncpy_fill; \
 __obfh_wcsncpy_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcsncpy_args.destination; \
 })
-#define wcsncpy(...) wcsncpy_custom(__VA_ARGS__)
+#define wcsncpy_custom(...) wcsncpy(__VA_ARGS__)
 
-#define wcsncat_custom(...) ({ \
+#define wcsncat(...) ({ \
     __label__ __obfh_wcsncat_scan, __obfh_wcsncat_copy, __obfh_wcsncat_fill, __obfh_wcsncat_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
@@ -5705,28 +5799,30 @@ __obfh_wcsncpy_done:; \
     const wchar_t *__obfh_wcsncat_source = __obfh_wcsncat_args.text; \
     wchar_t __obfh_wcsncat_value; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcsncat_scan: \
-    OBFH_INLINE_EXIT(!*__obfh_wcsncat_target, __obfh_wcsncat_copy); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsncat_target, __obfh_wcsncat_copy); \
     ++__obfh_wcsncat_target; \
     goto __obfh_wcsncat_scan; \
 __obfh_wcsncat_copy: \
-    OBFH_INLINE_EXIT(!__obfh_wcsncat_args.count, __obfh_wcsncat_fill); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsncat_args.count, __obfh_wcsncat_fill); \
     __obfh_wcsncat_value = *__obfh_wcsncat_source; \
     *__obfh_wcsncat_target++ = __obfh_wcsncat_value; \
     --__obfh_wcsncat_args.count; \
-    OBFH_INLINE_EXIT(!__obfh_wcsncat_value, __obfh_wcsncat_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsncat_value, __obfh_wcsncat_done); \
     ++__obfh_wcsncat_source; \
     goto __obfh_wcsncat_copy; \
 __obfh_wcsncat_fill: \
     *__obfh_wcsncat_target = 0; \
 __obfh_wcsncat_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcsncat_args.destination; \
 })
-#define wcsncat(...) wcsncat_custom(__VA_ARGS__)
+#define wcsncat_custom(...) wcsncat(__VA_ARGS__)
 
-#define wcsstr_custom(...) ({ \
+#define wcsstr(...) ({ \
     __label__ __obfh_wcsstr_loop, __obfh_wcsstr_match, __obfh_wcsstr_advance, __obfh_wcsstr_found, __obfh_wcsstr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *__obfh_wcsstr_text; \
         const wchar_t *__obfh_wcsstr_pattern; \
@@ -5736,18 +5832,17 @@ __obfh_wcsncat_done:; \
     wchar_t __obfh_wcsstr_first = (wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_pattern; \
     wchar_t *__obfh_wcsstr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
-    OBFH_INLINE_EXIT(!__obfh_wcsstr_first, __obfh_wcsstr_found); \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(!__obfh_wcsstr_first, __obfh_wcsstr_found); \
 __obfh_wcsstr_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_wcsstr_args.__obfh_wcsstr_text, __obfh_wcsstr_done); \
-    OBFH_INLINE_EXIT((wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_text != __obfh_wcsstr_first, __obfh_wcsstr_advance); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsstr_args.__obfh_wcsstr_text, __obfh_wcsstr_done); \
+    OBFH_CUSTOM_EXIT((wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_text != __obfh_wcsstr_first, __obfh_wcsstr_advance); \
     __obfh_wcsstr_a = __obfh_wcsstr_args.__obfh_wcsstr_text + 1; \
     __obfh_wcsstr_b = __obfh_wcsstr_args.__obfh_wcsstr_pattern + 1; \
 __obfh_wcsstr_match: \
-    OBFH_INLINE_EXIT(!*__obfh_wcsstr_b, __obfh_wcsstr_found); \
-    OBFH_INLINE_EXIT(*__obfh_wcsstr_a != *__obfh_wcsstr_b, __obfh_wcsstr_advance); \
-    ++__obfh_wcsstr_a; \
-    ++__obfh_wcsstr_b; \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsstr_b, __obfh_wcsstr_found); \
+    OBFH_CUSTOM_EXIT(*__obfh_wcsstr_a != *__obfh_wcsstr_b, __obfh_wcsstr_advance); \
+    OBFH_CUSTOM_PAIR(++__obfh_wcsstr_a, ++__obfh_wcsstr_b); \
     goto __obfh_wcsstr_match; \
 __obfh_wcsstr_advance: \
     ++__obfh_wcsstr_args.__obfh_wcsstr_text; \
@@ -5755,12 +5850,14 @@ __obfh_wcsstr_advance: \
 __obfh_wcsstr_found: \
     __obfh_wcsstr_result = (wchar_t *)__obfh_wcsstr_args.__obfh_wcsstr_text; \
 __obfh_wcsstr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcsstr_result; \
 })
-#define wcsstr(...) wcsstr_custom(__VA_ARGS__)
+#define wcsstr_custom(...) wcsstr(__VA_ARGS__)
 
-#define wcsspn_custom(...) ({ \
+#define wcsspn(...) ({ \
     __label__ __obfh_wcsspn_loop, __obfh_wcsspn_match, __obfh_wcsspn_select, __obfh_wcsspn_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *__obfh_wcsspn_text; \
         const wchar_t *__obfh_wcsspn_set; \
@@ -5768,25 +5865,27 @@ __obfh_wcsstr_done:; \
     const wchar_t *__obfh_wcsspn_cursor = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text; \
     const wchar_t *__obfh_wcsspn_member; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcsspn_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_wcsspn_cursor, __obfh_wcsspn_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsspn_cursor, __obfh_wcsspn_done); \
     __obfh_wcsspn_member = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_set; \
 __obfh_wcsspn_match: \
-    OBFH_INLINE_EXIT(!*__obfh_wcsspn_member || *__obfh_wcsspn_member == *__obfh_wcsspn_cursor, __obfh_wcsspn_select); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsspn_member || *__obfh_wcsspn_member == *__obfh_wcsspn_cursor, __obfh_wcsspn_select); \
     ++__obfh_wcsspn_member; \
     goto __obfh_wcsspn_match; \
 __obfh_wcsspn_select: \
-    OBFH_INLINE_EXIT(!*__obfh_wcsspn_member, __obfh_wcsspn_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcsspn_member, __obfh_wcsspn_done); \
     ++__obfh_wcsspn_cursor; \
     goto __obfh_wcsspn_loop; \
 __obfh_wcsspn_done:; \
+    OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_wcsspn_cursor - (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text); \
 })
-#define wcsspn(...) wcsspn_custom(__VA_ARGS__)
+#define wcsspn_custom(...) wcsspn(__VA_ARGS__)
 
-#define wcscspn_custom(...) ({ \
+#define wcscspn(...) ({ \
     __label__ __obfh_wcscspn_loop, __obfh_wcscspn_match, __obfh_wcscspn_select, __obfh_wcscspn_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *__obfh_wcscspn_text; \
         const wchar_t *__obfh_wcscspn_set; \
@@ -5794,25 +5893,27 @@ __obfh_wcsspn_done:; \
     const wchar_t *__obfh_wcscspn_cursor = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text; \
     const wchar_t *__obfh_wcscspn_member; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcscspn_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_wcscspn_cursor, __obfh_wcscspn_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcscspn_cursor, __obfh_wcscspn_done); \
     __obfh_wcscspn_member = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_set; \
 __obfh_wcscspn_match: \
-    OBFH_INLINE_EXIT(!*__obfh_wcscspn_member || *__obfh_wcscspn_member == *__obfh_wcscspn_cursor, __obfh_wcscspn_select); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcscspn_member || *__obfh_wcscspn_member == *__obfh_wcscspn_cursor, __obfh_wcscspn_select); \
     ++__obfh_wcscspn_member; \
     goto __obfh_wcscspn_match; \
 __obfh_wcscspn_select: \
-    OBFH_INLINE_EXIT(*__obfh_wcscspn_member, __obfh_wcscspn_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_wcscspn_member, __obfh_wcscspn_done); \
     ++__obfh_wcscspn_cursor; \
     goto __obfh_wcscspn_loop; \
 __obfh_wcscspn_done:; \
+    OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_wcscspn_cursor - (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text); \
 })
-#define wcscspn(...) wcscspn_custom(__VA_ARGS__)
+#define wcscspn_custom(...) wcscspn(__VA_ARGS__)
 
-#define wcspbrk_custom(...) ({ \
+#define wcspbrk(...) ({ \
     __label__ __obfh_wcspbrk_loop, __obfh_wcspbrk_match, __obfh_wcspbrk_select, __obfh_wcspbrk_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *__obfh_wcspbrk_text; \
         const wchar_t *__obfh_wcspbrk_set; \
@@ -5820,80 +5921,90 @@ __obfh_wcscspn_done:; \
     const wchar_t *__obfh_wcspbrk_cursor = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_text; \
     const wchar_t *__obfh_wcspbrk_member; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcspbrk_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_wcspbrk_cursor, __obfh_wcspbrk_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcspbrk_cursor, __obfh_wcspbrk_done); \
     __obfh_wcspbrk_member = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_set; \
 __obfh_wcspbrk_match: \
-    OBFH_INLINE_EXIT(!*__obfh_wcspbrk_member || *__obfh_wcspbrk_member == *__obfh_wcspbrk_cursor, __obfh_wcspbrk_select); \
+    OBFH_CUSTOM_EXIT(!*__obfh_wcspbrk_member || *__obfh_wcspbrk_member == *__obfh_wcspbrk_cursor, __obfh_wcspbrk_select); \
     ++__obfh_wcspbrk_member; \
     goto __obfh_wcspbrk_match; \
 __obfh_wcspbrk_select: \
-    OBFH_INLINE_EXIT(*__obfh_wcspbrk_member, __obfh_wcspbrk_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_wcspbrk_member, __obfh_wcspbrk_done); \
     ++__obfh_wcspbrk_cursor; \
     goto __obfh_wcspbrk_loop; \
 __obfh_wcspbrk_done:; \
+    OBFH_CUSTOM_NOP; \
     (wchar_t *)(*__obfh_wcspbrk_cursor ? (wchar_t *)__obfh_wcspbrk_cursor : NULL); \
 })
-#define wcspbrk(...) wcspbrk_custom(__VA_ARGS__)
+#define wcspbrk_custom(...) wcspbrk(__VA_ARGS__)
 
-#define strnlen_custom(...) ({ \
+#define strnlen(...) ({ \
     __label__ __obfh_strnlen_loop, __obfh_strnlen_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *text; \
         size_t count; \
     } __obfh_strnlen_args = {__VA_ARGS__}; \
     size_t __obfh_strnlen_length = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strnlen_loop: \
-    OBFH_INLINE_EXIT(__obfh_strnlen_length == __obfh_strnlen_args.count || !__obfh_strnlen_args.text[__obfh_strnlen_length], __obfh_strnlen_done); \
+    OBFH_CUSTOM_EXIT(__obfh_strnlen_length == __obfh_strnlen_args.count || !__obfh_strnlen_args.text[__obfh_strnlen_length], __obfh_strnlen_done); \
     ++__obfh_strnlen_length; \
     goto __obfh_strnlen_loop; \
 __obfh_strnlen_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strnlen_length; \
 })
-#define strnlen(...) strnlen_custom(__VA_ARGS__)
+#define strnlen_custom(...) strnlen(__VA_ARGS__)
 
-#define wcsnlen_custom(...) ({ \
+#define wcsnlen(...) ({ \
     __label__ __obfh_wcsnlen_loop, __obfh_wcsnlen_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wcsnlen_args = {__VA_ARGS__}; \
     size_t __obfh_wcsnlen_length = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wcsnlen_loop: \
-    OBFH_INLINE_EXIT(__obfh_wcsnlen_length == __obfh_wcsnlen_args.count || !__obfh_wcsnlen_args.text[__obfh_wcsnlen_length], __obfh_wcsnlen_done); \
+    OBFH_CUSTOM_EXIT(__obfh_wcsnlen_length == __obfh_wcsnlen_args.count || !__obfh_wcsnlen_args.text[__obfh_wcsnlen_length], __obfh_wcsnlen_done); \
     ++__obfh_wcsnlen_length; \
     goto __obfh_wcsnlen_loop; \
 __obfh_wcsnlen_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wcsnlen_length; \
 })
-#define wcsnlen(...) wcsnlen_custom(__VA_ARGS__)
+#define wcsnlen_custom(...) wcsnlen(__VA_ARGS__)
 
-#define wmemcpy_custom(...) ({ \
+#define wmemcpy(...) ({ \
+    OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wmemcpy_args = {__VA_ARGS__}; \
-    (wchar_t *)memcpy_custom(__obfh_wmemcpy_args.destination, __obfh_wmemcpy_args.text, __obfh_wmemcpy_args.count * sizeof(wchar_t)); \
+    (wchar_t *)memcpy(__obfh_wmemcpy_args.destination, __obfh_wmemcpy_args.text, __obfh_wmemcpy_args.count * sizeof(wchar_t)); \
 })
-#define wmemcpy(...) wmemcpy_custom(__VA_ARGS__)
+#define wmemcpy_custom(...) wmemcpy(__VA_ARGS__)
 
-#define wmemmove_custom(...) ({ \
+#define wmemmove(...) ({ \
+    OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wmemmove_args = {__VA_ARGS__}; \
-    (wchar_t *)memmove_custom(__obfh_wmemmove_args.destination, __obfh_wmemmove_args.text, __obfh_wmemmove_args.count * sizeof(wchar_t)); \
+    (wchar_t *)memmove(__obfh_wmemmove_args.destination, __obfh_wmemmove_args.text, __obfh_wmemmove_args.count * sizeof(wchar_t)); \
 })
-#define wmemmove(...) wmemmove_custom(__VA_ARGS__)
+#define wmemmove_custom(...) wmemmove(__VA_ARGS__)
 
-#define wmemset_custom(...) ({ \
+#define wmemset(...) ({ \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         wchar_t *destination; \
         wchar_t value; \
@@ -5902,17 +6013,18 @@ __obfh_wcsnlen_done:; \
     wchar_t *__obfh_wmemset_target = __obfh_wmemset_args.destination; \
     size_t __obfh_wmemset_count = __obfh_wmemset_args.count; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
     __obfh_asm__("rep stosw" \
                  : "+D"(__obfh_wmemset_target), "+c"(__obfh_wmemset_count) \
                  : "a"(__obfh_wmemset_args.value) \
                  : "memory"); \
     __obfh_wmemset_args.destination; \
 })
-#define wmemset(...) wmemset_custom(__VA_ARGS__)
+#define wmemset_custom(...) wmemset(__VA_ARGS__)
 
-#define wmemcmp_custom(...) ({ \
+#define wmemcmp(...) ({ \
     __label__ __obfh_wmemcmp_loop, __obfh_wmemcmp_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *left; \
         const wchar_t *right; \
@@ -5920,22 +6032,23 @@ __obfh_wcsnlen_done:; \
     } __obfh_wmemcmp_args = {__VA_ARGS__}; \
     int __obfh_wmemcmp_result = 0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wmemcmp_loop: \
-    OBFH_INLINE_EXIT(!__obfh_wmemcmp_args.count, __obfh_wmemcmp_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_wmemcmp_args.count, __obfh_wmemcmp_done); \
     __obfh_wmemcmp_result = (*__obfh_wmemcmp_args.left > *__obfh_wmemcmp_args.right) - (*__obfh_wmemcmp_args.left < *__obfh_wmemcmp_args.right); \
-    OBFH_INLINE_EXIT(__obfh_wmemcmp_result, __obfh_wmemcmp_done); \
-    ++__obfh_wmemcmp_args.left; \
-    ++__obfh_wmemcmp_args.right; \
+    OBFH_CUSTOM_EXIT(__obfh_wmemcmp_result, __obfh_wmemcmp_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_wmemcmp_args.left, ++__obfh_wmemcmp_args.right); \
     --__obfh_wmemcmp_args.count; \
     goto __obfh_wmemcmp_loop; \
 __obfh_wmemcmp_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wmemcmp_result; \
 })
-#define wmemcmp(...) wmemcmp_custom(__VA_ARGS__)
+#define wmemcmp_custom(...) wmemcmp(__VA_ARGS__)
 
-#define wmemchr_custom(...) ({ \
+#define wmemchr(...) ({ \
     __label__ __obfh_wmemchr_loop, __obfh_wmemchr_found, __obfh_wmemchr_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const wchar_t *text; \
         wchar_t value; \
@@ -5943,22 +6056,23 @@ __obfh_wmemcmp_done:; \
     } __obfh_wmemchr_args = {__VA_ARGS__}; \
     wchar_t *__obfh_wmemchr_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_wmemchr_loop: \
-    OBFH_INLINE_EXIT(!__obfh_wmemchr_args.count, __obfh_wmemchr_done); \
-    OBFH_INLINE_EXIT(*__obfh_wmemchr_args.text == __obfh_wmemchr_args.value, __obfh_wmemchr_found); \
-    ++__obfh_wmemchr_args.text; \
-    --__obfh_wmemchr_args.count; \
+    OBFH_CUSTOM_EXIT(!__obfh_wmemchr_args.count, __obfh_wmemchr_done); \
+    OBFH_CUSTOM_EXIT(*__obfh_wmemchr_args.text == __obfh_wmemchr_args.value, __obfh_wmemchr_found); \
+    OBFH_CUSTOM_PAIR(++__obfh_wmemchr_args.text, --__obfh_wmemchr_args.count); \
     goto __obfh_wmemchr_loop; \
 __obfh_wmemchr_found: \
     __obfh_wmemchr_result = (wchar_t *)__obfh_wmemchr_args.text; \
 __obfh_wmemchr_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_wmemchr_result; \
 })
-#define wmemchr(...) wmemchr_custom(__VA_ARGS__)
+#define wmemchr_custom(...) wmemchr(__VA_ARGS__)
 
-#define bsearch_custom(...) ({ \
+#define bsearch(...) ({ \
     __label__ __obfh_bsearch_loop, __obfh_bsearch_found, __obfh_bsearch_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const void *key; \
         const void *base; \
@@ -5972,27 +6086,29 @@ __obfh_wmemchr_done:; \
     int __obfh_bsearch_order; \
     void *__obfh_bsearch_result = NULL; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_bsearch_loop: \
-    OBFH_INLINE_EXIT(!__obfh_bsearch_args.count, __obfh_bsearch_done); \
+    OBFH_CUSTOM_EXIT(!__obfh_bsearch_args.count, __obfh_bsearch_done); \
     __obfh_bsearch_half = __obfh_bsearch_args.count / 2; \
     __obfh_bsearch_middle = __obfh_bsearch_base + __obfh_bsearch_half * __obfh_bsearch_args.width; \
     __obfh_bsearch_order = __obfh_bsearch_args.compare(__obfh_bsearch_args.key, __obfh_bsearch_middle); \
-    OBFH_INLINE_EXIT(!__obfh_bsearch_order, __obfh_bsearch_found); \
+    OBFH_CUSTOM_EXIT(!__obfh_bsearch_order, __obfh_bsearch_found); \
     __obfh_bsearch_base = __obfh_bsearch_order < 0 ? __obfh_bsearch_base : __obfh_bsearch_middle + __obfh_bsearch_args.width; \
     __obfh_bsearch_args.count = __obfh_bsearch_order < 0 ? __obfh_bsearch_half : __obfh_bsearch_args.count - __obfh_bsearch_half - 1; \
     goto __obfh_bsearch_loop; \
 __obfh_bsearch_found: \
     __obfh_bsearch_result = (void *)__obfh_bsearch_middle; \
 __obfh_bsearch_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_bsearch_result; \
 })
 
-#define bsearch(...) bsearch_custom(__VA_ARGS__)
+#define bsearch_custom(...) bsearch(__VA_ARGS__)
 
 // In-place heapsort: bounded O(n log n) comparisons, no allocation or CRT state.
-#define qsort_custom(...) ({ \
+#define qsort(...) ({ \
     __label__ __obfh_sort_next, __obfh_sort_sift, __obfh_sort_child, __obfh_sort_swap, __obfh_sort_bytes, __obfh_sort_swapped, __obfh_sort_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         void *base; \
         size_t count; \
@@ -6005,28 +6121,28 @@ __obfh_bsearch_done:; \
     size_t __obfh_sort_root, __obfh_sort_child_index, __obfh_sort_i; \
     int __obfh_sort_extract; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
-    OBFH_INLINE_EXIT(__obfh_sort_end < 2 || !__obfh_sort_args.width, __obfh_sort_done); \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(__obfh_sort_end < 2 || !__obfh_sort_args.width, __obfh_sort_done); \
 __obfh_sort_next: \
-    OBFH_INLINE_EXIT(!__obfh_sort_start, __obfh_sort_child); \
+    OBFH_CUSTOM_EXIT(!__obfh_sort_start, __obfh_sort_child); \
     __obfh_sort_root = --__obfh_sort_start; \
     goto __obfh_sort_sift; \
 __obfh_sort_child: \
-    OBFH_INLINE_EXIT(__obfh_sort_end < 2, __obfh_sort_done); \
+    OBFH_CUSTOM_EXIT(__obfh_sort_end < 2, __obfh_sort_done); \
     --__obfh_sort_end; \
     __obfh_sort_root = 0; \
     __obfh_sort_child_index = __obfh_sort_end; \
     __obfh_sort_extract = 1; \
     goto __obfh_sort_swap; \
 __obfh_sort_sift: \
-    OBFH_INLINE_EXIT(__obfh_sort_root >= __obfh_sort_end / 2, __obfh_sort_next); \
+    OBFH_CUSTOM_EXIT(__obfh_sort_root >= __obfh_sort_end / 2, __obfh_sort_next); \
     __obfh_sort_child_index = __obfh_sort_root * 2 + 1; \
-    OBFH_INLINE_EXIT(__obfh_sort_child_index + 1 >= __obfh_sort_end, __obfh_sort_swapped); \
+    OBFH_CUSTOM_EXIT(__obfh_sort_child_index + 1 >= __obfh_sort_end, __obfh_sort_swapped); \
     __obfh_sort_child_index += __obfh_sort_args.compare( \
                                    __obfh_sort_base + __obfh_sort_child_index * __obfh_sort_args.width, \
                                    __obfh_sort_base + (__obfh_sort_child_index + 1) * __obfh_sort_args.width) < 0; \
 __obfh_sort_swapped: \
-    OBFH_INLINE_EXIT(__obfh_sort_args.compare( \
+    OBFH_CUSTOM_EXIT(__obfh_sort_args.compare( \
                          __obfh_sort_base + __obfh_sort_root * __obfh_sort_args.width, \
                          __obfh_sort_base + __obfh_sort_child_index * __obfh_sort_args.width) >= 0, \
                      __obfh_sort_next); \
@@ -6040,16 +6156,18 @@ __obfh_sort_bytes: \
     __obfh_sort_a[__obfh_sort_i] = __obfh_sort_b[__obfh_sort_i]; \
     __obfh_sort_b[__obfh_sort_i] = __obfh_sort_byte; \
     ++__obfh_sort_i; \
-    OBFH_INLINE_EXIT(__obfh_sort_i < __obfh_sort_args.width, __obfh_sort_bytes); \
+    OBFH_CUSTOM_EXIT(__obfh_sort_i < __obfh_sort_args.width, __obfh_sort_bytes); \
     __obfh_sort_root = __obfh_sort_extract ? 0 : __obfh_sort_child_index; \
     goto __obfh_sort_sift; \
 __obfh_sort_done:; \
+    OBFH_CUSTOM_NOP; \
     (void)0; \
 })
-#define qsort(...) qsort_custom(__VA_ARGS__)
+#define qsort_custom(...) qsort(__VA_ARGS__)
 
-#define strcmp_custom(...) ({ \
+#define strcmp(...) ({ \
     __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *__obfh_strcmp_str1; \
         const char *__obfh_strcmp_str2; \
@@ -6058,14 +6176,14 @@ __obfh_sort_done:; \
     int __obfh_strcmp_a; \
     int __obfh_strcmp_b; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strcmp_loop: \
     __obfh_strcmp_a = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str1; \
     __obfh_strcmp_b = (unsigned char)*__obfh_strcmp_args.__obfh_strcmp_str2; \
-    OBFH_INLINE_EXIT(!(__obfh_strcmp_a || __obfh_strcmp_b), __obfh_strcmp_equal); \
+    OBFH_CUSTOM_EXIT(!(__obfh_strcmp_a || __obfh_strcmp_b), __obfh_strcmp_equal); \
     __obfh_strcmp_a = obfh_int_proxy(__obfh_strcmp_a); \
     __obfh_strcmp_b = obfh_int_proxy(__obfh_strcmp_b); \
-    OBFH_INLINE_EXIT(__obfh_strcmp_a == __obfh_strcmp_b, __obfh_strcmp_advance); \
+    OBFH_CUSTOM_EXIT(__obfh_strcmp_a == __obfh_strcmp_b, __obfh_strcmp_advance); \
     __obfh_strcmp_result = obfh_int_proxy((__obfh_strcmp_a > __obfh_strcmp_b) - (__obfh_strcmp_a < __obfh_strcmp_b)); \
     goto __obfh_strcmp_done; \
 __obfh_strcmp_advance: \
@@ -6075,66 +6193,93 @@ __obfh_strcmp_advance: \
 __obfh_strcmp_equal: \
     __obfh_strcmp_result = _0; \
 __obfh_strcmp_done:; \
+    OBFH_CUSTOM_NOP; \
     __obfh_strcmp_result; \
 })
-#define strcmp(...) strcmp_custom(__VA_ARGS__)
+#define strcmp_custom(...) strcmp(__VA_ARGS__)
 
-#define strlen_custom(...) ({ \
+#define strlen(...) ({ \
     __label__ __obfh_strlen_loop, __obfh_strlen_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         const char *str; \
     } __obfh_strlen_args = {__VA_ARGS__}; \
     int __obfh_strlen_step; \
     size_t __obfh_strlen_length = _0; \
     BREAK_STACK_CFLOW; \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
 __obfh_strlen_loop: \
-    OBFH_INLINE_EXIT(!*__obfh_strlen_args.str, __obfh_strlen_done); \
+    OBFH_CUSTOM_EXIT(!*__obfh_strlen_args.str, __obfh_strlen_done); \
     __obfh_strlen_step = obfh_int_proxy(_1); \
     __obfh_strlen_length += __obfh_strlen_step; \
     __obfh_strlen_args.str += __obfh_strlen_step; \
     goto __obfh_strlen_loop; \
 __obfh_strlen_done: \
+    OBFH_CUSTOM_NOP; \
     (size_t) obfh_uintptr_proxy(__obfh_strlen_length + (RND(0, 1000) * _0)); \
 })
-#define strlen(...) strlen_custom(__VA_ARGS__)
+#define strlen_custom(...) strlen(__VA_ARGS__)
+
+// The legacy Windows CRT accepts these 18 BMP decimal digit blocks.
+// Only non-ASCII digit candidates need the table; letter digits remain ASCII.
+#define OBFH_WIDE_DIGIT(code) ({ \
+    __label__ __obfh_wdigit_loop, __obfh_wdigit_done; \
+    OBFH_CUSTOM_BEGIN; \
+    static const unsigned short __obfh_wdigit_zeros[] = {0x30, 0x660, 0x6f0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xc66, 0xce6, 0xd66, 0xe50, 0xed0, 0xf20, 0x1040, 0x17e0, 0x1810, 0xff10}; \
+    unsigned int __obfh_wdigit_code = (code), __obfh_wdigit_index = 0, __obfh_wdigit_value = 36; \
+__obfh_wdigit_loop: \
+    __obfh_wdigit_value = __obfh_wdigit_code - __obfh_wdigit_zeros[__obfh_wdigit_index]; \
+    OBFH_CUSTOM_EXIT(__obfh_wdigit_value < 10, __obfh_wdigit_done); \
+    ++__obfh_wdigit_index; \
+    OBFH_CUSTOM_EXIT(__obfh_wdigit_index < 18, __obfh_wdigit_loop); \
+    __obfh_wdigit_value = 36; \
+__obfh_wdigit_done:; \
+    OBFH_CUSTOM_NOP; \
+    __obfh_wdigit_value; \
+})
+#define OBFH_PARSE_ZERO_0(code) ((code) == '0')
+#define OBFH_PARSE_ZERO_1(code) (OBFH_WIDE_DIGIT(code) == 0)
+#define OBFH_PARSE_DIGIT_0(code, mapped) (mapped)
+#define OBFH_PARSE_DIGIT_1(code, mapped) ((mapped) == 36 ? OBFH_WIDE_DIGIT(code) : (mapped))
 
 // Integer conversion uses native locale classification and Windows CRT limits.
-#define OBFH_INTEGER_PARSE(input, ending, radix, mode) \
+#define OBFH_INTEGER_PARSE_CORE(input, ending, radix, mode, unsigned_type, signed_max, unsigned_max, preserve_errno, char_type, code_type, space_fn, wide) \
     ({ \
         __label__ __obfh_parse_space, __obfh_parse_sign, __obfh_parse_base, __obfh_parse_loop, __obfh_parse_finish, __obfh_parse_end; \
+        OBFH_CUSTOM_BEGIN; \
         struct { \
-            const char *text; \
-            char **end; \
+            const char_type *text; \
+            char_type **end; \
             int base; \
         } __obfh_parse_args = {(input), (ending), (radix)}; \
-        const unsigned char *__obfh_parse_p = (const unsigned char *)__obfh_parse_args.text; \
-        unsigned long __obfh_parse_value = 0, __obfh_parse_limit, __obfh_parse_cutoff, __obfh_parse_tail; \
+        const code_type *__obfh_parse_p = (const code_type *)__obfh_parse_args.text; \
+        unsigned_type __obfh_parse_value = 0, __obfh_parse_limit, __obfh_parse_cutoff, __obfh_parse_tail; \
         enum { __obfh_parse_form = RND(0, 1) }; \
         unsigned int __obfh_parse_digit, __obfh_parse_negative = 0, __obfh_parse_any = 0, __obfh_parse_overflow = 0; \
         int *__obfh_parse_errno = _errno(); \
-        *__obfh_parse_errno = (mode) == 2 && !__obfh_parse_args.text ? *__obfh_parse_errno : 0; \
-        OBFH_INLINE_EXIT(!__obfh_parse_args.text || \
+        *__obfh_parse_errno = (preserve_errno) || ((mode) == 2 && !__obfh_parse_args.text) ? *__obfh_parse_errno : 0; \
+        OBFH_CUSTOM_EXIT(!__obfh_parse_args.text || \
                              (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36)), \
                          __obfh_parse_end); \
     __obfh_parse_space: \
-        OBFH_INLINE_EXIT(!(isspace)(*__obfh_parse_p), __obfh_parse_sign); \
+        OBFH_CUSTOM_EXIT(!(space_fn)(*__obfh_parse_p), __obfh_parse_sign); \
         ++__obfh_parse_p; \
         goto __obfh_parse_space; \
     __obfh_parse_sign: \
         __obfh_parse_negative = *__obfh_parse_p == '-'; \
         __obfh_parse_p += (*__obfh_parse_p == '+' || *__obfh_parse_p == '-'); \
-        OBFH_INLINE_EXIT((__obfh_parse_args.base && __obfh_parse_args.base != 16) || __obfh_parse_p[0] != '0' || \
+        OBFH_CUSTOM_EXIT((__obfh_parse_args.base && __obfh_parse_args.base != 16) || \
+                             !OBFH_PARSE_ZERO_##wide(__obfh_parse_p[0]) || \
                              (__obfh_parse_p[1] != 'x' && __obfh_parse_p[1] != 'X'), \
                          __obfh_parse_base); \
         __obfh_parse_args.base = 16; \
         __obfh_parse_p += 2; \
     __obfh_parse_base: \
-        __obfh_parse_args.base = __obfh_parse_args.base ? __obfh_parse_args.base : (*__obfh_parse_p == '0' ? 8 : 10); \
-        __obfh_parse_limit = (mode) == 0 ? (__obfh_parse_negative ? (unsigned long)LONG_MAX + 1ul : (unsigned long)LONG_MAX) : ULONG_MAX; \
+        __obfh_parse_args.base = __obfh_parse_args.base ? __obfh_parse_args.base : (OBFH_PARSE_ZERO_##wide(*__obfh_parse_p) ? 8 : 10); \
+        __obfh_parse_limit = (mode) == 0 || (mode) == 3 ? (unsigned_type)(signed_max) + __obfh_parse_negative : (unsigned_type)(unsigned_max); \
         __obfh_parse_cutoff = (mode) == 2 ? 0 : __obfh_parse_limit / (unsigned int)__obfh_parse_args.base; \
         __obfh_parse_tail = (mode) == 2 ? 0 : __obfh_parse_limit % (unsigned int)__obfh_parse_args.base; \
-        PHANTOM_NOP; \
+        OBFH_CUSTOM_NOP; \
     __obfh_parse_loop: \
         __obfh_parse_digit = *__obfh_parse_p; \
         __obfh_parse_digit = __builtin_choose_expr( \
@@ -6146,7 +6291,8 @@ __obfh_strlen_done: \
             (__obfh_parse_digit - (unsigned int)'0' < 10u \
                  ? __obfh_parse_digit - '0' \
                  : ((__obfh_parse_digit | 32u) - (unsigned int)'a' < 26u ? (__obfh_parse_digit | 32u) - 'a' + 10u : 36u))); \
-        OBFH_INLINE_EXIT(__obfh_parse_digit >= (unsigned int)__obfh_parse_args.base, __obfh_parse_finish); \
+        __obfh_parse_digit = OBFH_PARSE_DIGIT_##wide(*__obfh_parse_p, __obfh_parse_digit); \
+        OBFH_CUSTOM_EXIT(__obfh_parse_digit >= (unsigned int)__obfh_parse_args.base, __obfh_parse_finish); \
         __obfh_parse_any = 1; \
         __obfh_parse_overflow |= __obfh_parse_value > __obfh_parse_cutoff || \
                                  (__obfh_parse_value == __obfh_parse_cutoff && __obfh_parse_digit > __obfh_parse_tail); \
@@ -6156,115 +6302,500 @@ __obfh_strlen_done: \
         ++__obfh_parse_p; \
         goto __obfh_parse_loop; \
     __obfh_parse_finish: \
-        OBFH_INLINE_EXIT(!__obfh_parse_any, __obfh_parse_end); \
-        *__obfh_parse_errno = (mode) != 2 && __obfh_parse_overflow ? ERANGE : 0; \
+        OBFH_CUSTOM_EXIT(!__obfh_parse_any, __obfh_parse_end); \
+        *__obfh_parse_errno = (mode) != 2 && __obfh_parse_overflow ? ERANGE : ((preserve_errno) ? *__obfh_parse_errno : 0); \
         __obfh_parse_value = __obfh_parse_negative ? 0ul - __obfh_parse_value : __obfh_parse_value; \
         goto __obfh_parse_end; \
     __obfh_parse_end: \
-        *__obfh_parse_errno = (!__obfh_parse_args.text && (mode) != 2) || \
+        *__obfh_parse_errno = (!__obfh_parse_args.text && (mode) != 2 && (mode) != 3) || \
                                       (__obfh_parse_args.base && (__obfh_parse_args.base < 2 || __obfh_parse_args.base > 36)) \
                                   ? EINVAL \
                                   : *__obfh_parse_errno; \
         __obfh_parse_args.end \
-            ? (void)(*__obfh_parse_args.end = (char *)(__obfh_parse_any ? __obfh_parse_p : (const unsigned char *)__obfh_parse_args.text)) \
+            ? (void)(*__obfh_parse_args.end = (char_type *)(__obfh_parse_any ? __obfh_parse_p : (const code_type *)__obfh_parse_args.text)) \
             : (void)0; \
         __obfh_parse_value; \
     })
+#define OBFH_INTEGER_PARSE_TYPED(input, ending, radix, mode, unsigned_type, signed_max, unsigned_max, preserve_errno) \
+    OBFH_INTEGER_PARSE_CORE(input, ending, radix, mode, unsigned_type, signed_max, unsigned_max, preserve_errno, char, unsigned char, isspace, 0)
+#define OBFH_INTEGER_PARSE(input, ending, radix, mode) \
+    OBFH_INTEGER_PARSE_TYPED(input, ending, radix, mode, unsigned long, LONG_MAX, ULONG_MAX, 0)
 #define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
-#define strtol_custom(...) ((long)OBFH_INTEGER_PARSE_ARGS(0, __VA_ARGS__))
-#define strtol(...) strtol_custom(__VA_ARGS__)
+#define strtol(...) ((long)OBFH_INTEGER_PARSE_ARGS(0, __VA_ARGS__))
+#define strtol_custom(...) strtol(__VA_ARGS__)
 
-#define strtoul_custom(...) OBFH_INTEGER_PARSE_ARGS(1, __VA_ARGS__)
-#define strtoul(...) strtoul_custom(__VA_ARGS__)
+#define strtoul(...) OBFH_INTEGER_PARSE_ARGS(1, __VA_ARGS__)
+#define strtoul_custom(...) strtoul(__VA_ARGS__)
 
-#define atoi_custom(text) ((int)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
-#define atoi(...) atoi_custom(__VA_ARGS__)
+#define atoi(text) ((int)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
+#define atoi_custom(...) atoi(__VA_ARGS__)
 
-#define atol_custom(text) ((long)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
-#define atol(...) atol_custom(__VA_ARGS__)
+#define atol(text) ((long)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
+#define atol_custom(...) atol(__VA_ARGS__)
 
-#define strdup_custom(input) \
+// Windows 64-bit conversions preserve errno on successful/no-digit conversion.
+#define OBFH_INTEGER_PARSE64_ARGS(mode, text, ending, radix) \
+    OBFH_INTEGER_PARSE_TYPED(text, ending, radix, mode, unsigned long long, LLONG_MAX, ULLONG_MAX, 1)
+#undef strtoll
+#undef strtoull
+#define strtoll(...) ((long long)OBFH_INTEGER_PARSE64_ARGS(0, __VA_ARGS__))
+#define strtoull(...) OBFH_INTEGER_PARSE64_ARGS(1, __VA_ARGS__)
+#define atoll(text) ((long long)OBFH_INTEGER_PARSE_TYPED(text, NULL, 10, 3, unsigned long long, LLONG_MAX, ULLONG_MAX, 1))
+#define strtoll_custom(...) strtoll(__VA_ARGS__)
+#define strtoull_custom(...) strtoull(__VA_ARGS__)
+#define _strtoi64(...) strtoll(__VA_ARGS__)
+#define _strtoui64(...) strtoull(__VA_ARGS__)
+#define atoll_custom(...) atoll(__VA_ARGS__)
+#define _atoi64(...) atoll(__VA_ARGS__)
+
+// Only byte case mapping stays native: replacing it with ASCII rules loses LC_CTYPE.
+#define OBFH_CASE_COMPARE(text1, text2, limit, bounded) ({ \
+    __label__ __obfh_case_loop, __obfh_case_done; \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        const char *a; \
+        const char *b; \
+        size_t count; \
+    } __obfh_case_args = {(text1), (text2), (limit)}; \
+    int __obfh_case_a, __obfh_case_b, __obfh_case_result = 0; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+__obfh_case_loop: \
+    OBFH_CUSTOM_EXIT((bounded) && !__obfh_case_args.count, __obfh_case_done); \
+    __obfh_case_a = (tolower)((unsigned char)*__obfh_case_args.a); \
+    __obfh_case_b = (tolower)((unsigned char)*__obfh_case_args.b); \
+    __obfh_case_result = __obfh_case_a - __obfh_case_b; \
+    OBFH_CUSTOM_EXIT(__obfh_case_result || !*__obfh_case_args.a, __obfh_case_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_case_args.a, ++__obfh_case_args.b); \
+    __obfh_case_args.count -= (bounded); \
+    goto __obfh_case_loop; \
+__obfh_case_done:; \
+    OBFH_CUSTOM_NOP; \
+    obfh_int_proxy(__obfh_case_result); \
+})
+#define stricmp(a, b) OBFH_CASE_COMPARE(a, b, 0, 0)
+#define strnicmp(a, b, count) OBFH_CASE_COMPARE(a, b, count, 1)
+#define stricmp_custom(...) stricmp(__VA_ARGS__)
+#define _stricmp(...) stricmp(__VA_ARGS__)
+#define strnicmp_custom(...) strnicmp(__VA_ARGS__)
+#define _strnicmp(...) strnicmp(__VA_ARGS__)
+
+#define OBFH_WIDE_PARSE(mode, unsigned_type, signed_max, unsigned_max, preserve, text, ending, radix) \
+    OBFH_INTEGER_PARSE_CORE(text, ending, radix, mode, unsigned_type, signed_max, unsigned_max, preserve, wchar_t, wchar_t, iswspace, 1)
+#define wcstol(...) ((long)OBFH_WIDE_PARSE(0, unsigned long, LONG_MAX, ULONG_MAX, 0, __VA_ARGS__))
+#define wcstoul(...) OBFH_WIDE_PARSE(1, unsigned long, LONG_MAX, ULONG_MAX, 0, __VA_ARGS__)
+#define _wcstoi64(...) ((long long)OBFH_WIDE_PARSE(0, unsigned long long, LLONG_MAX, ULLONG_MAX, 1, __VA_ARGS__))
+#define _wcstoui64(...) OBFH_WIDE_PARSE(1, unsigned long long, LLONG_MAX, ULLONG_MAX, 1, __VA_ARGS__)
+
+#define OBFH_WIDE_CASE_COMPARE(text1, text2, limit, bounded) ({ \
+    __label__ __obfh_wcase_loop, __obfh_wcase_done; \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        const wchar_t *a; \
+        const wchar_t *b; \
+        size_t count; \
+    } __obfh_wcase_args = {(text1), (text2), (limit)}; \
+    int __obfh_wcase_a, __obfh_wcase_b, __obfh_wcase_result = 0; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+__obfh_wcase_loop: \
+    OBFH_CUSTOM_EXIT((bounded) && !__obfh_wcase_args.count, __obfh_wcase_done); \
+    __obfh_wcase_a = (towlower)(*__obfh_wcase_args.a); \
+    __obfh_wcase_b = (towlower)(*__obfh_wcase_args.b); \
+    __obfh_wcase_result = __obfh_wcase_a - __obfh_wcase_b; \
+    OBFH_CUSTOM_EXIT(__obfh_wcase_result || !*__obfh_wcase_args.a, __obfh_wcase_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_wcase_args.a, ++__obfh_wcase_args.b); \
+    __obfh_wcase_args.count -= (bounded); \
+    goto __obfh_wcase_loop; \
+__obfh_wcase_done:; \
+    OBFH_CUSTOM_NOP; \
+    obfh_int_proxy(__obfh_wcase_result); \
+})
+#define _wcsicmp(a, b) OBFH_WIDE_CASE_COMPARE(a, b, 0, 0)
+#define _wcsnicmp(a, b, count) OBFH_WIDE_CASE_COMPARE(a, b, count, 1)
+
+#define _memicmp(...) ({ \
+    __label__ __obfh_mcase_loop, __obfh_mcase_done; \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        const void *a; \
+        const void *b; \
+        size_t count; \
+    } __obfh_mcase_args = {__VA_ARGS__}; \
+    const unsigned char *__obfh_mcase_a = __obfh_mcase_args.a, *__obfh_mcase_b = __obfh_mcase_args.b; \
+    int __obfh_mcase_result = 0; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+__obfh_mcase_loop: \
+    OBFH_CUSTOM_EXIT(!__obfh_mcase_args.count, __obfh_mcase_done); \
+    __obfh_mcase_result = (tolower)(*__obfh_mcase_a) - (tolower)(*__obfh_mcase_b); \
+    OBFH_CUSTOM_EXIT(__obfh_mcase_result, __obfh_mcase_done); \
+    OBFH_CUSTOM_PAIR(++__obfh_mcase_a, ++__obfh_mcase_b); \
+    --__obfh_mcase_args.count; \
+    goto __obfh_mcase_loop; \
+__obfh_mcase_done:; \
+    OBFH_CUSTOM_NOP; \
+    obfh_int_proxy(__obfh_mcase_result); \
+})
+
+#define OBFH_STRING_CASE(input, char_type, code_type, convert) ({ \
+    __label__ __obfh_scase_loop, __obfh_scase_done; \
+    OBFH_CUSTOM_BEGIN; \
+    char_type *__obfh_scase_base = (input), *__obfh_scase_p = __obfh_scase_base; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+__obfh_scase_loop: \
+    OBFH_CUSTOM_EXIT(!*__obfh_scase_p, __obfh_scase_done); \
+    *__obfh_scase_p = (char_type)(convert)((code_type)*__obfh_scase_p); \
+    ++__obfh_scase_p; \
+    goto __obfh_scase_loop; \
+__obfh_scase_done:; \
+    OBFH_CUSTOM_NOP; \
+    (char_type *)obfh_uintptr_proxy((uintptr_t)__obfh_scase_base); \
+})
+// DBCS case mapping is a whole-string NLS operation: byte-at-a-time tolower
+// corrupts trail bytes and changes invalid sequences that CRT leaves untouched.
+#define OBFH_DBCS_CASE(input, map_flags) ({ \
+    __label__ __obfh_dbcs_invalid, __obfh_dbcs_free, __obfh_dbcs_done; \
+    OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
+    char *__obfh_dbcs_text = (input); \
+    size_t __obfh_dbcs_bytes = strlen(__obfh_dbcs_text) + 1; \
+    unsigned int __obfh_dbcs_cp = OBFH_CRT_TARGET(unsigned int(__cdecl *)(void), HIDE_STRING("___lc_codepage_func"))(); \
+    unsigned long *__obfh_dbcs_handles = OBFH_CRT_TARGET(unsigned long *(__cdecl *)(void), HIDE_STRING("___lc_handle_func"))(); \
+    wchar_t *__obfh_dbcs_storage = NULL, *__obfh_dbcs_mapped; \
+    char *__obfh_dbcs_output; \
+    int __obfh_dbcs_count, __obfh_dbcs_written; \
+    OBFH_CUSTOM_EXIT(__obfh_dbcs_bytes > INT_MAX || __obfh_dbcs_bytes > SIZE_MAX / 5, __obfh_dbcs_invalid); \
+    __obfh_dbcs_storage = malloc(__obfh_dbcs_bytes * 5); \
+    OBFH_CUSTOM_EXIT(!__obfh_dbcs_storage, __obfh_dbcs_done); \
+    __obfh_dbcs_mapped = __obfh_dbcs_storage + __obfh_dbcs_bytes; \
+    __obfh_dbcs_output = (char *)(__obfh_dbcs_mapped + __obfh_dbcs_bytes); \
+    __obfh_dbcs_count = (MultiByteToWideChar)(__obfh_dbcs_cp, MB_ERR_INVALID_CHARS, __obfh_dbcs_text, -1, __obfh_dbcs_storage, (int)__obfh_dbcs_bytes); \
+    OBFH_CUSTOM_EXIT(!__obfh_dbcs_count, __obfh_dbcs_invalid); \
+    __obfh_dbcs_written = (LCMapStringW)(__obfh_dbcs_handles[LC_CTYPE], map_flags, __obfh_dbcs_storage, __obfh_dbcs_count, __obfh_dbcs_mapped, (int)__obfh_dbcs_bytes); \
+    OBFH_CUSTOM_EXIT(!__obfh_dbcs_written, __obfh_dbcs_invalid); \
+    __obfh_dbcs_written = (WideCharToMultiByte)(__obfh_dbcs_cp, 0, __obfh_dbcs_mapped, __obfh_dbcs_written, __obfh_dbcs_output, (int)__obfh_dbcs_bytes, NULL, NULL); \
+    OBFH_CUSTOM_EXIT(!__obfh_dbcs_written, __obfh_dbcs_invalid); \
+    memcpy(__obfh_dbcs_text, __obfh_dbcs_output, (size_t)__obfh_dbcs_written); \
+    goto __obfh_dbcs_free; \
+__obfh_dbcs_invalid: \
+    *_errno() = EILSEQ; \
+__obfh_dbcs_free: \
+    free(__obfh_dbcs_storage); \
+__obfh_dbcs_done:; \
+    OBFH_CUSTOM_NOP; \
+    __obfh_dbcs_text; \
+})
+#define OBFH_NARROW_CASE(input, convert, flags) ({ \
+    __label__ __obfh_ncase_simple, __obfh_ncase_done; \
+    OBFH_CUSTOM_BEGIN; \
+    char *__obfh_ncase_text = (input); \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(OBFH_CRT_TARGET(int(__cdecl *)(void), HIDE_STRING("___mb_cur_max_func"))() == 1, __obfh_ncase_simple); \
+    OBFH_DBCS_CASE(__obfh_ncase_text, flags); \
+    goto __obfh_ncase_done; \
+__obfh_ncase_simple: \
+    OBFH_STRING_CASE(__obfh_ncase_text, char, unsigned char, convert); \
+__obfh_ncase_done:; \
+    OBFH_CUSTOM_NOP; \
+    (char *)obfh_uintptr_proxy((uintptr_t)__obfh_ncase_text); \
+})
+#define _strlwr(text) OBFH_NARROW_CASE(text, tolower, LCMAP_LOWERCASE)
+#define _strupr(text) OBFH_NARROW_CASE(text, toupper, LCMAP_UPPERCASE)
+#define OBFH_WIDE_STRING_CASE(input, convert, flags) ({ \
+    __label__ __obfh_wcmap_simple, __obfh_wcmap_invalid, __obfh_wcmap_free, __obfh_wcmap_done; \
+    OBFH_CUSTOM_BEGIN; \
+    wchar_t *__obfh_wcmap_text = (input), *__obfh_wcmap_scratch = NULL; \
+    unsigned long *__obfh_wcmap_handles = OBFH_CRT_TARGET(unsigned long *(__cdecl *)(void), HIDE_STRING("___lc_handle_func"))(); \
+    size_t __obfh_wcmap_count; \
+    int __obfh_wcmap_written; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(!__obfh_wcmap_handles[LC_CTYPE], __obfh_wcmap_simple); \
+    __obfh_wcmap_count = wcslen(__obfh_wcmap_text) + 1; \
+    OBFH_CUSTOM_EXIT(__obfh_wcmap_count > INT_MAX || __obfh_wcmap_count > SIZE_MAX / sizeof(wchar_t), __obfh_wcmap_invalid); \
+    __obfh_wcmap_scratch = malloc(__obfh_wcmap_count * sizeof(wchar_t)); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcmap_scratch, __obfh_wcmap_done); \
+    __obfh_wcmap_written = (LCMapStringW)(__obfh_wcmap_handles[LC_CTYPE], flags, __obfh_wcmap_text, (int)__obfh_wcmap_count, __obfh_wcmap_scratch, (int)__obfh_wcmap_count); \
+    OBFH_CUSTOM_EXIT(!__obfh_wcmap_written, __obfh_wcmap_invalid); \
+    memcpy(__obfh_wcmap_text, __obfh_wcmap_scratch, (size_t)__obfh_wcmap_written * sizeof(wchar_t)); \
+    goto __obfh_wcmap_free; \
+__obfh_wcmap_invalid: \
+    *_errno() = EILSEQ; \
+__obfh_wcmap_free: \
+    free(__obfh_wcmap_scratch); \
+    goto __obfh_wcmap_done; \
+__obfh_wcmap_simple: \
+    OBFH_STRING_CASE(__obfh_wcmap_text, wchar_t, wchar_t, convert); \
+__obfh_wcmap_done:; \
+    OBFH_CUSTOM_NOP; \
+    (wchar_t *)obfh_uintptr_proxy((uintptr_t)__obfh_wcmap_text); \
+})
+#define _wcslwr(text) OBFH_WIDE_STRING_CASE(text, towlower, LCMAP_LOWERCASE)
+#define _wcsupr(text) OBFH_WIDE_STRING_CASE(text, towupper, LCMAP_UPPERCASE)
+
+#define OBFH_STRING_SET(input_text, input_value, limit, bounded, char_type, value_type) ({ \
+    __label__ __obfh_sset_loop, __obfh_sset_done; \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        char_type *text; \
+        value_type value; \
+        size_t count; \
+    } __obfh_sset_args = {(input_text), (input_value), (limit)}; \
+    char_type *__obfh_sset_p = __obfh_sset_args.text; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+__obfh_sset_loop: \
+    OBFH_CUSTOM_EXIT(((bounded) && !__obfh_sset_args.count) || !*__obfh_sset_p, __obfh_sset_done); \
+    *__obfh_sset_p++ = (char_type)__obfh_sset_args.value; \
+    __obfh_sset_args.count -= (bounded); \
+    goto __obfh_sset_loop; \
+__obfh_sset_done:; \
+    OBFH_CUSTOM_NOP; \
+    (char_type *)obfh_uintptr_proxy((uintptr_t)__obfh_sset_args.text); \
+})
+#define _strset(text, value) OBFH_STRING_SET(text, value, 0, 0, char, int)
+#define _strnset(text, value, count) OBFH_STRING_SET(text, value, count, 1, char, int)
+#define _wcsset(text, value) OBFH_STRING_SET(text, value, 0, 0, wchar_t, wchar_t)
+#define _wcsnset(text, value, count) OBFH_STRING_SET(text, value, count, 1, wchar_t, wchar_t)
+
+#define OBFH_INTEGER_ABS(input, signed_type, unsigned_type) ({ \
+    OBFH_CUSTOM_BEGIN; \
+    signed_type __obfh_abs_value = (input); \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+    (signed_type) OBFH_CUSTOM_SELECT(__obfh_abs_value < 0, (unsigned_type)0 - (unsigned_type)__obfh_abs_value, (unsigned_type)__obfh_abs_value); \
+})
+#define labs(value) OBFH_INTEGER_ABS(value, long, unsigned long)
+#define llabs(value) OBFH_INTEGER_ABS(value, long long, unsigned long long)
+#define _abs64(value) OBFH_INTEGER_ABS(value, long long, unsigned long long)
+#define OBFH_INTEGER_DIV(numerator, denominator, scalar_type, result_type) ({ \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        scalar_type n; \
+        scalar_type d; \
+    } __obfh_div_args = {(numerator), (denominator)}; \
+    result_type __obfh_div_result; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+    __obfh_div_result.quot = __obfh_div_args.n / __obfh_div_args.d; \
+    __obfh_div_result.rem = __builtin_choose_expr(OBFH_CUSTOM_BIT, \
+                                                  __obfh_div_args.n - __obfh_div_result.quot * __obfh_div_args.d, \
+                                                  __obfh_div_args.n - __obfh_div_args.d * __obfh_div_result.quot); \
+    __obfh_div_result; \
+})
+#define div(n, d) OBFH_INTEGER_DIV(n, d, int, div_t)
+#define ldiv(n, d) OBFH_INTEGER_DIV(n, d, long, ldiv_t)
+#define lldiv(n, d) OBFH_INTEGER_DIV(n, d, long long, lldiv_t)
+
+#define OBFH_INTEGER_TEXT(input_value, input_buffer, input_radix, value_type, unsigned_type, char_type, signed_value) ({ \
+    __label__ __obfh_itoa_digits, __obfh_itoa_reverse, __obfh_itoa_invalid, __obfh_itoa_done; \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        value_type value; \
+        char_type *buffer; \
+        int base; \
+    } __obfh_itoa_args = {(input_value), (input_buffer), (input_radix)}; \
+    unsigned_type __obfh_itoa_magnitude = (unsigned_type)__obfh_itoa_args.value; \
+    size_t __obfh_itoa_start, __obfh_itoa_count, __obfh_itoa_left, __obfh_itoa_right; \
+    unsigned int __obfh_itoa_digit; \
+    char_type __obfh_itoa_swap; \
+    int __obfh_itoa_negative = (signed_value) && __obfh_itoa_args.base == 10 && __obfh_itoa_args.value < 0; \
+    char_type *__obfh_itoa_result = __obfh_itoa_args.buffer; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(!__obfh_itoa_result || __obfh_itoa_args.base < 2 || __obfh_itoa_args.base > 36, __obfh_itoa_invalid); \
+    __obfh_itoa_magnitude = __obfh_itoa_negative ? (unsigned_type)0 - __obfh_itoa_magnitude : __obfh_itoa_magnitude; \
+    __obfh_itoa_start = __obfh_itoa_negative; \
+    __obfh_itoa_count = __obfh_itoa_start; \
+    OBFH_CUSTOM_EXIT(!__obfh_itoa_negative, __obfh_itoa_digits); \
+    __obfh_itoa_result[0] = '-'; \
+__obfh_itoa_digits: \
+    __obfh_itoa_digit = __obfh_itoa_magnitude % (unsigned int)__obfh_itoa_args.base; \
+    __obfh_itoa_result[__obfh_itoa_count++] = (char_type)(__obfh_itoa_digit < 10 ? '0' + __obfh_itoa_digit : 'a' + __obfh_itoa_digit - 10); \
+    __obfh_itoa_magnitude /= (unsigned int)__obfh_itoa_args.base; \
+    OBFH_CUSTOM_EXIT(__obfh_itoa_magnitude, __obfh_itoa_digits); \
+    __obfh_itoa_result[__obfh_itoa_count] = 0; \
+    __obfh_itoa_left = __obfh_itoa_start; \
+    __obfh_itoa_right = __obfh_itoa_count - 1; \
+__obfh_itoa_reverse: \
+    OBFH_CUSTOM_EXIT(__obfh_itoa_left >= __obfh_itoa_right, __obfh_itoa_done); \
+    __obfh_itoa_swap = __obfh_itoa_result[__obfh_itoa_left]; \
+    __obfh_itoa_result[__obfh_itoa_left++] = __obfh_itoa_result[__obfh_itoa_right]; \
+    __obfh_itoa_result[__obfh_itoa_right--] = __obfh_itoa_swap; \
+    goto __obfh_itoa_reverse; \
+__obfh_itoa_invalid: \
+    *_errno() = EINVAL; \
+    __obfh_itoa_result = NULL; \
+__obfh_itoa_done:; \
+    OBFH_CUSTOM_NOP; \
+    (char_type *)obfh_uintptr_proxy((uintptr_t)__obfh_itoa_result); \
+})
+#define _itoa(v, b, r) OBFH_INTEGER_TEXT(v, b, r, int, unsigned int, char, 1)
+#define _ltoa(v, b, r) OBFH_INTEGER_TEXT(v, b, r, long, unsigned long, char, 1)
+#define _ultoa(v, b, r) OBFH_INTEGER_TEXT(v, b, r, unsigned long, unsigned long, char, 0)
+#define _i64toa(v, b, r) OBFH_INTEGER_TEXT(v, b, r, long long, unsigned long long, char, 1)
+#define _ui64toa(v, b, r) OBFH_INTEGER_TEXT(v, b, r, unsigned long long, unsigned long long, char, 0)
+#define _itow(v, b, r) OBFH_INTEGER_TEXT(v, b, r, int, unsigned int, wchar_t, 1)
+#define _ltow(v, b, r) OBFH_INTEGER_TEXT(v, b, r, long, unsigned long, wchar_t, 1)
+#define _ultow(v, b, r) OBFH_INTEGER_TEXT(v, b, r, unsigned long, unsigned long, wchar_t, 0)
+#define _i64tow(v, b, r) OBFH_INTEGER_TEXT(v, b, r, long long, unsigned long long, wchar_t, 1)
+#define _ui64tow(v, b, r) OBFH_INTEGER_TEXT(v, b, r, unsigned long long, unsigned long long, wchar_t, 0)
+
+// Microsoft three-argument tokenizers share only caller-owned context.
+#define OBFH_TOKENIZE(input_text, input_delimiters, input_context, char_type) ({ \
+    __label__ __obfh_token_skip, __obfh_token_skip_set, __obfh_token_skip_next, __obfh_token_start, __obfh_token_scan, __obfh_token_scan_set, __obfh_token_scan_next, __obfh_token_split, __obfh_token_end, __obfh_token_invalid, __obfh_token_done; \
+    OBFH_CUSTOM_BEGIN; \
+    struct { \
+        char_type *text; \
+        const char_type *delimiters; \
+        char_type **context; \
+    } __obfh_token_args = {(input_text), (input_delimiters), (input_context)}; \
+    char_type *__obfh_token_p, *__obfh_token_result = NULL; \
+    const char_type *__obfh_token_d; \
+    BREAK_STACK_CFLOW; \
+    OBFH_CUSTOM_NOP; \
+    OBFH_CUSTOM_EXIT(!__obfh_token_args.context || !__obfh_token_args.delimiters, __obfh_token_invalid); \
+    __obfh_token_p = __obfh_token_args.text ? __obfh_token_args.text : *__obfh_token_args.context; \
+    OBFH_CUSTOM_EXIT(!__obfh_token_p, __obfh_token_invalid); \
+__obfh_token_skip: \
+    OBFH_CUSTOM_EXIT(!*__obfh_token_p, __obfh_token_end); \
+    __obfh_token_d = __obfh_token_args.delimiters; \
+__obfh_token_skip_set: \
+    OBFH_CUSTOM_EXIT(!*__obfh_token_d, __obfh_token_start); \
+    OBFH_CUSTOM_EXIT(*__obfh_token_d == *__obfh_token_p, __obfh_token_skip_next); \
+    ++__obfh_token_d; \
+    goto __obfh_token_skip_set; \
+__obfh_token_skip_next: \
+    ++__obfh_token_p; \
+    goto __obfh_token_skip; \
+__obfh_token_start: \
+    __obfh_token_result = __obfh_token_p; \
+__obfh_token_scan: \
+    OBFH_CUSTOM_EXIT(!*__obfh_token_p, __obfh_token_end); \
+    __obfh_token_d = __obfh_token_args.delimiters; \
+__obfh_token_scan_set: \
+    OBFH_CUSTOM_EXIT(!*__obfh_token_d, __obfh_token_scan_next); \
+    OBFH_CUSTOM_EXIT(*__obfh_token_d == *__obfh_token_p, __obfh_token_split); \
+    ++__obfh_token_d; \
+    goto __obfh_token_scan_set; \
+__obfh_token_scan_next: \
+    ++__obfh_token_p; \
+    goto __obfh_token_scan; \
+__obfh_token_split: \
+    *__obfh_token_p++ = 0; \
+__obfh_token_end: \
+    *__obfh_token_args.context = __obfh_token_p; \
+    goto __obfh_token_done; \
+__obfh_token_invalid: \
+    *_errno() = EINVAL; \
+    OBFH_CRT_TARGET(void(__cdecl *)(const wchar_t *, const wchar_t *, const wchar_t *, unsigned int, uintptr_t), \
+                    HIDE_STRING("_invalid_parameter")) \
+    (NULL, NULL, NULL, 0, 0); \
+__obfh_token_done:; \
+    OBFH_CUSTOM_NOP; \
+    (char_type *)obfh_uintptr_proxy((uintptr_t)__obfh_token_result); \
+})
+#define strtok_s(text, delimiters, context) OBFH_TOKENIZE(text, delimiters, context, char)
+#define wcstok_s(text, delimiters, context) OBFH_TOKENIZE(text, delimiters, context, wchar_t)
+
+#define strdup(input) \
     ({ \
         __label__ __obfh_dup_done; \
+        OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         const char *__obfh_dup_source = (input); \
         size_t __obfh_dup_length = __obfh_dup_source ? strlen(__obfh_dup_source) : 0; \
         char *__obfh_dup_result = NULL; \
-        OBFH_INLINE_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done); \
+        OBFH_CUSTOM_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done); \
         __obfh_dup_result = (char *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result)); \
-        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done); \
+        OBFH_CUSTOM_EXIT(!__obfh_dup_result, __obfh_dup_done); \
         memcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u); \
     __obfh_dup_done: \
+        OBFH_CUSTOM_NOP; \
         __obfh_dup_result; \
     })
-#define strdup(...) strdup_custom(__VA_ARGS__)
-#define _strdup(...) strdup_custom(__VA_ARGS__)
+#define strdup_custom(...) strdup(__VA_ARGS__)
+#define _strdup(...) strdup(__VA_ARGS__)
 
-#define wcsdup_custom(input) \
+#define wcsdup(input) \
     ({ \
         __label__ __obfh_dup_done; \
+        OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         const wchar_t *__obfh_dup_source = (input); \
         size_t __obfh_dup_length = __obfh_dup_source ? wcslen(__obfh_dup_source) : 0; \
         wchar_t *__obfh_dup_result = NULL; \
-        OBFH_INLINE_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done); \
+        OBFH_CUSTOM_EXIT(!__obfh_dup_source || __obfh_dup_length > SIZE_MAX / sizeof(*__obfh_dup_result) - 1u, __obfh_dup_done); \
         __obfh_dup_result = (wchar_t *)malloc((__obfh_dup_length + 1u) * sizeof(*__obfh_dup_result)); \
-        OBFH_INLINE_EXIT(!__obfh_dup_result, __obfh_dup_done); \
+        OBFH_CUSTOM_EXIT(!__obfh_dup_result, __obfh_dup_done); \
         wmemcpy(__obfh_dup_result, __obfh_dup_source, __obfh_dup_length + 1u); \
     __obfh_dup_done: \
+        OBFH_CUSTOM_NOP; \
         __obfh_dup_result; \
     })
-#define wcsdup(...) wcsdup_custom(__VA_ARGS__)
-#define _wcsdup(...) wcsdup_custom(__VA_ARGS__)
+#define wcsdup_custom(...) wcsdup(__VA_ARGS__)
+#define _wcsdup(...) wcsdup(__VA_ARGS__)
 
-#define strnlen_s_custom(...) \
+#define strnlen_s(...) \
     ({ \
         __label__ __obfh_safe_length_loop, __obfh_safe_length_done; \
+        OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         struct { \
             const char *text; \
             size_t count; \
         } __obfh_safe_length_args = {__VA_ARGS__}; \
         size_t __obfh_safe_length_value = 0; \
         BREAK_STACK_CFLOW; \
-        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
+        OBFH_CUSTOM_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
     __obfh_safe_length_loop: \
-        OBFH_INLINE_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count || \
+        OBFH_CUSTOM_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count || \
                              !__obfh_safe_length_args.text[__obfh_safe_length_value], \
                          __obfh_safe_length_done); \
         ++__obfh_safe_length_value; \
         goto __obfh_safe_length_loop; \
     __obfh_safe_length_done: \
+        OBFH_CUSTOM_NOP; \
         __obfh_safe_length_value; \
     })
-#define strnlen_s(...) strnlen_s_custom(__VA_ARGS__)
+#define strnlen_s_custom(...) strnlen_s(__VA_ARGS__)
 
-#define wcsnlen_s_custom(...) \
+#define wcsnlen_s(...) \
     ({ \
         __label__ __obfh_safe_length_loop, __obfh_safe_length_done; \
+        OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         struct { \
             const wchar_t *text; \
             size_t count; \
         } __obfh_safe_length_args = {__VA_ARGS__}; \
         size_t __obfh_safe_length_value = 0; \
         BREAK_STACK_CFLOW; \
-        OBFH_INLINE_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
+        OBFH_CUSTOM_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
     __obfh_safe_length_loop: \
-        OBFH_INLINE_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count || \
+        OBFH_CUSTOM_EXIT(__obfh_safe_length_value == __obfh_safe_length_args.count || \
                              !__obfh_safe_length_args.text[__obfh_safe_length_value], \
                          __obfh_safe_length_done); \
         ++__obfh_safe_length_value; \
         goto __obfh_safe_length_loop; \
     __obfh_safe_length_done: \
+        OBFH_CUSTOM_NOP; \
         __obfh_safe_length_value; \
     })
-#define wcsnlen_s(...) wcsnlen_s_custom(__VA_ARGS__)
+#define wcsnlen_s_custom(...) wcsnlen_s(__VA_ARGS__)
 
-#define strrev_custom(input) \
+#define strrev(input) \
     ({ \
         __label__ __obfh_reverse_loop, __obfh_reverse_done; \
+        OBFH_CUSTOM_BEGIN; \
         char *__obfh_reverse_text = (input); \
         size_t __obfh_reverse_left = 0, __obfh_reverse_right = strlen(__obfh_reverse_text); \
-        PHANTOM_NOP; \
+        OBFH_CUSTOM_NOP; \
     __obfh_reverse_loop: \
-        OBFH_INLINE_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right, \
+        OBFH_CUSTOM_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right, \
                          __obfh_reverse_done); \
         char __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left]; \
         __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right]; \
@@ -6272,19 +6803,21 @@ __obfh_strlen_done: \
         ++__obfh_reverse_left; \
         goto __obfh_reverse_loop; \
     __obfh_reverse_done: \
+        OBFH_CUSTOM_NOP; \
         __obfh_reverse_text; \
     })
-#define strrev(...) strrev_custom(__VA_ARGS__)
-#define _strrev(...) strrev_custom(__VA_ARGS__)
+#define strrev_custom(...) strrev(__VA_ARGS__)
+#define _strrev(...) strrev(__VA_ARGS__)
 
-#define wcsrev_custom(input) \
+#define wcsrev(input) \
     ({ \
         __label__ __obfh_reverse_loop, __obfh_reverse_done; \
+        OBFH_CUSTOM_BEGIN; \
         wchar_t *__obfh_reverse_text = (input); \
         size_t __obfh_reverse_left = 0, __obfh_reverse_right = wcslen(__obfh_reverse_text); \
-        PHANTOM_NOP; \
+        OBFH_CUSTOM_NOP; \
     __obfh_reverse_loop: \
-        OBFH_INLINE_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right, \
+        OBFH_CUSTOM_EXIT(__obfh_reverse_left >= __obfh_reverse_right || __obfh_reverse_left >= --__obfh_reverse_right, \
                          __obfh_reverse_done); \
         wchar_t __obfh_reverse_value = __obfh_reverse_text[__obfh_reverse_left]; \
         __obfh_reverse_text[__obfh_reverse_left] = __obfh_reverse_text[__obfh_reverse_right]; \
@@ -6292,10 +6825,11 @@ __obfh_strlen_done: \
         ++__obfh_reverse_left; \
         goto __obfh_reverse_loop; \
     __obfh_reverse_done: \
+        OBFH_CUSTOM_NOP; \
         __obfh_reverse_text; \
     })
-#define wcsrev(...) wcsrev_custom(__VA_ARGS__)
-#define _wcsrev(...) wcsrev_custom(__VA_ARGS__)
+#define wcsrev_custom(...) wcsrev(__VA_ARGS__)
+#define _wcsrev(...) wcsrev(__VA_ARGS__)
 
 // API cache publication precedes invocation, allowing callback reentry.
 typedef struct {
@@ -6822,6 +7356,8 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
 
 // Bounded string scan used by the export parser.
 static const char *obfh_find_zero(const void *buffer, size_t count) {
+    OBFH_CUSTOM_BEGIN;
+    OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
     const char *bytes = buffer;
     PHANTOM_NOP;
@@ -6833,6 +7369,8 @@ static const char *obfh_find_zero(const void *buffer, size_t count) {
 }
 // Check an RVA range against the loaded image size.
 static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
+    OBFH_CUSTOM_BEGIN;
+    OBFH_CUSTOM_NOP;
     PHANTOM_NOP;
     return rva <= size && length <= (size_t)(size - rva);
 }
@@ -6855,6 +7393,8 @@ static FARPROC obfh_bound_export(HMODULE source, DWORD rva) {
 }
 
 static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_CODE_SECTION_ATTRIBUTE {
+    OBFH_CUSTOM_BEGIN;
+    OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
     BREAK_STACK_CFLOW;
     obfh_junk_func_args(RND(0, 885));
@@ -6953,8 +7493,9 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
     }
     return (FARPROC)(base + rva);
 }
-#define GetProcAddress_custom(...) ({ \
+#define GetProcAddress(...) ({ \
     __label__ __obfh_getprocaddress_done; \
+    OBFH_CUSTOM_BEGIN; \
     struct { \
         HMODULE hModule; \
         LPCSTR lpProcName; \
@@ -6965,7 +7506,7 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
     SetLastError(__obfh_getprocaddress_result ? __obfh_getprocaddress_error \
                                               : (__obfh_getprocaddress_args.hModule && __obfh_getprocaddress_args.lpProcName ? ERROR_PROC_NOT_FOUND \
                                                                                                                              : __obfh_getprocaddress_error)); \
-    PHANTOM_NOP; \
+    OBFH_CUSTOM_NOP; \
     BREAK_STACK_CFLOW; \
     { \
         __obfh_getprocaddress_output = (__obfh_getprocaddress_result); \
@@ -6974,7 +7515,7 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
 __obfh_getprocaddress_done: \
     __obfh_getprocaddress_output; \
 })
-#define GetProcAddress(...) GetProcAddress_custom(__VA_ARGS__)
+#define GetProcAddress_custom(...) GetProcAddress(__VA_ARGS__)
 
 // ============================================================================
 // 16. Module loading and loader proxy chain
@@ -7251,6 +7792,8 @@ static int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE
 
 // printf
 static int obfh_printf_variadic(int junk, const char *format, ...) {
+    OBFH_CUSTOM_BEGIN;
+    OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
     va_list args;
     obfh_junk_func_args(RND(0, 1000) + junk);
@@ -7631,6 +8174,8 @@ static char *getExitName_proxy(char *name) {
 #define exit(...) OBFH_CRT_CALL(getExitName_proxy, void (*)(int), __VA_ARGS__)
 
 static char *getStrtokName_proxy(char *name) {
+    OBFH_CUSTOM_BEGIN;
+    OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(6)] = _0),
@@ -7641,8 +8186,8 @@ static char *getStrtokName_proxy(char *name) {
 #endif
     return name;
 }
-#define strtok_custom(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
-#define strtok(...) strtok_custom(__VA_ARGS__)
+#define strtok(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
+#define strtok_custom(...) strtok(__VA_ARGS__)
 
 static char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;

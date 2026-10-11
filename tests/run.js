@@ -742,7 +742,8 @@ async function main() {
                 .replace('/* PROCESS_PROBE */', processProbe)
         );
         for (const [arch, compiler] of Object.entries(compilers)) {
-            if (process.argv.includes('--only-custom')) {
+            if (process.argv.includes('--only-custom') || process.argv.includes('--only-custom33')) {
+                const only33 = process.argv.includes('--only-custom33');
                 if (selectedArch && selectedArch !== arch) continue;
                 for (const config of ['plain', 'default', 'vm-no-cflow', 'advanced']) {
                     if (selectedConfigs && !selectedConfigs.includes(config)) continue;
@@ -751,14 +752,19 @@ async function main() {
                         : [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
                         await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
                             const flags = [...configs[config], `OBFH_BUILD_SEED=${seed}u`];
-                            for (const [fixture, marker] of [
+                            const fixtures = only33 ? [['custom33', 'CUSTOM33_PASS']] : [
                                 ['custom_extra', 'CUSTOM_EXTRA_PASS'],
                                 ['custom_copy', 'CUSTOM_COPY_PASS'],
+                                ['custom_polymorphism', 'CUSTOM_POLYMORPHISM_PASS'],
                                 ['custom_wide', 'CUSTOM_WIDE_PASS'],
                                 ['custom_sort', 'CUSTOM_SORT_PASS'],
+                                ['custom_critical', 'CUSTOM_CRITICAL_PASS'],
                                 ['custom_inline', ''],
+                                ['custom33', 'CUSTOM33_PASS'],
                                 ['crt_proxies', 'CRT_ATEXIT_PASS']
-                            ])
+                            ];
+                            if (config !== 'plain') fixtures.push(['custom33_inline', '']);
+                            for (const [fixture, marker] of fixtures)
                                 await execute(
                                     await compile(
                                         compiler,
@@ -774,6 +780,12 @@ async function main() {
                 }
                 await check(`${arch}/custom extensions editor view`, async () => {
                     await execute(
+                        await compile(compiler, directory, `${arch}-custom33-editor.exe`,
+                            path.join(__dirname, 'custom33.c'), ['__INTELLISENSE__=1'], ['-U__TINYC__']),
+                        'CUSTOM33_PASS'
+                    );
+                    if (only33) return;
+                    await execute(
                         await compile(
                             compiler,
                             directory,
@@ -783,6 +795,11 @@ async function main() {
                             ['-U__TINYC__']
                         ),
                         'CUSTOM_EXTRA_PASS'
+                    );
+                    await execute(
+                        await compile(compiler, directory, `${arch}-custom-critical-editor.exe`,
+                            path.join(__dirname, 'custom_critical.c'), ['__INTELLISENSE__=1'], ['-U__TINYC__']),
+                        'CUSTOM_CRITICAL_PASS'
                     );
                 });
                 continue;
@@ -1875,6 +1892,12 @@ async function main() {
                         flags
                     );
                     await execute(copyControl, 'CUSTOM_COPY_PASS');
+                    await execute(
+                        await compile(compiler, directory,
+                            `${arch}-${config}-custom-polymorphism.exe`,
+                            path.join(__dirname, 'custom_polymorphism.c'), flags),
+                        'CUSTOM_POLYMORPHISM_PASS'
+                    );
                     const wideControl = await compile(
                         compiler,
                         directory,
@@ -1883,6 +1906,21 @@ async function main() {
                         flags
                     );
                     await execute(wideControl, 'CUSTOM_WIDE_PASS');
+                    await execute(
+                        await compile(compiler, directory, `${arch}-${config}-custom33.exe`,
+                            path.join(__dirname, 'custom33.c'), flags),
+                        'CUSTOM33_PASS'
+                    );
+                    if (config !== 'plain') await execute(
+                        await compile(compiler, directory, `${arch}-${config}-custom33-inline.exe`,
+                            path.join(__dirname, 'custom33_inline.c'), flags),
+                        ''
+                    );
+                    await execute(
+                        await compile(compiler, directory, `${arch}-${config}-custom-critical.exe`,
+                            path.join(__dirname, 'custom_critical.c'), flags),
+                        'CUSTOM_CRITICAL_PASS'
+                    );
                     await execute(
                         await compile(compiler, directory, `${arch}-${config}-custom-sort.exe`,
                             path.join(__dirname, 'custom_sort.c'), flags),

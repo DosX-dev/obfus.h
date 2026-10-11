@@ -79,8 +79,15 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         ];
         for (const [name, mutant] of mutants) {
             assert(mutant !== traced, 'VM mutation target missing: ' + name);
-            fs.writeFileSync(header, mutant);
-            const exe = await compile(compiler, directory, `${arch}-vm-kernel-mutant-${name}.exe`, file, [
+            // Normal seed checks read the traced header concurrently. Keep each
+            // negative control in its own immutable tree instead of overwriting it.
+            const mutantRoot = path.join(root, 'mutants', name);
+            fs.mkdirSync(path.join(mutantRoot, 'include'), { recursive: true });
+            fs.mkdirSync(path.join(mutantRoot, 'tests'), { recursive: true });
+            fs.writeFileSync(path.join(mutantRoot, 'include', 'obfus.h'), mutant);
+            const mutantFile = path.join(mutantRoot, 'tests', 'vm_kernel.c');
+            fs.copyFileSync(file, mutantFile);
+            const exe = await compile(compiler, directory, `${arch}-vm-kernel-mutant-${name}.exe`, mutantFile, [
                 'VIRT=1',
                 'NO_CFLOW=1',
                 'NO_ANTIDEBUG=1'
@@ -88,7 +95,6 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             const result = await run(exe, []);
             assert(result.status !== 0 && !result.stdout.includes('KERNEL_PASS'), 'VM mutation survived: ' + name);
         }
-        fs.writeFileSync(header, traced);
     });
 
     for (const flags of [

@@ -106,5 +106,11 @@ int main(void) {
     fail |= !__builtin_types_compatible_p(__typeof__(qsort(values, 4, sizeof(int), compare_int)), void);
     qsort(values, 4, sizeof(int), compare_int);
     fail |= values[0] != 0 || values[3] != 6;
+    fail |= !__builtin_types_compatible_p(__typeof__(strtoll("42", NULL, 10)), long long);
+    fail |= !__builtin_types_compatible_p(__typeof__(strtoull("42", NULL, 10)), unsigned long long);
+    fail |= !__builtin_types_compatible_p(__typeof__(atoll("42")), long long);
+    fail |= _strtoi64("4294967296", NULL, 10) != 4294967296LL;
+    fail |= _strtoui64("18446744073709551615", NULL, 10) != 18446744073709551615ULL;
+    fail |= _atoi64("-42") != -42 || _stricmp("ABC", "abc") || _strnicmp("ABC!", "abc?", 3);
     ExitProcess(fail);
 }
