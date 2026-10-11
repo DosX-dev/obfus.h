@@ -197,8 +197,6 @@ static int crt_name_builders(void) {
     CHECK(getFreopenName_proxy(name) == name && !strcmp(name, "freopen"));
     CHECK((unsigned char)name[8] == 0xa5);
     memset(name, 0xa5, sizeof name);
-    CHECK(getQsortName_proxy(name) == name && !strcmp(name, "qsort"));
-    CHECK((unsigned char)name[6] == 0xa5);
     memset(name, 0xa5, sizeof name);
     CHECK(getSprintfName_proxy(name) == name && !strcmp(name, "sprintf"));
     CHECK((unsigned char)name[8] == 0xa5);

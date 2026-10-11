@@ -103,5 +103,8 @@ int main(void) {
     fail |= wcsspn(wide, L"ab") != 2 || wcscspn(wide, L"b") != 1 || wcspbrk(wide, L"c") != wide + 2;
     fail |= strnlen(text, 3) != 3 || wcsnlen(wide, 4) != 4;
     fail |= bsearch(&key, values, 4, sizeof(int), compare_int) != values + 2;
+    fail |= !__builtin_types_compatible_p(__typeof__(qsort(values, 4, sizeof(int), compare_int)), void);
+    qsort(values, 4, sizeof(int), compare_int);
+    fail |= values[0] != 0 || values[3] != 6;
     ExitProcess(fail);
 }

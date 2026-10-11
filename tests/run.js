@@ -755,6 +755,8 @@ async function main() {
                                 ['custom_extra', 'CUSTOM_EXTRA_PASS'],
                                 ['custom_copy', 'CUSTOM_COPY_PASS'],
                                 ['custom_wide', 'CUSTOM_WIDE_PASS'],
+                                ['custom_sort', 'CUSTOM_SORT_PASS'],
+                                ['custom_inline', ''],
                                 ['crt_proxies', 'CRT_ATEXIT_PASS']
                             ])
                                 await execute(
@@ -1881,6 +1883,11 @@ async function main() {
                         flags
                     );
                     await execute(wideControl, 'CUSTOM_WIDE_PASS');
+                    await execute(
+                        await compile(compiler, directory, `${arch}-${config}-custom-sort.exe`,
+                            path.join(__dirname, 'custom_sort.c'), flags),
+                        'CUSTOM_SORT_PASS'
+                    );
                     const extraControl = await compile(
                         compiler,
                         directory,

@@ -182,6 +182,7 @@ static inline size_t obfh_editor_wcsnlen_s(const wchar_t *text, size_t count) {
 
 // Search, output and platform aliases.
 #define bsearch_custom(...) bsearch(__VA_ARGS__)
+#define qsort_custom(...) qsort(__VA_ARGS__)
 #define printf_custom(...) printf(__VA_ARGS__)
 #define GetProcAddress_custom(...) GetProcAddress(__VA_ARGS__)
 
@@ -5989,6 +5990,64 @@ __obfh_bsearch_done:; \
 
 #define bsearch(...) bsearch_custom(__VA_ARGS__)
 
+// In-place heapsort: bounded O(n log n) comparisons, no allocation or CRT state.
+#define qsort_custom(...) ({ \
+    __label__ __obfh_sort_next, __obfh_sort_sift, __obfh_sort_child, __obfh_sort_swap, __obfh_sort_bytes, __obfh_sort_swapped, __obfh_sort_done; \
+    struct { \
+        void *base; \
+        size_t count; \
+        size_t width; \
+        int(__cdecl * compare)(const void *, const void *); \
+    } __obfh_sort_args = {__VA_ARGS__}; \
+    unsigned char *__obfh_sort_base = (unsigned char *)__obfh_sort_args.base; \
+    unsigned char *__obfh_sort_a, *__obfh_sort_b, __obfh_sort_byte; \
+    size_t __obfh_sort_start = __obfh_sort_args.count / 2, __obfh_sort_end = __obfh_sort_args.count; \
+    size_t __obfh_sort_root, __obfh_sort_child_index, __obfh_sort_i; \
+    int __obfh_sort_extract; \
+    BREAK_STACK_CFLOW; \
+    PHANTOM_NOP; \
+    OBFH_INLINE_EXIT(__obfh_sort_end < 2 || !__obfh_sort_args.width, __obfh_sort_done); \
+__obfh_sort_next: \
+    OBFH_INLINE_EXIT(!__obfh_sort_start, __obfh_sort_child); \
+    __obfh_sort_root = --__obfh_sort_start; \
+    goto __obfh_sort_sift; \
+__obfh_sort_child: \
+    OBFH_INLINE_EXIT(__obfh_sort_end < 2, __obfh_sort_done); \
+    --__obfh_sort_end; \
+    __obfh_sort_root = 0; \
+    __obfh_sort_child_index = __obfh_sort_end; \
+    __obfh_sort_extract = 1; \
+    goto __obfh_sort_swap; \
+__obfh_sort_sift: \
+    OBFH_INLINE_EXIT(__obfh_sort_root >= __obfh_sort_end / 2, __obfh_sort_next); \
+    __obfh_sort_child_index = __obfh_sort_root * 2 + 1; \
+    OBFH_INLINE_EXIT(__obfh_sort_child_index + 1 >= __obfh_sort_end, __obfh_sort_swapped); \
+    __obfh_sort_child_index += __obfh_sort_args.compare( \
+                                   __obfh_sort_base + __obfh_sort_child_index * __obfh_sort_args.width, \
+                                   __obfh_sort_base + (__obfh_sort_child_index + 1) * __obfh_sort_args.width) < 0; \
+__obfh_sort_swapped: \
+    OBFH_INLINE_EXIT(__obfh_sort_args.compare( \
+                         __obfh_sort_base + __obfh_sort_root * __obfh_sort_args.width, \
+                         __obfh_sort_base + __obfh_sort_child_index * __obfh_sort_args.width) >= 0, \
+                     __obfh_sort_next); \
+    __obfh_sort_extract = 0; \
+__obfh_sort_swap: \
+    __obfh_sort_a = __obfh_sort_base + __obfh_sort_root * __obfh_sort_args.width; \
+    __obfh_sort_b = __obfh_sort_base + __obfh_sort_child_index * __obfh_sort_args.width; \
+    __obfh_sort_i = 0; \
+__obfh_sort_bytes: \
+    __obfh_sort_byte = __obfh_sort_a[__obfh_sort_i]; \
+    __obfh_sort_a[__obfh_sort_i] = __obfh_sort_b[__obfh_sort_i]; \
+    __obfh_sort_b[__obfh_sort_i] = __obfh_sort_byte; \
+    ++__obfh_sort_i; \
+    OBFH_INLINE_EXIT(__obfh_sort_i < __obfh_sort_args.width, __obfh_sort_bytes); \
+    __obfh_sort_root = __obfh_sort_extract ? 0 : __obfh_sort_child_index; \
+    goto __obfh_sort_sift; \
+__obfh_sort_done:; \
+    (void)0; \
+})
+#define qsort(...) qsort_custom(__VA_ARGS__)
+
 #define strcmp_custom(...) ({ \
     __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done; \
     struct { \
@@ -7479,18 +7538,6 @@ static char *getFreopenName_proxy(char *name) {
 }
 #undef freopen
 #define freopen(...) OBFH_CRT_COMPACT_CALL(getFreopenName_proxy, FILE *(*)(const char *, const char *, FILE *), __VA_ARGS__)
-
-static char *getQsortName_proxy(char *name) {
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _q, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _q));
-    PHANTOM_NOP;
-    return name;
-}
-#undef qsort
-#define qsort(...) OBFH_CRT_COMPACT_CALL(getQsortName_proxy, void (*)(void *, size_t, size_t, int (*)(const void *, const void *)), __VA_ARGS__)
-
-#undef bsearch
 
 static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
     int saved_errno = errno;
