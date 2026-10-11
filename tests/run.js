@@ -945,6 +945,16 @@ async function main() {
                 });
                 if (process.argv.includes('--only-pdata')) continue;
             }
+            if (process.argv.includes('--only-flow-tokens') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
+                for (const mode of [0, 1])
+                    for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
+                        await check(`${arch}/fast continue/default semantics/cflow-v${mode + 1}/seed ${seed}`, async () =>
+                            execute(await compile(compiler, directory, `${arch}-fast-tokens-${mode}-${seed}.exe`,
+                                path.join(__dirname, 'fast_tokens.c'),
+                                ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`]), 'FAST_TOKENS_PASS')
+                        );
+                await require('./fast_tokens').runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+            }
             if (process.argv.includes('--only-flow-tokens')) {
                 for (const mode of [0, 1])
                     await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () =>

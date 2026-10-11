@@ -1,0 +1,22 @@
+#include <windows.h>
+#include <stdio.h>
+#include <string.h>
+/*FAST_BLOBS*/
+int main(void) {
+    for (unsigned i = 0; i < sizeof(blobs) / sizeof(blobs[0]); ++i) {
+        void *code = VirtualAlloc(NULL, 128, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!code) return 2;
+        memcpy(code, blobs[i], lengths[i]);
+        DWORD old;
+        if (!VirtualProtect(code, 128, PAGE_EXECUTE_READ, &old) || !FlushInstructionCache(GetCurrentProcess(), code, 128)) return 2;
+        for (unsigned repeat = 0; repeat < 128; ++repeat) {
+            ULONG_PTR state[5] = {0};
+            ((void (*)(ULONG_PTR *))code)(state);
+            if (state[0] != (ULONG_PTR)0xFEDCBA980000003FULL || state[1] != (ULONG_PTR)0x8000000000000001ULL ||
+                state[2] != (ULONG_PTR)0xFFFFFFFFFFFFFFF0ULL || ((state[3] ^ state[4]) & 0xCD5u)) return 1;
+        }
+        if (!VirtualFree(code, 0, MEM_RELEASE)) return 2;
+    }
+    puts("FAST_STATE_PASS");
+    return 0;
+}

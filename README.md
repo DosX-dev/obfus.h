@@ -4,6 +4,8 @@
 
 **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for **TinyCC 0.9.28rc** on Windows x86 and x64. Download the complete compiler package from **[TinyCC-builder releases](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**. **One file. Protection baked into your binary.**
 
+**Just seeing obfus.h in your binary will make a reverse engineer question the existence of God.**
+
 ### What features does it have?...
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
 - 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
@@ -37,7 +39,7 @@ Protection is polymorphic throughout the application: even small changes to the 
 
 Control-flow protection uses **Control Flow Explosion**: straightforward conditions and loops expand into a tangled graph of branches, indirect transitions and fake functions. Polymorphic instruction sequences carry state and select continuations, so removing them without preserving their dependencies can break execution. The graph's structure and instruction forms vary with the source code, making the original logic harder to follow in disassemblers and decompilers. `CFLOW_V2` adds another layer of control-flow mutation.
 
-Protection is inserted automatically around `if` conditions. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
+Automatic control-flow protection transforms `if`, `else`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
 
 IntelliSense remains available. No extra tools or code generation are required.
 
