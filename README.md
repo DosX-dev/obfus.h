@@ -1,4 +1,5 @@
-![](pics/obfus.h.png)
+<p align="center"><img src="pics/obfus.h.png" width="560" alt="obfus.h — compile-time obfuscation"></p>
+
 # obfus.h
 
 **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for **TinyCC 0.9.28rc** on Windows x86 and x64. Download the complete compiler package from **[TinyCC-builder releases](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**. **One file. Protection baked into your binary.**
