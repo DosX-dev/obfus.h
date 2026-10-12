@@ -18,7 +18,7 @@
 
 ## 🕹️ [Daily Crackmes](https://github.com/DosX-dev/obfus.h/releases/tag/daily-crackme)
 
-**Three levels. Fresh challenges, automatically built every day.** Sharpen your reverse-engineering skills or see how obfus.h works in real binaries — no compiler or test setup needed. **Download. Disassemble. Find the password.**
+**Three levels. Unique crackmes, automatically generated and built every day.** Each challenge has its own generated verification logic, not just a different password. Sharpen your reverse-engineering skills or see how obfus.h works in real binaries — no compiler or test setup needed. **Download. Disassemble. Find the password.**
 
 ## 🎯 Intended use
 
