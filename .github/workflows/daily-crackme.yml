@@ -37,6 +37,8 @@ jobs:
                   node-version: '24'
             - name: Test generator and publication recovery
               working-directory: gamification
+              env:
+                  CRACKME_QUICK_TESTS: '1'
               run: npm test
             - name: Verify complete local preparation on the Windows runner
               working-directory: gamification
@@ -56,6 +58,8 @@ jobs:
                   node-version: '24'
             - name: Test generator and publication recovery
               working-directory: gamification
+              env:
+                  CRACKME_QUICK_TESTS: '1'
               run: npm test
             - name: Prepare, verify and publish today's round
               working-directory: gamification

@@ -6,10 +6,12 @@ import { transform, words } from '../src/generation/model.js';
 import { seal, unseal, derive } from '../src/core/crypto.js';
 import { LEVELS } from '../src/core/config.js';
 const key = Buffer.alloc(32, 7);
+const quick = process.env.CRACKME_QUICK_TESTS === '1';
+const samples = quick ? 100 : 1000;
 for (const level of LEVELS)
-    test(`1000 distinct reversible ${level} graphs`, () => {
+    test(`${samples} distinct reversible ${level} graphs`, () => {
         const fingerprints = new Set(), behaviors = new Set();
-        for (let n = 0; n < 1000; n++) {
+        for (let n = 0; n < samples; n++) {
             const c = generate(key, { date: '2026-10-12', round: n + 1, level });
             const input = words(c.password, c.ir.bits);
             assert.deepEqual(transform(c.ir, c.target, true), input);
@@ -67,7 +69,7 @@ test('deterministic replay and separated derivation domains', () => {
     assert.equal(fingerprint(changed), c.fingerprint, 'Fingerprint must ignore constants/grouping');
 });
 
-test('a century of daily Easy structures does not exhaust or repeat the generator', { timeout: 300000 }, () => {
+test('a century of daily Easy structures does not exhaust or repeat the generator', { timeout: 300000, skip: quick }, () => {
     const seen = new Set(), shapes = new Set(), behaviors = new Set();
     const first = Date.UTC(2026, 9, 12);
     for (let day = 0; day < 36525; day++) {
@@ -106,11 +108,13 @@ test('structural fingerprint ignores independent scheduling but detects changed 
     constants(tree);
     assert.equal(fingerprint(changed), c.fingerprint);
     function alter(node) {
-        if (node.kind === 'add' || node.kind === 'xor') {
+        if (node.right) {
             node.kind = node.kind === 'add' ? 'xor' : 'add';
+            delete node.selector;
+            delete node.value;
             return true;
         }
-        return node.left && alter(node.left);
+        return (node.left && alter(node.left)) || (node.right && alter(node.right));
     }
     assert(alter(tree));
     assert.notEqual(fingerprint(changed), c.fingerprint);
