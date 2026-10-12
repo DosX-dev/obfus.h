@@ -15,8 +15,29 @@ export function profile(ir) {
     for (const stage of ir.stages) {
         add('stage:' + stage.kind);
         if (stage.kind === 'feistel') add(`partition:${stage.sources.length}/${stage.targets.length}`);
+        if (stage.round) add('sequentialRound');
+        if (stage.program) add('spn:flow:' + stage.program.map(step => step.box !== undefined ? 'B' : 'P').join(','));
+        for (const box of stage.boxes || []) {
+            add(stage.kind + ':boxMix:' + [...(box.before || []), ...(box.after || [])].map(op => op.kind).join(','));
+            for (const table of box.tables) {
+                const visited = new Set(), cycles = [];
+                for (let i = 0; i < table.length; i++) {
+                    if (visited.has(i)) continue;
+                    let at = i, length = 0;
+                    while (!visited.has(at)) {
+                        visited.add(at);
+                        length++;
+                        at = table[at];
+                    }
+                    cycles.push(length);
+                }
+                add(stage.kind + ':substitution:' + cycles.sort((a, b) => a - b).join(','));
+            }
+        }
         for (const op of stage.ops || []) {
-            add(stage.kind + ':' + (op.sequence ? op.sequence.map(item => item.kind).join(',') : op.form + ':' + expression(op.expr)));
+            if (op.before) add(stage.kind + ':pairMix:' + [...op.before, ...op.after].map(ops => ops.map(item => item.kind).join(',')).join('/'));
+            if (op.gate) add('controlled:gate:' + op.gate.map(item => item.kind).join(',') + (op.inverted ? ':inverted' : ':normal'));
+            add(stage.kind + ':' + (op.sequence ? op.sequence.map(item => item.kind).join(',') : op.expr ? op.form + ':' + expression(op.expr) : stage.kind === 'controlled' ? 'bitSwap' : ['linearLift', 'arxLift', 'multiplicativeLift'][op.form]));
         }
     }
     return counts;

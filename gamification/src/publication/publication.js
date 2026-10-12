@@ -35,13 +35,18 @@ async function verifyAssets(api, release, state) {
 }
 async function finish(api, release, transaction) {
     validateState(transaction.next);
-    if (transaction.journal !== `transaction-${transaction.next.date}.json`) throw new Error('Journal date mismatch');
+    const extraRound = transaction.advanceFromRound !== undefined;
+    if (extraRound && (!Number.isSafeInteger(transaction.advanceFromRound) || transaction.advanceFromRound < 1 || transaction.next.round !== transaction.advanceFromRound + 1 || transaction.kind === 'repackage')) throw new Error('Invalid manual advance journal');
+    const journalName = extraRound ? `transaction-${transaction.next.date}-round-${transaction.next.round}.json` : `transaction-${transaction.next.date}.json`;
+    if (transaction.journal !== journalName) throw new Error('Journal date mismatch');
     const current = await api.readManifest();
     if (current) validateState(current);
     if (!stateEqual(current, transaction.next)) {
         if (transaction.kind === 'repackage') {
             if (!stateEqual(current, transaction.previous)) throw new Error('Invalid repackage recovery state');
             await verifyRepackage(api, release, current, transaction.next);
+        } else if (extraRound) {
+            if (!current || current.round !== transaction.advanceFromRound || transaction.next.date !== current.date) throw new Error('Invalid manual advance recovery sequence');
         } else if (current ? transaction.next.round !== current.round + 1 || transaction.next.date <= current.date : transaction.next.round !== 1) throw new Error('Invalid recovery sequence');
     }
     await verifyAssets(api, release, transaction.next);
@@ -74,7 +79,7 @@ export async function recover(api) {
         return null;
     }
     if (release.immutable) throw new Error('Daily release must be mutable');
-    const journals = (await api.assets(release.id)).filter((a) => /^transaction-\d{4}-\d{2}-\d{2}\.json$/.test(a.name));
+    const journals = (await api.assets(release.id)).filter((a) => /^transaction-\d{4}-\d{2}-\d{2}(?:-round-[1-9]\d*)?\.json$/.test(a.name));
     if (journals.length > 1) throw new Error('Multiple publication journals; manual inspection required');
     if (journals.length) {
         const transaction = JSON.parse((await api.download(journals[0])).toString());
@@ -91,7 +96,8 @@ export async function recover(api) {
     }
     return state;
 }
-export async function publish(api, state, files, { repackage = false } = {}) {
+export async function publish(api, state, files, { repackage = false, advanceFromRound = null } = {}) {
+    if (advanceFromRound !== null && (!Number.isSafeInteger(advanceFromRound) || advanceFromRound < 1 || repackage)) throw new Error('Invalid manual advance request');
     validateState(state);
     if (!Array.isArray(files) || files.length !== state.files.length || new Set(files.map(file => file.name)).size !== files.length || files.some(file => state.files.find(entry => entry.name === file.name)?.sha256 !== hash(file.data))) throw new Error('Publication bundle does not match its manifest');
     let release = await api.release();
@@ -107,12 +113,16 @@ export async function publish(api, state, files, { repackage = false } = {}) {
         });
     }
     const current = await recover(api);
-    if (stateEqual(current, state) || current?.date === state.date && !repackage) return current;
+    if (stateEqual(current, state) || current?.date === state.date && !repackage && advanceFromRound === null) return current;
+    if (advanceFromRound !== null) {
+        if (!current || current.date !== state.date || current.round !== advanceFromRound) throw new Error('Expected current round/date mismatch');
+        if (state.files.some(file => current.files.some(before => assetMatches(before, file)))) throw new Error('Extra round requires distinct asset names');
+    }
     if (repackage && !current) throw new Error('Cannot repackage a missing round');
     if (!repackage && current && (state.date < current.date || state.round !== current.round + 1))
         throw new Error('Invalid publication sequence');
     if (!current && state.round !== 1) throw new Error('First round must be 1');
-    const journal = `transaction-${state.date}.json`;
+    const journal = advanceFromRound !== null ? `transaction-${state.date}-round-${state.round}.json` : `transaction-${state.date}.json`;
     let durable = false;
     try {
         // Clean orphan uploads from an interruption before a journal was written.
@@ -126,7 +136,7 @@ export async function publish(api, state, files, { repackage = false } = {}) {
         }
         await verifyAssets(api, release, state);
         if (repackage) await verifyRepackage(api, release, current, state);
-        const transaction = { version: 1, journal, next: state, ...(repackage ? { kind: 'repackage', previous: current } : {}) };
+        const transaction = { version: 1, journal, next: state, ...(repackage ? { kind: 'repackage', previous: current } : {}), ...(advanceFromRound !== null ? { advanceFromRound } : {}) };
         await api.upload(release.id, journal, Buffer.from(JSON.stringify(transaction)));
         durable = true;
         return await finish(api, release, transaction);

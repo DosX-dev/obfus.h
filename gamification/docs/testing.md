@@ -9,6 +9,7 @@ node --test test/*.test.js
 node cli.js test
 node cli.js preview --toolchain PATH_TO_TCC_DIRECTORY
 node cli.js acceptance --toolchain PATH_TO_TCC_DIRECTORY --count 10
+node test/long-horizon.js 3653
 ```
 
 `preview` builds locally without publishing. Private sources, targets, diagnostic logs and replay material are kept under ignored `out/`; never upload this working directory as an Actions artifact. A completed preview's `public/` directory contains only three player ZIPs. Its sibling `state/` directory contains authenticated encrypted answers and compressed history.
@@ -28,6 +29,22 @@ After refactoring, compare deterministic IRs, fingerprints and emitted C sources
 Architecture tests check import boundaries; bundle tests check the public/private file boundary. Generator tests exercise independent inverse models and the century-scale variation run. Publication and transport tests inject failures without writing to GitHub. Retry tests check all three generation attempts and private diagnostics.
 
 Algorithm tests independently check shift-XOR against BigInt arithmetic (including every byte), dependent update controls at numeric boundaries, both conditional paths, and unequal-partition Feistel routing/inversion. Negative admission tests reject insufficiently linked Medium checks and missing Hard rounds. Fingerprint tests distinguish conditional branch order and changed partition connections. Acceptance reports include each program's structural difficulty summary, separately from its native/VM test results.
+
+Family tests exhaust all 65,536 byte pairs for each pair-lift form and all 65,536 words for a generated 16-bit substitution, compare independent forward formulas, and verify inverse uniqueness. They also check controller restoration across dependent swaps, every generated stage at word boundaries, table nonlinearity and coefficient limits. The optional long-horizon simulation uses a public fixture key and the real three-attempt novelty gate for every difficulty across the requested number of days. It reports recent-profile distances and family coverage without compiling or publishing. This is sample evidence, not a guarantee that independently generated future algorithms share no primitives.
+
+### Generator v3 local evidence (2026-10-12)
+
+-   Model suite: 1000 reversible programs at each level and 36,525 daily Easy programs; no repeated structural, normalized-shape or behavioral fingerprints in the applicable checks.
+-   Ten-year fixture simulation: 3653 days, 10,959 admitted challenges, no retries or repeated fingerprints. Minimum distances against each level's last seven challenges were Easy 0.6462, Medium 0.5844 and Hard 0.7827, above the 0.35 admission threshold. This does not compare every historical pair or measure human difficulty.
+-   Native family matrix: ten generated family compositions per level on both x86/x64, 60 protected TCC probes. Accepted/rejected inputs and six complete boundary traces per probe agreed with the independent model. Hard executed real VM instructions.
+-   Complete local round: all three levels passed both architecture probes, 50,932 input cases, intermediate states, final x64 GUI interactions and binary/password audits. Hard executed 108,910 VM steps on both architectures.
+-   Negative controls on both architectures detected a removed new layer, corrupted VM arithmetic and an omitted comparison coordinate. Existing encrypted-answer and publication-recovery tests passed.
+
+Reports and private generated fixtures remain under ignored `out/families-v3-*`. No release upload was performed and the full library test suite was not run for this generator-only change.
+
+### Generator v4 focused smoke checks
+
+The within-family changes passed focused family, algorithm, diversity, authenticated-history and stored-answer tests. A 100-day three-level simulation cleared novelty admission. Twelve protected probes (two family compositions per level on x86/x64) matched six complete boundary traces and accepted/rejected inputs. Separately, both architectures evaluated all 16 truth-table inputs of each of 64 generated Boolean substitution circuits through real Hard VM helpers and matched independent lookup evaluation. Fixtures remain under ignored `out/families-v4-*`. The v3 decade and century evidence above applies to v3; the v4 smoke run does not claim a new decade-long simulation or full GUI acceptance.
 
 Novelty tests reject near-copies even with three fresh hashes, verify bounded recent-profile retention and authenticated reload, and reject malformed profile data. A 100-day simulation exercises all three levels through both the complete fingerprint history and recent similarity gate under the normal three-attempt budget.
 

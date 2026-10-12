@@ -18,6 +18,13 @@ export function analyzeDifficulty(ir) {
     for (const stage of ir.stages) {
         kinds.set(stage.kind, (kinds.get(stage.kind) || 0) + 1);
         if (stage.kind === 'permute') dependencies = stage.order.map(source => dependencies[source]);
+        if (['matrix', 'spn', 'controlled'].includes(stage.kind)) {
+            for (const op of stage.ops) {
+                const combined = new Set([...dependencies[op.i], ...dependencies[op.j], ...(op.control === undefined ? [] : dependencies[op.control])]);
+                dependencies[op.i] = new Set(combined);
+                dependencies[op.j] = new Set(combined);
+            }
+        }
         if (stage.kind === 'couple') {
             const coordinates = Array.from({ length: ir.width }, (_, i) => i);
             for (const op of stage.ops) {
@@ -39,7 +46,9 @@ export function analyzeDifficulty(ir) {
     return {
         stages: ir.stages.length,
         coupled: kinds.get('couple') || 0,
-        rounds: kinds.get('feistel') || 0,
+        rounds: (kinds.get('feistel') || 0) + ir.stages.filter(stage => stage.kind === 'couple' && stage.round).length,
+        feistelRounds: kinds.get('feistel') || 0,
+        sequentialRounds: ir.stages.filter(stage => stage.kind === 'couple' && stage.round).length,
         branches,
         updateForms: [...forms].sort(),
         partitionWidths: [...partitions].sort((a, b) => a - b),
@@ -53,13 +62,16 @@ export function assertDifficulty(ir) {
     let valid = false;
     if (ir.level === 'easy') valid = ir.bits === 8 && ir.length === 12
         && summary.stages >= 2 && summary.stages <= 4
-        && ir.stages.every(stage => ['affine', 'permute'].includes(stage.kind));
+        && ir.stages.some(stage => stage.kind === 'substitute')
+        && ir.stages.every(stage => ['affine', 'permute', 'substitute'].includes(stage.kind));
     if (ir.level === 'medium') valid = ir.bits === 16 && ir.length === 24
         && summary.stages >= 8 && summary.stages <= 12
         && summary.coupled >= 4 && summary.functions >= 3
+        && ir.stages.some(stage => stage.kind === 'spn') && ir.stages.some(stage => stage.kind === 'controlled')
         && summary.updateForms.length >= 3 && summary.minimumInputDependencies >= ir.width / 2;
     if (ir.level === 'hard') valid = ir.bits === 16 && ir.length === 32
         && summary.rounds >= 48 && summary.rounds <= 80
+        && summary.feistelRounds >= 24 && summary.sequentialRounds >= 12
         && summary.branches > 0 && summary.partitionWidths.length >= 3
         && summary.updateForms.length === 5 && summary.minimumInputDependencies === ir.width;
     if (!valid) throw new Error('Generated algorithm does not meet its difficulty structure contract');

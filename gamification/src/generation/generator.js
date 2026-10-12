@@ -2,6 +2,7 @@ import { ALPHABET, LEVELS, VERSION } from '../core/config.js';
 import { derive, rng, hash } from '../core/crypto.js';
 import { transform, words } from './model.js';
 import { assertDifficulty } from './difficulty.js';
+import { families } from './families.js';
 function shuffle(n, random) {
     const a = Array.from({ length: n }, (_, i) => i);
     for (let i = n - 1; i > 0; --i) {
@@ -21,9 +22,18 @@ export function fingerprint(ir) {
                 order: s.order,
                 sources: s.sources,
                 targets: s.targets,
+                round: s.round,
+                program: s.program,
+                boxes: s.boxes?.map(box => ({ i: box.i, tables: box.tables.length, route: box.route, before: box.before?.map(op => op.kind), after: box.after?.map(op => op.kind) })).sort((a, b) => a.i - b.i),
                 ops: (s.kind === 'affine' ? [...s.ops].sort((a, b) => a.i - b.i) : s.ops)?.map((c) => ({
                     i: c.i,
                     j: c.j,
+                    control: c.control,
+                    bit: c.bit,
+                    inverted: c.inverted,
+                    gate: c.gate?.map(op => op.kind),
+                    before: c.before?.map(ops => ops.map(op => op.kind)),
+                    after: c.after?.map(ops => ops.map(op => op.kind)),
                     form: c.form,
                     sequence: c.sequence?.map((op) => op.kind),
                     expr: c.expr && expressionShape(c.expr)
@@ -129,36 +139,47 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         if (order.every((source, i) => source === i)) [order[0], order[1]] = [order[1], order[0]];
         return { kind: 'permute', order };
     };
-    const couple = () => ({
+    const extra = families(width, bits, random, shuffle);
+    const couple = (round = false) => ({
         kind: 'couple',
+        round,
         ops: shuffle(width, random).map((i) => {
             const sources = Array.from({ length: width }, (_, index) => index).filter((index) => index !== i);
-            return { i, expr: roundExpression(sources, random, bits, 2, level === 'medium' ? 4 : 5, level === 'hard'), form: random(5) };
+            return { i, expr: roundExpression(sources, random, bits, round ? 4 : 2, round ? 6 : level === 'medium' ? 4 : 5, level === 'hard'), form: random(5) };
         })
     });
     if (level === 'easy') {
         const count = 2 + random(3);
         stages.push(affine());
-        for (let i = 1; i < count; ++i) stages.push(random(2) ? affine() : permute());
+        const factories = [extra.substitute];
+        while (factories.length < count - 1) factories.push([affine, permute, extra.substitute][random(3)]);
+        stages.push(...shuffle(factories.length, random).map(i => factories[i]()));
     } else if (level === 'medium') {
-        const count = 8 + random(5);
         const coupled = 4 + random(3);
-        const factories = Array.from({ length: coupled }, () => couple);
-        while (factories.length < count - 1) factories.push(random(2) ? affine : permute);
+        const count = Math.max(8 + random(5), coupled + 3);
+        const factories = [...Array.from({ length: coupled }, () => () => couple()), extra.spn, extra.controlled];
+        const eligible = [affine, permute, extra.matrix, extra.substitute, extra.spn, extra.controlled];
+        while (factories.length < count - 1) factories.push(eligible[random(eligible.length)]);
         stages.push(affine(), ...shuffle(factories.length, random).map(i => factories[i]()));
     } else {
         const count = 48 + random(33);
-        stages.push(affine(), permute());
+        stages.push(affine(), extra.spn(), extra.controlled(), permute());
+        const sequential = 12 + random(9);
+        const roundKinds = shuffle(count, random).map(index => index < sequential);
         let remaining = 6 + random(7);
         for (let i = 0; i < count; ++i) {
-            const coordinates = shuffle(width, random);
-            const split = 6 + random(5);
-            const sources = coordinates.slice(0, split), targets = coordinates.slice(split);
-            const localSources = Array.from({ length: split }, (_, index) => index);
-            const ops = targets.map(() => ({ expr: roundExpression(localSources, random, bits, 4, split, true), form: random(5) }));
-            stages.push({ kind: 'feistel', sources, targets, order: shuffle(width, random), ops });
+            if (roundKinds[i]) stages.push(couple(true));
+            else {
+                const coordinates = shuffle(width, random);
+                const split = 6 + random(5);
+                const sources = coordinates.slice(0, split), targets = coordinates.slice(split);
+                const localSources = Array.from({ length: split }, (_, index) => index);
+                const ops = targets.map(() => ({ expr: roundExpression(localSources, random, bits, 4, split, true), form: random(5) }));
+                stages.push({ kind: 'feistel', sources, targets, order: shuffle(width, random), ops });
+            }
             if (--remaining === 0) {
-                stages.push([couple, permute, affine][random(3)]());
+                const eligible = [() => couple(), permute, affine, extra.spn, extra.matrix, extra.controlled, extra.substitute];
+                stages.push(eligible[random(eligible.length)]());
                 remaining = 6 + random(7);
             }
         }

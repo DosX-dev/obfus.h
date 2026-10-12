@@ -327,3 +327,35 @@ test('daily updates after repackaging keep only three public ZIPs and two privat
     assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
     assert(api.list.every(asset => asset.name.includes('2026-10-13')));
 });
+
+test('extra same-date rounds are explicitly fenced and recover at every request boundary', async () => {
+    const fixture = legacyPlayers();
+    const newFiles = fixture.newFiles.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-12-round-2') }));
+    const next = { ...fixture.next, round: 2, previous: { date: fixture.state.date, round: 1, answers: { easy: 'old-answer' } }, files: fixture.next.files.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-12-round-2') })) };
+    const baseline = new FakeGitHub();
+    await publish(baseline, fixture.state, fixture.files);
+    assert.equal((await publish(baseline, next, newFiles)).round, 1, 'Ordinary reruns cannot advance today');
+    await assert.rejects(publish(baseline, next, newFiles, { advanceFromRound: 2 }), /Expected current round/);
+    baseline.calls = []; baseline.splitStorage = true;
+    await publish(baseline, next, newFiles, { advanceFromRound: 1 });
+    const boundaries = baseline.calls.length;
+    assert.match(baseline.r.body, /Previous round answers/);
+    for (const after of [false, true]) for (let at = 1; at <= boundaries; at++) {
+        const api = new FakeGitHub();
+        await publish(api, fixture.state, fixture.files);
+        api.calls = []; api.splitStorage = true; api.failAt = at; api.after = after;
+        try { await publish(api, next, newFiles, { advanceFromRound: 1 }); } catch { }
+        api.failAt = null;
+        await recover(api);
+        await publish(api, next, newFiles, { advanceFromRound: 1 });
+        assert.deepEqual(api.manifest, next);
+        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 3);
+        assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
+        assert(api.list.every(asset => !asset.name.startsWith('transaction-')));
+        const mutations = api.calls.filter(name => name.startsWith('upload:') || ['body', 'commit', 'delete'].includes(name)).length;
+        await publish(api, next, newFiles, { advanceFromRound: 1 });
+        assert.equal(api.calls.filter(name => name.startsWith('upload:') || ['body', 'commit', 'delete'].includes(name)).length, mutations);
+    }
+    const collision = { ...next, files: fixture.next.files };
+    await assert.rejects(publish(new FakeGitHub(), collision, fixture.newFiles, { advanceFromRound: 0 }), /Invalid manual/);
+});

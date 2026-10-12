@@ -53,12 +53,18 @@ Build and verification do not import publication. Round preparation does not imp
 
 The IR contains word width, logical coordinates, stages, physical storage permutation, function groups and the library seed. The model operates on logical coordinates; the emitter maps them to physical slots.
 
-| Stage     | Contract                                                                                                                                                                |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `affine`  | Per-coordinate ordered reversible operations; odd multiplication, nonzero rotation and shift-XOR bijections                                                             |
-| `permute` | A complete nonidentity coordinate permutation                                                                                                                           |
-| `couple`  | Sequential reversible updates; each control expression excludes its destination; inverse updates run in reverse order                                                   |
-| `feistel` | Disjoint, potentially unequal source/destination partitions cover the block; simultaneous destination updates read only sources; a complete routing permutation follows |
+| Stage        | Contract                                                                                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `affine`     | Per-coordinate ordered reversible operations; odd multiplication, nonzero rotation and shift-XOR bijections                                                             |
+| `permute`    | A complete nonidentity coordinate permutation                                                                                                                           |
+| `couple`     | Sequential reversible updates; each control expression excludes its destination; inverse updates run in reverse order                                                   |
+| `feistel`    | Disjoint, potentially unequal source/destination partitions cover the block; simultaneous destination updates read only sources; a complete routing permutation follows |
+| `substitute` | Independent bijective nonlinear nibble tables for each coordinate; inverse uses inverse table lookup                                                                    |
+| `matrix`     | Two or three wired layers of invertible modular, ARX or multiplicative pair lifts                                                                                       |
+| `spn`        | Generated interleaving of nonlinear substitutions and pair steps; reverse the actual operation schedule                                                                 |
+| `controlled` | Generated predicates over distinct control words; conditional or masked-XOR swaps; reverse operation order restores controls                                            |
+
+`families.js` constructs the additional stage descriptions. `family-model.js` interprets/inverts them, and `family-emitter.js` independently emits forward C. A `couple` stage marked `round` is a full sequential nonlinear Hard round; it uses the same reversible update contract with more source dependencies.
 
 Expression nodes encode sources, binary add/subtract/XOR/AND/OR, source-bit conditional selection, rotation, multiplication, addition by a constant and XOR by a constant. The conditional branches have distinct roles and cannot be sorted as commutative operands. Update forms are XOR, addition, subtraction, dependent odd multiplication and dependent rotation. Before reversing a generalized Feistel round, undo its routing, then use the untouched sources to invert each destination update. Numeric masking and Windows `long` limits are part of the contract. Do not implement a new operation by calling the model from the emitter: independent native/model comparisons would lose their purpose.
 

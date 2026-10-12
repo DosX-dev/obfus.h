@@ -11,6 +11,7 @@ export function moscow(now = new Date()) {
     return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) };
 }
 
-export function roundDue(state, time, manual = false) {
+export function roundDue(state, time, manual = false, advanceFromRound = null) {
+    if (advanceFromRound !== null) return manual && state?.date === time.date && state.round === advanceFromRound;
     return state?.date !== time.date && (manual || time.hour >= 13);
 }

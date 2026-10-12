@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { emitFamily } from './family-emitter.js';
 export function emit({ ir, target }, { mutate = null } = {}) {
     const hard = ir.level === 'hard',
         mask = 2 ** ir.bits - 1;
@@ -30,6 +31,10 @@ export function emit({ ir, target }, { mutate = null } = {}) {
         throw new Error('Unknown emitted update');
     }
     for (const s of stages) {
+        if (['substitute', 'matrix', 'spn', 'controlled'].includes(s.kind)) {
+            calls.push(emitFamily(s, ir.bits, slot));
+            continue;
+        }
         if (s.kind === 'affine' && s.ops[0].sequence) {
             calls.push(
                 s.ops

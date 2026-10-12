@@ -1,4 +1,4 @@
-export const VERSION = 2;
+export const VERSION = 4;
 export const LEVELS = ['easy', 'medium', 'hard'];
 export const TOOLCHAIN = Object.freeze({
     repository: 'DosX-dev/TinyCC-builder',

@@ -25,7 +25,7 @@ export async function createBundle(key, { date, round, repository, previous, his
         witnesses.push(witness);
         shapes.push(shape);
 
-        const playerName = `obfus-crackme-${date}-${level}-x64.exe`;
+        const playerName = `obfus-crackme-${date}-round-${round}-${level}-x64.exe`;
         const name = playerName.replace(/\.exe$/, '.zip');
         files.push({ name, data: playerZip(playerName, await fs.readFile(exe)), role: level });
         jobs.push({ level, exe, screenshot: path.join(folder, 'preview.png') });
@@ -41,7 +41,7 @@ export async function createBundle(key, { date, round, repository, previous, his
     }
 
     files.push({
-        name: `answers-${date}.json`,
+        name: `answers-${date}-round-${round}.json`,
         data: Buffer.from(JSON.stringify(seal(key, { version: VERSION, date, round, answers }))),
         role: 'answers'
     });
@@ -50,7 +50,7 @@ export async function createBundle(key, { date, round, repository, previous, his
         level: selected[i].level, profile: [...profile(selected[i].challenge.ir)]
     }));
     files.push({
-        name: `history-${date}.json.gz`,
+        name: `history-${date}-round-${round}.json.gz`,
         data: gzipSync(JSON.stringify({ version: HISTORY_VERSION, checks: retainHistory(history, newHistory) }), { level: 9 }),
         role: 'history'
     });

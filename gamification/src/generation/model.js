@@ -1,4 +1,5 @@
 // Independent interpreter/inverse of the IR. The C emitter does not call these operations.
+import { familyStage } from './family-model.js';
 export function rotate(x, n, bits) {
     const mask = 2 ** bits - 1;
     return ((x << n) | (x >>> (bits - n))) & mask;
@@ -56,6 +57,7 @@ function shiftXor(value, count, bits, left, inverse) {
     return result & mask;
 }
 export function stage(input, s, bits, inverse = false) {
+    if (['substitute', 'matrix', 'spn', 'controlled'].includes(s.kind)) return familyStage(input, s, bits, inverse);
     const out = [...input],
         mask = 2 ** bits - 1,
         mod = mask + 1;

@@ -10,6 +10,11 @@ on:
                 options:
                     - preview
                     - publish
+            advance_from_round:
+                description: 'Publish one extra round today, only if this is still the current round number; leave empty normally'
+                type: string
+                required: false
+                default: ''
     schedule:
         - cron: '0 10 * * *'
         - cron: '17 10,11 * * *'
@@ -57,6 +62,7 @@ jobs:
               run: node cli.js daily --publish ${{ github.event_name == 'workflow_dispatch' && '--now' || '' }}
               env:
                   CRACKME_PUBLICATION_APPROVED: ${{ vars.CRACKME_PUBLICATION_APPROVED }}
+                  CRACKME_ADVANCE_FROM_ROUND: ${{ inputs.advance_from_round }}
                   CRACKME_MASTER_KEY: ${{ secrets.CRACKME_MASTER_KEY }}
                   GITHUB_TOKEN: ${{ github.token }}
             # Do not upload the working directory: it contains private generated source/answers.
