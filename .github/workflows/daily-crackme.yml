@@ -54,7 +54,7 @@ jobs:
               run: npm test
             - name: Prepare, verify and publish today's round
               working-directory: gamification
-        run: node cli.js daily --publish ${{ github.event_name == 'workflow_dispatch' && '--now' || '' }}
+              run: node cli.js daily --publish ${{ github.event_name == 'workflow_dispatch' && '--now' || '' }}
               env:
                   CRACKME_PUBLICATION_APPROVED: ${{ vars.CRACKME_PUBLICATION_APPROVED }}
                   CRACKME_MASTER_KEY: ${{ secrets.CRACKME_MASTER_KEY }}
