@@ -16,6 +16,10 @@
 - 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
 - 🪟 **Windows API Protection**: Automatically protects common GUI and system calls with no extra setup.
 
+## 🕹️ [Daily Crackmes](https://github.com/DosX-dev/obfus.h/releases/tag/daily-crackme)
+
+**Three levels. Fresh challenges, automatically built every day.** Sharpen your reverse-engineering skills or see how obfus.h works in real binaries — no compiler or test setup needed. **Download. Disassemble. Find the password.**
+
 ## 🎯 Intended use
 
 **obfus.h is a full-featured obfuscation tool, not a proof of concept.** It is a powerful tool when you understand where and how to apply it: use it to protect selected native components containing sensitive logic.
