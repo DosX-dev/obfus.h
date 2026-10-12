@@ -81,7 +81,7 @@ export function assertDifficulty(ir) {
     if (ir.level === 'easy') valid = ir.bits === 8 && ir.length === 12
         && summary.stages >= 2 && summary.stages <= 4
         && ir.stages.some(stage => stage.kind === 'substitute')
-        && ir.stages.every(stage => ['affine', 'permute', 'substitute', 'bitshuffle', 'bitnetwork'].includes(stage.kind))
+        && ir.stages.every(stage => ['affine', 'triangular', 'permute', 'substitute', 'bitshuffle', 'bitnetwork'].includes(stage.kind))
         && ir.stages.filter(stage => stage.kind === 'bitnetwork').every(stage => stage.span === 1);
     if (ir.level === 'medium') valid = ir.bits === 16 && ir.length === 24
         && summary.stages >= 8 && summary.stages <= 12

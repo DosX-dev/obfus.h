@@ -4,12 +4,22 @@ import { gzipSync } from 'node:zlib';
 import { hash } from '../src/core/crypto.js';
 import { LEVELS } from '../src/core/config.js';
 import { createHistoryIndex, hasSeen, remember, retainHistory, loadHistory, RECENT_CHECKS_PER_LEVEL } from '../src/round/history.js';
-import { profileDistance, profile, shapeFingerprint } from '../src/generation/diversity.js';
+import { profileDistance, profile, shapeFingerprint, compactProfile } from '../src/generation/diversity.js';
 import { generate, behaviorFingerprint } from '../src/generation/generator.js';
 
 const entry = (i, level = 'easy') => ({
     level, structure: hash('structure/' + level + i), behavior: hash('behavior/' + level + i),
     shape: hash('shape/' + level + i), profile: [['stage:affine', 2], ['affine:xor,rot,add', 20]]
+});
+
+test('compact historical features preserve distance and detect raw-profile near-copies', () => {
+    const a = entry(1).profile, b = [...a.map(item => [...item]), ['stage:triangular', 4]];
+    const compact = compactProfile(a);
+    assert.deepEqual(compactProfile(compact), compact);
+    assert.equal(profileDistance(a, compact), 0);
+    assert.equal(profileDistance(a, b), profileDistance(compact, compactProfile(b)));
+    const stored = { ...entry(1), profile: compact };
+    assert(hasSeen(createHistoryIndex([stored]), { ...entry(2), profile: a }));
 });
 
 test('new hashes cannot bypass recent normalized-shape similarity admission', () => {
@@ -27,7 +37,7 @@ test('new hashes cannot bypass recent normalized-shape similarity admission', ()
 
 test('recent profile retention is bounded per level without losing all-time fingerprints', () => {
     const history = [];
-    for (let round = 0; round < 30; round++) for (const level of LEVELS) history.push(entry(round, level));
+    for (let round = 0; round < RECENT_CHECKS_PER_LEVEL + 5; round++) for (const level of LEVELS) history.push(entry(round, level));
     const retained = retainHistory(history.slice(0, -3), history.slice(-3));
     assert.equal(retained.length, history.length);
     assert.deepEqual(retained.map(value => value.structure), history.map(value => value.structure));

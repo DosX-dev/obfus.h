@@ -1,5 +1,5 @@
 import { createHmac, createHash, createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { VERSION } from './config.js';
+import { GENERATOR_VERSION } from './config.js';
 export const hash = (data) => createHash('sha256').update(data).digest('hex');
 // Answer storage is a durable protocol, independent of future generator versions.
 const ANSWER_VERSION = 1;
@@ -10,7 +10,7 @@ export function masterKey(text) {
 }
 export function derive(key, domain, context) {
     return createHmac('sha256', key)
-        .update(JSON.stringify([VERSION, domain, context]))
+        .update(JSON.stringify([GENERATOR_VERSION, domain, context]))
         .digest();
 }
 export function rng(key, domain, context) {

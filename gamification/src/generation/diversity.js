@@ -42,6 +42,7 @@ export function profile(ir) {
             }
         }
         for (const op of stage.ops || []) {
+            if (op.steps) add('triangular:program:' + op.steps.map(step => `${step.cut}:${step.kind}:${step.term}`).join('/'));
             if (stage.kind === 'bitshuffle') add('bitshuffle:route:' + op.route.join(',') + ':' + [...op.before, ...op.after].map(item => item.kind).join(','));
             if (stage.kind === 'weave') add('weave:' + op.kind + ':' + op.sources.map(source => source.combine + '(' + source.mix.map(item => item.kind).join(',') + ')').join('/'));
             // Exchanging the two local coordinate names alone is not a new shape.
@@ -57,13 +58,24 @@ export function distance(left, right) {
     return profileDistance(profile(left), profile(right));
 }
 export function profileDistance(left, right) {
-    const a = new Map(left), b = new Map(right);
+    const a = new Map(compactProfile(left)), b = new Map(compactProfile(right));
     let common = 0, union = 0;
     for (const key of new Set([...a.keys(), ...b.keys()])) {
         common += Math.min(a.get(key) || 0, b.get(key) || 0);
         union += Math.max(a.get(key) || 0, b.get(key) || 0);
     }
     return union ? 1 - common / union : 0;
+}
+// Fixed-size feature identifiers keep the larger recent window affordable.
+// Hash collisions merge counts conservatively: they can reject a distinct
+// candidate, rather than increase its measured distance and admit a near-copy.
+export function compactProfile(entries) {
+    const counts = new Map();
+    for (const [key, count] of entries) {
+        const identifier = /^[a-f0-9]{64}$/.test(key) ? key : hash(key);
+        counts.set(identifier, (counts.get(identifier) || 0) + count);
+    }
+    return [...counts];
 }
 export function shapeFingerprint(ir) {
     return hash(JSON.stringify([...profile(ir)].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)));

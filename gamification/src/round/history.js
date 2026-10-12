@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
 import { hash } from '../core/crypto.js';
 import { LEVELS } from '../core/config.js';
-import { profileDistance } from '../generation/diversity.js';
+import { profileDistance, compactProfile } from '../generation/diversity.js';
 
 export const HISTORY_VERSION = 1;
-export const RECENT_CHECKS_PER_LEVEL = 7;
+export const RECENT_CHECKS_PER_LEVEL = 64;
 export const MINIMUM_RECENT_DISTANCE = 0.35;
 
 export function createHistoryIndex(history) {
@@ -13,14 +13,15 @@ export function createHistoryIndex(history) {
         structures: new Set(history.map(entry => entry.structure)),
         behaviors: new Set(history.map(entry => entry.behavior)),
         shapes: new Set(history.map(entry => entry.shape)),
-        recent: history.filter(entry => entry.profile).map(({ level, profile }) => ({ level, profile }))
+        recent: history.filter(entry => entry.profile).map(({ level, profile }) => ({ level, profile: compactProfile(profile) }))
     };
 }
 
 export function hasSeen(index, { structure, behavior, shape, level, profile }) {
     if (index.structures.has(structure) || index.behaviors.has(behavior) || index.shapes.has(shape)) return true;
-    return !!profile && (index.recent || []).some(entry => entry.level === level
-        && profileDistance(profile, entry.profile) < MINIMUM_RECENT_DISTANCE);
+    const normalized = profile && compactProfile(profile);
+    return !!normalized && (index.recent || []).some(entry => entry.level === level
+        && profileDistance(normalized, entry.profile) < MINIMUM_RECENT_DISTANCE);
 }
 
 // Keep all historical fingerprints, but only a bounded recent comparison window.
@@ -32,6 +33,7 @@ export function retainHistory(history, additions) {
         const count = (counts.get(entry.level) || 0) + 1;
         counts.set(entry.level, count);
         if (count > RECENT_CHECKS_PER_LEVEL) delete entry.profile;
+        else entry.profile = compactProfile(entry.profile);
         return entry;
     }).reverse();
 }
@@ -45,7 +47,7 @@ export function remember(index, { structure, behavior, shape, level, profile }) 
         index.recent = [
             ...recent.filter(entry => entry.level !== level),
             ...recent.filter(entry => entry.level === level).slice(1 - RECENT_CHECKS_PER_LEVEL),
-            { level, profile }
+            { level, profile: compactProfile(profile) }
         ];
     }
 }

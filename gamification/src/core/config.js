@@ -1,4 +1,6 @@
+// Durable round/answer schema stays stable when generation rules change.
 export const VERSION = 6;
+export const GENERATOR_VERSION = 7;
 export const LEVELS = ['easy', 'medium', 'hardcore', 'extreme'];
 export const TOOLCHAIN = Object.freeze({
     repository: 'DosX-dev/TinyCC-builder',

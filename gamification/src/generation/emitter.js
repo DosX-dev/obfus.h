@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { LEVEL_LABELS } from '../core/config.js';
 import { emitFamily } from './family-emitter.js';
 import { emitNetwork } from './bit-network.js';
+import { emitTriangular } from './triangular.js';
 export function emit({ ir, target }, { mutate = null } = {}) {
     const hardcore = ['hardcore', 'extreme'].includes(ir.level),
         mask = 2 ** ir.bits - 1;
@@ -35,6 +36,10 @@ export function emit({ ir, target }, { mutate = null } = {}) {
         throw new Error('Unknown emitted update');
     }
     for (const s of stages) {
+        if (s.kind === 'triangular') {
+            calls.push(emitTriangular(s, ir.bits, slot));
+            continue;
+        }
         if (s.kind === 'bitnetwork') {
             calls.push(emitNetwork(s, ir.bits, slot));
             continue;

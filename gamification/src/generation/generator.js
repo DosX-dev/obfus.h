@@ -1,10 +1,11 @@
-import { ALPHABET, LEVELS, VERSION } from '../core/config.js';
+import { ALPHABET, LEVELS, VERSION, GENERATOR_VERSION } from '../core/config.js';
 import { derive, rng, hash } from '../core/crypto.js';
 import { transform, words } from './model.js';
 import { assertDifficulty } from './difficulty.js';
 import { braid } from './extreme.js';
 import { families } from './families.js';
 import { bitNetwork } from './bit-network.js';
+import { triangular } from './triangular.js';
 function shuffle(n, random) {
     const a = Array.from({ length: n }, (_, i) => i);
     for (let i = n - 1; i > 0; --i) {
@@ -29,9 +30,10 @@ export function fingerprint(ir) {
                 nodes: s.nodes?.map(expressionShape),
                 program: s.program,
                 boxes: s.boxes?.map(box => ({ i: box.i, tables: box.tables.length, route: box.route, before: box.before?.map(op => op.kind), after: box.after?.map(op => op.kind) })).sort((a, b) => a.i - b.i),
-                ops: (s.kind === 'affine' ? [...s.ops].sort((a, b) => a.i - b.i) : s.ops)?.map((c) => ({
+                ops: (['affine', 'triangular'].includes(s.kind) ? [...s.ops].sort((a, b) => a.i - b.i) : s.ops)?.map((c) => ({
                     i: c.i,
                     kind: c.kind,
+                    steps: c.steps?.map(step => ({ cut: step.cut, kind: step.kind, term: step.term })),
                     route: c.route,
                     sources: c.sources?.map(source => ({ index: source.index, combine: source.combine, mix: source.mix.map(op => op.kind) })),
                     j: c.j,
@@ -148,6 +150,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         return { kind: 'permute', order };
     };
     const extra = families(width, bits, random, shuffle);
+    const bands = () => triangular(width, bits, random, shuffle);
     const network = () => bitNetwork(width, bits, level === 'easy' ? 1 : level === 'medium' ? [3, 4, 6][random(3)] : level === 'hardcore' ? [4, 8, width][random(3)] : width, level === 'easy' ? 1 : level === 'extreme' ? 2 + random(2) : 1 + random(2), random, shuffle);
     const couple = (round = false) => ({
         kind: 'couple',
@@ -159,21 +162,22 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
     });
     if (level === 'easy') {
         const count = 3 + random(2);
-        stages.push(affine());
+        stages.push(bands());
         const factories = [extra.substitute, network];
-        while (factories.length < count - 1) factories.push([affine, permute, extra.substitute, extra.bitshuffle][random(4)]);
+        while (factories.length < count - 1) factories.push([affine, bands, permute, extra.substitute, extra.bitshuffle][random(5)]);
         stages.push(...shuffle(factories.length, random).map(i => factories[i]()));
     } else if (level === 'medium') {
         const coupled = 4 + random(3);
         const count = Math.max(8 + random(5), coupled + 4);
         const factories = [...Array.from({ length: coupled }, () => () => couple()), extra.spn, extra.controlled, network];
-        const eligible = [affine, permute, extra.matrix, extra.substitute, extra.spn, extra.controlled, extra.bitshuffle, extra.weave];
+        const eligible = [affine, bands, permute, extra.matrix, extra.substitute, extra.spn, extra.controlled, extra.bitshuffle, extra.weave];
         while (factories.length < count - 1) factories.push(eligible[random(eligible.length)]);
-        stages.push(affine(), ...shuffle(factories.length, random).map(i => factories[i]()));
+        stages.push(bands(), ...shuffle(factories.length, random).map(i => factories[i]()));
     } else {
         const extreme = level === 'extreme';
         const count = extreme ? 96 + random(49) : 48 + random(33);
-        stages.push(affine(), extra.spn(), extra.controlled(), extra.bitshuffle(), extra.weave(), network(), permute());
+        const opening = [bands, extra.spn, extra.controlled, extra.bitshuffle, extra.weave, network, permute];
+        stages.push(affine(), ...shuffle(opening.length, random).map(i => opening[i]()));
         const sequential = extreme ? 24 + random(9) : 12 + random(9);
         const braided = extreme ? 32 + random(9) : 0;
         const roundKinds = shuffle(count, random).map(index => index < sequential ? 1 : index < sequential + braided ? 2 : 0);
@@ -190,7 +194,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
                 stages.push({ kind: 'feistel', sources, targets, order: shuffle(width, random), ops });
             }
             if (--remaining === 0) {
-                const eligible = [() => couple(), permute, affine, extra.spn, extra.matrix, extra.controlled, extra.substitute, extra.bitshuffle, extra.weave];
+                const eligible = [() => couple(), permute, affine, bands, extra.spn, extra.matrix, extra.controlled, extra.substitute, extra.bitshuffle, extra.weave];
                 stages.push(eligible[random(eligible.length)]());
                 if (extreme) stages.push(affine(), permute());
                 remaining = 6 + random(7);
@@ -202,6 +206,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
     // A physical storage permutation changes addressing without affecting the model.
     const ir = {
         version: VERSION,
+        generatorVersion: GENERATOR_VERSION,
         ...context,
         length,
         bits,

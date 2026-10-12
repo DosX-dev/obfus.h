@@ -30,7 +30,7 @@ export function bitNetwork(width, bits, span, layers, random, shuffle) {
                     truth = undefined;
                 }
                 if (!truth) throw new Error('Could not generate a nonlinear bit gate');
-                gates.push({ target, destination, controls, truth });
+                gates.push({ target, destination, controls, truth, layout: random(3) });
             }
         }
     }
@@ -68,7 +68,19 @@ export function emitNetwork(stage, bits, slot) {
             const factors = gate.controls.flatMap((_, bit) => index & (1 << bit) ? [`c${bit}`] : []);
             return [factors.length ? factors.reduce((left, right) => `p_and(${left},${right})`) : '1u'];
         });
-        const expression = terms.reduce((left, right) => `p_xor(${left},${right})`, '0u');
+        let expression = terms.reduce((left, right) => `p_xor(${left},${right})`, '0u');
+        if (gate.layout === 1) {
+            const minterms = gate.truth.flatMap((value, index) => value ? [gate.controls.map((_, bit) =>
+                index & (1 << bit) ? `c${bit}` : `p_xor(c${bit},1u)`).reduce((left, right) => `p_and(${left},${right})`)] : []);
+            expression = minterms.reduce((left, right) => `p_or(${left},${right})`, '0u');
+        } else if (gate.layout === 2) {
+            function decision(bit, index) {
+                if (bit === gate.controls.length) return gate.truth[index] + 'u';
+                const low = decision(bit + 1, index), high = decision(bit + 1, index | (1 << bit));
+                return low === high ? low : `(c${bit}?${high}:${low})`;
+            }
+            expression = decision(0, 0);
+        }
         const declarations = gate.controls.map((wire, bit) => `unsigned c${bit}=${read(wire)};`).join('');
         const delta = gate.destination === undefined ? expression : `p_and(${expression},p_xor(${read(gate.target)},${read(gate.destination)}))`;
         const targets = [gate.target, ...(gate.destination === undefined ? [] : [gate.destination])];

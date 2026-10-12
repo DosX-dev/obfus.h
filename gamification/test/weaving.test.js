@@ -58,8 +58,10 @@ test('multi-source lifts match independent integer arithmetic and undo overwritt
 });
 
 test('all tiers vary new logic and preserve whole-block inverse and structural fingerprints', () => {
-    const count = process.env.CRACKME_QUICK_TESTS === '1' ? 10 : 100;
     for (const level of LEVELS) {
+        // The lower tiers have few optional stages; sample enough cheap graphs
+        // to exercise rare optional families without expanding the costly tiers.
+        const count = process.env.CRACKME_QUICK_TESTS === '1' ? ['easy', 'medium'].includes(level) ? 64 : 10 : 100;
         const seen = new Set(), shapes = new Set();
         for (let round = 1; round <= count; round++) {
             const challenge = generate(Buffer.alloc(32, 117), { date: '2026-10-12', round, level });

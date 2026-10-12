@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { seal, hash } from '../core/crypto.js';
-import { VERSION, RELEASE_TAG, LEVELS } from '../core/config.js';
+import { VERSION, GENERATOR_VERSION, RELEASE_TAG, LEVELS } from '../core/config.js';
 import { HISTORY_VERSION, retainHistory } from './history.js';
 import { profile } from '../generation/diversity.js';
 import { playerZip } from '../core/zip.js';
@@ -60,6 +60,7 @@ export async function createBundle(key, { date, round, repository, previous, his
     const entries = () => files.map(file => ({ name: file.name, role: file.role, sha256: hash(file.data), size: file.data.length, storage: ['answers', 'history'].includes(file.role) ? 'private' : 'public', ...(!['answers', 'history'].includes(file.role) ? { url: assetUrl(file.name) } : {}) }));
     const metadata = {
         version: VERSION,
+        generatorVersion: GENERATOR_VERSION,
         date,
         round,
         commit: revision,
