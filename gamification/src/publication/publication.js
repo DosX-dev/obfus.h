@@ -2,28 +2,8 @@ import { hash } from '../core/crypto.js';
 import { RELEASE_TAG } from '../core/config.js';
 import { validateState, stateEqual } from './state.js';
 import { description } from './description.js';
-import { unzipPlayer } from '../core/zip.js';
 
-const assetMatches = (asset, file) => asset.name === file.name && (asset.storage || 'public') === (file.storage || 'public');
-
-async function verifyRepackage(api, release, current, next) {
-    const { files: oldFiles, ...oldMetadata } = current;
-    const { files: newFiles, ...newMetadata } = next;
-    if (!stateEqual(oldMetadata, newMetadata) || newFiles.length !== oldFiles.length) throw new Error('Repackaging must preserve the original round');
-    const assets = await api.assets(release.id);
-    for (const level of oldFiles.filter(file => !['answers', 'history'].includes(file.role)).map(file => file.role)) {
-        const before = oldFiles.find(file => file.role === level), after = newFiles.find(file => file.role === level);
-        if (!before?.name.endsWith('.exe') || !after || after.storage !== 'public' || after.name !== before.name.replace(/\.exe$/, '.zip')) throw new Error('Invalid repackaged player');
-        const asset = assets.find(asset => assetMatches(asset, after));
-        if (!asset) throw new Error('Repackaged player missing');
-        const unpacked = unzipPlayer(await api.download(asset));
-        if (unpacked.name !== before.name || hash(unpacked.data) !== before.sha256) throw new Error('Repackaging changed player bytes');
-    }
-    for (const role of ['answers', 'history']) {
-        const before = oldFiles.find(file => file.role === role), after = newFiles.find(file => file.role === role);
-        if (!before || !after || after.storage !== 'private' || before.name !== after.name || before.sha256 !== after.sha256) throw new Error('Repackaging changed saved state');
-    }
-}
+const assetMatches = (asset, file) => asset.name === file.name && asset.storage === file.storage;
 
 async function verifyAssets(api, release, state) {
     const assets = await api.assets(release.id);
@@ -36,16 +16,13 @@ async function verifyAssets(api, release, state) {
 async function finish(api, release, transaction) {
     validateState(transaction.next);
     const extraRound = transaction.advanceFromRound !== undefined;
-    if (extraRound && (!Number.isSafeInteger(transaction.advanceFromRound) || transaction.advanceFromRound < 1 || transaction.next.round !== transaction.advanceFromRound + 1 || transaction.kind === 'repackage')) throw new Error('Invalid manual advance journal');
+    if (extraRound && (!Number.isSafeInteger(transaction.advanceFromRound) || transaction.advanceFromRound < 1 || transaction.next.round !== transaction.advanceFromRound + 1)) throw new Error('Invalid manual advance journal');
     const journalName = extraRound ? `transaction-${transaction.next.date}-round-${transaction.next.round}.json` : `transaction-${transaction.next.date}.json`;
     if (transaction.journal !== journalName) throw new Error('Journal date mismatch');
     const current = await api.readManifest();
     if (current) validateState(current);
     if (!stateEqual(current, transaction.next)) {
-        if (transaction.kind === 'repackage') {
-            if (!stateEqual(current, transaction.previous)) throw new Error('Invalid repackage recovery state');
-            await verifyRepackage(api, release, current, transaction.next);
-        } else if (extraRound) {
+        if (extraRound) {
             if (!current || current.round !== transaction.advanceFromRound || transaction.next.date !== current.date) throw new Error('Invalid manual advance recovery sequence');
         } else if (current ? transaction.next.round !== current.round + 1 || transaction.next.date <= current.date : transaction.next.round !== 1) throw new Error('Invalid recovery sequence');
     }
@@ -62,7 +39,7 @@ async function finish(api, release, transaction) {
     for (const asset of await api.assets(release.id)) {
         if (
             !keep.some(file => assetMatches(asset, file)) &&
-            /^(obfus-crackme-|TASK-|SHA256SUMS-|manifest-|answers-|history-|transaction-)/.test(asset.name)
+            /^(obfus-crackme-|answers-|history-|transaction-)/.test(asset.name)
         ) {
             // Keep the recovery journal until all obsolete assets are gone.
             if (asset.name !== transaction.journal) await api.deleteAsset(asset.id);
@@ -96,8 +73,8 @@ export async function recover(api) {
     }
     return state;
 }
-export async function publish(api, state, files, { repackage = false, advanceFromRound = null } = {}) {
-    if (advanceFromRound !== null && (!Number.isSafeInteger(advanceFromRound) || advanceFromRound < 1 || repackage)) throw new Error('Invalid manual advance request');
+export async function publish(api, state, files, { advanceFromRound = null } = {}) {
+    if (advanceFromRound !== null && (!Number.isSafeInteger(advanceFromRound) || advanceFromRound < 1)) throw new Error('Invalid manual advance request');
     validateState(state);
     if (!Array.isArray(files) || files.length !== state.files.length || new Set(files.map(file => file.name)).size !== files.length || files.some(file => state.files.find(entry => entry.name === file.name)?.sha256 !== hash(file.data))) throw new Error('Publication bundle does not match its manifest');
     let release = await api.release();
@@ -113,13 +90,12 @@ export async function publish(api, state, files, { repackage = false, advanceFro
         });
     }
     const current = await recover(api);
-    if (stateEqual(current, state) || current?.date === state.date && !repackage && advanceFromRound === null) return current;
+    if (stateEqual(current, state) || current?.date === state.date && advanceFromRound === null) return current;
     if (advanceFromRound !== null) {
         if (!current || current.date !== state.date || current.round !== advanceFromRound) throw new Error('Expected current round/date mismatch');
         if (state.files.some(file => current.files.some(before => assetMatches(before, file)))) throw new Error('Extra round requires distinct asset names');
     }
-    if (repackage && !current) throw new Error('Cannot repackage a missing round');
-    if (!repackage && current && (state.date < current.date || state.round !== current.round + 1))
+    if (current && (state.date < current.date || state.round !== current.round + 1))
         throw new Error('Invalid publication sequence');
     if (!current && state.round !== 1) throw new Error('First round must be 1');
     const journal = advanceFromRound !== null ? `transaction-${state.date}-round-${state.round}.json` : `transaction-${state.date}.json`;
@@ -135,8 +111,7 @@ export async function publish(api, state, files, { repackage = false, advanceFro
             if (hash(await api.download(a)) !== hash(file.data)) throw new Error('Uploaded asset checksum mismatch');
         }
         await verifyAssets(api, release, state);
-        if (repackage) await verifyRepackage(api, release, current, state);
-        const transaction = { version: 1, journal, next: state, ...(repackage ? { kind: 'repackage', previous: current } : {}), ...(advanceFromRound !== null ? { advanceFromRound } : {}) };
+        const transaction = { version: 1, journal, next: state, ...(advanceFromRound !== null ? { advanceFromRound } : {}) };
         await api.upload(release.id, journal, Buffer.from(JSON.stringify(transaction)));
         durable = true;
         return await finish(api, release, transaction);

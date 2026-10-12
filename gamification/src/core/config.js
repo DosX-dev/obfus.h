@@ -1,4 +1,3 @@
-import { savedLevels } from './legacy-state.js';
 export const VERSION = 6;
 export const LEVELS = ['easy', 'medium', 'hardcore', 'extreme'];
 export const TOOLCHAIN = Object.freeze({
@@ -9,4 +8,3 @@ export const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012
 export const RELEASE_TAG = 'daily-crackme';
 
 export const LEVEL_LABELS = Object.freeze({ easy: 'EASY', medium: 'MEDIUM', hardcore: 'HARDCORE', extreme: 'EXTREME' });
-export const levelsForVersion = version => savedLevels(version, LEVELS);

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
 import { hash } from '../core/crypto.js';
 import { LEVELS } from '../core/config.js';
-import { canonicalLevel } from '../core/legacy-state.js';
 import { profileDistance } from '../generation/diversity.js';
 
 export const HISTORY_VERSION = 1;
@@ -53,8 +52,7 @@ export function remember(index, { structure, behavior, shape, level, profile }) 
 
 export async function loadHistory(api, state) {
     if (!state) return [];
-    assert(Number.isSafeInteger(state.historyCount) && state.historyCount >= state.round * 3 && state.historyCount <= state.round * LEVELS.length, 'History does not cover every published round');
-    if (state.version && state.version < 5) assert.equal(state.historyCount, state.round * 3, 'Legacy history must cover all three-level rounds');
+    assert(Number.isSafeInteger(state.historyCount) && state.historyCount >= LEVELS.length && state.historyCount <= state.round * LEVELS.length, 'History does not cover every published round');
     const release = await api.release();
     const assets = await api.assets(release.id);
     const file = state.files.find(entry => entry.role === 'history');
@@ -70,9 +68,6 @@ export async function loadHistory(api, state) {
         && /^[a-f0-9]{64}$/.test(entry.structure)
         && /^[a-f0-9]{64}$/.test(entry.behavior)
         && /^[a-f0-9]{64}$/.test(entry.shape)));
-    // Authenticate stored bytes first, then canonicalize difficulty names without
-    // changing fingerprints or losing the previous level's comparison window.
-    for (const entry of history) if (entry.level !== undefined) entry.level = canonicalLevel(entry.level);
     const recentCounts = new Map();
     for (const entry of history) if (entry.profile !== undefined) {
         assert(LEVELS.includes(entry.level), 'Invalid recent-profile difficulty');

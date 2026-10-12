@@ -29,10 +29,10 @@ For an explicitly requested extra round on the same date, select publish mode an
 
 ## Player downloads and private state
 
-The public `daily-crackme` prerelease contains four ZIPs after the version-5 upgrade, one unchanged EXE per difficulty. The release description presents one large emoji download link per published difficulty; previous answers are under a collapsed details block. GitHub may also display its automatic source archives.
+The public `daily-crackme` prerelease contains four ZIPs, one EXE per difficulty. The release description presents one large emoji download link per published difficulty; previous answers are under a collapsed details block. GitHub may also display its automatic source archives.
 
 Encrypted current answers, compressed all-time novelty history and recovery journals are stored in a separate mutable **draft** release tagged `daily-crackme-state`. It must never be published or deleted. Ordinary public visitors cannot download its draft assets. The authenticated contents-write workflow can maintain both releases. `gamification/current.json` retains hash references and compiler/version metadata; technical files are not added to the public player release.
 
-The asset adapter combines both stores for recovery and chooses destinations by the controlled filename families. Asset identity includes its store, so legacy public copies can be removed only after the private copies and new player ZIPs have been verified. Repackaging an existing round uses the same durable journal, validates byte-for-byte EXE identity and preserved answer/history hashes, and leaves the round number, date, passwords and algorithm unchanged.
+The asset adapter combines both stores for recovery and chooses destinations by the current filename families. Asset identity includes its explicit store. Previous round assets are removed only after the new players and private state have been verified.
 
 Daily Actions use representative 100-case text and byte verification per difficulty/architecture plus boundary, VM, GUI, provenance and leak checks. Exhaustive native replacement tests remain a separate local acceptance mode; a normal scheduled publication does not run them. The failure ceiling is 20 minutes. Updating the compiler still requires every daily check to pass before any new round becomes public.

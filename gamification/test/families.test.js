@@ -97,22 +97,6 @@ test('new family admission cannot silently downgrade a difficulty', () => {
     for (const stage of c.ir.stages) stage.round = false;
     assert.throws(() => assertDifficulty(c.ir), /difficulty structure contract/);
 });
-test('all pair forms are bijective over the complete byte-pair domain and match BigInt formulas', () => {
-    for (let form = 0; form < 3; form++) {
-        const op = { i: 0, j: 1, form, k: 15, m: 14, rotation: 7 }, stage = { kind: 'matrix', ops: [op] }, seen = new Set();
-        for (let a = 0; a < 256; a++) for (let b = 0; b < 256; b++) {
-            let u, v;
-            if (form === 0) { u = Number((BigInt(a) + 15n * BigInt(b)) & 255n); v = Number((BigInt(b) + 14n * BigInt(u)) & 255n); }
-            if (form === 1) { u = rotate(a ^ b, 7, 8); v = (b + u) % 256; }
-            if (form === 2) { u = Number((BigInt(a) * BigInt(1 + 2 * (b % 8))) & 255n); v = b ^ rotate(u, 7, 8); }
-            const output = familyStage([a, b], stage, 8, false);
-            assert.deepEqual(output, [u, v]);
-            assert.deepEqual(familyStage(output, stage, 8, true), [a, b]);
-            seen.add(output[0] * 256 + output[1]);
-        }
-        assert.equal(seen.size, 65536);
-    }
-});
 test('nonlinear nibble substitutions cover every 16-bit word exactly once', () => {
     const c = generate(Buffer.alloc(32, 31), { date: '2026-10-12', level: 'medium' });
     const box = c.ir.stages.find(s => s.boxes).boxes[0], stage = { kind: 'substitute', boxes: [{ tables: box.tables, i: 0 }] }, seen = new Set();

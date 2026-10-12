@@ -18,11 +18,14 @@ test('deterministic single-player ZIP preserves every EXE byte and rejects corru
     assert.throws(() => unzipPlayer(Buffer.alloc(4)));
 });
 
-test('player release shows three large emoji links and hides previous answers in details', () => {
-    const state = { date: '2026-10-12', round: 1, files: ['easy', 'medium', 'hardcore', 'answers', 'history'].map(role => ({ role, url: 'https://example.test/' + role })) };
+test('player release shows four large emoji links and hides previous answers in details', () => {
+    const state = { date: '2026-10-12', round: 1, files: ['easy', 'medium', 'hardcore', 'extreme', 'answers', 'history'].map(role => ({ role, url: 'https://example.test/' + role })) };
     const body = description(state);
-    assert.equal(body.match(/^## /gm).length, 3);
-    for (const label of ['🟢 [EASY]', '🟠 [MEDIUM]', '🔴 [HARDCORE]']) assert(body.includes(label));
+    assert(body.includes('## Download task'));
+    assert.equal(body.match(/<tr>/g).length, 1);
+    assert.equal(body.match(/<td /g).length, 4);
+    assert.equal(body.match(/<h2>/g).length, 4);
+    for (const label of ['🟢 EASY', '🟠 MEDIUM', '🔴 HARDCORE', '🟣 EXTREME']) assert(body.includes(label));
     assert(!body.includes('https://example.test/answers'));
     assert(!body.includes('https://example.test/history'));
     assert(!body.includes('No previous answers'));

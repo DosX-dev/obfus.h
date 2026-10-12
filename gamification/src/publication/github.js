@@ -86,7 +86,7 @@ export class GitHub {
         return storage ? [...publicAssets, ...(await this.assetList(storage.id)).map(asset => ({ ...asset, storage: 'private' }))] : publicAssets;
     }
     async upload(id, name, data) {
-        if (/^(answers-|history-|transaction-|manifest-|SHA256SUMS-|TASK-)/.test(name)) id = (await this.storageRelease(true)).id;
+        if (/^(answers-|history-|transaction-)/.test(name)) id = (await this.storageRelease(true)).id;
         return this.request(
             `https://uploads.github.com/repos/${this.repository}/releases/${id}/assets?name=${encodeURIComponent(name)}`,
             { method: 'POST', body: data, binary: true }

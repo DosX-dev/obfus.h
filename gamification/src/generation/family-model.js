@@ -43,7 +43,6 @@ export function familyStage(input, stage, bits, inverse) {
             const enter = inverse ? op.after : op.before;
             out[op.i] = mix(out[op.i], enter?.[0]);
             out[op.j] = mix(out[op.j], enter?.[1]);
-            const a = out[op.i], b = out[op.j];
             if (op.program) {
                 const coordinates = [op.i, op.j];
                 for (const step of inverse ? [...op.program].reverse() : op.program) {
@@ -62,32 +61,7 @@ export function familyStage(input, stage, bits, inverse) {
                         out[destination] = rotate(value, inverse ? bits - count : count, bits);
                     } else throw new Error('Unknown pair program operation');
                 }
-            } else if (op.form === 0) {
-                if (inverse) {
-                    const oldB = (b - op.m * a) & mask;
-                    out[op.j] = oldB;
-                    out[op.i] = (a - op.k * oldB) & mask;
-                } else {
-                    out[op.i] = (a + op.k * b) & mask;
-                    out[op.j] = (b + op.m * out[op.i]) & mask;
-                }
-            } else if (op.form === 1) {
-                if (inverse) {
-                    out[op.j] = (b - a) & mask;
-                    out[op.i] = rotate(a, bits - op.rotation, bits) ^ out[op.j];
-                } else {
-                    out[op.i] = rotate(a ^ b, op.rotation, bits);
-                    out[op.j] = (b + out[op.i]) & mask;
-                }
-            } else if (op.form === 2) {
-                if (inverse) {
-                    out[op.j] = b ^ rotate(a, op.rotation, bits);
-                    out[op.i] = Number(BigInt(a) * BigInt(oddInverse(1 + 2 * (out[op.j] & 7), bits)) & BigInt(mask));
-                } else {
-                    out[op.i] = (a * (1 + 2 * (b & 7))) & mask;
-                    out[op.j] = b ^ rotate(out[op.i], op.rotation, bits);
-                }
-            } else throw new Error('Unknown pair network form');
+            } else throw new Error('Pair program missing');
             const leave = inverse ? op.before : op.after;
             out[op.i] = mix(out[op.i], leave?.[0]);
             out[op.j] = mix(out[op.j], leave?.[1]);
@@ -101,13 +75,7 @@ export function familyStage(input, stage, bits, inverse) {
                 if (step.box !== undefined) substitutions([stage.boxes[step.box]]);
                 else pairs([stage.ops[step.pair]]);
             }
-        } else if (inverse) {
-            pairs();
-            substitutions();
-        } else {
-            substitutions();
-            pairs();
-        }
+        } else throw new Error('SPN program missing');
     }
     else if (stage.kind === 'controlled') {
         for (const op of inverse ? [...stage.ops].reverse() : stage.ops) {

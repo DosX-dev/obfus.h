@@ -5,7 +5,7 @@ import { publish, recover } from '../src/publication/publication.js';
 import { description } from '../src/publication/description.js';
 import { stateEqual } from '../src/publication/state.js';
 import { playerZip } from '../src/core/zip.js';
-import { VERSION, levelsForVersion } from '../src/core/config.js';
+import { VERSION, LEVELS } from '../src/core/config.js';
 class FakeGitHub {
     constructor() {
         this.r = null;
@@ -16,7 +16,7 @@ class FakeGitHub {
         this.calls = [];
         this.failAt = null;
         this.after = false;
-        this.splitStorage = false;
+        this.splitStorage = true;
     }
     step(name, work) {
         this.calls.push(name);
@@ -70,20 +70,19 @@ class FakeGitHub {
     }
 }
 function bundle(date, round) {
-    const name = `TASK-${date}.txt`,
-        data = Buffer.from('task-' + round);
-    const state = {
-        date,
-        round,
-        files: [{ name, sha256: hash(data), role: 'task', url: 'https://example.test/' + name }]
-    };
-    return [state, [{ name, data }]];
+    const files = [...LEVELS, 'answers', 'history'].map(role => {
+        const name = LEVELS.includes(role) ? `obfus-crackme-${date}-round-${round}-${role}-x64.zip` : `${role}-${date}-round-${round}.json`;
+        const data = LEVELS.includes(role) ? playerZip(role + '.exe', Buffer.from('player-' + round + role)) : Buffer.from(role + round);
+        return { name, data, role };
+    });
+    const state = { version: VERSION, date, round, files: files.map(file => ({ name: file.name, role: file.role, sha256: hash(file.data), storage: LEVELS.includes(file.role) ? 'public' : 'private', url: 'https://example.test/' + file.name })) };
+    return [state, files];
 }
 test('first round, replay, skipped date and immutable release', async () => {
     const api = new FakeGitHub(),
         a = bundle('2026-10-12', 1);
     await publish(api, ...a);
-    assert.equal(api.list.length, 1);
+    assert.equal(api.list.length, 6);
     assert.equal(api.r.make_latest, 'false');
     const count = api.calls.filter(name => name.startsWith('upload:') || ['body', 'commit', 'delete'].includes(name)).length;
     await publish(api, ...a);
@@ -91,12 +90,12 @@ test('first round, replay, skipped date and immutable release', async () => {
     const b = bundle('2026-10-15', 2);
     await publish(api, ...b);
     assert.equal(api.manifest.round, 2);
-    assert.equal(api.list.length, 1);
+    assert.equal(api.list.length, 6);
     api.r.immutable = true;
     await assert.rejects(publish(api, ...bundle('2026-10-16', 3)), /mutable/);
 });
 for (const failure of [
-    'upload:TASK-2026-10-13.txt',
+    'upload:obfus-crackme-2026-10-13-round-2-easy-x64.zip',
     'upload:transaction-2026-10-13.json',
     'body',
     'commit',
@@ -107,12 +106,12 @@ for (const failure of [
         await publish(api, ...bundle('2026-10-12', 1));
         api.fail = failure;
         await assert.rejects(publish(api, ...bundle('2026-10-13', 2)));
-        assert(api.list.some((a) => a.name === 'TASK-2026-10-12.txt') || api.manifest.date === '2026-10-13');
+        assert(api.list.some((a) => a.name === 'obfus-crackme-2026-10-12-round-1-easy-x64.zip') || api.manifest.date === '2026-10-13');
         const pending = api.list.some((a) => a.name.startsWith('transaction-'));
         if (pending) await recover(api);
         else await publish(api, ...bundle('2026-10-13', 2));
         assert.equal(api.manifest.date, '2026-10-13');
-        assert.equal(api.list.length, 1);
+        assert.equal(api.list.length, 6);
     });
 }
 test('old answers appear only with the new complete round', async () => {
@@ -120,7 +119,7 @@ test('old answers appear only with the new complete round', async () => {
     await publish(api, ...bundle('2026-10-12', 1));
     const [state, files] = bundle('2026-10-13', 2);
     state.previous = { date: '2026-10-12', round: 1, answers: { easy: 'OLD' } };
-    api.fail = 'upload:TASK-2026-10-13.txt';
+    api.fail = 'upload:obfus-crackme-2026-10-13-round-2-easy-x64.zip';
     await assert.rejects(publish(api, state, files));
     assert(!api.r.body.includes('OLD'));
     await publish(api, state, files);
@@ -131,7 +130,7 @@ export { FakeGitHub };
 
 test('state equality tolerates JSON object-key reordering without accepting changed data', () => {
     const [state] = bundle('2026-10-12', 1);
-    const reordered = { files: state.files.map(file => Object.fromEntries(Object.entries(file).reverse())), round: state.round, date: state.date };
+    const reordered = { version: VERSION, files: state.files.map(file => Object.fromEntries(Object.entries(file).reverse())), round: state.round, date: state.date };
     assert(stateEqual(state, reordered));
     reordered.files[0].sha256 = hash('different');
     assert(!stateEqual(state, reordered));
@@ -153,12 +152,12 @@ test('every publication request tolerates interruption before and after server e
         try { await publish(api, ...bundle('2026-10-13', 2)); } catch { }
         api.failAt = null;
         if (api.manifest.date === '2026-10-13') {
-            assert(api.list.some(a => a.name === 'TASK-2026-10-13.txt'), 'Committed current assets must survive a lost response');
-        } else assert(api.list.some(a => a.name === 'TASK-2026-10-12.txt'));
+            assert(api.list.some(a => a.name === 'obfus-crackme-2026-10-13-round-2-easy-x64.zip'), 'Committed current assets must survive a lost response');
+        } else assert(api.list.some(a => a.name === 'obfus-crackme-2026-10-12-round-1-easy-x64.zip'));
         await recover(api);
         await publish(api, ...bundle('2026-10-13', 2));
         assert.equal(api.manifest.round, 2);
-        assert.equal(api.list.length, 1);
+        assert.equal(api.list.length, 6);
         assert.equal(hash(api.list[0].data), api.manifest.files[0].sha256);
     }
 });
@@ -167,17 +166,12 @@ test('partial multi-file upload preserves the old set and retries the complete n
     const api = new FakeGitHub();
     await publish(api, ...bundle('2026-10-12', 1));
     const [state, files] = bundle('2026-10-13', 2);
-    for (const level of ['easy', 'medium', 'hardcore']) {
-        const name = `obfus-crackme-2026-10-13-${level}-x64.exe`, data = Buffer.from(level);
-        files.push({ name, data });
-        state.files.push({ name, sha256: hash(data), role: level, url: 'https://example.test/' + name });
-    }
-    api.fail = 'upload:obfus-crackme-2026-10-13-hardcore-x64.exe';
+    api.fail = 'upload:obfus-crackme-2026-10-13-round-2-hardcore-x64.zip';
     await assert.rejects(publish(api, state, files));
     assert.equal(api.manifest.date, '2026-10-12');
-    assert.deepEqual(api.list.map(a => a.name), ['TASK-2026-10-12.txt']);
+    assert.deepEqual(api.list.map(a => a.name), bundle('2026-10-12', 1)[0].files.map(file => file.name));
     await publish(api, state, files);
-    assert.equal(api.list.length, 4);
+    assert.equal(api.list.length, 6);
     assert.equal(api.manifest.date, state.date);
 });
 
@@ -203,7 +197,7 @@ test('missing release or missing committed manifest never silently resets histor
     api.manifest = null;
     api.list.push({ id: 99, name: 'manifest-2026-10-12.json', data: Buffer.from('{}') });
     await assert.rejects(recover(api), /refusing to reset/);
-    assert(api.list.some(asset => asset.name === 'TASK-2026-10-12.txt'));
+    assert(api.list.some(asset => asset.name === 'obfus-crackme-2026-10-12-round-1-easy-x64.zip'));
 });
 
 test('invalid bundles and rollback journals fail before modifying published assets', async () => {
@@ -218,7 +212,7 @@ test('invalid bundles and rollback journals fail before modifying published asse
     api.list.push({ id: 100, name: 'transaction-2026-10-11.json', data: Buffer.from(JSON.stringify({ version: 1, journal: 'transaction-2026-10-11.json', next: previous })) });
     await assert.rejects(recover(api), /recovery sequence/);
     assert.equal(api.manifest.date, '2026-10-12');
-    assert(api.list.some(asset => asset.name === 'TASK-2026-10-12.txt'));
+    assert(api.list.some(asset => asset.name === 'obfus-crackme-2026-10-12-round-1-easy-x64.zip'));
 });
 
 test('missing manifest and every asset never turn a published release into a fresh installation', async () => {
@@ -241,19 +235,11 @@ test('an interrupted first upload remains recoverable without a committed manife
     assert.equal(await recover(api), null);
     await publish(api, ...bundle('2026-10-12', 1));
     assert.equal(api.manifest.round, 1);
-    assert.equal(api.list.length, 1);
+    assert.equal(api.list.length, 6);
 });
 
 test('all first-publication interruptions recover, including orphan private assets', async () => {
-    const initial = () => {
-        const [state, files] = bundle('2026-10-12', 1);
-        for (const role of ['answers', 'manifest', 'history']) {
-            const name = `${role}-2026-10-12.json`, data = Buffer.from(role);
-            files.push({ name, data });
-            state.files.push({ name, sha256: hash(data), role, url: 'https://example.test/' + name });
-        }
-        return [state, files];
-    };
+    const initial = () => bundle('2026-10-12', 1);
     const baseline = new FakeGitHub();
     await publish(baseline, ...initial());
     for (const after of [false, true]) for (let at = 1; at <= baseline.calls.length; at++) {
@@ -265,74 +251,15 @@ test('all first-publication interruptions recover, including orphan private asse
         await recover(api);
         await publish(api, ...initial());
         assert.equal(api.manifest.round, 1);
-        assert.equal(api.list.length, 4);
+        assert.equal(api.list.length, 6);
     }
-});
-
-function legacyPlayers() {
-    const state = { date: '2026-10-12', round: 1, files: [] }, files = [];
-    for (const role of ['easy', 'medium', 'hardcore', 'answers', 'history']) {
-        const name = ['easy', 'medium', 'hardcore'].includes(role) ? `obfus-crackme-2026-10-12-${role}-x64.exe` : `${role}-2026-10-12.json`;
-        const data = Buffer.from('original-' + role);
-        files.push({ name, data }); state.files.push({ name, role, sha256: hash(data), size: data.length, url: 'https://example.test/' + name });
-    }
-    const newFiles = files.map((file, index) => index < 3 ? { name: file.name.replace(/\.exe$/, '.zip'), data: playerZip(file.name, file.data) } : file);
-    const next = { ...state, files: newFiles.map((file, index) => ({ name: file.name, role: state.files[index].role, sha256: hash(file.data), size: file.data.length, storage: index < 3 ? 'public' : 'private', ...(index < 3 ? { url: 'https://example.test/' + file.name } : {}) })) };
-    return { state, files, next, newFiles };
-}
-
-test('repackaging preserves the round and survives interruption at every request boundary', async () => {
-    const fixture = legacyPlayers();
-    const baseline = new FakeGitHub();
-    await publish(baseline, fixture.state, fixture.files);
-    baseline.splitStorage = true; baseline.calls = [];
-    await publish(baseline, fixture.next, fixture.newFiles, { repackage: true });
-    const boundaries = baseline.calls.length;
-    for (const after of [false, true]) for (let at = 1; at <= boundaries; at++) {
-        const api = new FakeGitHub();
-        await publish(api, fixture.state, fixture.files);
-        api.splitStorage = true; api.calls = []; api.failAt = at; api.after = after;
-        try { await publish(api, fixture.next, fixture.newFiles, { repackage: true }); } catch { }
-        api.failAt = null;
-        await recover(api);
-        await publish(api, fixture.next, fixture.newFiles, { repackage: true });
-        assert.equal(api.manifest.round, 1);
-        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 3);
-        assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
-        assert(api.list.filter(asset => asset.storage === 'public').every(asset => asset.name.endsWith('.zip')));
-        assert.deepEqual(api.manifest, fixture.next);
-    }
-});
-
-test('repackaging rejects changed executable bytes and preserves old published players', async () => {
-    const fixture = legacyPlayers(), api = new FakeGitHub();
-    await publish(api, fixture.state, fixture.files);
-    api.splitStorage = true;
-    fixture.newFiles[0].data = playerZip(fixture.files[0].name, Buffer.from('changed'));
-    fixture.next.files[0].sha256 = hash(fixture.newFiles[0].data);
-    await assert.rejects(publish(api, fixture.next, fixture.newFiles, { repackage: true }), /changed player bytes/);
-    assert.deepEqual(api.manifest, fixture.state);
-    assert.equal(api.list.length, 5);
-});
-
-test('daily updates after repackaging keep only three public ZIPs and two private state files', async () => {
-    const fixture = legacyPlayers(), api = new FakeGitHub();
-    await publish(api, fixture.state, fixture.files);
-    api.splitStorage = true;
-    await publish(api, fixture.next, fixture.newFiles, { repackage: true });
-    const newFiles = fixture.newFiles.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-13') }));
-    const next = { ...fixture.next, date: '2026-10-13', round: 2, files: fixture.next.files.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-13') })) };
-    await publish(api, next, newFiles);
-    assert.deepEqual(await recover(api), next);
-    assert.equal(api.list.filter(asset => asset.storage === 'public').length, 3);
-    assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
-    assert(api.list.every(asset => asset.name.includes('2026-10-13')));
 });
 
 test('extra same-date rounds are explicitly fenced and recover at every request boundary', async () => {
-    const fixture = legacyPlayers();
-    const newFiles = fixture.newFiles.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-12-round-2') }));
-    const next = { ...fixture.next, round: 2, previous: { date: fixture.state.date, round: 1, answers: { easy: 'old-answer' } }, files: fixture.next.files.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-12-round-2') })) };
+    const [state, files] = bundle('2026-10-12', 1);
+    const fixture = { state, files, next: state, newFiles: files };
+    const newFiles = fixture.newFiles.map(file => ({ ...file, name: file.name.replace('round-1', 'round-2') }));
+    const next = { ...fixture.next, round: 2, previous: { date: fixture.state.date, round: 1, answers: { easy: 'old-answer' } }, files: fixture.next.files.map(file => ({ ...file, name: file.name.replace('round-1', 'round-2') })) };
     const baseline = new FakeGitHub();
     await publish(baseline, fixture.state, fixture.files);
     assert.equal((await publish(baseline, next, newFiles)).round, 1, 'Ordinary reruns cannot advance today');
@@ -350,7 +277,7 @@ test('extra same-date rounds are explicitly fenced and recover at every request 
         await recover(api);
         await publish(api, next, newFiles, { advanceFromRound: 1 });
         assert.deepEqual(api.manifest, next);
-        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 3);
+        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 4);
         assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
         assert(api.list.every(asset => !asset.name.startsWith('transaction-')));
         const mutations = api.calls.filter(name => name.startsWith('upload:') || ['body', 'commit', 'delete'].includes(name)).length;
@@ -359,62 +286,4 @@ test('extra same-date rounds are explicitly fenced and recover at every request 
     }
     const collision = { ...next, files: fixture.next.files };
     await assert.rejects(publish(new FakeGitHub(), collision, fixture.newFiles, { advanceFromRound: 0 }), /Invalid manual/);
-});
-
-test('four-level migration publishes atomically and recovers every request boundary', async () => {
-    const fixture = legacyPlayers();
-    const files = fixture.newFiles.map((file, i) => ({ ...file, role: fixture.next.files[i].role, name: file.name.replace('2026-10-12', '2026-10-13') }));
-    const extra = { role: 'extreme', name: 'obfus-crackme-2026-10-13-extreme-x64.zip', data: playerZip('extreme.exe', Buffer.from('fixture-extreme')) };
-    files.push(extra);
-    const next = { ...fixture.next, version: 6, date: '2026-10-13', round: 2, files: files.map(file => ({ name: file.name, role: file.role, storage: ['answers', 'history'].includes(file.role) ? 'private' : 'public', sha256: hash(file.data), url: 'https://example.test/' + file.name })) };
-    const baseline = new FakeGitHub();
-    await publish(baseline, fixture.state, fixture.files);
-    baseline.calls = []; baseline.splitStorage = true;
-    await publish(baseline, next, files);
-    const boundaries = baseline.calls.length;
-    for (const after of [false, true]) for (let at = 1; at <= boundaries; at++) {
-        const api = new FakeGitHub();
-        await publish(api, fixture.state, fixture.files);
-        api.calls = []; api.splitStorage = true; api.failAt = at; api.after = after;
-        try { await publish(api, next, files); } catch { }
-        api.failAt = null;
-        await recover(api);
-        await publish(api, next, files);
-        assert.deepEqual(api.manifest, next);
-        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 4);
-        assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
-        assert(api.r.body.includes('🟣 [EXTREME]'));
-    }
-    const incomplete = { ...next, files: next.files.filter(file => file.role !== 'extreme') };
-    await assert.rejects(publish(new FakeGitHub(), incomplete, files), /Incomplete four-level/);
-});
-
-test('persisted pre-v6 level names migrate atomically without replacing stored links in place', async () => {
-    const fixture = legacyPlayers(), previousLevel = levelsForVersion(5)[2];
-    const oldFiles = fixture.newFiles.map((file, i) => ({ ...file, name: file.name.replace('hardcore', previousLevel), role: fixture.next.files[i].role === 'hardcore' ? previousLevel : fixture.next.files[i].role }));
-    oldFiles.push({ role: 'extreme', name: 'obfus-crackme-2026-10-12-extreme-x64.zip', data: playerZip('extreme.exe', Buffer.from('extreme')) });
-    const metadata = files => files.map(file => ({ name: file.name, role: file.role, sha256: hash(file.data), storage: ['answers', 'history'].includes(file.role) ? 'private' : 'public', url: 'https://example.test/' + file.name }));
-    const oldState = { version: 5, date: '2026-10-12', round: 1, files: metadata(oldFiles) };
-    const newFiles = oldFiles.map(file => ({ ...file, role: file.role === previousLevel ? 'hardcore' : file.role, name: file.name.replace(previousLevel, 'hardcore').replace('2026-10-12', '2026-10-13') }));
-    const next = { version: VERSION, date: '2026-10-13', round: 2, files: metadata(newFiles), previous: { round: 1, answers: { hardcore: 'preserved-answer' } } };
-    const baseline = new FakeGitHub();
-    baseline.splitStorage = true;
-    await publish(baseline, oldState, oldFiles);
-    baseline.calls = []; baseline.splitStorage = true;
-    await publish(baseline, next, newFiles);
-    const boundaries = baseline.calls.length;
-    for (const after of [false, true]) for (let at = 1; at <= boundaries; at++) {
-        const api = new FakeGitHub();
-        api.splitStorage = true;
-        await publish(api, oldState, oldFiles);
-        api.calls = []; api.splitStorage = true; api.failAt = at; api.after = after;
-        try { await publish(api, next, newFiles); } catch { }
-        api.failAt = null;
-        await recover(api);
-        await publish(api, next, newFiles);
-        assert.deepEqual(api.manifest, next);
-        assert(api.r.body.includes('**HARDCORE**: `preserved-answer`'));
-        assert(api.list.some(file => file.name.includes('hardcore')));
-        assert(!api.list.some(file => file.name.includes(previousLevel + '-x64')));
-    }
 });

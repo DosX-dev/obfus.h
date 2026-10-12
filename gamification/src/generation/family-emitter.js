@@ -47,10 +47,7 @@ export function emitFamily(stage, bits, slot) {
             const expression = step.alternate ? `(p_equ(p_and(control,${1 << step.bit}u),0u)?${expressionFor(step.kind)}:${expressionFor(step.alternate)})` : expressionFor(step.kind);
             return `{unsigned control=${source};${mix('control', step.sourceMix)}${destination}=${expression};}`;
         }).join('');
-        else if (op.form === 0) body = `${a}=bounded(p_add(${a},p_mul(${b},${op.k}u)));${b}=bounded(p_add(${b},p_mul(${a},${op.m}u)));`;
-        else if (op.form === 1) body = `${a}=rot(p_xor(${a},${b}),${op.rotation}u);${b}=bounded(p_add(${b},${a}));`;
-        else if (op.form === 2) body = `${a}=bounded(p_mul(${a},p_or(p_shl(p_and(${b},7u),1u),1u)));${b}=p_xor(${b},rot(${a},${op.rotation}u));`;
-        else throw new Error('Unknown emitted pair form');
+        else throw new Error('Pair program missing');
         return before + body + after;
     }
     const lines = [];

@@ -51,7 +51,7 @@ The within-family changes passed focused family, algorithm, diversity, authentic
 Novelty tests reject near-copies even with three fresh hashes, verify bounded recent-profile retention and authenticated reload, and reject malformed profile data. A 100-day simulation exercises all three levels through both the complete fingerprint history and recent similarity gate under the normal three-attempt budget.
 
 Recovery regressions also cover loss of both the committed manifest and every release asset. Rejected novelty attempts retain private diagnostics without reaching the compiler. GUI acceptance checks About through both command activation and Enter, closes it with No, and verifies that this never invokes the password check or opens the browser.
-Packaging tests check ZIP round-trip, corruption rejection and the three-link presentation. Storage tests check draft routing, visibility guards and lost creation responses. Publication tests interrupt every repackaging request before and after its effects, reject changed EXE bytes, and verify subsequent daily updates across public/private stores.
+Packaging tests check ZIP round-trip, corruption rejection and the four-link presentation. Storage tests check draft routing, visibility guards and lost creation responses. Publication tests interrupt initial, daily and extra-round publication before and after every request, using the current four-player schema.
 
 ## Fast daily publication checks
 

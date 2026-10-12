@@ -2,7 +2,7 @@
 
 Four daily Windows reverse-engineering challenges protected with the repository's current `include/obfus.h`: Easy, Medium, Hardcore and Extreme. Node.js 24 generates reversible verification programs, builds them with the latest stable TinyCC-builder release, and checks them before preparing a release.
 
-**The three-level daily publication is active.** Local version 5 adds Extreme; this extension remains unpublished until its checks and review are complete. Local previews never publish.
+**Daily publication is active for all four levels.** Local previews never publish.
 
 ## Start locally
 
