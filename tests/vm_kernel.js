@@ -1,8 +1,9 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const semantics = require('./vm_semantics');
 
-async function runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
+async function runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert, fixturesRoot }) {
     await require('./vm_fields').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
     await require('./vm_variants').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
     const root = path.join(directory, arch + '-vm-kernel');
@@ -19,6 +20,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         .replace('/* OBFH_VM_TRACE_STEP */', 'study_step(op, at);');
     assert(traced.includes('study_step(op, at);'), 'VM instruction trace target missing');
     fs.writeFileSync(header, traced);
+    const semanticsFile = semantics.writeFixture(path.join(root, 'semantics'), source, fixturesRoot);
 
     for (const mode of [0, 1]) {
         // Cover every opcode/word dependency order and context layout, plus boundary seeds.
@@ -47,15 +49,10 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
                     }
                 }
             );
-            for (const [name, marker] of [
-                ['vm', 'VM_PASS'],
-                ['numeric', 'NUMERIC_PASS'],
-                ['vm_branches', 'BRANCH_PASS']
-            ])
-                await check(label + '/' + name, async () => {
-                    await execute(await compile(compiler, directory, stem + '-' + name + '.exe',
-                        path.join(__dirname, name + '.c'), flags), marker);
-                });
+            await check(label + '/public numeric, branches and VM contracts', async () => {
+                const exe = await compile(compiler, directory, stem + '-semantics.exe', semanticsFile, flags);
+                await semantics.executeContracts(exe, execute);
+            });
         }
     }
 

@@ -7,6 +7,8 @@ const breakRandom = require('./break_random');
 const stackProxy = require('./stack_proxy');
 const pdataDecoys = require('./pdata_decoys');
 const vmKernel = require('./vm_kernel');
+const crtBundle = require('./crt_bundle');
+const vmSemantics = require('./vm_semantics');
 const compactAsm = require('./compact_asm');
 const cflowChain = require('./cflow_chain');
 const cflowWeave = require('./cflow_weave');
@@ -39,7 +41,7 @@ function checkPriority(name) {
     if (/\/(?:stack proxies|CFLOW pool|public break|constant data|anti-debug)/.test(name)) return 110;
     if (/all junk sites|junk bytes vary/.test(name)) return 105;
     if (name.includes('/VM ISA, all programs')) return 95;
-    if (/\/(?:vm|vm_branches|numeric)$/.test(name)) return 94;
+    if (/\/(?:vm|vm_branches|numeric|semantic contracts)$/.test(name)) return 94;
     if (name.includes('/multiple translation units + exports')) return 93;
     if (name.includes('/GUI cache + ABI') || name.includes('/lazy letters:')) return 92;
     if (name.includes('/fast transfer bytes')) return 90;
@@ -626,6 +628,12 @@ async function main() {
             compactAsm.verify(source, { x64: compilers.x64, x86: compilers.x86 })
         );
         await check('runner: parallel queue ordering and failure cleanup', require('./runner_pool.test').verify);
+        await check('source: shared CRT fixtures preserve isolation and failure reporting', async () => {
+            await crtBundle.verify(assert, path.join(snapshotRoot, 'tests'));
+        });
+        await check('source: shared VM semantics preserve native references and independent results', async () => {
+            await require('./vm_semantics_checks').verify(path.join(snapshotRoot, 'tests'));
+        });
         await check('binary scanner: skipped CPUID bytes versus live CPUID', async () => {
             const code = Buffer.from([0x0f, 0x84, 2, 0, 0, 0, 0x0f, 0xa2, 0x90]);
             assert(
@@ -845,11 +853,14 @@ async function main() {
                         : [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
                         await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
                             const flags = [...configs[config], `OBFH_BUILD_SEED=${seed}u`];
+                            if (!only33)
+                                await crtBundle.runSuite({
+                                    compiler, directory,
+                                    name: `${arch}-${config}-crt-bundle-${seed}`, flags,
+                                    header: path.join(snapshotRoot, 'include', 'obfus.h'),
+                                    fixturesRoot: path.join(snapshotRoot, 'tests'), compile, run, assert
+                                });
                             const fixtures = only33 ? [['custom33', 'CUSTOM33_PASS']] : [
-                                ['custom_extra', 'CUSTOM_EXTRA_PASS'],
-                                ['custom_copy', 'CUSTOM_COPY_PASS'],
-                                ['custom_polymorphism', 'CUSTOM_POLYMORPHISM_PASS'],
-                                ['custom_wide', 'CUSTOM_WIDE_PASS'],
                                 ['custom_sort', 'CUSTOM_SORT_PASS'],
                                 ['custom_critical', 'CUSTOM_CRITICAL_PASS'],
                                 ['custom_inline', ''],
@@ -1035,7 +1046,10 @@ async function main() {
                 if (process.argv.includes('--only-chain')) continue;
             }
             if (process.argv.includes('--only-vm') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
-                await vmKernel.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                await vmKernel.runSuite({
+                    arch, compiler, directory, source,
+                    fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, execute, run, assert
+                });
                 if (process.argv.includes('--only-vm')) continue;
             }
             if (
@@ -1191,9 +1205,7 @@ async function main() {
                             );
                         }
                     );
-                await require('./stack_frames').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
-                await require('./short_encodings').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
-                await require('./short_jumps').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
+                await require('./asm_matrix').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
                 if (process.argv.includes('--only-stack-proxy')) continue;
                 await check(
                     `${arch}/API failure branches`,
@@ -1843,13 +1855,17 @@ async function main() {
                 });
                 if (process.argv.includes('--only-branches')) continue;
             }
+            const semanticsFile = vmSemantics.writeFixture(path.join(directory, arch + '-semantic-contracts'),
+                source, path.join(snapshotRoot, 'tests'));
             for (const [config, flags] of Object.entries(configs)) {
                 if (selectedConfigs && !selectedConfigs.includes(config)) continue;
                 const label = `${arch}/${config}`;
+                await check(`${label}/semantic contracts`, async () => {
+                    const exe = await compile(compiler, directory, `${arch}-${config}-semantic-contracts.exe`,
+                        semanticsFile, flags, ['-luser32', '-lgdi32']);
+                    await vmSemantics.executeContracts(exe, execute);
+                });
                 for (const [file, marker] of [
-                    ['vm', 'VM_PASS'],
-                    ['vm_branches', 'BRANCH_PASS'],
-                    ['numeric', 'NUMERIC_PASS'],
                     ['algorithms', 'ALGORITHMS_PASS'],
                     ['wrappers', 'regressions passed'],
                     ['window', 'WINDOW_PASS'],
@@ -1954,18 +1970,22 @@ async function main() {
                     );
                     await execute(exe, 'WINAPI_EXTENDED_PASS');
                 });
-                // Each fixture keeps its original translation unit, flags and fresh process.
-                // Separate checks prevent a long serial build chain occupying one worker.
+                // Compatible semantics share one header build but retain fresh processes.
+                // Poisoned keywords, callbacks and lifetime contracts stay isolated.
+                await check(`${label}/CRT proxy calls/shared semantic bundle`, async () => {
+                    await crtBundle.runSuite({
+                        compiler, directory,
+                        name: `${arch}-${config}-crt-bundle`, flags,
+                        header: path.join(snapshotRoot, 'include', 'obfus.h'),
+                        fixturesRoot: path.join(snapshotRoot, 'tests'), compile, run, assert
+                    });
+                });
                 for (const [fixture, marker] of [
                     ['custom_inline', ''],
-                    ['custom_copy', 'CUSTOM_COPY_PASS'],
-                    ['custom_polymorphism', 'CUSTOM_POLYMORPHISM_PASS'],
-                    ['custom_wide', 'CUSTOM_WIDE_PASS'],
                     ['custom33', 'CUSTOM33_PASS'],
                     ...(config === 'plain' ? [] : [['custom33_inline', '']]),
                     ['custom_critical', 'CUSTOM_CRITICAL_PASS'],
-                    ['custom_sort', 'CUSTOM_SORT_PASS'],
-                    ['custom_extra', 'CUSTOM_EXTRA_PASS']
+                    ['custom_sort', 'CUSTOM_SORT_PASS']
                 ])
                     await check(`${label}/CRT proxy calls/${fixture}`, async () => {
                         const exe = await compile(compiler, directory,

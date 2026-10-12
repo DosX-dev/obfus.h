@@ -165,6 +165,6 @@ int main(int argc, char **argv) {
     CHECK(__builtin_types_compatible_p(__typeof__(GetCommandLineW()), LPWSTR));
     CHECK(__builtin_types_compatible_p(__typeof__(GetModuleHandleExA(0, NULL, NULL)), BOOL));
     CHECK(__builtin_types_compatible_p(__typeof__(ExitProcess(0)), void));
-    puts("KERNEL_CALLS_PASS");
+    if (puts("KERNEL_CALLS_PASS") == EOF || fflush(stdout)) return 2;
     return 0;
 }
