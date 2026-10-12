@@ -11,8 +11,9 @@ test('variation survives removal of constants, coordinate labels and function bo
     for (const level of Object.keys(report)) assert(report[level].minimum > 0.35, 'Too much common normalized update structure');
     const changed = structuredClone(challenges[0].ir);
     changed.storage.reverse();
-    changed.stages[0].ops.reverse();
-    for (const op of changed.stages[0].ops) for (const item of op.sequence) item.value ^= 1;
+    const affine = changed.stages.find(stage => stage.kind === 'affine');
+    affine.ops.reverse();
+    for (const op of affine.ops) for (const item of op.sequence) item.value ^= 1;
     assert.equal(distance(challenges[0].ir, changed), 0, 'Constants/scheduling must not inflate diversity');
     assert.equal(shapeFingerprint(challenges[0].ir), shapeFingerprint(changed));
     for (const level of LEVELS) {

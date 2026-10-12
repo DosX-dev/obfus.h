@@ -67,7 +67,34 @@ export function familyStage(input, stage, bits, inverse) {
             out[op.j] = mix(out[op.j], leave?.[1]);
         }
     }
-    if (stage.kind === 'substitute') substitutions();
+    if (stage.kind === 'bitshuffle') {
+        for (const op of stage.ops) {
+            const current = mix(out[op.i], inverse ? op.after : op.before);
+            let value = 0;
+            op.route.forEach((destination, source) => {
+                value |= ((current >>> (inverse ? destination : source)) & 1) << (inverse ? source : destination);
+            });
+            out[op.i] = mix(value, inverse ? op.before : op.after);
+        }
+    } else if (stage.kind === 'weave') {
+        for (const op of inverse ? [...stage.ops].reverse() : stage.ops) {
+            let control = 0;
+            for (const source of op.sources) {
+                const term = mix(out[source.index], source.mix, false);
+                control = source.combine === 'xor' ? control ^ term : (control + (source.combine === 'add' ? term : -term)) & mask;
+            }
+            const value = out[op.i];
+            if (op.kind === 'xor') out[op.i] = value ^ control;
+            else if (op.kind === 'add' || op.kind === 'sub') out[op.i] = (value + ((op.kind === 'add') !== inverse ? control : -control)) & mask;
+            else if (op.kind === 'mul') {
+                const factor = 1 + 2 * (control & 7);
+                out[op.i] = Number(BigInt(value) * BigInt(inverse ? oddInverse(factor, bits) : factor) & BigInt(mask));
+            } else if (op.kind === 'rot') {
+                const count = 1 + (control & (bits / 2 - 1));
+                out[op.i] = rotate(value, inverse ? bits - count : count, bits);
+            } else throw new Error('Unknown weave operation');
+        }
+    } else if (stage.kind === 'substitute') substitutions();
     else if (stage.kind === 'matrix') pairs();
     else if (stage.kind === 'spn') {
         if (stage.program) {

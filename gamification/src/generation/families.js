@@ -44,6 +44,15 @@ export function families(width, bits, random, shuffle) {
         return ops;
     }
     return {
+        bitshuffle: () => ({
+            kind: 'bitshuffle', ops: shuffle(width, random).map(i => ({ i, route: shuffle(bits, random), before: mix(2), after: mix(2) }))
+        }),
+        weave: () => ({
+            kind: 'weave', ops: Array.from({ length: width + random(width) }, () => {
+                const indices = shuffle(width, random), kinds = ['xor', 'add', 'sub', 'mul', 'rot'];
+                return { i: indices[0], kind: kinds[random(kinds.length)], sources: indices.slice(1, 3 + random(3)).map((index, at) => ({ index, mix: mix(2), combine: at ? ['xor', 'add', 'sub'][random(3)] : 'xor' })) };
+            })
+        }),
         substitute: () => ({ kind: 'substitute', boxes: boxes() }),
         matrix: () => ({ kind: 'matrix', ops: pairs() }),
         spn: () => {

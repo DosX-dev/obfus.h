@@ -34,7 +34,7 @@ export function emit({ ir, target }, { mutate = null } = {}) {
         throw new Error('Unknown emitted update');
     }
     for (const s of stages) {
-        if (['substitute', 'matrix', 'spn', 'controlled'].includes(s.kind)) {
+        if (['substitute', 'matrix', 'spn', 'controlled', 'bitshuffle', 'weave'].includes(s.kind)) {
             calls.push(emitFamily(s, ir.bits, slot));
             continue;
         }

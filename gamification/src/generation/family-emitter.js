@@ -51,6 +51,21 @@ export function emitFamily(stage, bits, slot) {
         return before + body + after;
     }
     const lines = [];
+    if (stage.kind === 'bitshuffle') {
+        for (const op of stage.ops) {
+            const moves = op.route.map((destination, source) => `y=p_or(y,p_shl(p_and(p_shr(x,${source}u),1u),${destination}u));`).join('');
+            lines.push(`{unsigned x=${v(op.i)},y=0u;${mix('x', op.before)}${moves}${mix('y', op.after)}${v(op.i)}=y;}`);
+        }
+        return lines.join('\n') + '\nobserve(s);';
+    }
+    if (stage.kind === 'weave') {
+        for (const op of stage.ops) {
+            const sources = op.sources.map(source => `{unsigned term=${v(source.index)};${mix('term', source.mix)}control=bounded(p_${source.combine}(control,term));}`).join('');
+            const value = op.kind === 'rot' ? `rot(${v(op.i)},p_add(p_and(control,${bits / 2 - 1}u),1u))` : `bounded(p_${op.kind}(${v(op.i)},${op.kind === 'mul' ? 'p_or(p_shl(p_and(control,7u),1u),1u)' : 'control'}))`;
+            lines.push(`{unsigned control=0u;${sources}${v(op.i)}=${value};}`);
+        }
+        return lines.join('\n') + '\nobserve(s);';
+    }
     if (stage.program) for (const step of stage.program) lines.push(step.box !== undefined ? boxCode(stage.boxes[step.box]) : pairCode(stage.ops[step.pair]));
     else {
         for (const box of stage.boxes || []) lines.push(boxCode(box));
