@@ -32,7 +32,9 @@ export async function prepare(key, { date, round, directory, toolchain, toolchai
     }
 
     const result = await createBundle(key, { date, round, repository, previous, history, header, revision, selected, publicDirectory, toolchainMetadata });
-    for (const file of result.files) await fs.writeFile(path.join(publicDirectory, file.name), file.data);
+    const privateDirectory = path.join(directory, 'state');
+    await fs.mkdir(privateDirectory, { recursive: true });
+    for (const file of result.files) await fs.writeFile(path.join(['answers', 'history'].includes(file.role) ? privateDirectory : publicDirectory, file.name), file.data);
     assert.equal(hash(await fs.readFile(path.join(REPOSITORY_ROOT, 'include/obfus.h'))), hash(header), 'Production header changed during preparation');
     await fs.writeFile(path.join(directory, 'report.json'), JSON.stringify({ date, round, challenges: result.report, previews: result.jobs }, null, 2));
     return result;

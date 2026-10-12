@@ -60,7 +60,19 @@ export class GitHub {
     updateRelease(id, body) {
         return this.request(`${this.base}/releases/${id}`, { method: 'PATCH', body });
     }
-    async assets(id) {
+    async storageRelease(create = false) {
+        const tag = `${RELEASE_TAG}-state`;
+        let release = null;
+        for (let page = 1; ; page++) {
+            const batch = await this.request(`${this.base}/releases?per_page=100&page=${page}`);
+            release = batch.find(entry => entry.tag_name === tag);
+            if (release || batch.length < 100) break;
+        }
+        if (!release && create) release = await this.createRelease({ tag_name: tag, name: 'Daily Crackmes · internal state', draft: true, prerelease: true, make_latest: 'false', body: 'Private automation state. Keep this release as a draft; do not publish or delete it.' });
+        if (release && (!release.draft || release.immutable)) throw new Error('Automation state release must remain a mutable draft');
+        return release;
+    }
+    async assetList(id) {
         const result = [];
         for (let page = 1; ; page++) {
             const batch = await this.request(`${this.base}/releases/${id}/assets?per_page=100&page=${page}`);
@@ -68,7 +80,13 @@ export class GitHub {
             if (batch.length < 100) return result;
         }
     }
-    upload(id, name, data) {
+    async assets(id) {
+        const publicAssets = (await this.assetList(id)).map(asset => ({ ...asset, storage: 'public' }));
+        const storage = await this.storageRelease();
+        return storage ? [...publicAssets, ...(await this.assetList(storage.id)).map(asset => ({ ...asset, storage: 'private' }))] : publicAssets;
+    }
+    async upload(id, name, data) {
+        if (/^(answers-|history-|transaction-|manifest-|SHA256SUMS-|TASK-)/.test(name)) id = (await this.storageRelease(true)).id;
         return this.request(
             `https://uploads.github.com/repos/${this.repository}/releases/${id}/assets?name=${encodeURIComponent(name)}`,
             { method: 'POST', body: data, binary: true }

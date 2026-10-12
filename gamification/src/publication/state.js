@@ -14,6 +14,7 @@ export function validateState(state) {
             || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(file.name)
             || !/^[a-f0-9]{64}$/.test(file.sha256)
             || names.has(file.name)
+            || (file.storage !== undefined && !['public', 'private'].includes(file.storage))
         ) throw new Error('Invalid publication asset metadata');
         names.add(file.name);
     }

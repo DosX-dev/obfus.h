@@ -70,7 +70,7 @@ Candidate selection allows up to three deterministic attempts. A candidate must 
 
 `createBundle` is the public/private boundary. Its returned `files` contain only named buffers intended for the release. The returned `state` describes those buffers and their SHA-256 hashes. `report` and `jobs` stay local. Current plaintext answers enter only authenticated encryption; generated C, traces, replay keys and debug entry points never become release files.
 
-The public manifest describes preceding assets. SHA256SUMS additionally includes that manifest. The committed state also describes SHA256SUMS itself. This ordered construction avoids circular hashes.
+Each player is packaged as one deterministic ZIP without changing its EXE bytes. The committed manifest retains archive hashes and provenance. Encrypted answers and history are private draft-release assets, not player downloads; ZIP and state metadata do not create circular hashes.
 
 ### Durable state
 
@@ -91,7 +91,7 @@ Missing durable state, rollback journals and inconsistent asset hashes fail visi
 
 -   New algorithm: update IR construction, independent forward/inverse model, C emission, numeric-bound tests and both fingerprint representations together. Verify actual protected intermediate states.
 -   GUI changes: edit `src/ui/gui.c`, maintain native keyboard/paste semantics and run the GUI harness on final players.
--   Release-file changes: edit `round/bundle.js`; check public/private separation, self-reference ordering, checksums and replay.
+-   Release-file changes: edit `round/bundle.js`; check ZIP byte identity, public/private routing, asset hashes and replay.
 -   Publication changes: exercise failures before and after every request, first installation, partially uploaded sets and final journal cleanup.
 -   Moving modules: update direct imports, static-template/tool paths and documentation. Compare deterministic emitted C before rebuilding so accidental protection changes are visible.
 

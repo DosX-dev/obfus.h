@@ -5,12 +5,9 @@ import { seal, hash } from '../core/crypto.js';
 import { VERSION, RELEASE_TAG } from '../core/config.js';
 import { HISTORY_VERSION, retainHistory } from './history.js';
 import { profile } from '../generation/diversity.js';
+import { playerZip } from '../core/zip.js';
 
-function taskDescription(date, round) {
-    return `obfus.h Daily Crackme — Round ${round}\nGenerated: ${date}\n\nRecover the original password. Patching success does not count.\nEasy: 12 ASCII characters. Medium: 24. Hard: 32.\nLetters, digits and punctuation; no spaces. Windows x64.\n\nNew rounds daily at 13:00 Moscow time (UTC+3); publication may be delayed.\nThese challenges are part of the obfus.h reverse-engineering gamification program.\nOnly the current round is retained. Save your downloads.\n`;
-}
-
-// Only this module selects which data becomes a public release asset.
+// Select player ZIPs and private automation state separately.
 // Generated source, plaintext current answers, traces and replay keys never enter files.
 export async function createBundle(key, { date, round, repository, previous, history, header, revision, selected, publicDirectory, toolchainMetadata }) {
     if (!toolchainMetadata?.versions?.x86 || !toolchainMetadata?.versions?.x64) throw new Error('Actual compiler metadata is required');
@@ -28,9 +25,10 @@ export async function createBundle(key, { date, round, repository, previous, his
         witnesses.push(witness);
         shapes.push(shape);
 
-        const name = `obfus-crackme-${date}-${level}-x64.exe`;
-        files.push({ name, data: await fs.readFile(exe), role: level });
-        jobs.push({ level, exe: path.join(publicDirectory, name), screenshot: path.join(folder, 'preview.png') });
+        const playerName = `obfus-crackme-${date}-${level}-x64.exe`;
+        const name = playerName.replace(/\.exe$/, '.zip');
+        files.push({ name, data: playerZip(playerName, await fs.readFile(exe)), role: level });
+        jobs.push({ level, exe, screenshot: path.join(folder, 'preview.png') });
         report.push({
             level,
             attempt: challenge.ir.attempt,
@@ -42,7 +40,6 @@ export async function createBundle(key, { date, round, repository, previous, his
         });
     }
 
-    files.push({ name: `TASK-${date}.txt`, data: Buffer.from(taskDescription(date, round)), role: 'task' });
     files.push({
         name: `answers-${date}.json`,
         data: Buffer.from(JSON.stringify(seal(key, { version: VERSION, date, round, answers }))),
@@ -59,7 +56,7 @@ export async function createBundle(key, { date, round, repository, previous, his
     });
 
     const assetUrl = name => `https://github.com/${repository}/releases/download/${RELEASE_TAG}/${name}`;
-    const entries = () => files.map(file => ({ name: file.name, role: file.role, sha256: hash(file.data), size: file.data.length, url: assetUrl(file.name) }));
+    const entries = () => files.map(file => ({ name: file.name, role: file.role, sha256: hash(file.data), size: file.data.length, storage: ['answers', 'history'].includes(file.role) ? 'private' : 'public', ...(!['answers', 'history'].includes(file.role) ? { url: assetUrl(file.name) } : {}) }));
     const metadata = {
         version: VERSION,
         date,
@@ -74,17 +71,5 @@ export async function createBundle(key, { date, round, repository, previous, his
         previous
     };
 
-    // The public manifest describes preceding assets. Checksums then include that manifest.
-    // The committed state additionally describes SHA256SUMS itself, avoiding circular hashes.
-    files.push({
-        name: `manifest-${date}.json`,
-        data: Buffer.from(JSON.stringify({ ...metadata, files: entries() }, null, 2) + '\n'),
-        role: 'manifest'
-    });
-    files.push({
-        name: `SHA256SUMS-${date}.txt`,
-        data: Buffer.from(files.map(file => `${hash(file.data)}  ${file.name}`).join('\n') + '\n'),
-        role: 'checksums'
-    });
     return { state: { ...metadata, files: entries() }, files, report, jobs };
 }

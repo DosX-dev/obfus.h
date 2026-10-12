@@ -27,6 +27,6 @@ node cli.js acceptance --toolchain PATH_TO_TCC_DIRECTORY --count 10
 
 `src/` contains implementation modules; `test/` contains Node tests. Ignored `out/` contains private generated source, diagnostics, replay material and local previews. Ignored `toolchain/` contains the checksum-verified compiler cache. Neither ignored directory should become a public Actions artifact.
 
-A successful preview's `public/` contains three player EXEs, task text, checksums, a manifest, encrypted current answers and compressed fingerprint history. Only the latest round is retained in the rolling `daily-crackme` prerelease. The next successful publication discloses the actual saved answers from the previous round.
+A successful preview's `public/` contains three player ZIPs, each containing one unchanged EXE. Private encrypted answers and fingerprint history are kept in the sibling `state/` directory. Only the latest round is retained in the rolling `daily-crackme` prerelease. The next successful publication discloses the actual saved answers from the previous round.
 
 The workflow is in `../.github/workflows/daily-crackme.yml`. Its manual mode defaults to read-only preview. Production publishing additionally requires `--publish`, a backed-up master secret and the explicit approval variable. See the activation guide before changing these gates.

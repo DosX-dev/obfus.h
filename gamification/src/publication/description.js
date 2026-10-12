@@ -1,15 +1,9 @@
 export function description(state) {
-    const answers = state.previous
-        ? `\n## Previous round ${state.previous.round} (${state.previous.date})\n\n${Object.entries(
-            state.previous.answers
-        )
-            .map(([level, password]) => `- **${level}**: \`${password}\``)
-            .join('\n')}\n`
-        : '\nThis is the first round. No previous answers yet.\n';
-    return `# Daily Crackmes — Round ${state.round}\n\nGenerated: **${state.date}** · Windows x64\n\nNew rounds daily at **13:00 Moscow time (UTC+3)**. Publication may be delayed.\n\nRecover the original password. Patching the success message does not count.\n\n${state.files
-        .filter((f) => f.role !== 'answers')
-        .map((f) => `- [${f.name}](${f.url})`)
-        .join(
-            '\n'
-        )}\n${answers}\nOnly the current round is retained. Save downloaded challenges if you want to finish later.\n`;
+    const links = [['easy', '🟢', 'EASY'], ['medium', '🟠', 'MEDIUM'], ['hard', '🔴', 'HARD']]
+        .map(([level, emoji, label]) => {
+            const file = state.files.find(file => file.role === level);
+            return file ? `## ${emoji} [${label}](${file.url})` : '';
+        }).filter(Boolean).join('\n\n');
+    const answers = state.previous ? `\n\n<details>\n<summary>Previous round answers · Round ${state.previous.round}</summary>\n\n${Object.entries(state.previous.answers).map(([level, password]) => `- **${level.toUpperCase()}**: \`${password}\``).join('\n')}\n\n</details>` : '';
+    return `Round **${state.round}** · **${state.date}** · Windows x64\n\n${links}\n\nRecover the password. Patching does not count.\n\nNew round daily at **13:00 Moscow time (UTC+3)**. Save your downloads.${answers}\n`;
 }

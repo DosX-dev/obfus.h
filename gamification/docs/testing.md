@@ -11,7 +11,7 @@ node cli.js preview --toolchain PATH_TO_TCC_DIRECTORY
 node cli.js acceptance --toolchain PATH_TO_TCC_DIRECTORY --count 10
 ```
 
-`preview` builds locally without publishing. Private sources, targets, diagnostic logs and replay material are kept under ignored `out/`; never upload this working directory as an Actions artifact. A completed preview's `public/` directory contains only the intended player files and authenticated encrypted answers.
+`preview` builds locally without publishing. Private sources, targets, diagnostic logs and replay material are kept under ignored `out/`; never upload this working directory as an Actions artifact. A completed preview's `public/` directory contains only three player ZIPs. Its sibling `state/` directory contains authenticated encrypted answers and compressed history.
 
 Tests check deterministic generation, domain separation, forward/inverse models, 1000 generated programs per level, meaningful structural fingerprints, answer authentication and publication recovery. Protected probes compare all intermediate states with the model and check correct/incorrect input, changed characters, transpositions and lengths. A passing model suite alone does not replace compiler, GUI, mutation or reverse-engineering acceptance.
 
@@ -32,3 +32,4 @@ Algorithm tests independently check shift-XOR against BigInt arithmetic (includi
 Novelty tests reject near-copies even with three fresh hashes, verify bounded recent-profile retention and authenticated reload, and reject malformed profile data. A 100-day simulation exercises all three levels through both the complete fingerprint history and recent similarity gate under the normal three-attempt budget.
 
 Recovery regressions also cover loss of both the committed manifest and every release asset. Rejected novelty attempts retain private diagnostics without reaching the compiler. GUI acceptance checks About through both command activation and Enter, closes it with No, and verifies that this never invokes the password check or opens the browser.
+Packaging tests check ZIP round-trip, corruption rejection and the three-link presentation. Storage tests check draft routing, visibility guards and lost creation responses. Publication tests interrupt every repackaging request before and after its effects, reject changed EXE bytes, and verify subsequent daily updates across public/private stores.

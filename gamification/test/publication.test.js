@@ -4,6 +4,7 @@ import { hash } from '../src/core/crypto.js';
 import { publish, recover } from '../src/publication/publication.js';
 import { description } from '../src/publication/description.js';
 import { stateEqual } from '../src/publication/state.js';
+import { playerZip } from '../src/core/zip.js';
 class FakeGitHub {
     constructor() {
         this.r = null;
@@ -14,6 +15,7 @@ class FakeGitHub {
         this.calls = [];
         this.failAt = null;
         this.after = false;
+        this.splitStorage = false;
     }
     step(name, work) {
         this.calls.push(name);
@@ -39,7 +41,7 @@ class FakeGitHub {
     }
     async upload(id, name, data) {
         return this.step('upload:' + name, () => {
-            const asset = { id: this.nextId++, name, data, browser_download_url: 'https://example.test/' + name };
+            const asset = { id: this.nextId++, name, data, browser_download_url: 'https://example.test/' + name, ...(this.splitStorage ? { storage: /^(answers-|history-|transaction-)/.test(name) ? 'private' : 'public' } : {}) };
             this.list.push(asset);
             return asset;
         });
@@ -264,4 +266,64 @@ test('all first-publication interruptions recover, including orphan private asse
         assert.equal(api.manifest.round, 1);
         assert.equal(api.list.length, 4);
     }
+});
+
+function legacyPlayers() {
+    const state = { date: '2026-10-12', round: 1, files: [] }, files = [];
+    for (const role of ['easy', 'medium', 'hard', 'answers', 'history']) {
+        const name = ['easy', 'medium', 'hard'].includes(role) ? `obfus-crackme-2026-10-12-${role}-x64.exe` : `${role}-2026-10-12.json`;
+        const data = Buffer.from('original-' + role);
+        files.push({ name, data }); state.files.push({ name, role, sha256: hash(data), size: data.length, url: 'https://example.test/' + name });
+    }
+    const newFiles = files.map((file, index) => index < 3 ? { name: file.name.replace(/\.exe$/, '.zip'), data: playerZip(file.name, file.data) } : file);
+    const next = { ...state, files: newFiles.map((file, index) => ({ name: file.name, role: state.files[index].role, sha256: hash(file.data), size: file.data.length, storage: index < 3 ? 'public' : 'private', ...(index < 3 ? { url: 'https://example.test/' + file.name } : {}) })) };
+    return { state, files, next, newFiles };
+}
+
+test('repackaging preserves the round and survives interruption at every request boundary', async () => {
+    const fixture = legacyPlayers();
+    const baseline = new FakeGitHub();
+    await publish(baseline, fixture.state, fixture.files);
+    baseline.splitStorage = true; baseline.calls = [];
+    await publish(baseline, fixture.next, fixture.newFiles, { repackage: true });
+    const boundaries = baseline.calls.length;
+    for (const after of [false, true]) for (let at = 1; at <= boundaries; at++) {
+        const api = new FakeGitHub();
+        await publish(api, fixture.state, fixture.files);
+        api.splitStorage = true; api.calls = []; api.failAt = at; api.after = after;
+        try { await publish(api, fixture.next, fixture.newFiles, { repackage: true }); } catch { }
+        api.failAt = null;
+        await recover(api);
+        await publish(api, fixture.next, fixture.newFiles, { repackage: true });
+        assert.equal(api.manifest.round, 1);
+        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 3);
+        assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
+        assert(api.list.filter(asset => asset.storage === 'public').every(asset => asset.name.endsWith('.zip')));
+        assert.deepEqual(api.manifest, fixture.next);
+    }
+});
+
+test('repackaging rejects changed executable bytes and preserves old published players', async () => {
+    const fixture = legacyPlayers(), api = new FakeGitHub();
+    await publish(api, fixture.state, fixture.files);
+    api.splitStorage = true;
+    fixture.newFiles[0].data = playerZip(fixture.files[0].name, Buffer.from('changed'));
+    fixture.next.files[0].sha256 = hash(fixture.newFiles[0].data);
+    await assert.rejects(publish(api, fixture.next, fixture.newFiles, { repackage: true }), /changed player bytes/);
+    assert.deepEqual(api.manifest, fixture.state);
+    assert.equal(api.list.length, 5);
+});
+
+test('daily updates after repackaging keep only three public ZIPs and two private state files', async () => {
+    const fixture = legacyPlayers(), api = new FakeGitHub();
+    await publish(api, fixture.state, fixture.files);
+    api.splitStorage = true;
+    await publish(api, fixture.next, fixture.newFiles, { repackage: true });
+    const newFiles = fixture.newFiles.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-13') }));
+    const next = { ...fixture.next, date: '2026-10-13', round: 2, files: fixture.next.files.map(file => ({ ...file, name: file.name.replace('2026-10-12', '2026-10-13') })) };
+    await publish(api, next, newFiles);
+    assert.deepEqual(await recover(api), next);
+    assert.equal(api.list.filter(asset => asset.storage === 'public').length, 3);
+    assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
+    assert(api.list.every(asset => asset.name.includes('2026-10-13')));
 });
