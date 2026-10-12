@@ -13,6 +13,7 @@ static int native_case_n(const char *a, const char *b, size_t n) { return _strni
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef while
 #undef for
 #undef break

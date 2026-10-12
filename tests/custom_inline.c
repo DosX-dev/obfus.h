@@ -12,6 +12,7 @@ static int compare_int(const void *a, const void *b) { return (*(const int *)a >
 #undef for
 #undef break
 #undef else
+#undef case
 #define if(...) OBFH_FORBIDDEN_INTERNAL_IF
 #define while(...) OBFH_FORBIDDEN_INTERNAL_WHILE
 #define for(...) OBFH_FORBIDDEN_INTERNAL_FOR

@@ -10,7 +10,8 @@ static unsigned probe_0(unsigned input, unsigned *target) {
            __obfh_r00 = 2u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -24,7 +25,8 @@ static unsigned probe_1(unsigned input, unsigned *target) {
            __obfh_r00 = 11u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -38,7 +40,8 @@ static unsigned probe_2(unsigned input, unsigned *target) {
            __obfh_r00 = 5u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -52,7 +55,8 @@ static unsigned probe_3(unsigned input, unsigned *target) {
            __obfh_r00 = 3u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -66,7 +70,8 @@ static unsigned probe_4(unsigned input, unsigned *target) {
            __obfh_r00 = 20u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -80,7 +85,8 @@ static unsigned probe_5(unsigned input, unsigned *target) {
            __obfh_r00 = 29u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -94,7 +100,8 @@ static unsigned probe_6(unsigned input, unsigned *target) {
            __obfh_r00 = 20u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -108,7 +115,8 @@ static unsigned probe_7(unsigned input, unsigned *target) {
            __obfh_r00 = 13u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -122,7 +130,8 @@ static unsigned probe_8(unsigned input, unsigned *target) {
            __obfh_r00 = 28u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -136,7 +145,8 @@ static unsigned probe_9(unsigned input, unsigned *target) {
            __obfh_r00 = 24u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -150,7 +160,8 @@ static unsigned probe_10(unsigned input, unsigned *target) {
            __obfh_r00 = 8u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -164,7 +175,8 @@ static unsigned probe_11(unsigned input, unsigned *target) {
            __obfh_r00 = 19u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -178,7 +190,8 @@ static unsigned probe_12(unsigned input, unsigned *target) {
            __obfh_r00 = 23u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -192,7 +205,8 @@ static unsigned probe_13(unsigned input, unsigned *target) {
            __obfh_r00 = 18u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -206,7 +220,8 @@ static unsigned probe_14(unsigned input, unsigned *target) {
            __obfh_r00 = 31u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -220,7 +235,8 @@ static unsigned probe_15(unsigned input, unsigned *target) {
            __obfh_r00 = 28u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -234,7 +250,8 @@ static unsigned probe_16(unsigned input, unsigned *target) {
            __obfh_r00 = 24u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -248,7 +265,8 @@ static unsigned probe_17(unsigned input, unsigned *target) {
            __obfh_r00 = 17u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -262,7 +280,8 @@ static unsigned probe_18(unsigned input, unsigned *target) {
            __obfh_r00 = 22u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -276,7 +295,8 @@ static unsigned probe_19(unsigned input, unsigned *target) {
            __obfh_r00 = 12u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -290,7 +310,8 @@ static unsigned probe_20(unsigned input, unsigned *target) {
            __obfh_r00 = 7u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -304,7 +325,8 @@ static unsigned probe_21(unsigned input, unsigned *target) {
            __obfh_r00 = 15u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -318,7 +340,8 @@ static unsigned probe_22(unsigned input, unsigned *target) {
            __obfh_r00 = 11u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -332,7 +355,8 @@ static unsigned probe_23(unsigned input, unsigned *target) {
            __obfh_r00 = 18u,
            __obfh_r01 = 13u };
     OBFH_P_PREPARE(0, 0)
-    OBFH_P_PREPARE(0, 1) unsigned __obfh_flow_state = input;
+    OBFH_P_PREPARE(0, 1)
+    unsigned __obfh_flow_state = input;
     OBFH_P_STEP(0, 0);
     *target = __obfh_point1;
     return __obfh_flow_state;
@@ -818,6 +842,6 @@ int main(void) {
         unsigned out = probe_23(3217151191u, &target);
         if (out != (unsigned)(3314415930u + target - 2267921091u)) return 24;
     }
-    puts("MACHINE_PRIMITIVES_PASS");
+    if (puts("MACHINE_PRIMITIVES_PASS") == EOF || fflush(stdout)) return 99;
     return 0;
 }

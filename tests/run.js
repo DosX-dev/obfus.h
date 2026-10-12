@@ -12,12 +12,16 @@ const cflowChain = require('./cflow_chain');
 const cflowWeave = require('./cflow_weave');
 const cflowCommit = require('./cflow_commit');
 const { AsyncLocalStorage } = require('node:async_hooks');
-const { CheckPool, workerCount } = require('./runner_pool');
+const { CheckPool, ProcessPool, workerCount } = require('./runner_pool');
 const taskContext = new AsyncLocalStorage();
 const finalizers = [];
 const suiteStarted = Date.now();
 let compilationCount = 0;
+let childCount = 0;
 let pool,
+    buildPool,
+    executionPool,
+    processPool,
     checkIndex = 0;
 const order = new Map();
 function checkGroup(name) {
@@ -30,14 +34,18 @@ function checkGroup(name) {
 }
 function checkPriority(name) {
     if (/^(source:|runner:|binary scanner:)/.test(name)) return 1000;
-    // Multi-build groups dominated recent full-run tails. Starting them early
-    // overlaps their serial build chains with the remaining independent tests.
-    if (/\/cflow-v[12] tokens,/.test(name)) return 100;
-    if (name.includes('/CRT proxy calls')) return 90;
-    if (name.includes('/stack proxies/')) return 80;
-    if (name.includes('/fast transfer bytes')) return 75;
+    // Start unavoidable serial chains and expensive VM builds first. Independent
+    // CRT/CFLOW builds are separate tasks and no longer need the highest priority.
+    if (/\/(?:stack proxies|CFLOW pool|public break|constant data|anti-debug)/.test(name)) return 110;
+    if (/all junk sites|junk bytes vary/.test(name)) return 105;
+    if (name.includes('/VM ISA, all programs')) return 95;
+    if (/\/(?:vm|vm_branches|numeric)$/.test(name)) return 94;
+    if (name.includes('/multiple translation units + exports')) return 93;
+    if (name.includes('/GUI cache + ABI') || name.includes('/lazy letters:')) return 92;
+    if (name.includes('/fast transfer bytes')) return 90;
+    if (/\/cflow-v[12] tokens,/.test(name)) return 80;
+    if (name.includes('/CRT proxy calls')) return 75;
     if (/false else guard|typed return transport/.test(name)) return 60;
-    if (name.includes('/VM ISA, all programs')) return 50;
     return 0;
 }
 async function check(name, action) {
@@ -48,7 +56,7 @@ async function check(name, action) {
         await performCheck(name, async () => {
             const cwd = path.join(artifactDirectory, 'tasks', String(id));
             fs.mkdirSync(cwd, { recursive: true });
-            await taskContext.run({ cwd }, action);
+            await taskContext.run({ cwd, name }, action);
         });
     }, checkPriority(name));
     return true;
@@ -152,6 +160,12 @@ process.once('exit', async () => {
     for (const pid of activeChildren) killTree(pid);
 });
 async function run(command, args, options = {}) {
+    const queue = /^(?:i386-win32-)?tcc\.exe$/i.test(path.basename(command)) ? buildPool : executionPool;
+    // Per-process timers start after admission; queue waiting still counts toward
+    // the suite deadline, which runChild checks before spawning anything.
+    return queue ? processPool.run(() => queue.run(() => runChild(command, args, options))) : runChild(command, args, options);
+}
+async function runChild(command, args, options = {}) {
     const remaining = suiteDeadline - Date.now();
     if (remaining <= 0) {
         const error = new Error('suite timeout exceeded');
@@ -159,6 +173,7 @@ async function run(command, args, options = {}) {
         throw error;
     }
     const timeout = Math.min(options.timeout ?? testTimeout, remaining);
+    const childId = ++childCount;
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd: taskContext.getStore()?.cwd ?? root,
@@ -213,10 +228,12 @@ async function run(command, args, options = {}) {
             finish();
             if (artifactDirectory)
                 fs.writeFileSync(
-                    path.join(artifactDirectory, path.basename(command) + '-' + child.pid + '.json'),
+                    path.join(artifactDirectory, childId + '-' + path.basename(command) + '-' + child.pid + '.json'),
                     JSON.stringify(
                         {
                             command,
+                            childId,
+                            check: taskContext.getStore()?.name,
                             args,
                             status,
                             signal,
@@ -380,8 +397,16 @@ function junkCode(binary, siteCount = 13) {
         return binary.subarray(offset(start), offset(end));
     });
 }
-async function checkFlowTransport(arch, compiler, directory, mode) {
-    const traceRoot = path.join(directory, `${arch}-cflow-${mode}`);
+async function registerFlowTransport(arch, compiler, directory, mode) {
+    for (const part of [0, 1, 2, 0xdeadbeef, 0xffffffff, 'if', 'while', 'for', 'token', 'proxy', 'oracle', 'stage'])
+        await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control/${part}`, async () =>
+            checkFlowTransport(arch, compiler, directory, mode, part)
+        );
+}
+async function checkFlowTransport(arch, compiler, directory, mode, part) {
+    assert([0, 1, 2, 0xdeadbeef, 0xffffffff, 'if', 'while', 'for', 'token', 'proxy', 'oracle', 'stage'].includes(part),
+        'unknown flow transport scenario');
+    const traceRoot = path.join(directory, `${arch}-cflow-${mode}-${part}`);
     fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
     fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
     const traced = source
@@ -419,7 +444,7 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
     const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
     if (source.includes('#define OBFH_P_COUPLED_FIRST(') || source.includes('#define OBFH_P_COUPLED_CODE('))
         flags.push('OBFH_TEST_COUPLED_PRIMITIVES=1');
-    for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
+    for (const seed of typeof part === 'number' ? [part] : []) {
         await execute(
             await compile(compiler, directory, `${arch}-cflow-${mode}-seed-${seed}.exe`, file, [
                 ...flags,
@@ -438,43 +463,50 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
             'FLOW_PROXY_PASS'
         );
     }
+    if (typeof part === 'number') return;
     const ifMutant = traced.replace(
-        /#define if\((?:cond|\.\.\.)\)[\s\S]*?(?=\r?\n\r?\n)/,
+        /^#define if\((?:cond|\.\.\.)\)[^\r\n]*(?:\\\r?\n[^\r\n]*)*/gm,
         '#define if(...) if (__VA_ARGS__)'
     );
     assert(ifMutant !== traced, 'if bypass target missing');
-    fs.writeFileSync(header, ifMutant);
-    const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
-    assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
+    if (part === 'if') {
+        fs.writeFileSync(header, ifMutant);
+        const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
+        assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
+    }
     const whileMutant = traced.replace(
         '#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))',
         '#define while(...) while (__VA_ARGS__)'
     );
     assert(whileMutant !== traced, 'while bypass target missing');
-    fs.writeFileSync(header, whileMutant);
-    const whileResult = await run(
-        await compile(compiler, directory, `${arch}-cflow-${mode}-while-bypass.exe`, file, flags),
-        []
-    );
-    assert(
-        whileResult.status === 1 && whileResult.stderr.includes('cflow failure'),
-        'ordinary-while bypass was not detected'
-    );
+    if (part === 'while') {
+        fs.writeFileSync(header, whileMutant);
+        const whileResult = await run(
+            await compile(compiler, directory, `${arch}-cflow-${mode}-while-bypass.exe`, file, flags),
+            []
+        );
+        assert(
+            whileResult.status === 1 && whileResult.stderr.includes('cflow failure'),
+            'ordinary-while bypass was not detected'
+        );
+    }
     const forMutant = traced.replace(
         /#define for\(\.\.\.\)[\s\S]*?(?=\r?\n\r?\n)/,
         '#define for(...) for (__VA_ARGS__)'
     );
     assert(forMutant !== traced, 'for bypass target missing');
-    fs.writeFileSync(header, forMutant);
-    const forResult = await run(
-        await compile(compiler, directory, `${arch}-cflow-${mode}-for-bypass.exe`, file, flags),
-        []
-    );
-    assert(
-        forResult.status === 1 && forResult.stderr.includes('cflow failure'),
-        'per-iteration for bypass was not detected'
-    );
+    if (part === 'for') {
+        fs.writeFileSync(header, forMutant);
+        const forResult = await run(
+            await compile(compiler, directory, `${arch}-cflow-${mode}-for-bypass.exe`, file, flags),
+            []
+        );
+        assert(
+            forResult.status === 1 && forResult.stderr.includes('cflow failure'),
+            'per-iteration for bypass was not detected'
+        );
 
+    }
     // Mutate user-site transport after the header's helpers have been compiled.
     // Corrupting loader/CRT startup instead only tests an unrelated early crash.
     const transportStart = traced.indexOf('#define OBFH_FLOW_CONDITION(');
@@ -491,58 +523,67 @@ async function checkFlowTransport(arch, compiler, directory, mode) {
         'unsigned int __obfh_flow_state = __obfh_false_tag; (void)(condition); \\\n        '
     );
     assert(tokenMutant !== transport, 'encoded condition mutation target missing');
-    fs.writeFileSync(header, traced + '\n#undef OBFH_FLOW_CONDITION\n' + tokenMutant);
-    const tokenResult = await run(
-        await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags),
-        []
-    );
-    assert(
-        tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'),
-        'discarded condition transport was not detected'
-    );
+    if (part === 'token') {
+        fs.writeFileSync(header, traced + '\n#undef OBFH_FLOW_CONDITION\n' + tokenMutant);
+        const tokenResult = await run(
+            await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags),
+            []
+        );
+        assert(
+            tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'),
+            'discarded condition transport was not detected'
+        );
+    }
     const proxyEmit = traced.match(/#define OBFH_SF_FLOW_EMIT\(guard,\s*layout\)[\s\S]*?(?=\r?\n#define)/)?.[0];
     assert(proxyEmit, 'linked proxy guard mutation target missing');
     const strippedProxy = proxyEmit.replace(/__obfh_asm__\([\s\S]*?: "edx", "ecx", "cc", "memory"\);/, '(void)0;');
     assert(strippedProxy !== proxyEmit, 'native guard removal target missing');
-    fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_EMIT\n' + strippedProxy + '\n');
-    const proxyResult = await run(
-        await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-bypass.exe`, file, flags),
-        []
-    );
-    assert(
-        proxyResult.status === 1 && proxyResult.stderr.includes('cflow failure'),
-        'removed native proxy guard was not detected'
-    );
+    if (part === 'proxy') {
+        fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_EMIT\n' + strippedProxy + '\n');
+        const proxyResult = await run(
+            await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-bypass.exe`, file, flags),
+            []
+        );
+        assert(
+            proxyResult.status === 1 && proxyResult.stderr.includes('cflow failure'),
+            'removed native proxy guard was not detected'
+        );
+    }
     // The oracle uses ordinary C keywords and no instrumentation callbacks.
     const oracleProxy = strippedProxy.replace('obfh_test_flow_proxy(__obfh_live_expected, __obfh_live_actual); ', '');
-    fs.writeFileSync(header, source + '\n#undef OBFH_SF_FLOW_EMIT\n' + oracleProxy + '\n');
-    const proxyOracle = path.join(traceRoot, 'tests', 'cflow_proxy.c');
-    fs.copyFileSync(path.join(__dirname, 'cflow_proxy.c'), proxyOracle);
-    const proxyOracleResult = await run(
-        await compile(
-            compiler,
-            directory,
-            `${arch}-cflow-${mode}-proxy-oracle.exe`,
-            proxyOracle,
-            flags.filter((flag) => flag !== 'OBFH_TEST_FLOW_TRACE=1')
-        ),
-        []
-    );
-    assert(
-        proxyOracleResult.status === 1 && !proxyOracleResult.stdout.includes('FLOW_PROXY_PASS'),
-        'guard removal preserved the untraced condition-state contract'
-    );
+    if (part === 'oracle') {
+        fs.writeFileSync(header, source + '\n#undef OBFH_SF_FLOW_EMIT\n' + oracleProxy + '\n');
+        const proxyOracle = path.join(traceRoot, 'tests', 'cflow_proxy.c');
+        fs.copyFileSync(path.join(__dirname, 'cflow_proxy.c'), proxyOracle);
+        const proxyOracleResult = await run(
+            await compile(
+                compiler,
+                directory,
+                `${arch}-cflow-${mode}-proxy-oracle.exe`,
+                proxyOracle,
+                flags.filter((flag) => flag !== 'OBFH_TEST_FLOW_TRACE=1')
+            ),
+            []
+        );
+        assert(
+            proxyOracleResult.status === 1 && !proxyOracleResult.stdout.includes('FLOW_PROXY_PASS'),
+            'guard removal preserved the untraced condition-state contract'
+        );
+    }
     const permutation = traced.match(/#define OBFH_P_STEP\(s,\s*p\)[\s\S]*?(?=\r?\n#define)/)?.[0];
     assert(permutation, 'stage mutation target missing');
-    fs.writeFileSync(header, traced + '\n#undef OBFH_P_STEP\n#define OBFH_P_STEP(s,p) ((void)0)\n');
-    const stageResult = await run(
-        await compile(compiler, directory, arch + '-cflow-' + mode + '-stage-bypass.exe', file, flags),
-        []
-    );
-    assert(
-        stageResult.status === 1 && stageResult.stderr.includes('cflow failure'),
-        'skipped permutation was not detected'
-    );
+    if (part === 'stage') {
+        fs.writeFileSync(header, traced + '\n#undef OBFH_P_STEP\n#define OBFH_P_STEP(s,p) ((void)0)\n');
+        const stageResult = await run(
+            await compile(compiler, directory, arch + '-cflow-' + mode + '-stage-bypass.exe', file, flags),
+            []
+        );
+        assert(
+            stageResult.status === 1 && stageResult.stderr.includes('cflow failure'),
+            'skipped permutation was not detected'
+        );
+    }
+
 }
 
 async function main() {
@@ -572,8 +613,15 @@ async function main() {
         const workers = process.argv.includes('--serial')
             ? 1
             : workerCount(os.availableParallelism?.() ?? os.cpus().length, os.freemem(), os.totalmem());
-        pool = new CheckPool(workers);
-        console.log(`Automatic parallelism: ${workers} workers (CPU and available RAM).`);
+        const liveWorkers = () => workerCount(os.availableParallelism?.() ?? os.cpus().length, os.freemem(), os.totalmem());
+        buildPool = new ProcessPool(workers, liveWorkers);
+        executionPool = new ProcessPool(workers);
+        processPool = new ProcessPool(workers);
+        // Checks mostly wait on child processes; compiler memory is limited by
+        // buildPool, while shared mutable-header groups remain strictly serial.
+        const checkWorkers = process.argv.includes('--serial') ? 1 : workers * 2;
+        pool = new CheckPool(checkWorkers, () => checkWorkers);
+        console.log(`Automatic parallelism: ${workers} child processes; builds also limited by available RAM.`);
         await check('source: compact ASM matches readable fragments on both architectures', async () =>
             compactAsm.verify(source, { x64: compilers.x64, x86: compilers.x86 })
         );
@@ -718,9 +766,14 @@ async function main() {
         });
         const setup = source.slice(
             source.indexOf('static DWORD WINAPI obfh_ad_register_worker'),
-            source.indexOf('static int obfh_ad_process_probe')
-        );
+            source.indexOf('// Managed callbacks reuse Windows workers;')
+        ) + '\n#endif\n';
         assert(setup.includes('DuplicateHandle') && /#endif\s*$/.test(setup), 'failure-test extraction missing');
+        const poolSetup = source.slice(source.indexOf('// Managed callbacks reuse Windows workers;'), source.indexOf('static int obfh_ad_process_probe'));
+        assert(poolSetup.includes('TrySubmitThreadpoolCallback') && /#endif\s*$/.test(poolSetup), 'pool-test extraction missing');
+        const poolFailureFile = path.join(directory, 'antidebug-pool.c');
+        fs.writeFileSync(poolFailureFile, fs.readFileSync(path.join(__dirname, 'antidebug_pool.c.in'), 'utf8')
+            .replace('/* POOL_PROBES */', '#if 1\n' + poolSetup));
         const failureFile = path.join(directory, 'failures.c');
         const processNames = ['getKernel32Name_proxy', 'getDebuggerName_proxy']
             .map((name) => {
@@ -762,6 +815,16 @@ async function main() {
                 .replace('/* PROCESS_PROBE */', processProbe)
         );
         for (const [arch, compiler] of Object.entries(compilers)) {
+            if (process.argv.includes('--only-helpers') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
+                if (selectedArch && selectedArch !== arch) continue;
+                await require('./helper_conditions').runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                if (process.argv.includes('--only-helpers')) continue;
+            }
+            if (process.argv.includes('--only-case')) {
+                if (selectedArch && selectedArch !== arch) continue;
+                await require('./case_tokens').runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                continue;
+            }
             if (process.argv.includes('--only-exports') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
                 if (selectedArch && selectedArch !== arch) continue;
                 for (const seed of [1, 2])
@@ -893,8 +956,8 @@ async function main() {
                     'RETURN_PASS'
                 );
             });
-            await check(`${arch}/typed return transport/all seeds`, async () => {
-                for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 0xdeadbeef, 0xffffffff])
+            for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 0xdeadbeef, 0xffffffff])
+                await check(`${arch}/typed return transport/seed ${seed}`, async () => {
                     await execute(
                         await compile(
                             compiler,
@@ -905,10 +968,10 @@ async function main() {
                         ),
                         'RETURN_TRANSPORT_PASS'
                     );
-            });
-            await check(`${arch}/false else guard transport/all seeds`, async () => {
-                for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
-                    for (const flags of [[], ['CFLOW_V2=1'], ['NO_PDATA_DECOYS=1']])
+                });
+            for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
+                for (const flags of [[], ['CFLOW_V2=1'], ['NO_PDATA_DECOYS=1']])
+                    await check(`${arch}/false else guard transport/seed ${seed}/${flags.join('-') || 'default'}`, async () => {
                         await execute(
                             await compile(
                                 compiler,
@@ -919,7 +982,7 @@ async function main() {
                             ),
                             'ELSE_GUARD_PASS'
                         );
-            });
+                    });
             await check(`${arch}/IntelliSense interface and real compiler isolation`, async () => {
                 const file = path.join(__dirname, 'editor_view.c');
                 await execute(
@@ -995,6 +1058,7 @@ async function main() {
                 if (process.argv.includes('--only-pdata')) continue;
             }
             if (process.argv.includes('--only-flow-tokens') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
+                await require('./case_tokens').runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
                 for (const mode of [0, 1])
                     for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
                         await check(`${arch}/fast continue/default semantics/cflow-v${mode + 1}/seed ${seed}`, async () =>
@@ -1006,9 +1070,7 @@ async function main() {
             }
             if (process.argv.includes('--only-flow-tokens')) {
                 for (const mode of [0, 1])
-                    await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () =>
-                        checkFlowTransport(arch, compiler, directory, mode)
-                    );
+                    await registerFlowTransport(arch, compiler, directory, mode);
                 continue;
             }
             if (!process.argv.includes('--only-integration') && !process.argv.includes('--only-configs')) {
@@ -1129,6 +1191,9 @@ async function main() {
                             );
                         }
                     );
+                await require('./stack_frames').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
+                await require('./short_encodings').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
+                await require('./short_jumps').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
                 if (process.argv.includes('--only-stack-proxy')) continue;
                 await check(
                     `${arch}/API failure branches`,
@@ -1139,6 +1204,13 @@ async function main() {
                         )
                 );
                 const antiRoot = path.join(directory, arch + '-antidebug');
+                await check(`${arch}/anti-debug pool: fresh results, failures and late completion`, async () =>
+                    await execute(await compile(compiler, directory, `${arch}-antidebug-pool.exe`, poolFailureFile, []), 'ANTIDEBUG_POOL_PASS'));
+                await check(`${arch}/anti-debug pool: DLL unload after callback and timeout`, async () => {
+                    const dll = await compile(compiler, directory, `${arch}-antidebug-pool.dll`, path.join(__dirname, 'antidebug_pool_dll.c'), ['ANTIDEBUG_V2=1', 'CFLOW_V2=1'], ['-shared']);
+                    const host = await compile(compiler, directory, `${arch}-antidebug-pool-host.exe`, path.join(__dirname, 'antidebug_pool_host.c'), []);
+                    await execute(host, 'ANTIDEBUG_POOL_DLL_PASS', [dll]);
+                });
                 fs.mkdirSync(path.join(antiRoot, 'include'), { recursive: true });
                 fs.mkdirSync(path.join(antiRoot, 'tests'), { recursive: true });
                 const antiHeader = path.join(antiRoot, 'include', 'obfus.h');
@@ -1229,31 +1301,22 @@ async function main() {
                 });
                 if (process.argv.includes('--only-antidebug')) continue;
                 const constantBuilds = new Map();
-                await check(`${arch}/lazy letters: first use, groups and concurrent publication`, async () => {
-                    for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
+                for (const [suffix, flags, modes] of [
+                    ...[0, 1, 2, 0xdeadbeef, 0xffffffff].map(seed =>
+                        [seed, [`OBFH_BUILD_SEED=${seed}u`], ['groups', 'automatic', 'concurrent']]),
+                    ...['NO_OBF=1', 'NO_CFLOW=1', 'CFLOW_V2=1'].map(flag => [flag, [flag], ['concurrent']])
+                ])
+                    await check(`${arch}/lazy letters: first use, groups and concurrent publication/${suffix}`, async () => {
                         const exe = await compile(
                             compiler,
                             directory,
-                            `${arch}-constant-loader-${seed}.exe`,
+                            `${arch}-constant-loader-${suffix}.exe`,
                             path.join(__dirname, 'constant_loader.c'),
-                            ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                            ['NO_ANTIDEBUG=1', ...flags]
                         );
-                        for (const mode of ['groups', 'automatic', 'concurrent'])
+                        for (const mode of modes)
                             await execute(exe, 'CONSTANT_LOADER_PASS', [mode]);
-                    }
-                    for (const flags of [['NO_OBF=1'], ['NO_CFLOW=1'], ['CFLOW_V2=1']])
-                        await execute(
-                            await compile(
-                                compiler,
-                                directory,
-                                `${arch}-constant-loader-${flags[0]}.exe`,
-                                path.join(__dirname, 'constant_loader.c'),
-                                ['NO_ANTIDEBUG=1', ...flags]
-                            ),
-                            'CONSTANT_LOADER_PASS',
-                            ['concurrent']
-                        );
-                });
+                    });
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/constant data types and binary signatures/seed ${seed}`, async () => {
                         const exe = await compile(
@@ -1712,9 +1775,7 @@ async function main() {
                 });
                 if (process.argv.includes('--only-cache')) continue;
                 for (const mode of [0, 1])
-                    await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control`, async () =>
-                        checkFlowTransport(arch, compiler, directory, mode)
-                    );
+                    await registerFlowTransport(arch, compiler, directory, mode);
                 if (process.argv.includes('--only-cflow')) continue;
                 await check(`${arch}/negative control: disabled VM must fail`, async () => {
                     const mutantRoot = path.join(directory, arch + '-mutant');
@@ -1837,6 +1898,11 @@ async function main() {
                         ['-luser32', '-lgdi32']
                     );
                     await execute(exe, 'GUI_CALLS_PASS');
+                    if (!flags.includes('NO_OBF=1'))
+                        assert((await run(exe, ['x'])).status >>> 0 === 0xe0bf4701,
+                            'invalid GUI cache input did not fail fast');
+                });
+                await check(`${label}/GUI cache + ABI/inline nesting and imports`, async () => {
                     const inline = await compile(
                         compiler,
                         directory,
@@ -1851,10 +1917,6 @@ async function main() {
                         assert(
                             !modules.includes('user32.dll') && !modules.includes('gdi32.dll'),
                             'covered GUI calls retain imports'
-                        );
-                        assert(
-                            (await run(exe, ['x'])).status >>> 0 === 0xe0bf4701,
-                            'invalid GUI cache input did not fail fast'
                         );
                     }
                 });
@@ -1892,6 +1954,25 @@ async function main() {
                     );
                     await execute(exe, 'WINAPI_EXTENDED_PASS');
                 });
+                // Each fixture keeps its original translation unit, flags and fresh process.
+                // Separate checks prevent a long serial build chain occupying one worker.
+                for (const [fixture, marker] of [
+                    ['custom_inline', ''],
+                    ['custom_copy', 'CUSTOM_COPY_PASS'],
+                    ['custom_polymorphism', 'CUSTOM_POLYMORPHISM_PASS'],
+                    ['custom_wide', 'CUSTOM_WIDE_PASS'],
+                    ['custom33', 'CUSTOM33_PASS'],
+                    ...(config === 'plain' ? [] : [['custom33_inline', '']]),
+                    ['custom_critical', 'CUSTOM_CRITICAL_PASS'],
+                    ['custom_sort', 'CUSTOM_SORT_PASS'],
+                    ['custom_extra', 'CUSTOM_EXTRA_PASS']
+                ])
+                    await check(`${label}/CRT proxy calls/${fixture}`, async () => {
+                        const exe = await compile(compiler, directory,
+                            `${arch}-${config}-${fixture.replaceAll('_', '-')}.exe`,
+                            path.join(__dirname, fixture + '.c'), flags);
+                        await execute(exe, marker);
+                    });
                 await check(`${label}/CRT proxy calls + atexit + input`, async () => {
                     const exe = await compile(
                         compiler,
@@ -1901,65 +1982,6 @@ async function main() {
                         flags
                     );
                     await execute(exe, 'CRT_ATEXIT_PASS');
-                    const inlineControl = await compile(
-                        compiler,
-                        directory,
-                        `${arch}-${config}-custom-inline.exe`,
-                        path.join(__dirname, 'custom_inline.c'),
-                        flags
-                    );
-                    const inlineResult = await run(inlineControl, []);
-                    assert(inlineResult.status === 0, 'custom inline control or nesting failed');
-                    const copyControl = await compile(
-                        compiler,
-                        directory,
-                        `${arch}-${config}-custom-copy.exe`,
-                        path.join(__dirname, 'custom_copy.c'),
-                        flags
-                    );
-                    await execute(copyControl, 'CUSTOM_COPY_PASS');
-                    await execute(
-                        await compile(compiler, directory,
-                            `${arch}-${config}-custom-polymorphism.exe`,
-                            path.join(__dirname, 'custom_polymorphism.c'), flags),
-                        'CUSTOM_POLYMORPHISM_PASS'
-                    );
-                    const wideControl = await compile(
-                        compiler,
-                        directory,
-                        `${arch}-${config}-custom-wide.exe`,
-                        path.join(__dirname, 'custom_wide.c'),
-                        flags
-                    );
-                    await execute(wideControl, 'CUSTOM_WIDE_PASS');
-                    await execute(
-                        await compile(compiler, directory, `${arch}-${config}-custom33.exe`,
-                            path.join(__dirname, 'custom33.c'), flags),
-                        'CUSTOM33_PASS'
-                    );
-                    if (config !== 'plain') await execute(
-                        await compile(compiler, directory, `${arch}-${config}-custom33-inline.exe`,
-                            path.join(__dirname, 'custom33_inline.c'), flags),
-                        ''
-                    );
-                    await execute(
-                        await compile(compiler, directory, `${arch}-${config}-custom-critical.exe`,
-                            path.join(__dirname, 'custom_critical.c'), flags),
-                        'CUSTOM_CRITICAL_PASS'
-                    );
-                    await execute(
-                        await compile(compiler, directory, `${arch}-${config}-custom-sort.exe`,
-                            path.join(__dirname, 'custom_sort.c'), flags),
-                        'CUSTOM_SORT_PASS'
-                    );
-                    const extraControl = await compile(
-                        compiler,
-                        directory,
-                        `${arch}-${config}-custom-extra.exe`,
-                        path.join(__dirname, 'custom_extra.c'),
-                        flags
-                    );
-                    await execute(extraControl, 'CUSTOM_EXTRA_PASS');
                     const chars = await run(exe, ['chars'], { input: 'Q' });
                     assert(chars.status === 0 && chars.stdout === 'Z', 'getchar/putchar/EOF contract failed');
                     const errors = await run(exe, ['perror']);
@@ -2153,7 +2175,12 @@ async function main() {
                 {
                     durationMs: Date.now() - suiteStarted,
                     compilationCount,
-                    parallelism: pool && { workers: pool.limit, peak: pool.peak },
+                    parallelism: pool && {
+                        workers: pool.limit, peak: pool.peak,
+                        builds: { workers: buildPool.limit, peak: buildPool.peak },
+                        executions: { workers: executionPool.limit, peak: executionPool.peak },
+                        processes: { workers: processPool.limit, peak: processPool.peak }
+                    },
                     results,
                     passed: results.length - failed.length,
                     failed: failed.length

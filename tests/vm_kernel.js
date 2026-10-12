@@ -23,11 +23,12 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     for (const mode of [0, 1]) {
         // Cover every opcode/word dependency order and context layout, plus boundary seeds.
         for (const seed of [0, 84, 168, 252, 0xdeadbeef, 0xffffffff]) {
+            const flags = ['VIRT=1', 'NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`];
+            const stem = `${arch}-vm-kernel-${mode}-${seed}`;
+            const label = `${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`;
             await check(
-                `${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`,
+                label,
                 async () => {
-                    const flags = ['VIRT=1', 'NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`];
-                    const stem = `${arch}-vm-kernel-${mode}-${seed}`;
                     const seedRoot = path.join(root, stem);
                     fs.mkdirSync(path.join(seedRoot, 'include'), { recursive: true });
                     fs.mkdirSync(path.join(seedRoot, 'tests'), { recursive: true });
@@ -44,43 +45,36 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
                             `VM fault ${fault}: unexpected status ${result.status}`
                         );
                     }
-                    for (const [name, marker] of [
-                        ['vm', 'VM_PASS'],
-                        ['numeric', 'NUMERIC_PASS'],
-                        ['vm_branches', 'BRANCH_PASS']
-                    ]) {
-                        await execute(
-                            await compile(
-                                compiler,
-                                directory,
-                                stem + '-' + name + '.exe',
-                                path.join(__dirname, name + '.c'),
-                                flags
-                            ),
-                            marker
-                        );
-                    }
                 }
             );
+            for (const [name, marker] of [
+                ['vm', 'VM_PASS'],
+                ['numeric', 'NUMERIC_PASS'],
+                ['vm_branches', 'BRANCH_PASS']
+            ])
+                await check(label + '/' + name, async () => {
+                    await execute(await compile(compiler, directory, stem + '-' + name + '.exe',
+                        path.join(__dirname, name + '.c'), flags), marker);
+                });
         }
     }
 
-    await check(`${arch}/VM ISA mutations: missing instruction, flags and virtual jump`, async () => {
-        const mutants = [
-            ['bitwise', traced.replace('obfh_v_write(&c, d, x ^ y);', 'obfh_v_write(&c, d, x | y);')],
-            [
-                'load',
-                traced
-                    .replace('/* OBFH_VM_TRACE_STEP */', '')
-                    .replace('study_step(op, at);', 'study_step(op, at); if (op == OBFH_V_LOAD_B) continue;')
-            ],
-            ['flags', traced.replace('unsigned int f = obfh_v_flags(&c);', 'unsigned int f = 0;')],
-            ['jump', traced.replace('if (obfh_v_flags(&c) & (1u << flag))', 'if (0)')],
-            ['pair', traced.replace('obfh_v_write(&c, a, operands[1]);', '(void)operands[1];')],
-            ['copy-return', traced.replace('a = d;', 'a = (d + 1u) & 3u;')],
-            ['layout', traced.replace('field_decoders[(key >> 29) & 3u]', 'field_decoders[0]')]
-        ];
-        for (const [name, mutant] of mutants) {
+    const mutants = [
+        ['bitwise', traced.replace('obfh_v_write(&c, d, x ^ y);', 'obfh_v_write(&c, d, x | y);')],
+        [
+            'load',
+            traced
+                .replace('/* OBFH_VM_TRACE_STEP */', '')
+                .replace('study_step(op, at);', 'study_step(op, at); if (op == OBFH_V_LOAD_B) continue;')
+        ],
+        ['flags', traced.replace('unsigned int f = obfh_v_flags(&c);', 'unsigned int f = 0;')],
+        ['jump', traced.replace('if (obfh_v_flags(&c) & (1u << flag))', 'if (0)')],
+        ['pair', traced.replace('obfh_v_write(&c, a, operands[1]);', '(void)operands[1];')],
+        ['copy-return', traced.replace('a = d;', 'a = (d + 1u) & 3u;')],
+        ['layout', traced.replace('field_decoders[(key >> 29) & 3u]', 'field_decoders[0]')]
+    ];
+    for (const [name, mutant] of mutants)
+        await check(`${arch}/VM ISA mutations: missing instruction, flags and virtual jump/${name}`, async () => {
             assert(mutant !== traced, 'VM mutation target missing: ' + name);
             // Normal seed checks read the traced header concurrently. Keep each
             // negative control in its own immutable tree instead of overwriting it.
@@ -97,8 +91,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             ]);
             const result = await run(exe, []);
             assert(result.status !== 0 && !result.stdout.includes('KERNEL_PASS'), 'VM mutation survived: ' + name);
-        }
-    });
+        });
 
     for (const flags of [
         ['VIRT=0', 'NO_ANTIDEBUG=1'],

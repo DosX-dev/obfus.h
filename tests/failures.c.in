@@ -96,7 +96,7 @@ int main(void) {
     for (mode = 0; mode <= 11; mode++) {
         duplicates = creates = waits = exits = targets = workers = suspends = resumes = contexts = 0;
         pending = NULL;
-        int result = obfh_ad_register_probe();
+        int result = obfh_ad_register_oneshot();
         if (result != (mode == 5) || duplicates != 1 || creates != (mode != 1) ||
             waits != (mode != 1 && mode != 2) || exits != (mode != 1 && mode != 2 && mode != 3 && mode != 6) ||
             workers != (mode != 1 && mode != 2)) return 10 + mode;

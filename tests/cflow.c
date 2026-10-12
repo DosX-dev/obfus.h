@@ -291,6 +291,7 @@ static int recursive(int n) {
 }
 #undef if
 #undef else
+#undef case
 #define CHECK(x) \
     do { \
         if (!(x)) { \

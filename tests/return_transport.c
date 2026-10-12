@@ -6,6 +6,7 @@
 
 #undef if
 #undef else
+#undef case
 #undef for
 #undef while
 #undef return

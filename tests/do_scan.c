@@ -3,6 +3,7 @@
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef for
 #undef while
 #undef do
@@ -39,7 +40,8 @@ static int failed;
     }
 #define ROW(n) PROBE(n##0) PROBE(n##1) PROBE(n##2) PROBE(n##3) PROBE(n##4) PROBE(n##5) PROBE(n##6) PROBE(n##7) PROBE(n##8) PROBE(n##9)
 ROW(1)
-ROW(2) ROW(3) ROW(4) ROW(5) ROW(6) ROW(7) ROW(8) ROW(9) ROW(10) ROW(11) ROW(12) ROW(13) ROW(14) ROW(15) ROW(16)
+ROW(2)
+ROW(3) ROW(4) ROW(5) ROW(6) ROW(7) ROW(8) ROW(9) ROW(10) ROW(11) ROW(12) ROW(13) ROW(14) ROW(15) ROW(16)
 #define CALL(n) probe_##n(value);
 #define CALL_ROW(n) CALL(n##0) CALL(n##1) CALL(n##2) CALL(n##3) CALL(n##4) CALL(n##5) CALL(n##6) CALL(n##7) CALL(n##8) CALL(n##9)
     int main(void) {
@@ -53,7 +55,8 @@ ROW(2) ROW(3) ROW(4) ROW(5) ROW(6) ROW(7) ROW(8) ROW(9) ROW(10) ROW(11) ROW(12) 
                                         : i == 65  ? ~0u
                                                    : state;
         CALL_ROW(1)
-        CALL_ROW(2) CALL_ROW(3) CALL_ROW(4) CALL_ROW(5) CALL_ROW(6) CALL_ROW(7) CALL_ROW(8)
+        CALL_ROW(2)
+        CALL_ROW(3) CALL_ROW(4) CALL_ROW(5) CALL_ROW(6) CALL_ROW(7) CALL_ROW(8)
             CALL_ROW(9) CALL_ROW(10) CALL_ROW(11) CALL_ROW(12) CALL_ROW(13) CALL_ROW(14) CALL_ROW(15) CALL_ROW(16) if (failed) return 1;
     }
     unsigned position_count = 0, rotation_count = 0;

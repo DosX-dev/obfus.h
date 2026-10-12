@@ -7,6 +7,7 @@ function fixture() {
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef printf
 #undef fflush
 #undef memset
@@ -146,7 +147,7 @@ function measure(output, binary, assert) {
 }
 module.exports = { fixture, measure };
 
-module.exports.runSuite = async function ({
+module.exports.runSuite = async function({
     arch,
     compiler,
     directory,

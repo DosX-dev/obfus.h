@@ -4,6 +4,7 @@ unsigned int obfh_test_chain_entries[16], obfh_test_chain_routes[32];
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef for
 #undef while
 #undef switch

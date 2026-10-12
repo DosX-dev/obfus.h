@@ -50,7 +50,7 @@ function exportedProbe(file, wanted = 'fast_probe', whole = false) {
     throw new Error('fast_probe export missing');
 }
 
-exports.runSuite = async function ({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
+exports.runSuite = async function({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
     await check(`${arch}/fast transfer bytes, fixed-seed replay and semantic negative controls`, async () => {
         const root = path.join(directory, `${arch}-fast-transfer`);
         fs.mkdirSync(path.join(root, 'include'), { recursive: true });
@@ -63,6 +63,7 @@ exports.runSuite = async function ({ arch, compiler, directory, source, check, c
 #undef return
 #undef if
 #undef else
+#undef case
 #undef while
 #undef for
 __declspec(dllexport) void fast_probe(void) { OBFH_FLOW_FAST_TRANSFER; }

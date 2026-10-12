@@ -24,7 +24,8 @@ static wchar_t *ref_wnset(wchar_t *s, wchar_t v, size_t n) { return _wcsnset(s, 
 #define NATIVE_TEXT(name, type, char_type) \
     static char_type *ref##name(type v, char_type *b, int r) { return name(v, b, r); }
 NATIVE_TEXT(_itoa, int, char)
-NATIVE_TEXT(_ltoa, long, char) NATIVE_TEXT(_ultoa, unsigned long, char)
+NATIVE_TEXT(_ltoa, long, char)
+NATIVE_TEXT(_ultoa, unsigned long, char)
     NATIVE_TEXT(_i64toa, long long, char) NATIVE_TEXT(_ui64toa, unsigned long long, char)
         NATIVE_TEXT(_itow, int, wchar_t) NATIVE_TEXT(_ltow, long, wchar_t) NATIVE_TEXT(_ultow, unsigned long, wchar_t)
             NATIVE_TEXT(_i64tow, long long, wchar_t) NATIVE_TEXT(_ui64tow, unsigned long long, wchar_t) static long ref_labs(long v) { return labs(v); }
@@ -37,6 +38,7 @@ static lldiv_t(__cdecl *ref_lldiv)(long long, long long);
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef for
 #undef while
 #undef break

@@ -1,0 +1,148 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <windows.h>
+#define BREAK_STACK_CFLOW
+#define PHANTOM_NOP ((void)0)
+#define HIDE_STRING(value) (value)
+#define OBFH_LOADER_READ(value) (value)
+#define RND(min, max) (min)
+static int mode, allocated, freed, target_closed, event_closed, pinned, dropped, deferred, fallback, reads, resumed, completed;
+static void(WINAPI *pending)(void *, void *);
+static void *pending_argument;
+static BOOL WINAPI fake_submit(void(WINAPI *callback)(void *, void *), void *argument, void *environment) {
+    if (environment || mode == 7) return FALSE;
+    pending = callback;
+    pending_argument = argument;
+    if (mode == 18) {
+        pending = NULL;
+        callback((void *)44, argument);
+        dropped++;
+    }
+    return TRUE;
+}
+static void WINAPI fake_defer(void *instance, HMODULE module) {
+    if (instance != (void *)44 || module != (HMODULE)33) exit(91);
+    deferred++;
+}
+static HMODULE fake_module(const char *name) {
+    return mode == 1 || strcmp(name, "kernel32") ? NULL : (HMODULE)55;
+}
+static FARPROC fake_export(HMODULE module, const char *name) {
+    if (mode == 2 || module != (HMODULE)55) return NULL;
+    if (!strcmp(name, "TrySubmitThreadpoolCallback")) return (FARPROC)fake_submit;
+    if (!strcmp(name, "FreeLibraryWhenCallbackReturns")) return (FARPROC)fake_defer;
+    exit(92);
+}
+static char *getKernel32Name_proxy(char *name) { return strcpy(name, "kernel32"); }
+static void *fake_alloc(HANDLE heap, DWORD flags, SIZE_T size) {
+    if (mode == 3) return NULL;
+    allocated++;
+    return calloc(1, size);
+}
+static BOOL fake_free(HANDLE heap, DWORD flags, void *memory) {
+    freed++;
+    free(memory);
+    return TRUE;
+}
+static HANDLE fake_event(LPSECURITY_ATTRIBUTES attributes, BOOL manual, BOOL initial, const char *name) {
+    return mode == 4 ? NULL : (HANDLE)22;
+}
+static BOOL fake_duplicate(HANDLE a, HANDLE b, HANDLE c, HANDLE *out, DWORD d, BOOL e, DWORD f) {
+    if (mode == 5) return FALSE;
+    *out = (HANDLE)11;
+    return TRUE;
+}
+static BOOL fake_pin(DWORD flags, const char *address, HMODULE *module) {
+    if (flags != 4u || !address) exit(93);
+    if (mode == 6) return FALSE;
+    *module = (HMODULE)33;
+    pinned++;
+    return TRUE;
+}
+static BOOL fake_drop(HMODULE module) {
+    if (module != (HMODULE)33) exit(94);
+    dropped++;
+    return TRUE;
+}
+static BOOL fake_close(HANDLE handle) {
+    if (handle == (HANDLE)11)
+        target_closed++;
+    else if (handle == (HANDLE)22)
+        event_closed++;
+    else
+        exit(95);
+    return TRUE;
+}
+static DWORD fake_suspend(HANDLE handle) { return mode == 10 ? (DWORD)-1 : 0; }
+static DWORD fake_resume(HANDLE handle) {
+    resumed++;
+    return 1;
+}
+static BOOL fake_context(HANDLE handle, CONTEXT *context) {
+    reads++;
+    if (context->ContextFlags != CONTEXT_DEBUG_REGISTERS || context->Dr0 || context->Dr7) exit(96);
+    if (mode == 11) return FALSE;
+    context->Dr7 = mode == 12 || mode == 17 || mode == 19 ? 1 : mode == 16 ? 2
+                                                            : mode == 13   ? 0x400
+                                                                           : 0;
+    context->Dr6 = mode == 14 ? 0xffff0ff0u : 0;
+    context->Dr0 = mode == 15 ? 0x1234 : 0;
+    return TRUE;
+}
+static BOOL fake_signal(HANDLE event) {
+    if (mode == 17) return FALSE;
+    completed = 1;
+    return TRUE;
+}
+static void finish(void) {
+    if (pending) {
+        void(WINAPI * callback)(void *, void *) = pending;
+        pending = NULL;
+        callback((void *)44, pending_argument);
+        dropped++;
+    }
+}
+static DWORD fake_wait(HANDLE event, DWORD timeout) {
+    if (timeout != 5000 || event != (HANDLE)22) exit(97);
+    if (mode == 8) return WAIT_FAILED;
+    if (mode == 9) return WAIT_TIMEOUT;
+    finish();
+    return mode == 19 || !completed ? WAIT_TIMEOUT : WAIT_OBJECT_0;
+}
+static int obfh_ad_register_oneshot(void) {
+    fallback++;
+    return 77;
+}
+#define GetModuleHandleA fake_module
+#define GetProcAddress fake_export
+#define HeapAlloc fake_alloc
+#define HeapFree fake_free
+#define CreateEventA fake_event
+#define DuplicateHandle fake_duplicate
+#define GetModuleHandleExA fake_pin
+#define FreeLibrary fake_drop
+#define CloseHandle fake_close
+#define SuspendThread fake_suspend
+#define ResumeThread fake_resume
+#define GetThreadContext fake_context
+#define SetEvent fake_signal
+#define WaitForSingleObject fake_wait
+/* POOL_PROBES */
+int main(void) {
+    const int modes[] = {1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 12, 0};
+    for (unsigned int i = 0; i < sizeof(modes) / sizeof(modes[0]); ++i) {
+        mode = modes[i];
+        allocated = freed = target_closed = event_closed = pinned = dropped = deferred = fallback = reads = resumed = completed = 0;
+        pending = NULL;
+        int result = obfh_ad_register_probe();
+        if (result != (mode >= 1 && mode <= 9 ? 77 : mode == 12 || mode == 16 || mode == 17 || mode == 19)) return 10 + i;
+        if (fallback != (mode >= 1 && mode <= 9)) return 40 + i;
+        if ((mode == 8 || mode == 9) && (freed || target_closed || event_closed || !pending)) return 70 + i;
+        finish();
+        if (allocated != freed || pinned != dropped || target_closed > 1 || event_closed > 1) return 100 + i;
+        if (!(mode >= 1 && mode <= 7) && (reads != (mode != 10) || resumed != (mode != 10) || deferred != 1 || freed != 1 || target_closed != 1 || event_closed != 1)) return 130 + i;
+    }
+    puts("ANTIDEBUG_POOL_PASS");
+    return 0;
+}

@@ -34,6 +34,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #endif
 #undef if
 #undef else
+#undef case
 #undef for
 #undef while
 #undef break

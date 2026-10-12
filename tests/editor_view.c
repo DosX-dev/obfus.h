@@ -2,6 +2,7 @@
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef printf
 #undef puts
 

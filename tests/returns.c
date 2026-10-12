@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <windows.h>
+
 #include "../include/obfus.h"
 
 static int calls;
@@ -33,7 +34,10 @@ static int loop(int n) {
             return i;
     return -1;
 }
-struct Pair { int a; double b; };
+struct Pair {
+    int a;
+    double b;
+};
 static struct Pair pair(void) {
     struct Pair p = {17, 2.5};
     return p;
@@ -44,6 +48,7 @@ static int comma(void) { return (++calls, calls + 10); }
 
 #undef if
 #undef else
+#undef case
 #undef printf
 int main(void) {
     const char *p = "return";

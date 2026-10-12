@@ -7,6 +7,7 @@ static void reference(void *p, size_t n, size_t w, int (*cmp)(const void *, cons
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef for
 #undef while
 #undef break

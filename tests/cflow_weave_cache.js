@@ -29,6 +29,7 @@ function selectorCache(source) {
         const values = {
             OBFH_P_WORD: arch === 'x64' ? 'q' : 'l',
             OBFH_P_CX: arch === 'x64' ? '%%rcx' : '%%ecx',
+            OBFH_P_INC_CX: arch === 'x64' ? '.fill %c[parity],2,0xc1ff;' : '.fill %c[parity],1,0x41;',
             OBFH_P_DX: arch === 'x64' ? '%%rdx' : '%%edx',
             OBFH_P_DECODE_PREFIX: arch === 'x64' ? '.byte 0x48;' : '',
             OBFH_P_SCALE: arch === 'x64' ? '8' : '4',
@@ -81,7 +82,7 @@ function expand(macro, args) {
     return body.replace(/\s*##\s*/g, '');
 }
 function expandSlots(body, slot, name = 'OBFH_P_SLOT(') {
-    for (let offset = 0; ; ) {
+    for (let offset = 0; ;) {
         const start = body.indexOf(name, offset);
         if (start < 0) return body;
         let depth = 1,
@@ -114,7 +115,7 @@ function foldLiteralArms(body) {
         }
         throw new Error('Unbalanced generated expression');
     }
-    for (;;) {
+    for (; ;) {
         const match = /\(([01])\s*\?\s*\(/.exec(body);
         if (!match) return body;
         const first = match.index + match[0].length - 1,
@@ -132,13 +133,13 @@ function foldLiteralArms(body) {
 function foldMetadataAliases(body) {
     // Paired slots share their operation. Keep the readable declarations above;
     // the cache can refer directly to the already declared component field.
-    for (;;) {
+    for (; ;) {
         const match = /\b(_[COB]\d+)\s*=\s*\((_[CONB]\d+)\),\s*/.exec(body);
         if (!match) break;
         body = body.slice(0, match.index) + body.slice(match.index + match[0].length);
         body = body.replace(new RegExp('\\b' + match[1] + '\\b', 'g'), match[2]);
     }
-    for (;;) {
+    for (; ;) {
         const unused = [...body.matchAll(/\b(_[COB]\d+)\s*=[^,;{}]*,\s*/g)].find(
             (match) => [...body.matchAll(new RegExp('\\b' + match[1] + '\\b', 'g'))].length === 1
         );

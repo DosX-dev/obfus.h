@@ -4,6 +4,7 @@
 #include "../include/obfus.h"
 #undef if
 #undef else
+#undef case
 #undef return
 #undef printf
 

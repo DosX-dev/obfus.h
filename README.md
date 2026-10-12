@@ -45,7 +45,7 @@ Protection is polymorphic throughout the application: even small changes to the 
 
 Control-flow protection uses **Control Flow Explosion**: straightforward conditions and loops expand into a tangled graph of branches, indirect transitions and fake functions. Polymorphic instruction sequences carry state and select continuations, so removing them without preserving their dependencies can break execution. The graph's structure and instruction forms vary with the source code, making the original logic harder to follow in disassemblers and decompilers. `CFLOW_V2` adds another layer of control-flow mutation.
 
-Automatic control-flow protection transforms `if`, `else`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
+Automatic control-flow protection transforms `if`, `else`, `case`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
 
 IntelliSense remains available. No extra tools or code generation are required.
 
