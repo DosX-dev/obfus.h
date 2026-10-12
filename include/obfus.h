@@ -4508,11 +4508,62 @@ typedef struct
 } OBFH_V_REGISTER;
 typedef struct
 {
+#if (OBFH_BUILD_SEED >> 4) % 4u == 0u
     OBFH_V_REGISTER registers[4];
     unsigned int controls[4];
     unsigned int flags, flag_key, pc, steps, initialized, key, status, flags_ready;
     long double result;
+#elif (OBFH_BUILD_SEED >> 4) % 4u == 1u
+    long double result;
+    unsigned int key, initialized, steps, pc, flags_ready, status, flag_key, flags;
+    unsigned int controls[4];
+    OBFH_V_REGISTER registers[4];
+#elif (OBFH_BUILD_SEED >> 4) % 4u == 2u
+    unsigned int controls[4];
+    unsigned int pc, key, status, flags, steps, flag_key, flags_ready, initialized;
+    long double result;
+    OBFH_V_REGISTER registers[4];
+#else
+    unsigned int status, flags_ready, key, initialized, flag_key, steps, flags, pc;
+    OBFH_V_REGISTER registers[4];
+    long double result;
+    unsigned int controls[4];
+#endif
 } OBFH_V_CONTEXT;
+
+// Four byte permutations with different dependencies, selected at compile time.
+// Every decoder costs one multiply and one add/subtract or XOR; no runtime selector.
+#define OBFH_V_OPCODE_MODE ((OBFH_BUILD_SEED >> 2) & 3u)
+#define OBFH_V_OPCODE_MULTIPLIER(key) ((((unsigned int)(key) >> 8) & 255u) | 1u)
+#if OBFH_V_OPCODE_MODE == 0u
+#define OBFH_V_OPCODE_ENCODE(op, key) (((unsigned int)(op)*OBFH_V_OPCODE_MULTIPLIER(key) + ((key)&255u)) & 255u)
+#define OBFH_V_OPCODE_DECODE(op, key, inverse) ((((op) - ((key)&255u)) * (inverse)) & 255u)
+#elif OBFH_V_OPCODE_MODE == 1u
+#define OBFH_V_OPCODE_ENCODE(op, key) (((unsigned int)(op)*OBFH_V_OPCODE_MULTIPLIER(key) ^ ((key)&255u)) & 255u)
+#define OBFH_V_OPCODE_DECODE(op, key, inverse) ((((op) ^ ((key)&255u)) * (inverse)) & 255u)
+#elif OBFH_V_OPCODE_MODE == 2u
+#define OBFH_V_OPCODE_ENCODE(op, key) ((((unsigned int)(op) ^ ((key)&255u)) * OBFH_V_OPCODE_MULTIPLIER(key)) & 255u)
+#define OBFH_V_OPCODE_DECODE(op, key, inverse) ((((op) * (inverse)) ^ ((key)&255u)) & 255u)
+#else
+#define OBFH_V_OPCODE_ENCODE(op, key) ((((unsigned int)(op) + ((key)&255u)) * OBFH_V_OPCODE_MULTIPLIER(key)) & 255u)
+#define OBFH_V_OPCODE_DECODE(op, key, inverse) ((((op) * (inverse)) - ((key)&255u)) & 255u)
+#endif
+
+// Word masking changes independently of opcode encoding and context placement.
+#define OBFH_V_WORD_MODE ((OBFH_BUILD_SEED >> 6) & 3u)
+#if OBFH_V_WORD_MODE == 0u
+#define OBFH_V_WORD_ENCODE(word, key, pc) ((word) ^ ((key) + (unsigned int)(pc)*0x9e3779b9u))
+#define OBFH_V_WORD_DECODE(word, key, pc) OBFH_V_WORD_ENCODE(word, key, pc)
+#elif OBFH_V_WORD_MODE == 1u
+#define OBFH_V_WORD_ENCODE(word, key, pc) ((word) + ((key) ^ (unsigned int)(pc)*0x9e3779b9u))
+#define OBFH_V_WORD_DECODE(word, key, pc) ((word) - ((key) ^ (unsigned int)(pc)*0x9e3779b9u))
+#elif OBFH_V_WORD_MODE == 2u
+#define OBFH_V_WORD_ENCODE(word, key, pc) ((word) ^ ((key) - (unsigned int)(pc)*0x9e3779b9u))
+#define OBFH_V_WORD_DECODE(word, key, pc) OBFH_V_WORD_ENCODE(word, key, pc)
+#else
+#define OBFH_V_WORD_ENCODE(word, key, pc) ((word) - ((key) + (unsigned int)(pc)*0x9e3779b9u))
+#define OBFH_V_WORD_DECODE(word, key, pc) ((word) + ((key) + (unsigned int)(pc)*0x9e3779b9u))
+#endif
 
 static unsigned int obfh_v_mix(unsigned int x) {
     x ^= x >> 16;
@@ -4572,7 +4623,7 @@ static void obfh_v_failure(OBFH_V_CONTEXT *c, unsigned int status) {
     ExitProcess(0xE0BF0000u | status);
 }
 static unsigned int obfh_v_decode(unsigned int word, unsigned int key, unsigned int pc, unsigned int rotate) {
-    word ^= key + pc * 0x9e3779b9u;
+    word = OBFH_V_WORD_DECODE(word, key, pc);
     PHANTOM_NOP;
     return (word << rotate) | (word >> (32u - rotate));
 }
@@ -4582,7 +4633,7 @@ static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
     PHANTOM_NOP;
     inverse *= 2u - multiplier * inverse;
     inverse *= 2u - multiplier * inverse;
-    return (((word & 255u) - (key & 255u)) * inverse) & 255u;
+    return OBFH_V_OPCODE_DECODE(word & 255u, key, inverse);
 }
 
 // Decoder order is selected at preprocessing time; only the selected decoder executes its optional NOP.
@@ -4694,7 +4745,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         OBFH_VM_FIELDS_LAYOUT
     fields_ready:
         PHANTOM_NOP;
-        op = (((op & 255u) - (key & 255u)) * decode_inverse) & 255u;
+        op = OBFH_V_OPCODE_DECODE(op & 255u, key, decode_inverse);
         ++c.steps;
         if (op < OBFH_V_LOAD_A || op > OBFH_V_RETURN)
             obfh_v_failure(&c, 3);
@@ -7124,7 +7175,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 
 /* Each expression owns an immutable encoded instruction stream. */
 #define OBFH_V_INSTRUCTION(op, d, a, b, imm) \
-    (((((unsigned int)(op) * (((__obfh_vkey >> 8) & 255u) | 1u) + (__obfh_vkey & 255u)) & 255u)) | ((unsigned int)(d) << 8) | \
+    (OBFH_V_OPCODE_ENCODE(op, __obfh_vkey) | ((unsigned int)(d) << 8) | \
      ((unsigned int)(a) << 10) | ((unsigned int)(b) << 12) | (((unsigned int)(imm)&0x3ffffu) << 14))
 #define OBFH_V_OPERATION_0(d, a, b) \
     OBFH_V_INSTRUCTION(__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation \
@@ -7141,8 +7192,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
                                                 __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 3, \
                                                                       ((w)&255u) | ((((w) >> 8) & 3u) << 12) | ((((w) >> 10) & 3u) << 8) | ((((w) >> 12) & 3u) << 10) | ((w)&0xffffc000u), (w))))
 #define OBFH_V_ENCODE_RAW(word, pc) \
-    (((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u))))) ^ \
-     (__obfh_vkey + (unsigned int)(pc)*0x9e3779b9u))
+    OBFH_V_WORD_ENCODE((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u)))), __obfh_vkey, pc)
 #define OBFH_V_ENCODE(word, pc) OBFH_V_ENCODE_RAW(OBFH_V_PACK(word), pc)
 #define OBFH_V_PROGRAM_0 \
     (const unsigned int[]) { \

@@ -4,6 +4,7 @@ const path = require('node:path');
 
 async function runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
     await require('./vm_fields').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
+    await require('./vm_variants').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
     const root = path.join(directory, arch + '-vm-kernel');
     fs.mkdirSync(path.join(root, 'include'), { recursive: true });
     fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
@@ -20,7 +21,8 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     fs.writeFileSync(header, traced);
 
     for (const mode of [0, 1]) {
-        for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
+        // Cover every opcode/word dependency order and context layout, plus boundary seeds.
+        for (const seed of [0, 84, 168, 252, 0xdeadbeef, 0xffffffff]) {
             await check(
                 `${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`,
                 async () => {

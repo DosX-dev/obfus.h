@@ -407,9 +407,53 @@ int main(int argc, char **argv) {
     for (unsigned int multiplier = 1; multiplier < 256; multiplier += 2) {
         unsigned int key = (multiplier << 8) | 0xa5u;
         for (unsigned int opcode = 0; opcode < 256; ++opcode) {
-            unsigned int word = (opcode * multiplier + (key & 255u)) & 255u;
+            // Independent oracle: do not use the production encoder here.
+            unsigned int word;
+            switch (OBFH_V_OPCODE_MODE) {
+                case 0:
+                    word = opcode * multiplier + (key & 255u);
+                    break;
+                case 1:
+                    word = opcode * multiplier ^ (key & 255u);
+                    break;
+                case 2:
+                    word = (opcode ^ (key & 255u)) * multiplier;
+                    break;
+                default:
+                    word = (opcode + (key & 255u)) * multiplier;
+                    break;
+            }
+            word &= 255u;
+            if (OBFH_V_OPCODE_ENCODE(opcode, key) != word)
+                return 4;
             if (obfh_v_opcode(word, key) != opcode)
                 return 4;
+        }
+    }
+    // Independent word oracle also exercises every rotate and modular overflow.
+    for (unsigned int rotate = 1; rotate < 32; ++rotate) {
+        unsigned int __obfh_vkey = (rotate - 1u) + 31u * 0x07000000u;
+        unsigned int word = 0xffffffffu;
+        for (unsigned int pc = 0; pc < 128; ++pc) {
+            word = word * 1664525u + 1013904223u;
+            unsigned int rotated = (word >> rotate) | (word << (32u - rotate));
+            unsigned int encoded;
+            switch (OBFH_V_WORD_MODE) {
+                case 0:
+                    encoded = rotated ^ (__obfh_vkey + pc * 0x9e3779b9u);
+                    break;
+                case 1:
+                    encoded = rotated + (__obfh_vkey ^ pc * 0x9e3779b9u);
+                    break;
+                case 2:
+                    encoded = rotated ^ (__obfh_vkey - pc * 0x9e3779b9u);
+                    break;
+                default:
+                    encoded = rotated - (__obfh_vkey + pc * 0x9e3779b9u);
+                    break;
+            }
+            if (OBFH_V_ENCODE_RAW(word, pc) != encoded || obfh_v_decode(encoded, __obfh_vkey, pc, rotate) != word)
+                return 10;
         }
     }
     OBFH_V_CONTEXT context;
