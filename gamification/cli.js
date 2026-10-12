@@ -18,6 +18,10 @@ const option = (name) => {
 };
 async function main() {
     if (Number(process.versions.node.split('.')[0]) !== 24) throw new Error('Use Node.js 24 LTS');
+    const advanceText = option('advance-from-round') || process.env.CRACKME_ADVANCE_FROM_ROUND;
+    const advanceFromRound = advanceText ? Number(advanceText) : null;
+    if (advanceFromRound !== null && (!Number.isSafeInteger(advanceFromRound) || advanceFromRound < 1 || command !== 'daily' || !args.includes('--now')))
+        throw new Error('A manual extra round requires --now and a positive expected current round');
     if (command === 'test') {
         const directory = path.join(GAMIFICATION_ROOT, 'test'), files = (await fs.readdir(directory)).filter(name => name.endsWith('.test.js')).map(name => path.join(directory, name));
         const result = await run(process.execPath, ['--test', ...files], { timeout: 600000 });
@@ -46,7 +50,9 @@ async function main() {
         const key = masterKey(process.env.CRACKME_MASTER_KEY);
         api = new GitHub(process.env.GITHUB_REPOSITORY, process.env.GITHUB_TOKEN);
         state = await recover(api);
-        if (!roundDue(state, time, args.includes('--now'))) {
+        if (advanceFromRound !== null && (!state || state.date !== time.date || state.round < advanceFromRound))
+            throw new Error('Expected current round/date does not match published state');
+        if (!roundDue(state, time, args.includes('--now'), advanceFromRound)) {
             console.log('No new round due');
             return;
         }
@@ -76,7 +82,7 @@ async function main() {
         history: state ? await loadHistory(api, state) : [],
         repository: process.env.GITHUB_REPOSITORY || 'DosX-dev/obfus.h'
     });
-    if (command === 'daily') await publish(api, result.state, result.files);
+    if (command === 'daily') await publish(api, result.state, result.files, { advanceFromRound });
     else {
         console.log(`Local preview ready: ${directory}`);
     }
