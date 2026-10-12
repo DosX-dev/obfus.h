@@ -29,6 +29,13 @@ static void store_xmm(void *p) {
 }
 #include "../include/obfus.h"
 static void *move(void *a, const void *b, size_t n) { return memmove(a, b, n); }
+#if NO_OBF != 1 && !defined(__INTELLISENSE__)
+// Both formulas must expand at the same call-site line, even after formatting.
+#define CHECK_CUSTOM_DRAW() ({ \
+    OBFH_CUSTOM_BEGIN; \
+    (unsigned int)__obfh_custom_draw != OBFH_PHANTOM_DRAW(__obfh_custom_site); \
+})
+#endif
 int main(void) {
     unsigned char before[128], after[128], data[400];
     unsigned fail = 0;
@@ -50,6 +57,7 @@ int main(void) {
 #if NO_OBF != 1 && !defined(__INTELLISENSE__)
     {
         __label__ selected;
+        fail |= CHECK_CUSTOM_DRAW();
         OBFH_CUSTOM_BEGIN;
         int count = 0, a = 3, b = 7;
         int *pointer = &a;

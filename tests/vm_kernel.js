@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 async function runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
+    await require('./vm_fields').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
     const root = path.join(directory, arch + '-vm-kernel');
     fs.mkdirSync(path.join(root, 'include'), { recursive: true });
     fs.mkdirSync(path.join(root, 'tests'), { recursive: true });

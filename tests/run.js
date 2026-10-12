@@ -15,6 +15,8 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const { CheckPool, workerCount } = require('./runner_pool');
 const taskContext = new AsyncLocalStorage();
 const finalizers = [];
+const suiteStarted = Date.now();
+let compilationCount = 0;
 let pool,
     checkIndex = 0;
 const order = new Map();
@@ -26,6 +28,18 @@ function checkGroup(name) {
     if (/all junk sites|junk bytes vary/.test(name)) return arch + '/junk';
     return name;
 }
+function checkPriority(name) {
+    if (/^(source:|runner:|binary scanner:)/.test(name)) return 1000;
+    // Multi-build groups dominated recent full-run tails. Starting them early
+    // overlaps their serial build chains with the remaining independent tests.
+    if (/\/cflow-v[12] tokens,/.test(name)) return 100;
+    if (name.includes('/CRT proxy calls')) return 90;
+    if (name.includes('/stack proxies/')) return 80;
+    if (name.includes('/fast transfer bytes')) return 75;
+    if (/false else guard|typed return transport/.test(name)) return 60;
+    if (name.includes('/VM ISA, all programs')) return 50;
+    return 0;
+}
 async function check(name, action) {
     const id = checkIndex++;
     order.set(name, id);
@@ -36,7 +50,7 @@ async function check(name, action) {
             fs.mkdirSync(cwd, { recursive: true });
             await taskContext.run({ cwd }, action);
         });
-    });
+    }, checkPriority(name));
     return true;
 }
 const root = path.resolve(__dirname, '..');
@@ -207,6 +221,7 @@ async function run(command, args, options = {}) {
                             status,
                             signal,
                             elapsedMs: Date.now() - started,
+                            startedAt: started,
                             stdout,
                             stderr,
                             error: failure?.message
@@ -251,6 +266,7 @@ async function discover() {
     );
 }
 async function compile(compiler, directory, name, file, flags, extra = []) {
+    ++compilationCount;
     const output = path.join(directory, name);
     const result = await run(
         compiler,
@@ -619,6 +635,7 @@ async function main() {
         await check('source: legacy CPUID/NOP macros removed', async () => {
             assert(!/\b(?:FAKE_CPUID|NOP_FLOOD)\b/.test(source), 'legacy junk macro remains');
             assert(!source.includes('__obfh_strcmp_junk_done'), 'inline legacy NOP clone remains');
+            assert(!/^#define\s+\w+_custom\b/m.test(source), 'undocumented custom compatibility alias remains');
         });
         await check('source: custom exports and unified name construction preserved', async () => {
             const begin = source.indexOf('FARPROC obfh_find_export('),
@@ -2129,6 +2146,8 @@ async function main() {
             path.join(directory, 'results.json'),
             JSON.stringify(
                 {
+                    durationMs: Date.now() - suiteStarted,
+                    compilationCount,
                     parallelism: pool && { workers: pool.limit, peak: pool.peak },
                     results,
                     passed: results.length - failed.length,

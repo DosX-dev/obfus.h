@@ -13,11 +13,18 @@ class CheckPool {
         this.tasks = [];
         this.peak = 0;
     }
-    add(group, action) {
-        this.tasks.push({ group, action });
+    add(group, action, priority = 0) {
+        if (!Number.isFinite(priority)) throw new Error('invalid check priority');
+        this.tasks.push({ group, action, priority });
     }
     async drain() {
         const pending = this.tasks.splice(0);
+        // Prioritize whole groups, preserving FIFO for mutable-header and
+        // build-result dependencies within each group. Equal priorities stay FIFO.
+        const groupPriority = new Map();
+        for (const task of pending)
+            groupPriority.set(task.group, Math.max(groupPriority.get(task.group) ?? -Infinity, task.priority));
+        pending.sort((a, b) => groupPriority.get(b.group) - groupPriority.get(a.group));
         const busy = new Set();
         let active = 0;
         await new Promise((resolve, reject) => {

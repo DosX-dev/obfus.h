@@ -70,9 +70,41 @@ __declspec(dllexport) void fast_probe_second(void) { OBFH_FLOW_FAST_TRANSFER; }
 __declspec(dllexport) unsigned protected_do(unsigned x) { unsigned sum = 0; do { sum += x; } while (--x); return sum; }
 int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100; ++i) if (native_do(i) != protected_do(i)) return 1; puts("FAST_PROBE_PASS"); return 0; }
 `);
+        // Check the real include boundary, then compile only the production
+        // primitives for the byte matrix. Unrelated VM/CRT bodies are not part
+        // of the exported insertion under examination.
+        const probeFlags = ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1'];
+        const fullFirst = await compile(compiler, directory, `${arch}-fast-full-first.exe`, probe,
+            [...probeFlags, 'OBFH_BUILD_SEED=0u']);
+        await execute(fullFirst, 'FAST_PROBE_PASS');
+        const fullBytes = exportedProbe(fullFirst);
+        const fullDoBytes = exportedProbe(fullFirst, 'protected_do', true);
+        const fullRepeat = await compile(compiler, directory, `${arch}-fast-full-repeat.exe`, probe,
+            [...probeFlags, 'OBFH_BUILD_SEED=0u']);
+        await execute(fullRepeat, 'FAST_PROBE_PASS');
+        assert(fullBytes.equals(exportedProbe(fullRepeat)), 'full-header fast insertion replay changed');
+        assert(fullDoBytes.equals(exportedProbe(fullRepeat, 'protected_do', true)), 'full-header do replay changed');
+        const primitiveHeader = path.join(root, 'include', 'fast_primitives.h');
+        function definition(name) {
+            const pattern = new RegExp('^#define ' + name + '(?=[ (])', 'm');
+            const match = pattern.exec(source);
+            assert(match, 'missing fast primitive dependency: ' + name);
+            const lines = source.slice(match.index).split('\n');
+            let count = 1;
+            while (lines[count - 1].trimEnd().endsWith('\\')) ++count;
+            return lines.slice(0, count).join('\n');
+        }
+        const start = source.indexOf('#define OBFH_FLOW_FAST_TRANSFER');
+        const end = source.indexOf('#define if(', start);
+        assert(start >= 0 && end > start, 'fast primitive boundaries missing');
+        fs.writeFileSync(primitiveHeader, '#include <stdio.h>\n#define __obfh_asm__(...) __asm__ __volatile__(__VA_ARGS__)\n' +
+            ['OBFH_MIX_A', 'OBFH_MIX_B', 'OBFH_MIX_FIELDS', 'OBFH_DATA_FIELDS'].map(definition).join('\n') +
+            '\n' + source.slice(start, end));
+        const primitiveProbe = path.join(root, 'tests', 'primitive_probe.c');
+        fs.writeFileSync(primitiveProbe, fs.readFileSync(probe, 'utf8').replace('../include/obfus.h', '../include/fast_primitives.h'));
         const variants = [], lengths = new Set(), fastForms = new Set(), doForms = new Set(), doVariants = [], blobs = [], prefixLengths = [];
         for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 0x10000, 0x10001, 0xdead0000, 0xdeadbeef, 0xffffffff, 0]) {
-            const file = await compile(compiler, directory, `${arch}-fast-probe-${variants.length}.exe`, probe,
+            const file = await compile(compiler, directory, `${arch}-fast-probe-${variants.length}.exe`, primitiveProbe,
                 ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1', `OBFH_BUILD_SEED=${seed}u`]);
             await execute(file, 'FAST_PROBE_PASS');
             const bytes = exportedProbe(file);

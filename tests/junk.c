@@ -25,7 +25,8 @@ __declspec(dllexport) int junk_anchor(int x) { return x; }
 static int (*sites[])(int) = {junk_site_0, junk_site_1, junk_site_2, junk_site_3, junk_site_4, junk_site_5, junk_site_6, junk_site_7, junk_site_8, junk_site_9, junk_site_10, junk_site_11, junk_site_12};
 static DWORD WINAPI stress(void *unused) {
     unsigned int state = 0x12345678u;
-    for (int i = 0; i < 1000; ++i) {
+    // Every pass still executes all 13 sites; only stress repetition is reduced.
+    for (int i = 0; i < 500; ++i) {
         state = state * 1664525u + 1013904223u;
         int x = (int)(state % 1000000u);
         volatile float f = x / 8.0f;

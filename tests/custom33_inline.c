@@ -89,7 +89,7 @@ int main(void) {
     (void)(wcstok_s(wa, L",", &wctx));
     fail |= div(-7, 3).rem != -1 || lldiv(-7, 3).quot != -2;
     fail |= labs(-7) != 7 || llabs(-4294967296LL) != 4294967296LL;
-    fail |= strcmp_custom(_itoa(-7, a, 10), "-7") != 0;
+    fail |= strcmp(_itoa(-7, a, 10), "-7") != 0;
     fail |= _wcstoi64(_i64tow(4294967296LL, wa, 10), NULL, 10) != 4294967296LL;
     ExitProcess(fail);
 }

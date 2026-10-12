@@ -108,69 +108,10 @@
 #define BAD_CALL ((void)0)
 #define OBFUS_CONDITION_BLOCK(...) (__VA_ARGS__)
 
-// Memory operations.
-#define memchr_custom(...) memchr(__VA_ARGS__)
-#define memcmp_custom(...) memcmp(__VA_ARGS__)
-#define memcpy_custom(...) memcpy(__VA_ARGS__)
-#define memmove_custom(...) memmove(__VA_ARGS__)
-#define memset_custom(...) memset(__VA_ARGS__)
-#define wmemchr_custom(...) wmemchr(__VA_ARGS__)
-#define wmemcmp_custom(...) wmemcmp(__VA_ARGS__)
-#define wmemcpy_custom(...) wmemcpy(__VA_ARGS__)
-#define wmemmove_custom(...) wmemmove(__VA_ARGS__)
-#define wmemset_custom(...) wmemset(__VA_ARGS__)
-
-// Narrow strings.
-#define strlen_custom(...) strlen(__VA_ARGS__)
-#define strnlen_custom(...) strnlen(__VA_ARGS__)
-#define strcmp_custom(...) strcmp(__VA_ARGS__)
-#define strncmp_custom(...) strncmp(__VA_ARGS__)
-#define strcpy_custom(...) strcpy(__VA_ARGS__)
-#define strncpy_custom(...) strncpy(__VA_ARGS__)
-#define strcat_custom(...) strcat(__VA_ARGS__)
-#define strncat_custom(...) strncat(__VA_ARGS__)
-#define strchr_custom(...) strchr(__VA_ARGS__)
-#define strrchr_custom(...) strrchr(__VA_ARGS__)
-#define strstr_custom(...) strstr(__VA_ARGS__)
-#define strspn_custom(...) strspn(__VA_ARGS__)
-#define strcspn_custom(...) strcspn(__VA_ARGS__)
-#define strpbrk_custom(...) strpbrk(__VA_ARGS__)
-
-// Wide strings.
-#define wcslen_custom(...) wcslen(__VA_ARGS__)
-#define wcsnlen_custom(...) wcsnlen(__VA_ARGS__)
-#define wcscmp_custom(...) wcscmp(__VA_ARGS__)
-#define wcsncmp_custom(...) wcsncmp(__VA_ARGS__)
-#define wcscpy_custom(...) wcscpy(__VA_ARGS__)
-#define wcsncpy_custom(...) wcsncpy(__VA_ARGS__)
-#define wcscat_custom(...) wcscat(__VA_ARGS__)
-#define wcsncat_custom(...) wcsncat(__VA_ARGS__)
-#define wcschr_custom(...) wcschr(__VA_ARGS__)
-#define wcsrchr_custom(...) wcsrchr(__VA_ARGS__)
-#define wcsstr_custom(...) wcsstr(__VA_ARGS__)
-#define wcsspn_custom(...) wcsspn(__VA_ARGS__)
-#define wcscspn_custom(...) wcscspn(__VA_ARGS__)
-#define wcspbrk_custom(...) wcspbrk(__VA_ARGS__)
-
-#define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
-#define strtol_custom(...) strtol(__VA_ARGS__)
-#define strtoul_custom(...) strtoul(__VA_ARGS__)
-#define strtoll_custom(...) _strtoi64(__VA_ARGS__)
-#define strtoull_custom(...) _strtoui64(__VA_ARGS__)
-#define atoll_custom(...) _atoi64(__VA_ARGS__)
 #undef strtoll
 #undef strtoull
-#define strtoll(...) strtoll_custom(__VA_ARGS__)
-#define strtoull(...) strtoull_custom(__VA_ARGS__)
-#define stricmp_custom(...) _stricmp(__VA_ARGS__)
-#define strnicmp_custom(...) _strnicmp(__VA_ARGS__)
-#define atoi_custom(...) atoi(__VA_ARGS__)
-#define atol_custom(...) atol(__VA_ARGS__)
-#define strdup_custom(...) strdup(__VA_ARGS__)
-#define wcsdup_custom(...) wcsdup(__VA_ARGS__)
-#define strrev_custom(...) strrev(__VA_ARGS__)
-#define wcsrev_custom(...) wcsrev(__VA_ARGS__)
-#define strtok_custom(...) strtok(__VA_ARGS__)
+#define strtoll(...) _strtoi64(__VA_ARGS__)
+#define strtoull(...) _strtoui64(__VA_ARGS__)
 
 #define OBFH_EDITOR_BOUNDED_LENGTH(char_type, text, count) \
     ({ \
@@ -185,15 +126,7 @@
         __obfh_editor_length; \
     })
 #define strnlen_s(text, count) OBFH_EDITOR_BOUNDED_LENGTH(char, text, count)
-#define strnlen_s_custom(...) strnlen_s(__VA_ARGS__)
 #define wcsnlen_s(text, count) OBFH_EDITOR_BOUNDED_LENGTH(wchar_t, text, count)
-#define wcsnlen_s_custom(...) wcsnlen_s(__VA_ARGS__)
-
-// Search, output and platform aliases.
-#define bsearch_custom(...) bsearch(__VA_ARGS__)
-#define qsort_custom(...) qsort(__VA_ARGS__)
-#define printf_custom(...) printf(__VA_ARGS__)
-#define GetProcAddress_custom(...) GetProcAddress(__VA_ARGS__)
 
 // The bundled import library omits these tokenizers and lldiv. Keep editor
 // results typed without adding NO_OBF exports.
@@ -501,8 +434,8 @@ typedef enum {
 
 #define RET_BY_VAR(value) \
     { \
-        enum { __obfh_ret_first = OBFH_DATA_DRAW(__COUNTER__), \
-               __obfh_ret_second_draw = OBFH_DATA_DRAW(__COUNTER__), \
+        enum { OBFH_DATA_FIELDS(__obfh_ret_first, __COUNTER__), \
+               OBFH_DATA_FIELDS(__obfh_ret_second_draw, __COUNTER__), \
                __obfh_ret_second = (__obfh_ret_second_draw & ~3u) | (((__obfh_ret_first & 3u) + 1u + ((__obfh_ret_second_draw >> 8) % 3u)) & 3u) }; \
         volatile ULONG_PTR __obfh_ret_address_slot; \
         ULONG_PTR __obfh_ret_key = (ULONG_PTR)&__obfh_ret_address_slot ^ (ULONG_PTR)__obfh_ret_first; \
@@ -521,6 +454,9 @@ typedef enum {
 #define OBFH_JUNK_WORD ((RND(0, 65535) * 2246822519u) ^ ((unsigned int)RND(0, 65535) << 16) ^ (RND(0, 65535) * 3266489917u))
 #define OBFH_MIX_A(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) * 2246822507u)
 #define OBFH_MIX_B(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 13)) * 3266489909u)
+// Enum fields only: preserve the original uint32 mix without runtime storage.
+#define OBFH_MIX_FIELDS(name, value) \
+    name##_mix = OBFH_MIX_A(value), name = OBFH_MIX_B(name##_mix)
 // Compile-time index forms: 4/6 literal, 1/6 scalar byte, 1/6 protected call.
 // Digits are ready before any name builder; no runtime selection branch.
 static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
@@ -558,6 +494,8 @@ static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
 #define OBFH_CRT_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER(forward, reverse)
 
 #define OBFH_DATA_DRAW(salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u)))
+#define OBFH_DATA_FIELDS(name, salt) \
+    OBFH_MIX_FIELDS(name, (unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u))
 
 // ============================================================================
 // 04. Retained data and optional instruction padding
@@ -773,13 +711,19 @@ enum { OBFH_ALPHA_LOW = 1u,
 // Compile-time byte variation only: no runtime branch, register or flag changes.
 #define OBFH_PHANTOM_DRAW(site) \
     OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u))
-#define PHANTOM_NOP \
+// Capture the first mix before expanding the second; its argument is repeated.
+#define OBFH_PHANTOM_CAPTURE(site_name, draw_name, site) \
+    enum { site_name = (site), \
+           site_name##_mix = OBFH_MIX_A((unsigned int)site_name ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u), \
+           draw_name = OBFH_MIX_B(site_name##_mix) }
+#define OBFH_PHANTOM_NOP_AT(site) \
     ({ \
-        enum { __obfh_phantom_site = __LINE__ }; \
-        __obfh_asm__(".fill %c0, 1,((( 0x90)&0xffffffff)^0x80000000)-0x80000000;" \
+        OBFH_PHANTOM_CAPTURE(__obfh_phantom_site, __obfh_phantom_draw, site); \
+        __obfh_asm__(".fill %c0, 1, 0x90;" \
                      : \
-                     : "i"(OBFH_PHANTOM_DRAW(__obfh_phantom_site) & 1u)); \
+                     : "i"(__obfh_phantom_draw & 1u)); \
     })
+#define PHANTOM_NOP OBFH_PHANTOM_NOP_AT(__LINE__)
 
 // ============================================================================
 // 05. Native decoys with PE unwind metadata
@@ -1939,7 +1883,7 @@ OBFH_PD_DEFINE(127);
         __obfh_sf_alu_a = RND(0, 4), \
         __obfh_sf_alu_b = RND(0, 6), \
         __obfh_sf_shift = RND(0, 4), \
-        __obfh_sf_phantom = OBFH_PHANTOM_DRAW(__LINE__), \
+        OBFH_MIX_FIELDS(__obfh_sf_phantom, (unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u), \
         __obfh_sf_salt = RND(1, 32767), \
         __obfh_sf_rotate = RND(1, 31), \
         __obfh_sf_frame_a = RND(2, 12) * 16u, \
@@ -3366,7 +3310,8 @@ OBFH_PD_DEFINE(127);
 
 #define STACK_PROXY_FUNCTIONS ({ \
     enum { __obfh_sf_id = __COUNTER__, \
-           __obfh_sf_variant = OBFH_MIX_B(OBFH_MIX_A((unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u)) % OBFH_SF_VARIANT_COUNT }; \
+           OBFH_MIX_FIELDS(__obfh_sf_draw, (unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u), \
+           __obfh_sf_variant = (unsigned int)__obfh_sf_draw % OBFH_SF_VARIANT_COUNT }; \
     OBFH_SF_SELECT(__obfh_sf_variant); \
     (void)0; \
 })
@@ -3660,8 +3605,8 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #define OBFH_FLOW_ELSE_GUARD \
     (({ \
         enum { __obfh_else_site = __COUNTER__, \
-               __obfh_flow_hash = OBFH_MIX_B(OBFH_MIX_A((unsigned int)OBFH_BUILD_SEED ^ \
-                                                        (unsigned int)__obfh_else_site ^ (unsigned int)__LINE__ * 2654435761u ^ 0x454C5345u)), \
+               OBFH_MIX_FIELDS(__obfh_flow_hash, (unsigned int)OBFH_BUILD_SEED ^ \
+                                                     (unsigned int)__obfh_else_site ^ (unsigned int)__LINE__ * 2654435761u ^ 0x454C5345u), \
                __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u), \
                __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u) }; \
         OBFH_FLOW_ELSE_TRANSPORT; \
@@ -4675,6 +4620,69 @@ static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
     return (((word & 255u) - (key & 255u)) * inverse) & 255u;
 }
 
+// Decoder order is selected at preprocessing time; only the selected decoder executes its optional NOP.
+#define OBFH_VM_FIELDS_0(finish) \
+    fields_0: \
+    OBFH_PHANTOM_NOP_AT(__LINE__ + 0u); \
+    op = word; \
+    d = (word >> 8) & 3u; \
+    a = (word >> 10) & 3u; \
+    b = (word >> 12) & 3u; \
+    imm = word >> 14; \
+    finish
+#define OBFH_VM_FIELDS_1(finish) \
+    fields_1: \
+    OBFH_PHANTOM_NOP_AT(__LINE__ + 1u); \
+    op = word >> 24; \
+    d = (word >> 18) & 3u; \
+    a = (word >> 20) & 3u; \
+    b = (word >> 22) & 3u; \
+    imm = word & 0x3ffffu; \
+    finish
+#define OBFH_VM_FIELDS_2(finish) \
+    fields_2: \
+    OBFH_PHANTOM_NOP_AT(__LINE__ + 2u); \
+    op = word >> 6; \
+    d = word & 3u; \
+    a = (word >> 2) & 3u; \
+    b = (word >> 4) & 3u; \
+    imm = word >> 14; \
+    finish
+#define OBFH_VM_FIELDS_3(finish) \
+    fields_3: \
+    OBFH_PHANTOM_NOP_AT(__LINE__ + 3u); \
+    op = word; \
+    d = (word >> 12) & 3u; \
+    a = (word >> 8) & 3u; \
+    b = (word >> 10) & 3u; \
+    imm = word >> 14; \
+    finish
+#define OBFH_VM_FIELDS_ORDER(a, b, c, d) a(goto fields_ready;) b(goto fields_ready;) c(goto fields_ready;) d()
+#define OBFH_VM_FIELDS_EXPAND(...) OBFH_VM_FIELDS_ORDER(__VA_ARGS__)
+#define OBFH_VM_FIELDS_DRAW (((OBFH_BUILD_SEED ^ 0x564d4644u) * 2654435761u) & 0xffffffffu)
+#if (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 0u
+#define OBFH_VM_FIELDS_TAIL(a, b, c) a, b, c
+#elif (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 1u
+#define OBFH_VM_FIELDS_TAIL(a, b, c) a, c, b
+#elif (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 2u
+#define OBFH_VM_FIELDS_TAIL(a, b, c) b, a, c
+#elif (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 3u
+#define OBFH_VM_FIELDS_TAIL(a, b, c) b, c, a
+#elif (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 4u
+#define OBFH_VM_FIELDS_TAIL(a, b, c) c, a, b
+#elif (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 5u
+#define OBFH_VM_FIELDS_TAIL(a, b, c) c, b, a
+#endif
+#if OBFH_VM_FIELDS_DRAW % 4u == 0u
+#define OBFH_VM_FIELDS_LAYOUT OBFH_VM_FIELDS_EXPAND(OBFH_VM_FIELDS_0, OBFH_VM_FIELDS_TAIL(OBFH_VM_FIELDS_1, OBFH_VM_FIELDS_2, OBFH_VM_FIELDS_3))
+#elif OBFH_VM_FIELDS_DRAW % 4u == 1u
+#define OBFH_VM_FIELDS_LAYOUT OBFH_VM_FIELDS_EXPAND(OBFH_VM_FIELDS_1, OBFH_VM_FIELDS_TAIL(OBFH_VM_FIELDS_2, OBFH_VM_FIELDS_3, OBFH_VM_FIELDS_0))
+#elif OBFH_VM_FIELDS_DRAW % 4u == 2u
+#define OBFH_VM_FIELDS_LAYOUT OBFH_VM_FIELDS_EXPAND(OBFH_VM_FIELDS_2, OBFH_VM_FIELDS_TAIL(OBFH_VM_FIELDS_3, OBFH_VM_FIELDS_0, OBFH_VM_FIELDS_1))
+#elif OBFH_VM_FIELDS_DRAW % 4u == 3u
+#define OBFH_VM_FIELDS_LAYOUT OBFH_VM_FIELDS_EXPAND(OBFH_VM_FIELDS_3, OBFH_VM_FIELDS_TAIL(OBFH_VM_FIELDS_0, OBFH_VM_FIELDS_1, OBFH_VM_FIELDS_2))
+#endif
+
 static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE input_a,
                                        OBFH_VM_VALUE input_b) OBFH_CODE_SECTION_ATTRIBUTE {
 #if NO_CFLOW != 1
@@ -4718,33 +4726,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         unsigned int at = c.pc++, word = obfh_v_decode(program[at], key, at, decode_rotate);
         unsigned int op, d, a, b, imm;
         goto *field_decoder;
-    fields_0:
-        op = word;
-        d = (word >> 8) & 3u;
-        a = (word >> 10) & 3u;
-        b = (word >> 12) & 3u;
-        imm = word >> 14;
-        goto fields_ready;
-    fields_1:
-        op = word >> 24;
-        d = (word >> 18) & 3u;
-        a = (word >> 20) & 3u;
-        b = (word >> 22) & 3u;
-        imm = word & 0x3ffffu;
-        goto fields_ready;
-    fields_2:
-        op = word >> 6;
-        d = word & 3u;
-        a = (word >> 2) & 3u;
-        b = (word >> 4) & 3u;
-        imm = word >> 14;
-        goto fields_ready;
-    fields_3:
-        op = word;
-        d = (word >> 12) & 3u;
-        a = (word >> 8) & 3u;
-        b = (word >> 10) & 3u;
-        imm = word >> 14;
+        OBFH_VM_FIELDS_LAYOUT
     fields_ready:
         PHANTOM_NOP;
         op = (((op & 255u) - (key & 255u)) * decode_inverse) & 255u;
@@ -5063,9 +5045,10 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
 
 // One draw per kernel. Selection is folded by TCC; no runtime dispatcher.
 // PAIR is only for independent local updates, never ordered memory accesses.
+// CUSTOM_NOP is PHANTOM_NOP emission using the captured draw. Separate slots
+// with real cold setup instructions; adjacent identical NOPs only vary length.
 #define OBFH_CUSTOM_BEGIN \
-    enum { __obfh_custom_site = __COUNTER__, \
-           __obfh_custom_draw = OBFH_PHANTOM_DRAW(__obfh_custom_site) }
+    OBFH_PHANTOM_CAPTURE(__obfh_custom_site, __obfh_custom_draw, __COUNTER__)
 #define OBFH_CUSTOM_BIT ((__obfh_custom_draw >> (__COUNTER__ & 31u)) & 1u)
 #define OBFH_CUSTOM_SELECT(condition, yes, no) \
     __builtin_choose_expr(OBFH_CUSTOM_BIT, (condition) ? (yes) : (no), !(condition) ? (no) : (yes))
@@ -5083,11 +5066,13 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
 #define memchr(...) ({ \
     __label__ __obfh_memchr_loop, __obfh_memchr_found, __obfh_memchr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const void *__obfh_memchr_memory; \
         int __obfh_memchr_value; \
         size_t __obfh_memchr_count; \
     } __obfh_memchr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     unsigned char __obfh_memchr_wanted = (unsigned char)__obfh_memchr_args.__obfh_memchr_value; \
     void *__obfh_memchr_result = NULL; \
     BREAK_STACK_CFLOW; \
@@ -5104,15 +5089,16 @@ __obfh_memchr_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_memchr_result; \
 })
-#define memchr_custom(...) memchr(__VA_ARGS__)
 
 #define strspn(...) ({ \
     __label__ __obfh_strspn_loop, __obfh_strspn_match, __obfh_strspn_select, __obfh_strspn_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *__obfh_strspn_text; \
         const char *__obfh_strspn_set; \
     } __obfh_strspn_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const unsigned char *__obfh_strspn_cursor = (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text; \
     const unsigned char *__obfh_strspn_member; \
     BREAK_STACK_CFLOW; \
@@ -5132,15 +5118,16 @@ __obfh_strspn_done:; \
     OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_strspn_cursor - (const unsigned char *)__obfh_strspn_args.__obfh_strspn_text); \
 })
-#define strspn_custom(...) strspn(__VA_ARGS__)
 
 #define strcspn(...) ({ \
     __label__ __obfh_strcspn_loop, __obfh_strcspn_match, __obfh_strcspn_select, __obfh_strcspn_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *__obfh_strcspn_text; \
         const char *__obfh_strcspn_set; \
     } __obfh_strcspn_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const unsigned char *__obfh_strcspn_cursor = (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text; \
     const unsigned char *__obfh_strcspn_member; \
     BREAK_STACK_CFLOW; \
@@ -5160,15 +5147,16 @@ __obfh_strcspn_done:; \
     OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_strcspn_cursor - (const unsigned char *)__obfh_strcspn_args.__obfh_strcspn_text); \
 })
-#define strcspn_custom(...) strcspn(__VA_ARGS__)
 
 #define strpbrk(...) ({ \
     __label__ __obfh_strpbrk_loop, __obfh_strpbrk_match, __obfh_strpbrk_select, __obfh_strpbrk_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *__obfh_strpbrk_text; \
         const char *__obfh_strpbrk_set; \
     } __obfh_strpbrk_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const unsigned char *__obfh_strpbrk_cursor = (const unsigned char *)__obfh_strpbrk_args.__obfh_strpbrk_text; \
     const unsigned char *__obfh_strpbrk_member; \
     BREAK_STACK_CFLOW; \
@@ -5188,16 +5176,17 @@ __obfh_strpbrk_done:; \
     OBFH_CUSTOM_NOP; \
     (char *)(*__obfh_strpbrk_cursor ? (char *)__obfh_strpbrk_cursor : NULL); \
 })
-#define strpbrk_custom(...) strpbrk(__VA_ARGS__)
 
 #define memcmp(...) ({ \
     __label__ __obfh_memcmp_loop, __obfh_memcmp_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const void *__obfh_memcmp_left; \
         const void *__obfh_memcmp_right; \
         size_t __obfh_memcmp_count; \
     } __obfh_memcmp_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_memcmp_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5213,16 +5202,17 @@ __obfh_memcmp_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_memcmp_result; \
 })
-#define memcmp_custom(...) memcmp(__VA_ARGS__)
 
 #define strncmp(...) ({ \
     __label__ __obfh_strncmp_loop, __obfh_strncmp_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *__obfh_strncmp_left; \
         const char *__obfh_strncmp_right; \
         size_t __obfh_strncmp_count; \
     } __obfh_strncmp_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_strncmp_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5237,15 +5227,16 @@ __obfh_strncmp_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_strncmp_result; \
 })
-#define strncmp_custom(...) strncmp(__VA_ARGS__)
 
 #define strstr(...) ({ \
     __label__ __obfh_strstr_loop, __obfh_strstr_match, __obfh_strstr_advance, __obfh_strstr_found, __obfh_strstr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *__obfh_strstr_text; \
         const char *__obfh_strstr_pattern; \
     } __obfh_strstr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const char *__obfh_strstr_a; \
     const char *__obfh_strstr_b; \
     unsigned char __obfh_strstr_first = (unsigned char)*__obfh_strstr_args.__obfh_strstr_pattern; \
@@ -5272,7 +5263,6 @@ __obfh_strstr_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_strstr_result; \
 })
-#define strstr_custom(...) strstr(__VA_ARGS__)
 
 // Local copying, character search and wide-string kernels.
 // REP copy/fill and backward word/SSE2 loads accept unaligned addresses.
@@ -5280,10 +5270,12 @@ __obfh_strstr_done:; \
 #define strchr(...) ({ \
     __label__ __obfh_strchr_loop, __obfh_strchr_found, __obfh_strchr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *text; \
         int character; \
     } __obfh_strchr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const char *__obfh_strchr_cursor = __obfh_strchr_args.text; \
     unsigned char __obfh_strchr_wanted = (unsigned char)__obfh_strchr_args.character; \
     char *__obfh_strchr_result = NULL; \
@@ -5301,15 +5293,15 @@ __obfh_strchr_done:; \
     __obfh_strchr_result; \
 })
 
-#define strchr_custom(...) strchr(__VA_ARGS__)
-
 #define strrchr(...) ({ \
     __label__ __obfh_strrchr_loop, __obfh_strrchr_found, __obfh_strrchr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *text; \
         int character; \
     } __obfh_strrchr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const char *__obfh_strrchr_cursor = __obfh_strrchr_args.text; \
     unsigned char __obfh_strrchr_wanted = (unsigned char)__obfh_strrchr_args.character; \
     char *__obfh_strrchr_result = NULL; \
@@ -5330,15 +5322,15 @@ __obfh_strrchr_done:; \
     __obfh_strrchr_result; \
 })
 
-#define strrchr_custom(...) strrchr(__VA_ARGS__)
-
 #define wcschr(...) ({ \
     __label__ __obfh_wcschr_loop, __obfh_wcschr_found, __obfh_wcschr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *text; \
         wchar_t character; \
     } __obfh_wcschr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const wchar_t *__obfh_wcschr_cursor = __obfh_wcschr_args.text; \
     wchar_t __obfh_wcschr_wanted = (wchar_t)__obfh_wcschr_args.character; \
     wchar_t *__obfh_wcschr_result = NULL; \
@@ -5355,15 +5347,16 @@ __obfh_wcschr_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcschr_result; \
 })
-#define wcschr_custom(...) wcschr(__VA_ARGS__)
 
 #define wcsrchr(...) ({ \
     __label__ __obfh_wcsrchr_loop, __obfh_wcsrchr_found, __obfh_wcsrchr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *text; \
         wchar_t character; \
     } __obfh_wcsrchr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const wchar_t *__obfh_wcsrchr_cursor = __obfh_wcsrchr_args.text; \
     wchar_t __obfh_wcsrchr_wanted = (wchar_t)__obfh_wcsrchr_args.character; \
     wchar_t *__obfh_wcsrchr_result = NULL; \
@@ -5383,15 +5376,16 @@ __obfh_wcsrchr_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcsrchr_result; \
 })
-#define wcsrchr_custom(...) wcsrchr(__VA_ARGS__)
 
 #define strcpy(...) ({ \
     __label__ __obfh_strcpy_copy, __obfh_strcpy_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         char *destination; \
         const char *text; \
     } __obfh_strcpy_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     char *__obfh_strcpy_target = __obfh_strcpy_args.destination; \
     const char *__obfh_strcpy_source = __obfh_strcpy_args.text; \
     char __obfh_strcpy_value; \
@@ -5408,15 +5402,15 @@ __obfh_strcpy_done:; \
     __obfh_strcpy_args.destination; \
 })
 
-#define strcpy_custom(...) strcpy(__VA_ARGS__)
-
 #define strcat(...) ({ \
     __label__ __obfh_strcat_scan, __obfh_strcat_copy, __obfh_strcat_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         char *destination; \
         const char *text; \
     } __obfh_strcat_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     char *__obfh_strcat_target = __obfh_strcat_args.destination; \
     const char *__obfh_strcat_source = __obfh_strcat_args.text; \
     char __obfh_strcat_value; \
@@ -5437,16 +5431,16 @@ __obfh_strcat_done:; \
     __obfh_strcat_args.destination; \
 })
 
-#define strcat_custom(...) strcat(__VA_ARGS__)
-
 #define strncpy(...) ({ \
     __label__ __obfh_strncpy_copy, __obfh_strncpy_fill, __obfh_strncpy_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         char *destination; \
         const char *text; \
         size_t count; \
     } __obfh_strncpy_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     char *__obfh_strncpy_target = __obfh_strncpy_args.destination; \
     const char *__obfh_strncpy_source = __obfh_strncpy_args.text; \
     char __obfh_strncpy_value; \
@@ -5470,16 +5464,16 @@ __obfh_strncpy_done:; \
     __obfh_strncpy_args.destination; \
 })
 
-#define strncpy_custom(...) strncpy(__VA_ARGS__)
-
 #define strncat(...) ({ \
     __label__ __obfh_strncat_scan, __obfh_strncat_copy, __obfh_strncat_fill, __obfh_strncat_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         char *destination; \
         const char *text; \
         size_t count; \
     } __obfh_strncat_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     char *__obfh_strncat_target = __obfh_strncat_args.destination; \
     const char *__obfh_strncat_source = __obfh_strncat_args.text; \
     char __obfh_strncat_value; \
@@ -5504,15 +5498,15 @@ __obfh_strncat_done:; \
     __obfh_strncat_args.destination; \
 })
 
-#define strncat_custom(...) strncat(__VA_ARGS__)
-
 #define memcpy(...) ({ \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         void *destination; \
         const void *text; \
         size_t count; \
     } __obfh_memcpy_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     void *__obfh_memcpy_target = __obfh_memcpy_args.destination; \
     const void *__obfh_memcpy_source = __obfh_memcpy_args.text; \
     size_t __obfh_memcpy_count = __obfh_memcpy_args.count; \
@@ -5526,15 +5520,15 @@ __obfh_strncat_done:; \
     __obfh_memcpy_args.destination; \
 })
 
-#define memcpy_custom(...) memcpy(__VA_ARGS__)
-
 #define memset(...) ({ \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         void *destination; \
         int character; \
         size_t count; \
     } __obfh_memset_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     void *__obfh_memset_target = __obfh_memset_args.destination; \
     size_t __obfh_memset_count = __obfh_memset_args.count; \
     BREAK_STACK_CFLOW; \
@@ -5545,8 +5539,6 @@ __obfh_strncat_done:; \
                  : "memory"); \
     __obfh_memset_args.destination; \
 })
-
-#define memset_custom(...) memset(__VA_ARGS__)
 
 #if defined(__x86_64__)
 #define OBFH_MOVE_WIDTH "q"
@@ -5575,11 +5567,13 @@ __obfh_strncat_done:; \
 #define memmove(...) ({ \
     __label__ __obfh_memmove_backward, __obfh_memmove_vector, __obfh_memmove_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         void *destination; \
         const void *text; \
         size_t count; \
     } __obfh_memmove_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     void *__obfh_memmove_target = __obfh_memmove_args.destination; \
     const void *__obfh_memmove_source = __obfh_memmove_args.text; \
     size_t __obfh_memmove_count = __obfh_memmove_args.count; \
@@ -5637,13 +5631,14 @@ __obfh_memmove_done:; \
     __obfh_memmove_args.destination; \
 })
 
-#define memmove_custom(...) memmove(__VA_ARGS__)
 #define wcslen(...) ({ \
     __label__ __obfh_wcslen_loop, __obfh_wcslen_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *text; \
     } __obfh_wcslen_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     size_t __obfh_wcslen_index = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5655,15 +5650,16 @@ __obfh_wcslen_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcslen_index; \
 })
-#define wcslen_custom(...) wcslen(__VA_ARGS__)
 
 #define wcscmp(...) ({ \
     __label__ __obfh_wcscmp_loop, __obfh_wcscmp_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *left; \
         const wchar_t *right; \
     } __obfh_wcscmp_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_wcscmp_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5676,16 +5672,17 @@ __obfh_wcscmp_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcscmp_result; \
 })
-#define wcscmp_custom(...) wcscmp(__VA_ARGS__)
 
 #define wcsncmp(...) ({ \
     __label__ __obfh_wcsncmp_loop, __obfh_wcsncmp_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *left; \
         const wchar_t *right; \
         size_t count; \
     } __obfh_wcsncmp_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_wcsncmp_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5700,16 +5697,17 @@ __obfh_wcsncmp_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcsncmp_result; \
 })
-#define wcsncmp_custom(...) wcsncmp(__VA_ARGS__)
 
 // Wide copies/searches and bounded lengths retain native internal branches.
 #define wcscpy(...) ({ \
     __label__ __obfh_wcscpy_copy, __obfh_wcscpy_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
     } __obfh_wcscpy_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wcscpy_target = __obfh_wcscpy_args.destination; \
     const wchar_t *__obfh_wcscpy_source = __obfh_wcscpy_args.text; \
     wchar_t __obfh_wcscpy_value; \
@@ -5725,15 +5723,16 @@ __obfh_wcscpy_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcscpy_args.destination; \
 })
-#define wcscpy_custom(...) wcscpy(__VA_ARGS__)
 
 #define wcscat(...) ({ \
     __label__ __obfh_wcscat_scan, __obfh_wcscat_copy, __obfh_wcscat_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
     } __obfh_wcscat_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wcscat_target = __obfh_wcscat_args.destination; \
     const wchar_t *__obfh_wcscat_source = __obfh_wcscat_args.text; \
     wchar_t __obfh_wcscat_value; \
@@ -5753,16 +5752,17 @@ __obfh_wcscat_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcscat_args.destination; \
 })
-#define wcscat_custom(...) wcscat(__VA_ARGS__)
 
 #define wcsncpy(...) ({ \
     __label__ __obfh_wcsncpy_copy, __obfh_wcsncpy_fill, __obfh_wcsncpy_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wcsncpy_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wcsncpy_target = __obfh_wcsncpy_args.destination; \
     const wchar_t *__obfh_wcsncpy_source = __obfh_wcsncpy_args.text; \
     wchar_t __obfh_wcsncpy_value; \
@@ -5785,16 +5785,17 @@ __obfh_wcsncpy_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcsncpy_args.destination; \
 })
-#define wcsncpy_custom(...) wcsncpy(__VA_ARGS__)
 
 #define wcsncat(...) ({ \
     __label__ __obfh_wcsncat_scan, __obfh_wcsncat_copy, __obfh_wcsncat_fill, __obfh_wcsncat_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wcsncat_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wcsncat_target = __obfh_wcsncat_args.destination; \
     const wchar_t *__obfh_wcsncat_source = __obfh_wcsncat_args.text; \
     wchar_t __obfh_wcsncat_value; \
@@ -5818,15 +5819,16 @@ __obfh_wcsncat_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcsncat_args.destination; \
 })
-#define wcsncat_custom(...) wcsncat(__VA_ARGS__)
 
 #define wcsstr(...) ({ \
     __label__ __obfh_wcsstr_loop, __obfh_wcsstr_match, __obfh_wcsstr_advance, __obfh_wcsstr_found, __obfh_wcsstr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *__obfh_wcsstr_text; \
         const wchar_t *__obfh_wcsstr_pattern; \
     } __obfh_wcsstr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const wchar_t *__obfh_wcsstr_a; \
     const wchar_t *__obfh_wcsstr_b; \
     wchar_t __obfh_wcsstr_first = (wchar_t)*__obfh_wcsstr_args.__obfh_wcsstr_pattern; \
@@ -5853,15 +5855,16 @@ __obfh_wcsstr_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcsstr_result; \
 })
-#define wcsstr_custom(...) wcsstr(__VA_ARGS__)
 
 #define wcsspn(...) ({ \
     __label__ __obfh_wcsspn_loop, __obfh_wcsspn_match, __obfh_wcsspn_select, __obfh_wcsspn_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *__obfh_wcsspn_text; \
         const wchar_t *__obfh_wcsspn_set; \
     } __obfh_wcsspn_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const wchar_t *__obfh_wcsspn_cursor = (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text; \
     const wchar_t *__obfh_wcsspn_member; \
     BREAK_STACK_CFLOW; \
@@ -5881,15 +5884,16 @@ __obfh_wcsspn_done:; \
     OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_wcsspn_cursor - (const wchar_t *)__obfh_wcsspn_args.__obfh_wcsspn_text); \
 })
-#define wcsspn_custom(...) wcsspn(__VA_ARGS__)
 
 #define wcscspn(...) ({ \
     __label__ __obfh_wcscspn_loop, __obfh_wcscspn_match, __obfh_wcscspn_select, __obfh_wcscspn_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *__obfh_wcscspn_text; \
         const wchar_t *__obfh_wcscspn_set; \
     } __obfh_wcscspn_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const wchar_t *__obfh_wcscspn_cursor = (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text; \
     const wchar_t *__obfh_wcscspn_member; \
     BREAK_STACK_CFLOW; \
@@ -5909,15 +5913,16 @@ __obfh_wcscspn_done:; \
     OBFH_CUSTOM_NOP; \
     (size_t)(__obfh_wcscspn_cursor - (const wchar_t *)__obfh_wcscspn_args.__obfh_wcscspn_text); \
 })
-#define wcscspn_custom(...) wcscspn(__VA_ARGS__)
 
 #define wcspbrk(...) ({ \
     __label__ __obfh_wcspbrk_loop, __obfh_wcspbrk_match, __obfh_wcspbrk_select, __obfh_wcspbrk_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *__obfh_wcspbrk_text; \
         const wchar_t *__obfh_wcspbrk_set; \
     } __obfh_wcspbrk_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const wchar_t *__obfh_wcspbrk_cursor = (const wchar_t *)__obfh_wcspbrk_args.__obfh_wcspbrk_text; \
     const wchar_t *__obfh_wcspbrk_member; \
     BREAK_STACK_CFLOW; \
@@ -5937,15 +5942,16 @@ __obfh_wcspbrk_done:; \
     OBFH_CUSTOM_NOP; \
     (wchar_t *)(*__obfh_wcspbrk_cursor ? (wchar_t *)__obfh_wcspbrk_cursor : NULL); \
 })
-#define wcspbrk_custom(...) wcspbrk(__VA_ARGS__)
 
 #define strnlen(...) ({ \
     __label__ __obfh_strnlen_loop, __obfh_strnlen_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *text; \
         size_t count; \
     } __obfh_strnlen_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     size_t __obfh_strnlen_length = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5957,15 +5963,16 @@ __obfh_strnlen_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_strnlen_length; \
 })
-#define strnlen_custom(...) strnlen(__VA_ARGS__)
 
 #define wcsnlen(...) ({ \
     __label__ __obfh_wcsnlen_loop, __obfh_wcsnlen_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wcsnlen_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     size_t __obfh_wcsnlen_length = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -5977,7 +5984,6 @@ __obfh_wcsnlen_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wcsnlen_length; \
 })
-#define wcsnlen_custom(...) wcsnlen(__VA_ARGS__)
 
 #define wmemcpy(...) ({ \
     OBFH_CUSTOM_BEGIN; \
@@ -5987,9 +5993,9 @@ __obfh_wcsnlen_done:; \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wmemcpy_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     (wchar_t *)memcpy(__obfh_wmemcpy_args.destination, __obfh_wmemcpy_args.text, __obfh_wmemcpy_args.count * sizeof(wchar_t)); \
 })
-#define wmemcpy_custom(...) wmemcpy(__VA_ARGS__)
 
 #define wmemmove(...) ({ \
     OBFH_CUSTOM_BEGIN; \
@@ -5999,17 +6005,19 @@ __obfh_wcsnlen_done:; \
         const wchar_t *text; \
         size_t count; \
     } __obfh_wmemmove_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     (wchar_t *)memmove(__obfh_wmemmove_args.destination, __obfh_wmemmove_args.text, __obfh_wmemmove_args.count * sizeof(wchar_t)); \
 })
-#define wmemmove_custom(...) wmemmove(__VA_ARGS__)
 
 #define wmemset(...) ({ \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         wchar_t *destination; \
         wchar_t value; \
         size_t count; \
     } __obfh_wmemset_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wmemset_target = __obfh_wmemset_args.destination; \
     size_t __obfh_wmemset_count = __obfh_wmemset_args.count; \
     BREAK_STACK_CFLOW; \
@@ -6020,16 +6028,17 @@ __obfh_wcsnlen_done:; \
                  : "memory"); \
     __obfh_wmemset_args.destination; \
 })
-#define wmemset_custom(...) wmemset(__VA_ARGS__)
 
 #define wmemcmp(...) ({ \
     __label__ __obfh_wmemcmp_loop, __obfh_wmemcmp_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *left; \
         const wchar_t *right; \
         size_t count; \
     } __obfh_wmemcmp_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_wmemcmp_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6044,16 +6053,17 @@ __obfh_wmemcmp_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wmemcmp_result; \
 })
-#define wmemcmp_custom(...) wmemcmp(__VA_ARGS__)
 
 #define wmemchr(...) ({ \
     __label__ __obfh_wmemchr_loop, __obfh_wmemchr_found, __obfh_wmemchr_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *text; \
         wchar_t value; \
         size_t count; \
     } __obfh_wmemchr_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wmemchr_result = NULL; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6068,11 +6078,11 @@ __obfh_wmemchr_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_wmemchr_result; \
 })
-#define wmemchr_custom(...) wmemchr(__VA_ARGS__)
 
 #define bsearch(...) ({ \
     __label__ __obfh_bsearch_loop, __obfh_bsearch_found, __obfh_bsearch_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const void *key; \
         const void *base; \
@@ -6080,6 +6090,7 @@ __obfh_wmemchr_done:; \
         size_t width; \
         int(__cdecl * compare)(const void *, const void *); \
     } __obfh_bsearch_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const unsigned char *__obfh_bsearch_base = (const unsigned char *)__obfh_bsearch_args.base; \
     const unsigned char *__obfh_bsearch_middle; \
     size_t __obfh_bsearch_half; \
@@ -6103,18 +6114,18 @@ __obfh_bsearch_done:; \
     __obfh_bsearch_result; \
 })
 
-#define bsearch_custom(...) bsearch(__VA_ARGS__)
-
 // In-place heapsort: bounded O(n log n) comparisons, no allocation or CRT state.
 #define qsort(...) ({ \
     __label__ __obfh_sort_next, __obfh_sort_sift, __obfh_sort_child, __obfh_sort_swap, __obfh_sort_bytes, __obfh_sort_swapped, __obfh_sort_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         void *base; \
         size_t count; \
         size_t width; \
         int(__cdecl * compare)(const void *, const void *); \
     } __obfh_sort_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     unsigned char *__obfh_sort_base = (unsigned char *)__obfh_sort_args.base; \
     unsigned char *__obfh_sort_a, *__obfh_sort_b, __obfh_sort_byte; \
     size_t __obfh_sort_start = __obfh_sort_args.count / 2, __obfh_sort_end = __obfh_sort_args.count; \
@@ -6163,15 +6174,16 @@ __obfh_sort_done:; \
     OBFH_CUSTOM_NOP; \
     (void)0; \
 })
-#define qsort_custom(...) qsort(__VA_ARGS__)
 
 #define strcmp(...) ({ \
     __label__ __obfh_strcmp_loop, __obfh_strcmp_advance, __obfh_strcmp_equal, __obfh_strcmp_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *__obfh_strcmp_str1; \
         const char *__obfh_strcmp_str2; \
     } __obfh_strcmp_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_strcmp_result; \
     int __obfh_strcmp_a; \
     int __obfh_strcmp_b; \
@@ -6196,14 +6208,15 @@ __obfh_strcmp_done:; \
     OBFH_CUSTOM_NOP; \
     __obfh_strcmp_result; \
 })
-#define strcmp_custom(...) strcmp(__VA_ARGS__)
 
 #define strlen(...) ({ \
     __label__ __obfh_strlen_loop, __obfh_strlen_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *str; \
     } __obfh_strlen_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_strlen_step; \
     size_t __obfh_strlen_length = _0; \
     BREAK_STACK_CFLOW; \
@@ -6218,7 +6231,6 @@ __obfh_strlen_done: \
     OBFH_CUSTOM_NOP; \
     (size_t) obfh_uintptr_proxy(__obfh_strlen_length + (RND(0, 1000) * _0)); \
 })
-#define strlen_custom(...) strlen(__VA_ARGS__)
 
 // The legacy Windows CRT accepts these 18 BMP decimal digit blocks.
 // Only non-ASCII digit candidates need the table; letter digits remain ASCII.
@@ -6234,7 +6246,6 @@ __obfh_wdigit_loop: \
     OBFH_CUSTOM_EXIT(__obfh_wdigit_index < 18, __obfh_wdigit_loop); \
     __obfh_wdigit_value = 36; \
 __obfh_wdigit_done:; \
-    OBFH_CUSTOM_NOP; \
     __obfh_wdigit_value; \
 })
 #define OBFH_PARSE_ZERO_0(code) ((code) == '0')
@@ -6247,11 +6258,13 @@ __obfh_wdigit_done:; \
     ({ \
         __label__ __obfh_parse_space, __obfh_parse_sign, __obfh_parse_base, __obfh_parse_loop, __obfh_parse_finish, __obfh_parse_end; \
         OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         struct { \
             const char_type *text; \
             char_type **end; \
             int base; \
         } __obfh_parse_args = {(input), (ending), (radix)}; \
+        OBFH_CUSTOM_NOP; \
         const code_type *__obfh_parse_p = (const code_type *)__obfh_parse_args.text; \
         unsigned_type __obfh_parse_value = 0, __obfh_parse_limit, __obfh_parse_cutoff, __obfh_parse_tail; \
         enum { __obfh_parse_form = RND(0, 1) }; \
@@ -6320,18 +6333,13 @@ __obfh_wdigit_done:; \
     OBFH_INTEGER_PARSE_CORE(input, ending, radix, mode, unsigned_type, signed_max, unsigned_max, preserve_errno, char, unsigned char, isspace, 0)
 #define OBFH_INTEGER_PARSE(input, ending, radix, mode) \
     OBFH_INTEGER_PARSE_TYPED(input, ending, radix, mode, unsigned long, LONG_MAX, ULONG_MAX, 0)
-#define OBFH_INTEGER_PARSE_ARGS(mode, text, ending, radix) OBFH_INTEGER_PARSE(text, ending, radix, mode)
-#define strtol(...) ((long)OBFH_INTEGER_PARSE_ARGS(0, __VA_ARGS__))
-#define strtol_custom(...) strtol(__VA_ARGS__)
+#define strtol(...) ((long)OBFH_INTEGER_PARSE(__VA_ARGS__, 0))
 
-#define strtoul(...) OBFH_INTEGER_PARSE_ARGS(1, __VA_ARGS__)
-#define strtoul_custom(...) strtoul(__VA_ARGS__)
+#define strtoul(...) OBFH_INTEGER_PARSE(__VA_ARGS__, 1)
 
 #define atoi(text) ((int)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
-#define atoi_custom(...) atoi(__VA_ARGS__)
 
 #define atol(text) ((long)OBFH_INTEGER_PARSE(text, NULL, 10, 2))
-#define atol_custom(...) atol(__VA_ARGS__)
 
 // Windows 64-bit conversions preserve errno on successful/no-digit conversion.
 #define OBFH_INTEGER_PARSE64_ARGS(mode, text, ending, radix) \
@@ -6341,22 +6349,21 @@ __obfh_wdigit_done:; \
 #define strtoll(...) ((long long)OBFH_INTEGER_PARSE64_ARGS(0, __VA_ARGS__))
 #define strtoull(...) OBFH_INTEGER_PARSE64_ARGS(1, __VA_ARGS__)
 #define atoll(text) ((long long)OBFH_INTEGER_PARSE_TYPED(text, NULL, 10, 3, unsigned long long, LLONG_MAX, ULLONG_MAX, 1))
-#define strtoll_custom(...) strtoll(__VA_ARGS__)
-#define strtoull_custom(...) strtoull(__VA_ARGS__)
 #define _strtoi64(...) strtoll(__VA_ARGS__)
 #define _strtoui64(...) strtoull(__VA_ARGS__)
-#define atoll_custom(...) atoll(__VA_ARGS__)
 #define _atoi64(...) atoll(__VA_ARGS__)
 
 // Only byte case mapping stays native: replacing it with ASCII rules loses LC_CTYPE.
 #define OBFH_CASE_COMPARE(text1, text2, limit, bounded) ({ \
     __label__ __obfh_case_loop, __obfh_case_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const char *a; \
         const char *b; \
         size_t count; \
     } __obfh_case_args = {(text1), (text2), (limit)}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_case_a, __obfh_case_b, __obfh_case_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6375,9 +6382,7 @@ __obfh_case_done:; \
 })
 #define stricmp(a, b) OBFH_CASE_COMPARE(a, b, 0, 0)
 #define strnicmp(a, b, count) OBFH_CASE_COMPARE(a, b, count, 1)
-#define stricmp_custom(...) stricmp(__VA_ARGS__)
 #define _stricmp(...) stricmp(__VA_ARGS__)
-#define strnicmp_custom(...) strnicmp(__VA_ARGS__)
 #define _strnicmp(...) strnicmp(__VA_ARGS__)
 
 #define OBFH_WIDE_PARSE(mode, unsigned_type, signed_max, unsigned_max, preserve, text, ending, radix) \
@@ -6390,11 +6395,13 @@ __obfh_case_done:; \
 #define OBFH_WIDE_CASE_COMPARE(text1, text2, limit, bounded) ({ \
     __label__ __obfh_wcase_loop, __obfh_wcase_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const wchar_t *a; \
         const wchar_t *b; \
         size_t count; \
     } __obfh_wcase_args = {(text1), (text2), (limit)}; \
+    OBFH_CUSTOM_NOP; \
     int __obfh_wcase_a, __obfh_wcase_b, __obfh_wcase_result = 0; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6417,11 +6424,13 @@ __obfh_wcase_done:; \
 #define _memicmp(...) ({ \
     __label__ __obfh_mcase_loop, __obfh_mcase_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         const void *a; \
         const void *b; \
         size_t count; \
     } __obfh_mcase_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     const unsigned char *__obfh_mcase_a = __obfh_mcase_args.a, *__obfh_mcase_b = __obfh_mcase_args.b; \
     int __obfh_mcase_result = 0; \
     BREAK_STACK_CFLOW; \
@@ -6441,6 +6450,7 @@ __obfh_mcase_done:; \
 #define OBFH_STRING_CASE(input, char_type, code_type, convert) ({ \
     __label__ __obfh_scase_loop, __obfh_scase_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     char_type *__obfh_scase_base = (input), *__obfh_scase_p = __obfh_scase_base; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6490,6 +6500,7 @@ __obfh_dbcs_done:; \
 #define OBFH_NARROW_CASE(input, convert, flags) ({ \
     __label__ __obfh_ncase_simple, __obfh_ncase_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     char *__obfh_ncase_text = (input); \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6507,6 +6518,7 @@ __obfh_ncase_done:; \
 #define OBFH_WIDE_STRING_CASE(input, convert, flags) ({ \
     __label__ __obfh_wcmap_simple, __obfh_wcmap_invalid, __obfh_wcmap_free, __obfh_wcmap_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     wchar_t *__obfh_wcmap_text = (input), *__obfh_wcmap_scratch = NULL; \
     unsigned long *__obfh_wcmap_handles = OBFH_CRT_TARGET(unsigned long *(__cdecl *)(void), HIDE_STRING("___lc_handle_func"))(); \
     size_t __obfh_wcmap_count; \
@@ -6539,11 +6551,13 @@ __obfh_wcmap_done:; \
 #define OBFH_STRING_SET(input_text, input_value, limit, bounded, char_type, value_type) ({ \
     __label__ __obfh_sset_loop, __obfh_sset_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         char_type *text; \
         value_type value; \
         size_t count; \
     } __obfh_sset_args = {(input_text), (input_value), (limit)}; \
+    OBFH_CUSTOM_NOP; \
     char_type *__obfh_sset_p = __obfh_sset_args.text; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6563,6 +6577,7 @@ __obfh_sset_done:; \
 
 #define OBFH_INTEGER_ABS(input, signed_type, unsigned_type) ({ \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     signed_type __obfh_abs_value = (input); \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6573,10 +6588,12 @@ __obfh_sset_done:; \
 #define _abs64(value) OBFH_INTEGER_ABS(value, long long, unsigned long long)
 #define OBFH_INTEGER_DIV(numerator, denominator, scalar_type, result_type) ({ \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         scalar_type n; \
         scalar_type d; \
     } __obfh_div_args = {(numerator), (denominator)}; \
+    OBFH_CUSTOM_NOP; \
     result_type __obfh_div_result; \
     BREAK_STACK_CFLOW; \
     OBFH_CUSTOM_NOP; \
@@ -6593,11 +6610,13 @@ __obfh_sset_done:; \
 #define OBFH_INTEGER_TEXT(input_value, input_buffer, input_radix, value_type, unsigned_type, char_type, signed_value) ({ \
     __label__ __obfh_itoa_digits, __obfh_itoa_reverse, __obfh_itoa_invalid, __obfh_itoa_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         value_type value; \
         char_type *buffer; \
         int base; \
     } __obfh_itoa_args = {(input_value), (input_buffer), (input_radix)}; \
+    OBFH_CUSTOM_NOP; \
     unsigned_type __obfh_itoa_magnitude = (unsigned_type)__obfh_itoa_args.value; \
     size_t __obfh_itoa_start, __obfh_itoa_count, __obfh_itoa_left, __obfh_itoa_right; \
     unsigned int __obfh_itoa_digit; \
@@ -6648,11 +6667,13 @@ __obfh_itoa_done:; \
 #define OBFH_TOKENIZE(input_text, input_delimiters, input_context, char_type) ({ \
     __label__ __obfh_token_skip, __obfh_token_skip_set, __obfh_token_skip_next, __obfh_token_start, __obfh_token_scan, __obfh_token_scan_set, __obfh_token_scan_next, __obfh_token_split, __obfh_token_end, __obfh_token_invalid, __obfh_token_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         char_type *text; \
         const char_type *delimiters; \
         char_type **context; \
     } __obfh_token_args = {(input_text), (input_delimiters), (input_context)}; \
+    OBFH_CUSTOM_NOP; \
     char_type *__obfh_token_p, *__obfh_token_result = NULL; \
     const char_type *__obfh_token_d; \
     BREAK_STACK_CFLOW; \
@@ -6717,7 +6738,6 @@ __obfh_token_done:; \
         OBFH_CUSTOM_NOP; \
         __obfh_dup_result; \
     })
-#define strdup_custom(...) strdup(__VA_ARGS__)
 #define _strdup(...) strdup(__VA_ARGS__)
 
 #define wcsdup(input) \
@@ -6736,7 +6756,6 @@ __obfh_token_done:; \
         OBFH_CUSTOM_NOP; \
         __obfh_dup_result; \
     })
-#define wcsdup_custom(...) wcsdup(__VA_ARGS__)
 #define _wcsdup(...) wcsdup(__VA_ARGS__)
 
 #define strnlen_s(...) \
@@ -6748,6 +6767,7 @@ __obfh_token_done:; \
             const char *text; \
             size_t count; \
         } __obfh_safe_length_args = {__VA_ARGS__}; \
+        OBFH_CUSTOM_NOP; \
         size_t __obfh_safe_length_value = 0; \
         BREAK_STACK_CFLOW; \
         OBFH_CUSTOM_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
@@ -6761,7 +6781,6 @@ __obfh_token_done:; \
         OBFH_CUSTOM_NOP; \
         __obfh_safe_length_value; \
     })
-#define strnlen_s_custom(...) strnlen_s(__VA_ARGS__)
 
 #define wcsnlen_s(...) \
     ({ \
@@ -6772,6 +6791,7 @@ __obfh_token_done:; \
             const wchar_t *text; \
             size_t count; \
         } __obfh_safe_length_args = {__VA_ARGS__}; \
+        OBFH_CUSTOM_NOP; \
         size_t __obfh_safe_length_value = 0; \
         BREAK_STACK_CFLOW; \
         OBFH_CUSTOM_EXIT(!__obfh_safe_length_args.text, __obfh_safe_length_done); \
@@ -6785,12 +6805,12 @@ __obfh_token_done:; \
         OBFH_CUSTOM_NOP; \
         __obfh_safe_length_value; \
     })
-#define wcsnlen_s_custom(...) wcsnlen_s(__VA_ARGS__)
 
 #define strrev(input) \
     ({ \
         __label__ __obfh_reverse_loop, __obfh_reverse_done; \
         OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         char *__obfh_reverse_text = (input); \
         size_t __obfh_reverse_left = 0, __obfh_reverse_right = strlen(__obfh_reverse_text); \
         OBFH_CUSTOM_NOP; \
@@ -6806,13 +6826,13 @@ __obfh_token_done:; \
         OBFH_CUSTOM_NOP; \
         __obfh_reverse_text; \
     })
-#define strrev_custom(...) strrev(__VA_ARGS__)
 #define _strrev(...) strrev(__VA_ARGS__)
 
 #define wcsrev(input) \
     ({ \
         __label__ __obfh_reverse_loop, __obfh_reverse_done; \
         OBFH_CUSTOM_BEGIN; \
+        OBFH_CUSTOM_NOP; \
         wchar_t *__obfh_reverse_text = (input); \
         size_t __obfh_reverse_left = 0, __obfh_reverse_right = wcslen(__obfh_reverse_text); \
         OBFH_CUSTOM_NOP; \
@@ -6828,7 +6848,6 @@ __obfh_token_done:; \
         OBFH_CUSTOM_NOP; \
         __obfh_reverse_text; \
     })
-#define wcsrev_custom(...) wcsrev(__VA_ARGS__)
 #define _wcsrev(...) wcsrev(__VA_ARGS__)
 
 // API cache publication precedes invocation, allowing callback reentry.
@@ -6849,6 +6868,17 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #define OBFH_GUI_KEY(index) ((ULONG_PTR)OBFH_GUI_DRAW(index, 0x47554931u))
 #endif
 #define OBFH_GUI_BIAS(index) ((ULONG_PTR)OBFH_GUI_DRAW(index, 0x47554933u))
+#define OBFH_GUI_FIELDS(name, index, salt) \
+    OBFH_MIX_FIELDS(name, (unsigned int)(index) ^ (unsigned int)OBFH_BUILD_SEED ^ (salt))
+#if defined(__x86_64__)
+#define OBFH_GUI_KEY_FIELDS(index) \
+    OBFH_GUI_FIELDS(__obfh_gui_key_lo, index, 0x47554931u), \
+        OBFH_GUI_FIELDS(__obfh_gui_key_hi, index, 0x47554932u)
+#define OBFH_GUI_SITE_KEY ((ULONG_PTR)(unsigned int)__obfh_gui_key_lo | ((ULONG_PTR)(unsigned int)__obfh_gui_key_hi << 32))
+#else
+#define OBFH_GUI_KEY_FIELDS(index) OBFH_GUI_FIELDS(__obfh_gui_key_lo, index, 0x47554931u)
+#define OBFH_GUI_SITE_KEY ((ULONG_PTR)(unsigned int)__obfh_gui_key_lo)
+#endif
 #define OBFH_GUI_ROTATE(index) (OBFH_GUI_DRAW(index, 0x47554934u) % (sizeof(ULONG_PTR) * 8 - 1) + 1)
 // Cold-path name words are decoded at each call site, with no shared name key.
 #define OBFH_GUI_NAME_ASM(buffer, position, instructions) ({ \
@@ -6994,7 +7024,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 #define OBFH_FLOW_FAST_TRANSFER \
     ({ \
         enum { __obfh_fast_site = __COUNTER__, \
-               __obfh_fast_key = OBFH_DATA_DRAW(__obfh_fast_site), \
+               OBFH_DATA_FIELDS(__obfh_fast_key, __obfh_fast_site), \
                __obfh_fast_alt = OBFH_MIX_A(__obfh_fast_key ^ 0xD15EA5E1u), \
                __obfh_fast_word = OBFH_MIX_B(__obfh_fast_alt ^ 0xA3617B29u), \
                __obfh_fast_pair = (__obfh_fast_alt >> 16) & 1u, \
@@ -7036,9 +7066,9 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 // input. BSF/BSR, mix opcode, masks, bit index and optional rotation compose
 // independently at compile time; there is no runtime selector or shared state.
 #define OBFH_FLOW_DO_FIELDS(site) \
-    enum { __obfh_do_key = OBFH_DATA_DRAW(site), \
-           __obfh_do_aux = OBFH_DATA_DRAW((site) ^ 0xC47A31B5u), \
-           __obfh_do_bits = OBFH_DATA_DRAW((site) ^ 0x951D8E63u), \
+    enum { OBFH_DATA_FIELDS(__obfh_do_key, site), \
+           OBFH_DATA_FIELDS(__obfh_do_aux, (site) ^ 0xC47A31B5u), \
+           OBFH_DATA_FIELDS(__obfh_do_bits, (site) ^ 0x951D8E63u), \
            __obfh_do_index = 1u + ((__obfh_do_aux >> 8) % 30u), \
            __obfh_do_reverse = __obfh_do_aux & 1u, \
            __obfh_do_anchor = 1u << __obfh_do_index, \
@@ -7496,10 +7526,12 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
 #define GetProcAddress(...) ({ \
     __label__ __obfh_getprocaddress_done; \
     OBFH_CUSTOM_BEGIN; \
+    OBFH_CUSTOM_NOP; \
     struct { \
         HMODULE hModule; \
         LPCSTR lpProcName; \
     } __obfh_getprocaddress_args = {__VA_ARGS__}; \
+    OBFH_CUSTOM_NOP; \
     DWORD __obfh_getprocaddress_error = GetLastError(); \
     FARPROC __obfh_getprocaddress_output; \
     FARPROC __obfh_getprocaddress_result = obfh_find_export(__obfh_getprocaddress_args.hModule, __obfh_getprocaddress_args.lpProcName, 0); \
@@ -7515,7 +7547,6 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
 __obfh_getprocaddress_done: \
     __obfh_getprocaddress_output; \
 })
-#define GetProcAddress_custom(...) GetProcAddress(__VA_ARGS__)
 
 // ============================================================================
 // 16. Module loading and loader proxy chain
@@ -7832,14 +7863,13 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
     va_end(args);
     return result;
 }
-#define printf_custom(...) obfh_printf_variadic(__VA_ARGS__)
 #define printf(...) \
     ({ \
         int __obfh_printf_result; \
         do { \
             BREAK_STACK_CFLOW; \
             obfh_junk_func_args((RND(0, 1000) * 3) < _0); \
-            __obfh_printf_result = printf_custom(RND(0, 1000), __VA_ARGS__); \
+            __obfh_printf_result = obfh_printf_variadic(RND(0, 1000), __VA_ARGS__); \
         } while (_0 > ((unsigned long long)RND(0, 100000000000) * (unsigned char)_2) + 82); \
         __obfh_printf_result; \
     })
@@ -8187,7 +8217,6 @@ static char *getStrtokName_proxy(char *name) {
     return name;
 }
 #define strtok(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
-#define strtok_custom(...) strtok(__VA_ARGS__)
 
 static char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;
@@ -8392,21 +8421,21 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #define OBFH_GUI_DECODE(index, key, code) ({ \
     __obfh_asm__(code \
                  : "+&r"(__obfh_gui_value) \
-                 : "r"((ULONG_PTR)(key)), "r"(OBFH_GUI_BIAS(index)), "i"(OBFH_GUI_ROTATE(index)) \
+                 : "r"((ULONG_PTR)(key)), "r"(((ULONG_PTR)(unsigned int)__obfh_gui_bias)), "i"(__obfh_gui_rotate) \
                  : "cc"); \
 })
-#define OBFH_GUI_FORM_0(index) OBFH_GUI_DECODE(index, OBFH_GUI_KEY(index), \
+#define OBFH_GUI_FORM_0(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
                                                "sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
 #define OBFH_GUI_FORM_1(index) ({ \
     __obfh_asm__("add" OBFH_GUI_WIDTH " %2, %0; rol" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;" \
                  : "+&r"(__obfh_gui_value) \
-                 : "r"(OBFH_GUI_KEY(index)), "r"((ULONG_PTR)-OBFH_GUI_BIAS(index)), \
-                   "i"(sizeof(ULONG_PTR) * 8 - OBFH_GUI_ROTATE(index)) \
+                 : "r"(OBFH_GUI_SITE_KEY), "r"((ULONG_PTR) - ((ULONG_PTR)(unsigned int)__obfh_gui_bias)), \
+                   "i"(sizeof(ULONG_PTR) * 8 - __obfh_gui_rotate) \
                  : "cc"); \
 })
-#define OBFH_GUI_FORM_2(index) OBFH_GUI_DECODE(index, ~OBFH_GUI_KEY(index), \
+#define OBFH_GUI_FORM_2(index) OBFH_GUI_DECODE(index, ~OBFH_GUI_SITE_KEY, \
                                                "sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0; not" OBFH_GUI_WIDTH " %0; xor" OBFH_GUI_WIDTH " %1, %0;")
-#define OBFH_GUI_FORM_3(index) OBFH_GUI_DECODE(index, OBFH_GUI_KEY(index), \
+#define OBFH_GUI_FORM_3(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
                                                "neg" OBFH_GUI_WIDTH " %0; add" OBFH_GUI_WIDTH " %2, %0; neg" OBFH_GUI_WIDTH " %0; ror" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
 // Optional internal observer for cache-isolation regression tests.
 #ifdef OBFH_GUI_CACHE_OBSERVER
@@ -8417,8 +8446,14 @@ static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #define OBFH_GUI_CALL(index, module, name, type, ...) ({ \
     __label__ __obfh_gui_cached, __obfh_gui_decode; \
     enum { __obfh_gui_site = __COUNTER__, \
-           __obfh_gui_form = OBFH_GUI_DRAW(__obfh_gui_site ^ (index), 0x47554936u) & 3u, \
-           __obfh_gui_gap = OBFH_GUI_DRAW(__obfh_gui_site, 0x534c4f54u) & 31u }; \
+           OBFH_GUI_FIELDS(__obfh_gui_form_draw, __obfh_gui_site ^ (index), 0x47554936u), \
+           __obfh_gui_form = __obfh_gui_form_draw & 3u, \
+           OBFH_GUI_FIELDS(__obfh_gui_gap_draw, __obfh_gui_site, 0x534c4f54u), \
+           __obfh_gui_gap = __obfh_gui_gap_draw & 31u, \
+           OBFH_GUI_KEY_FIELDS(__obfh_gui_site), \
+           OBFH_GUI_FIELDS(__obfh_gui_bias, __obfh_gui_site, 0x47554933u), \
+           OBFH_GUI_FIELDS(__obfh_gui_rotate_draw, __obfh_gui_site, 0x47554934u), \
+           __obfh_gui_rotate = (unsigned int)__obfh_gui_rotate_draw % (sizeof(ULONG_PTR) * 8 - 1) + 1 }; \
     static struct { \
         unsigned char prefix[1u + __obfh_gui_gap]; \
         OBFH_GUI_SLOT cache __attribute__((aligned(16))); \

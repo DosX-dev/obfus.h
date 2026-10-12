@@ -33,6 +33,15 @@ async function verify() {
     pool.add('a', async () => events.push(4));
     await pool.drain();
     assert.equal(events.at(-1), 4);
+    const prioritized = new CheckPool(1), starts = [];
+    prioritized.add('shared', async () => starts.push('shared-first'), 0);
+    prioritized.add('other', async () => starts.push('other'), 5);
+    prioritized.add('shared', async () => starts.push('shared-second'), 10);
+    prioritized.add('equal-first', async () => starts.push('equal-first'), 5);
+    prioritized.add('equal-second', async () => starts.push('equal-second'), 5);
+    await prioritized.drain();
+    assert.deepEqual(starts, ['shared-first', 'shared-second', 'other', 'equal-first', 'equal-second']);
+    assert.throws(() => prioritized.add('invalid', async () => { }, NaN), /invalid check priority/);
 }
 if (require.main === module)
     verify()
