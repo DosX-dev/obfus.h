@@ -21,7 +21,7 @@ test('deterministic single-player ZIP preserves every EXE byte and rejects corru
 test('player release links each SVG button to its current round ZIP', () => {
     const state = { date: '2026-10-12', round: 1, files: ['easy', 'medium', 'hardcore', 'extreme', 'answers', 'history'].map(role => ({ role, url: 'https://example.test/' + role })) };
     const body = description(state);
-    assert(body.includes('## Download task'));
+    assert(body.includes('<h2 align="center">Download task</h2>'));
     assert(!body.includes('<table>'));
     for (const level of ['easy', 'medium', 'hardcore', 'extreme']) {
         assert(body.includes(`<a href="https://example.test/${level}"><img src="https://raw.githubusercontent.com/DosX-dev/obfus.h/main/gamification/assets/download-buttons/${level}.svg"`));
