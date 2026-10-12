@@ -101,15 +101,9 @@ static void reference(unsigned *x, unsigned *y, unsigned style, unsigned k, unsi
     return source;
 }
 
-async function runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
-    await require('./cflow_terminal').runSuite({ arch, compiler, directory, source, check, compile, execute });
-    await require('./cflow_forms').runSuite({ arch, compiler, directory, source, check, compile, execute });
+async function runSuite({ arch, compiler, directory, source, fixturesRoot, check, compile, execute, run, assert }) {
+    await require('./cflow_primitives').runSuite({ arch, compiler, directory, source, fixturesRoot, check, compile, run, assert });
     await require('./cflow_selectors').runSuite({ arch, compiler, directory, source, check, compile, execute });
-    await check(arch + '/CFLOW compositional primitive contracts', async () => {
-        const file = path.join(directory, arch + '-single-lane.c');
-        fs.writeFileSync(file, require('./cflow_single_lane').fixture(source));
-        await execute(await compile(compiler, directory, arch + '-single-lane.exe', file, []), 'MACHINE_PRIMITIVES_PASS');
-    });
     await check(arch + '/CFLOW linked components and register roles', async () => {
         assert(cache.update(source) === source.replace(/\r\n/g, '\n'), 'CFLOW cache differs from readable macros');
         const normal = fixture(source),

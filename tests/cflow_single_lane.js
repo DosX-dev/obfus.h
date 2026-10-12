@@ -24,11 +24,11 @@ const trace = String.raw`
 })
 #endif
 `;
-function fixture(header) {
+function fixture(header, fixturesRoot = __dirname) {
     const start = header.indexOf('// A stage maps a compile-time input representation');
     const end = header.indexOf('#define OBFH_FLOW_CONDITION(', start);
     if (start < 0 || end < start) throw Error('Missing compositional CFLOW core');
-    return fs.readFileSync(path.join(__dirname, 'cflow_single_lane.c'), 'utf8')
+    return fs.readFileSync(path.join(fixturesRoot, 'cflow_single_lane.c'), 'utf8')
         .replace('#include "single-lane.h"', header.slice(start, end));
 }
 module.exports = { trace, fixture };

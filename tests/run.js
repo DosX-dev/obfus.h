@@ -12,7 +12,8 @@ const vmSemantics = require('./vm_semantics');
 const compactAsm = require('./compact_asm');
 const cflowChain = require('./cflow_chain');
 const cflowWeave = require('./cflow_weave');
-const cflowCommit = require('./cflow_commit');
+const cflowPrimitives = require('./cflow_primitives');
+const dllHosts = require('./dll_hosts');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { CheckPool, ProcessPool, workerCount } = require('./runner_pool');
 const taskContext = new AsyncLocalStorage();
@@ -607,6 +608,10 @@ async function main() {
             recursive: true,
             filter: (file) => fs.statSync(file).isDirectory() || /\.(?:c|h|in)$/.test(file)
         });
+        const getDllHost = dllHosts.builder({
+            directory, header: path.join(snapshotRoot, 'include', 'obfus.h'),
+            fixturesRoot: path.join(snapshotRoot, 'tests'), compile
+        });
         fs.writeFileSync(
             path.join(directory, 'header-sha256.txt'),
             require('node:crypto').createHash('sha256').update(source).digest('hex') + '\n'
@@ -630,6 +635,12 @@ async function main() {
         await check('runner: parallel queue ordering and failure cleanup', require('./runner_pool.test').verify);
         await check('source: shared CRT fixtures preserve isolation and failure reporting', async () => {
             await crtBundle.verify(assert, path.join(snapshotRoot, 'tests'));
+        });
+        await check('source: shared CFLOW primitives retain independent failure reporting', async () => {
+            await cflowPrimitives.verify(source, assert, path.join(snapshotRoot, 'tests'));
+        });
+        await check('source: shared DLL hosts preserve client bodies and build failures', async () => {
+            await dllHosts.verify(assert, path.join(snapshotRoot, 'include', 'obfus.h'), path.join(snapshotRoot, 'tests'));
         });
         await check('source: shared VM semantics preserve native references and independent results', async () => {
             await require('./vm_semantics_checks').verify(path.join(snapshotRoot, 'tests'));
@@ -853,18 +864,22 @@ async function main() {
                         : [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
                         await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
                             const flags = [...configs[config], `OBFH_BUILD_SEED=${seed}u`];
-                            if (!only33)
+                            if (!only33) {
                                 await crtBundle.runSuite({
                                     compiler, directory,
                                     name: `${arch}-${config}-crt-bundle-${seed}`, flags,
                                     header: path.join(snapshotRoot, 'include', 'obfus.h'),
                                     fixturesRoot: path.join(snapshotRoot, 'tests'), compile, run, assert
                                 });
+                                await crtBundle.runNumericSuite({
+                                    compiler, directory,
+                                    name: `${arch}-${config}-crt-numeric-${seed}`, flags,
+                                    header: path.join(snapshotRoot, 'include', 'obfus.h'),
+                                    fixturesRoot: path.join(snapshotRoot, 'tests'), compile, run, assert
+                                });
+                            }
                             const fixtures = only33 ? [['custom33', 'CUSTOM33_PASS']] : [
-                                ['custom_sort', 'CUSTOM_SORT_PASS'],
-                                ['custom_critical', 'CUSTOM_CRITICAL_PASS'],
                                 ['custom_inline', ''],
-                                ['custom33', 'CUSTOM33_PASS'],
                                 ['crt_proxies', 'CRT_ATEXIT_PASS']
                             ];
                             if (config !== 'plain') fixtures.push(['custom33_inline', '']);
@@ -940,9 +955,10 @@ async function main() {
                     'CFLOW_ENCODING_PASS'
                 );
             });
-            await cflowWeave.runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
-            if (source.includes('#define OBFH_SF_FLOW_COMMIT '))
-                await cflowCommit.runSuite({ arch, compiler, directory, source, check, compile, execute });
+            await cflowWeave.runSuite({
+                arch, compiler, directory, source,
+                fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, execute, run, assert
+            });
             await check(`${arch}/return interception and dangling else`, async () => {
                 for (const flags of [[], ['CFLOW_V2=1'], ['NO_CFLOW=1'], ['NO_OBF=1']])
                     await execute(
@@ -1746,14 +1762,8 @@ async function main() {
                             !exports.includes('obfh_flow') && !exports.includes('obfh_crt'),
                             'internal helper leaked into exports'
                         );
-                        const client = await compile(
-                            compiler,
-                            directory,
-                            `${arch}-${config}-multi-client.exe`,
-                            path.join(__dirname, 'multi_client.c'),
-                            flags
-                        );
-                        await execute(client, 'MULTI_DLL_PASS', [dll]);
+                        const client = await getDllHost(compiler, arch, config, flags);
+                        await execute(client, 'MULTI_DLL_PASS', ['multi_client', dll]);
                     });
                 if (process.argv.includes('--only-platform')) continue;
                 await check(`${arch}/CRT per-site cache concurrency, lifetime and variable names`, async () => {
@@ -1980,12 +1990,17 @@ async function main() {
                         fixturesRoot: path.join(snapshotRoot, 'tests'), compile, run, assert
                     });
                 });
+                await check(`${label}/CRT native-keyword numeric and sorting bundle`, async () => {
+                    await crtBundle.runNumericSuite({
+                        compiler, directory,
+                        name: `${arch}-${config}-crt-numeric`, flags,
+                        header: path.join(snapshotRoot, 'include', 'obfus.h'),
+                        fixturesRoot: path.join(snapshotRoot, 'tests'), compile, run, assert
+                    });
+                });
                 for (const [fixture, marker] of [
                     ['custom_inline', ''],
-                    ['custom33', 'CUSTOM33_PASS'],
-                    ...(config === 'plain' ? [] : [['custom33_inline', '']]),
-                    ['custom_critical', 'CUSTOM_CRITICAL_PASS'],
-                    ['custom_sort', 'CUSTOM_SORT_PASS']
+                    ...(config === 'plain' ? [] : [['custom33_inline', '']])
                 ])
                     await check(`${label}/CRT proxy calls/${fixture}`, async () => {
                         const exe = await compile(compiler, directory,
@@ -2073,14 +2088,8 @@ async function main() {
                         flags,
                         ['-shared']
                     );
-                    const client = await compile(
-                        compiler,
-                        directory,
-                        `${arch}-${config}-client.exe`,
-                        path.join(__dirname, 'dll_client.c'),
-                        flags
-                    );
-                    await execute(client, 'DLL_PASS', [dll]);
+                    const client = await getDllHost(compiler, arch, config, flags);
+                    await execute(client, 'DLL_PASS', ['dll_client', dll]);
                     assert(
                         pe(fs.readFileSync(dll)).machine === (arch === 'x64' ? 0x8664 : 0x14c),
                         'wrong DLL architecture'
