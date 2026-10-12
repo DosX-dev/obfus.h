@@ -18,18 +18,21 @@ test('deterministic single-player ZIP preserves every EXE byte and rejects corru
     assert.throws(() => unzipPlayer(Buffer.alloc(4)));
 });
 
-test('player release shows four large emoji links and hides previous answers in details', () => {
+test('player release links each SVG button to its current round ZIP', () => {
     const state = { date: '2026-10-12', round: 1, files: ['easy', 'medium', 'hardcore', 'extreme', 'answers', 'history'].map(role => ({ role, url: 'https://example.test/' + role })) };
     const body = description(state);
     assert(body.includes('## Download task'));
-    assert.equal(body.match(/<tr>/g).length, 1);
-    assert.equal(body.match(/<td /g).length, 4);
-    assert.equal(body.match(/<h2>/g).length, 4);
-    for (const label of ['🟢 EASY', '🟠 MEDIUM', '🔴 HARDCORE', '🟣 EXTREME']) assert(body.includes(label));
+    assert(!body.includes('<table>'));
+    for (const level of ['easy', 'medium', 'hardcore', 'extreme']) {
+        assert(body.includes(`<a href="https://example.test/${level}"><img src="https://raw.githubusercontent.com/DosX-dev/obfus.h/main/gamification/assets/download-buttons/${level}.svg"`));
+        assert(body.includes(`alt="Download ${level.toUpperCase()}" width="240" height="120"`));
+    }
     assert(!body.includes('https://example.test/answers'));
     assert(!body.includes('https://example.test/history'));
     assert(!body.includes('No previous answers'));
     const next = description({ ...state, previous: { round: 1, answers: { easy: 'previous-fixture' } } });
     assert(next.includes('<details>'));
     assert(next.includes('previous-fixture'));
+    const later = description({ ...state, round: 9, files: state.files.map(file => ({ ...file, url: file.url + '-round-9.zip' })) });
+    assert(later.includes('href="https://example.test/extreme-round-9.zip"'));
 });

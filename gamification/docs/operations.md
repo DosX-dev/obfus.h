@@ -29,7 +29,7 @@ For an explicitly requested extra round on the same date, select publish mode an
 
 ## Player downloads and private state
 
-The public `daily-crackme` prerelease contains four ZIPs, one EXE per difficulty. The release description presents one large emoji download link per published difficulty; previous answers are under a collapsed details block. GitHub may also display its automatic source archives.
+The public `daily-crackme` prerelease contains four ZIPs, one EXE per difficulty. The release description links four SVG buttons from `gamification/assets/download-buttons/` to the current round's ZIPs. The images are served from the repository's `main` branch, while download destinations come from the verified round manifest. Previous answers are under a collapsed details block. GitHub may also display its automatic source archives.
 
 Encrypted current answers, compressed all-time novelty history and recovery journals are stored in a separate mutable **draft** release tagged `daily-crackme-state`. It must never be published or deleted. Ordinary public visitors cannot download its draft assets. The authenticated contents-write workflow can maintain both releases. `gamification/current.json` retains hash references and compiler/version metadata; technical files are not added to the public player release.
 

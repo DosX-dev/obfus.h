@@ -50,6 +50,6 @@ test('Extreme emission uses actual VM, captured circuit nodes, lilac badge and c
     assert(!source.includes('\\"protected with obfus.h\\"'));
     const state = { date: '2026-10-12', round: 3, files: ['easy', 'medium', 'hardcore', 'extreme'].map(role => ({ role, url: 'https://example.test/' + role })) };
     const body = description(state);
-    assert.equal(body.match(/<h2>/g).length, 4);
-    assert(body.includes('🔴 HARDCORE') && body.includes('🟣 EXTREME'));
+    assert.equal(body.match(/<img /g).length, 4);
+    assert(body.includes('alt="Download HARDCORE"') && body.includes('alt="Download EXTREME"'));
 });
