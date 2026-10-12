@@ -31,6 +31,8 @@ The resulting binaries can also be processed by commercial protectors and packer
 > [!IMPORTANT]
 > obfus.h significantly raises the barrier to reverse engineering, but it is not a panacea. Protecting trade secrets also requires your own internal protection mechanisms; obfuscation should be one layer of your protection strategy.
 
+This project is intended to protect lawful software, including commercial applications and crackmes. Its author categorically opposes any malicious use. This statement is not a license condition, but projects involving malicious activity will receive no support from the author or the development team.
+
 ## 👾 Usage
 
 Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** into your project is a simple process. Just include the following line in your code:
