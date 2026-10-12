@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "date": "2026-10-12",
+  "round": 1,
+  "commit": "14b9ad6c5e468eaeecbeac5d2078a3886d4b23ac",
+  "headerSha256": "cf10ff8be6f7d432c357a7e106c6f2d15a10dd8f0eef9b623ca1c3780d83dd10",
+  "toolchain": {
+    "repository": "DosX-dev/TinyCC-builder",
+    "release": "2026-10-10",
+    "releaseId": 409117325,
+    "assetId": 628643498,
+    "name": "tinycc-windows-2026-10-10.zip",
+    "size": 9605144,
+    "url": "https://github.com/DosX-dev/TinyCC-builder/releases/download/2026-10-10/tinycc-windows-2026-10-10.zip",
+    "sha256": "bc64c8bc2c82247a4788efa6b52d3ff8779a6716a22761b58359de335b1df451",
+    "versions": {
+      "x64": "tcc version 0.9.28rc mob@43c7708b8568 (x86_64 Windows)",
+      "x86": "tcc version 0.9.28rc mob@43c7708b8568 (i386 Windows)"
+    }
+  },
+  "graphs": [
+    "a78b86e11ccfc41c03514c9b0f3323aa852c3a10b052c6b58fa44ca3351a99a3",
+    "47ec1317694730c2f6bf43921b559e85996629062f17bd35089a4b6dad5f36eb",
+    "36d72ca8eb8fb4c5ac625066c0879d042054b806fe33aec4a15aa983b1839601"
+  ],
+  "witnesses": [
+    "d1e9b72562aa877a6d036cf859536245c5a9bb1be6eeba93b6a433ff2d6170ed",
+    "601d5548153a076a97c52448963afcf6ddbdf20c3bdac1129585d52bb647dccb",
+    "9554dc37875e565cc07ce1f27f41f177d0cec67c33cb6169fc909e63e83ea15e"
+  ],
+  "shapes": [
+    "a4651978b23339c29e9541de96383ae6a6facd97231e09448795b29b5bc894d1",
+    "2b4da6028ae158191e7632593c2ca35feca8c23839625d6bfe5d9d054a640f6b",
+    "b7c03fb79ddd10e76bea306124344a5d0ccaf03b522b31f77fdce5124aaecef2"
+  ],
+  "historyCount": 3,
+  "previous": null,
+  "files": [
+    {
+      "name": "obfus-crackme-2026-10-12-easy-x64.exe",
+      "role": "easy",
+      "sha256": "449d676e3c5cf97e8bb31441e8bfc226d0af1b6748f7abca75c39f057bfdafd6",
+      "size": 707584,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-easy-x64.exe"
+    },
+    {
+      "name": "obfus-crackme-2026-10-12-medium-x64.exe",
+      "role": "medium",
+      "sha256": "6dcb75e67fc7d69347f496a2b24339cee23095e348857b2869c0b05b4447761e",
+      "size": 833024,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-medium-x64.exe"
+    },
+    {
+      "name": "obfus-crackme-2026-10-12-hard-x64.exe",
+      "role": "hard",
+      "sha256": "f249c9f1194eedc396a708585b333bad594fc3cd77a24c37a508ca1d6594cd5f",
+      "size": 1239552,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-hard-x64.exe"
+    },
+    {
+      "name": "TASK-2026-10-12.txt",
+      "role": "task",
+      "sha256": "35be9be6126b2b14c9b9e7b64d27100d4ee3b8c5cfef9fcbe06a084c1924227e",
+      "size": 443,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/TASK-2026-10-12.txt"
+    },
+    {
+      "name": "answers-2026-10-12.json",
+      "role": "answers",
+      "sha256": "7439348b5b1e12524b17a6ba385e4e0a79efd2e9c78965998884f3f319d43690",
+      "size": 304,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/answers-2026-10-12.json"
+    },
+    {
+      "name": "history-2026-10-12.json.gz",
+      "role": "history",
+      "sha256": "adb70abd67eb6af2d84b833294ce09f6e2a7f3dbea9e716c21ce67034cccde61",
+      "size": 11698,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/history-2026-10-12.json.gz"
+    },
+    {
+      "name": "manifest-2026-10-12.json",
+      "role": "manifest",
+      "sha256": "a53ab273fb6ee0370d5ca04858e8e8181c41fd96269253b9fc2da994de1f24be",
+      "size": 3361,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/manifest-2026-10-12.json"
+    },
+    {
+      "name": "SHA256SUMS-2026-10-12.txt",
+      "role": "checksums",
+      "sha256": "bd898dfaa6d122a414e94500f2b6bb3b6454fc9c8b072f4eb88509cbad335206",
+      "size": 674,
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/SHA256SUMS-2026-10-12.txt"
+    }
+  ]
+}
