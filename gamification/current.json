@@ -37,60 +37,42 @@
   "previous": null,
   "files": [
     {
-      "name": "obfus-crackme-2026-10-12-easy-x64.exe",
+      "name": "obfus-crackme-2026-10-12-easy-x64.zip",
       "role": "easy",
-      "sha256": "449d676e3c5cf97e8bb31441e8bfc226d0af1b6748f7abca75c39f057bfdafd6",
-      "size": 707584,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-easy-x64.exe"
+      "size": 524316,
+      "sha256": "720932be589fdc52a3a83b00a6d4753c7ffcb14f603125ed53862bb466da2ba6",
+      "storage": "public",
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-easy-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-10-12-medium-x64.exe",
+      "name": "obfus-crackme-2026-10-12-medium-x64.zip",
       "role": "medium",
-      "sha256": "6dcb75e67fc7d69347f496a2b24339cee23095e348857b2869c0b05b4447761e",
-      "size": 833024,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-medium-x64.exe"
+      "size": 574451,
+      "sha256": "fdfc2ab780c166f7b57d7417489c003d5134b2fc610d9b66a0cec0f9fe923d65",
+      "storage": "public",
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-medium-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-10-12-hard-x64.exe",
+      "name": "obfus-crackme-2026-10-12-hard-x64.zip",
       "role": "hard",
-      "sha256": "f249c9f1194eedc396a708585b333bad594fc3cd77a24c37a508ca1d6594cd5f",
-      "size": 1239552,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-hard-x64.exe"
-    },
-    {
-      "name": "TASK-2026-10-12.txt",
-      "role": "task",
-      "sha256": "35be9be6126b2b14c9b9e7b64d27100d4ee3b8c5cfef9fcbe06a084c1924227e",
-      "size": 443,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/TASK-2026-10-12.txt"
+      "size": 680964,
+      "sha256": "0ca3a4e4aff91cbf24c1fdde4383459438e72b3cb806cad85eed7a59b202e605",
+      "storage": "public",
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-12-hard-x64.zip"
     },
     {
       "name": "answers-2026-10-12.json",
       "role": "answers",
-      "sha256": "7439348b5b1e12524b17a6ba385e4e0a79efd2e9c78965998884f3f319d43690",
       "size": 304,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/answers-2026-10-12.json"
+      "sha256": "7439348b5b1e12524b17a6ba385e4e0a79efd2e9c78965998884f3f319d43690",
+      "storage": "private"
     },
     {
       "name": "history-2026-10-12.json.gz",
       "role": "history",
-      "sha256": "adb70abd67eb6af2d84b833294ce09f6e2a7f3dbea9e716c21ce67034cccde61",
       "size": 11698,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/history-2026-10-12.json.gz"
-    },
-    {
-      "name": "manifest-2026-10-12.json",
-      "role": "manifest",
-      "sha256": "a53ab273fb6ee0370d5ca04858e8e8181c41fd96269253b9fc2da994de1f24be",
-      "size": 3361,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/manifest-2026-10-12.json"
-    },
-    {
-      "name": "SHA256SUMS-2026-10-12.txt",
-      "role": "checksums",
-      "sha256": "bd898dfaa6d122a414e94500f2b6bb3b6454fc9c8b072f4eb88509cbad335206",
-      "size": 674,
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/SHA256SUMS-2026-10-12.txt"
+      "sha256": "adb70abd67eb6af2d84b833294ce09f6e2a7f3dbea9e716c21ce67034cccde61",
+      "storage": "private"
     }
   ]
 }
