@@ -265,6 +265,10 @@ Without the compiler package, you can also [download the script separately](incl
 >   ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 > ```
 
+## 📄 License
+
+**[MIT with a compiled-distribution exception](LICENSE).** Distributed EXEs, DLLs and other compiled binaries do not need to include attribution or the license text for obfus.h. When distributing obfus.h source code, modified versions or substantial portions of it, retain the copyright notice and license text. You do not need to disclose your application's source code.
+
 ## 🌈 Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
  * 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advices)*
