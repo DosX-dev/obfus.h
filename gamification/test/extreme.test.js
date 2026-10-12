@@ -7,6 +7,8 @@ import { emit } from '../src/generation/emitter.js';
 import { seal, hash } from '../src/core/crypto.js';
 import { previousAnswers } from '../src/round/answers.js';
 import { description } from '../src/publication/description.js';
+import { levelsForVersion } from '../src/core/config.js';
+import { canonicalLevel } from '../src/core/legacy-state.js';
 
 test('Extreme has shared acyclic circuits, live dependencies and representation changes', () => {
     for (let round = 1; round <= 10; round++) {
@@ -35,7 +37,10 @@ test('Extreme has shared acyclic circuits, live dependencies and representation 
         downgraded.stages = downgraded.stages.filter(stage => stage.kind !== 'braid');
         assert.throws(() => assertDifficulty(downgraded));
         const changed = structuredClone(c.ir), stage = changed.stages.find(stage => stage.kind === 'braid');
-        stage.nodes[1].left.kind = stage.nodes[1].left.kind === 'xor' ? 'add' : 'xor';
+        // An arbitrary internal AND/OR branch can mask a change for one input.
+        // Corrupt the shared final control, which feeds every target update.
+        const last = stage.nodes.length - 1;
+        stage.nodes[last] = { kind: 'xorConstant', value: 65535, left: stage.nodes[last] };
         assert.notEqual(fingerprint(changed), c.fingerprint);
         assert.notDeepEqual(transform(changed, words(c.password, 16)), c.target);
     }
@@ -47,17 +52,17 @@ test('Extreme emission uses actual VM, captured circuit nodes, lilac badge and c
     assert.match(source, /unsigned q0=/);
     assert.match(source, /RGB\(232,178,255\)/);
     assert(!source.includes('\\"protected with obfus.h\\"'));
-    const state = { date: '2026-10-12', round: 3, files: ['easy', 'medium', 'hard', 'extreme'].map(role => ({ role, url: 'https://example.test/' + role })) };
+    const state = { date: '2026-10-12', round: 3, files: ['easy', 'medium', 'hardcore', 'extreme'].map(role => ({ role, url: 'https://example.test/' + role })) };
     const body = description(state);
     assert.equal(body.match(/^## /gm).length, 4);
     assert(body.includes('🔴 [HARDCORE]') && body.includes('🟣 [EXTREME]'));
 });
 
 test('saved three-level rounds survive the four-level transition; missing Extreme fails closed', async () => {
-    const key = Buffer.alloc(32, 15), answers = { easy: 'old-easy', medium: 'old-medium', hard: 'old-hard' };
+    const key = Buffer.alloc(32, 15), answers = Object.fromEntries(levelsForVersion(4).map(level => [level, 'old-' + level]));
     const data = Buffer.from(JSON.stringify(seal(key, { date: '2026-10-12', round: 2, answers })));
     const state = { version: 4, date: '2026-10-12', round: 2, files: [{ name: 'answers.json', role: 'answers', sha256: hash(data) }] };
     const api = { release: async () => ({ id: 1 }), assets: async () => [{ name: 'answers.json' }], download: async () => data };
-    assert.deepEqual((await previousAnswers(api, key, state)).answers, answers);
+    assert.deepEqual((await previousAnswers(api, key, state)).answers, Object.fromEntries(Object.entries(answers).map(([level, answer]) => [canonicalLevel(level), answer])));
     await assert.rejects(previousAnswers(api, key, { ...state, version: 5 }), /Saved answer levels mismatch/);
 });

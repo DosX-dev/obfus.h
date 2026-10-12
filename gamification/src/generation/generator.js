@@ -37,6 +37,7 @@ export function fingerprint(ir) {
                     before: c.before?.map(ops => ops.map(op => op.kind)),
                     after: c.after?.map(ops => ops.map(op => op.kind)),
                     form: c.form,
+                    program: c.program?.map(step => ({ target: step.target, kind: step.kind, alternate: step.alternate, bit: step.alternate ? step.bit : undefined, sourceMix: step.sourceMix.map(op => op.kind) })),
                     sequence: c.sequence?.map((op) => op.kind),
                     expr: c.expr && expressionShape(c.expr)
                 }))
@@ -78,13 +79,13 @@ function roundExpression(sources, random, bits, minimum = 4, maximum = sources.l
         }
         const wrappers = 1 + random(3);
         for (let i = 0; i < wrappers; i++) {
-            const eligible = ['rot', 'mul', 'constant', 'xorConstant'].filter(kind => kind !== node.kind);
+            const eligible = ['rot', 'mul', 'constant', 'xorConstant', 'shlXor', 'shrXor'].filter(kind => kind !== node.kind);
             const kind = eligible[random(eligible.length)];
             node = {
                 kind,
                 left: node,
                 value:
-                    kind === 'rot'
+                    ['rot', 'shlXor', 'shrXor'].includes(kind)
                         ? 1 + random(bits - 1)
                         : kind === 'mul'
                             ? 3 + 2 * random(7)
@@ -109,7 +110,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         throw new Error('Invalid round parameters');
     const context = { date, round, level, attempt },
         random = rng(key, 'structure', context);
-    const length = { easy: 12, medium: 24, hard: 32, extreme: 48 }[level],
+    const length = { easy: 12, medium: 24, hardcore: 32, extreme: 48 }[level],
         bits = level === 'easy' ? 8 : 16;
     const width = (length * 8) / bits,
         mask = 2 ** bits - 1;
@@ -147,7 +148,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         round,
         ops: shuffle(width, random).map((i) => {
             const sources = Array.from({ length: width }, (_, index) => index).filter((index) => index !== i);
-            return { i, expr: roundExpression(sources, random, bits, round ? 4 : 2, round ? 6 : level === 'medium' ? 4 : 5, ['hard', 'extreme'].includes(level)), form: random(5) };
+            return { i, expr: roundExpression(sources, random, bits, round ? 4 : 2, round ? 6 : level === 'medium' ? 4 : 5, ['hardcore', 'extreme'].includes(level)), form: random(5) };
         })
     });
     if (level === 'easy') {

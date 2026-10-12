@@ -38,9 +38,11 @@ export function profile(ir) {
             }
         }
         for (const op of stage.ops || []) {
+            // Exchanging the two local coordinate names alone is not a new shape.
+            if (op.program) add(stage.kind + ':liftProgram:' + op.program.map(step => `${step.target ^ op.program[0].target}:${step.kind}${step.alternate ? ':select:' + step.alternate : ''}(${step.sourceMix.map(item => item.kind).join(',')})`).join('/'));
             if (op.before) add(stage.kind + ':pairMix:' + [...op.before, ...op.after].map(ops => ops.map(item => item.kind).join(',')).join('/'));
             if (op.gate) add('controlled:gate:' + op.gate.map(item => item.kind).join(',') + (op.inverted ? ':inverted' : ':normal'));
-            add(stage.kind + ':' + (op.sequence ? op.sequence.map(item => item.kind).join(',') : op.expr ? op.form + ':' + expression(op.expr) : stage.kind === 'controlled' ? 'bitSwap' : ['linearLift', 'arxLift', 'multiplicativeLift'][op.form]));
+            add(stage.kind + ':' + (op.program ? 'composedLift' : op.sequence ? op.sequence.map(item => item.kind).join(',') : op.expr ? op.form + ':' + expression(op.expr) : stage.kind === 'controlled' ? 'bitSwap' : ['linearLift', 'arxLift', 'multiplicativeLift'][op.form]));
         }
     }
     return counts;

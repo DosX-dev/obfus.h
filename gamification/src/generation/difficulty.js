@@ -73,7 +73,7 @@ export function assertDifficulty(ir) {
         && summary.coupled >= 4 && summary.functions >= 3
         && ir.stages.some(stage => stage.kind === 'spn') && ir.stages.some(stage => stage.kind === 'controlled')
         && summary.updateForms.length >= 3 && summary.minimumInputDependencies >= ir.width / 2;
-    if (ir.level === 'hard') valid = ir.bits === 16 && ir.length === 32
+    if (ir.level === 'hardcore') valid = ir.bits === 16 && ir.length === 32
         && summary.rounds >= 48 && summary.rounds <= 80
         && summary.feistelRounds >= 24 && summary.sequentialRounds >= 12
         && summary.branches > 0 && summary.partitionWidths.length >= 3

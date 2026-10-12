@@ -44,7 +44,25 @@ export function familyStage(input, stage, bits, inverse) {
             out[op.i] = mix(out[op.i], enter?.[0]);
             out[op.j] = mix(out[op.j], enter?.[1]);
             const a = out[op.i], b = out[op.j];
-            if (op.form === 0) {
+            if (op.program) {
+                const coordinates = [op.i, op.j];
+                for (const step of inverse ? [...op.program].reverse() : op.program) {
+                    const destination = coordinates[step.target];
+                    const control = mix(out[coordinates[1 - step.target]], step.sourceMix, false);
+                    const value = out[destination];
+                    const kind = step.alternate && (control & (1 << step.bit)) ? step.alternate : step.kind;
+                    if (kind === 'xor') out[destination] = value ^ control;
+                    else if (kind === 'add') out[destination] = (value + (inverse ? -control : control)) & mask;
+                    else if (kind === 'sub') out[destination] = (value + (inverse ? control : -control)) & mask;
+                    else if (kind === 'mul') {
+                        const factor = 1 + 2 * (control & 7);
+                        out[destination] = Number(BigInt(value) * BigInt(inverse ? oddInverse(factor, bits) : factor) & BigInt(mask));
+                    } else if (kind === 'rot') {
+                        const count = 1 + (control & (bits / 2 - 1));
+                        out[destination] = rotate(value, inverse ? bits - count : count, bits);
+                    } else throw new Error('Unknown pair program operation');
+                }
+            } else if (op.form === 0) {
                 if (inverse) {
                     const oldB = (b - op.m * a) & mask;
                     out[op.j] = oldB;

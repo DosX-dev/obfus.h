@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
 import { hash } from '../core/crypto.js';
 import { LEVELS } from '../core/config.js';
+import { canonicalLevel } from '../core/legacy-state.js';
 import { profileDistance } from '../generation/diversity.js';
 
 export const HISTORY_VERSION = 1;
@@ -69,6 +70,9 @@ export async function loadHistory(api, state) {
         && /^[a-f0-9]{64}$/.test(entry.structure)
         && /^[a-f0-9]{64}$/.test(entry.behavior)
         && /^[a-f0-9]{64}$/.test(entry.shape)));
+    // Authenticate stored bytes first, then canonicalize difficulty names without
+    // changing fingerprints or losing the previous level's comparison window.
+    for (const entry of history) if (entry.level !== undefined) entry.level = canonicalLevel(entry.level);
     const recentCounts = new Map();
     for (const entry of history) if (entry.profile !== undefined) {
         assert(LEVELS.includes(entry.level), 'Invalid recent-profile difficulty');

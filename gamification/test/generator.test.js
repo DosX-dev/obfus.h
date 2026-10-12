@@ -44,7 +44,7 @@ for (const level of LEVELS)
                 } else {
                     assert(Number.isInteger(node.value) && node.value > 0);
                     if (node.kind === 'mul') assert(node.value % 2 === 1 && node.value <= 15);
-                    else if (node.kind === 'rot') assert(node.value < c.ir.bits);
+                    else if (['rot', 'shlXor', 'shrXor'].includes(node.kind)) assert(node.value < c.ir.bits);
                     else assert(node.value <= 2 ** c.ir.bits - 1);
                     numeric(node.left, excluded, width);
                 }
@@ -60,7 +60,7 @@ for (const level of LEVELS)
         }
     });
 test('deterministic replay and separated derivation domains', () => {
-    const p = { date: '2026-10-12', level: 'hard' };
+    const p = { date: '2026-10-12', level: 'hardcore' };
     assert.deepEqual(generate(key, p), generate(key, p));
     assert.notDeepEqual(derive(key, 'password', p), derive(key, 'structure', p));
     const c = generate(key, p),
@@ -87,16 +87,16 @@ test('a century of daily Easy structures does not exhaust or repeat the generato
     }
 });
 test('answer authentication, secrecy and key rotation fails closed', () => {
-    const value = { answers: { hard: 'PRIVATE-ANSWER' }, round: 3 };
+    const value = { answers: { hardcore: 'PRIVATE-ANSWER' }, round: 3 };
     const envelope = seal(key, value);
     assert.deepEqual(unseal(key, envelope), value);
-    assert(!JSON.stringify(envelope).includes(value.answers.hard));
+    assert(!JSON.stringify(envelope).includes(value.answers.hardcore));
     assert.throws(() => unseal(Buffer.alloc(32, 8), envelope));
     envelope.data = Buffer.from('tampered').toString('base64');
     assert.throws(() => unseal(key, envelope));
 });
 test('structural fingerprint ignores independent scheduling but detects changed operations', () => {
-    const c = generate(key, { date: '2026-10-12', level: 'hard' }),
+    const c = generate(key, { date: '2026-10-12', level: 'hardcore' }),
         changed = structuredClone(c.ir);
     changed.stages[0].ops.reverse();
     changed.storage.reverse();

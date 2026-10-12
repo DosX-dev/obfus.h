@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { levelsForVersion } from '../core/config.js';
 
 export function validateState(state) {
     if (!state) throw new Error('Invalid publication state');
@@ -9,7 +10,8 @@ export function validateState(state) {
     if (!validRound || !validDate || !validFiles) throw new Error('Invalid publication state');
     if (state.version >= 5) {
         const roles = state.files.map(file => file.role).sort();
-        if (JSON.stringify(roles) !== JSON.stringify(['answers', 'easy', 'extreme', 'hard', 'history', 'medium'])) throw new Error('Incomplete four-level publication');
+        const expected = ['answers', 'history', ...levelsForVersion(state.version)].sort();
+        if (JSON.stringify(roles) !== JSON.stringify(expected)) throw new Error('Incomplete four-level publication');
         if (state.files.some(file => file.storage !== (['answers', 'history'].includes(file.role) ? 'private' : 'public'))) throw new Error('Invalid four-level asset visibility');
     }
     const names = new Set();

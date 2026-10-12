@@ -27,7 +27,19 @@ export function families(width, bits, random, shuffle) {
         const ops = [];
         for (let layer = 0; layer < 2 + random(2); layer++) {
             const order = shuffle(width, random);
-            for (let at = 0; at < width; at += 2) ops.push({ i: order[at], j: order[at + 1], form: random(3), k: 1 + random(15), m: 1 + random(15), rotation: 1 + random(bits - 1), before: [mix(2), mix(2)], after: [mix(2), mix(2)] });
+            for (let at = 0; at < width; at += 2) {
+                const program = [], kinds = ['xor', 'add', 'sub', 'mul', 'rot'];
+                // Each lift reads the other coordinate, which it leaves unchanged.
+                // Alternating targets guarantees that both directions participate.
+                const first = random(2), count = 3 + random(5);
+                for (let step = 0; step < count; step++) {
+                    const eligible = kinds.filter(kind => kind !== program.at(-1)?.kind);
+                    const kind = eligible[random(eligible.length)];
+                    const alternatives = kinds.filter(other => other !== kind);
+                    program.push({ target: (first + step) % 2, kind, alternate: random(3) === 0 ? alternatives[random(alternatives.length)] : undefined, bit: random(bits), sourceMix: mix(2) });
+                }
+                ops.push({ i: order[at], j: order[at + 1], program, before: [mix(2), mix(2)], after: [mix(2), mix(2)] });
+            }
         }
         return ops;
     }

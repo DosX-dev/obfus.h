@@ -1,4 +1,4 @@
-// Forward C emission is independent of the inverse model. Hard arithmetic uses VM helpers.
+// Forward C emission is independent of the inverse model. Hardcore arithmetic uses VM helpers.
 export function emitFamily(stage, bits, slot) {
     const v = i => `s[${slot(i)}]`, mask = 2 ** bits - 1;
     function mix(destination, operations = []) {
@@ -38,7 +38,16 @@ export function emitFamily(stage, bits, slot) {
     function pairCode(op) {
         const a = v(op.i), b = v(op.j), before = mix(a, op.before?.[0]) + mix(b, op.before?.[1]), after = mix(a, op.after?.[0]) + mix(b, op.after?.[1]);
         let body;
-        if (op.form === 0) body = `${a}=bounded(p_add(${a},p_mul(${b},${op.k}u)));${b}=bounded(p_add(${b},p_mul(${a},${op.m}u)));`;
+        if (op.program) body = op.program.map(step => {
+            const destination = step.target ? b : a, source = step.target ? a : b;
+            function expressionFor(kind) {
+                const control = kind === 'mul' ? 'p_or(p_shl(p_and(control,7u),1u),1u)' : 'control';
+                return kind === 'rot' ? `rot(${destination},p_add(p_and(control,${bits / 2 - 1}u),1u))` : `bounded(p_${kind}(${destination},${control}))`;
+            }
+            const expression = step.alternate ? `(p_equ(p_and(control,${1 << step.bit}u),0u)?${expressionFor(step.kind)}:${expressionFor(step.alternate)})` : expressionFor(step.kind);
+            return `{unsigned control=${source};${mix('control', step.sourceMix)}${destination}=${expression};}`;
+        }).join('');
+        else if (op.form === 0) body = `${a}=bounded(p_add(${a},p_mul(${b},${op.k}u)));${b}=bounded(p_add(${b},p_mul(${a},${op.m}u)));`;
         else if (op.form === 1) body = `${a}=rot(p_xor(${a},${b}),${op.rotation}u);${b}=bounded(p_add(${b},${a}));`;
         else if (op.form === 2) body = `${a}=bounded(p_mul(${a},p_or(p_shl(p_and(${b},7u),1u),1u)));${b}=p_xor(${b},rot(${a},${op.rotation}u));`;
         else throw new Error('Unknown emitted pair form');

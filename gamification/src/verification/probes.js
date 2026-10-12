@@ -51,7 +51,7 @@ export async function verifyProbe(challenge, exe, { mutation = false, quick = fa
         assert(answers[i], 'Malformed probe output');
         assert.equal(Number(answers[i][1]), !mutation && inputs[i] === challenge.password ? 1 : 0, `Input case ${i}`);
     }
-    if (!mutation && ['hard', 'extreme'].includes(challenge.ir.level))
+    if (!mutation && ['hardcore', 'extreme'].includes(challenge.ir.level))
         assert(Number(answers[0][2]) > 100, 'Real VM instructions must execute');
     if (!mutation) {
         const trace = await run(exe, [], { input: `T ${challenge.password}\n`, timeout: 30000 });

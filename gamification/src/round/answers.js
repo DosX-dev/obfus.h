@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { unseal, hash } from '../core/crypto.js';
 import { levelsForVersion } from '../core/config.js';
+import { canonicalLevel } from '../core/legacy-state.js';
 
 export async function previousAnswers(api, key, state) {
     if (!state) return null;
@@ -16,5 +17,6 @@ export async function previousAnswers(api, key, state) {
     assert.equal(value.round, state.round);
     assert.deepEqual(Object.keys(value.answers).sort(), [...levelsForVersion(state.version)].sort(), 'Saved answer levels mismatch');
     assert(Object.values(value.answers).every(answer => typeof answer === 'string' && /^[\x21-\x7e]+$/.test(answer)), 'Saved answers must be printable ASCII');
-    return { date: value.date, round: value.round, answers: value.answers };
+    const answers = Object.fromEntries(Object.entries(value.answers).map(([level, password]) => [canonicalLevel(level), password]));
+    return { date: value.date, round: value.round, answers };
 }

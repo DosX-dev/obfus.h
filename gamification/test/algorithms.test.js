@@ -31,6 +31,20 @@ test('state-dependent multiplication and rotation preserve all control words and
     }
 });
 
+test('round shift-XOR controls match BigInt at every shift and word boundary', () => {
+    for (const bits of [8, 16]) for (const kind of ['shlXor', 'shrXor']) for (let count = 1; count < bits; count++) {
+        for (const control of [0, 1, 2 ** (bits - 1), 2 ** bits - 1]) {
+            const mask = (1n << BigInt(bits)) - 1n;
+            const shifted = kind === 'shlXor' ? BigInt(control) << BigInt(count) : BigInt(control) >> BigInt(count);
+            const expected = Number((BigInt(control) ^ shifted) & mask);
+            const operation = { kind: 'couple', ops: [{ i: 0, form: 0, expr: { kind, value: count, left: { kind: 'source', index: 1 } } }] };
+            const input = [37, control], output = stage(input, operation, bits);
+            assert.deepEqual(output, [37 ^ expected, control]);
+            assert.deepEqual(stage(output, operation, bits, true), input);
+        }
+    }
+});
+
 test('conditional round expressions select both paths without losing reversibility', () => {
     const operation = {
         kind: 'couple', ops: [{
@@ -61,21 +75,21 @@ test('unbalanced generalized Feistel routing is reversed before its updates', ()
     assert.deepEqual(stage(changed, operation, 16, true), input);
 });
 
-test('difficulty admission rejects independent Medium and fixed-partition Hard checks', () => {
+test('difficulty admission rejects independent Medium and fixed-partition Hardcore checks', () => {
     const key = Buffer.alloc(32, 37);
     const medium = generate(key, { date: '2026-10-12', level: 'medium' }).ir;
     assert(analyzeDifficulty(medium).coupled >= 4);
     medium.stages = medium.stages.filter(stage => stage.kind !== 'couple');
     assert.throws(() => assertDifficulty(medium));
-    const hard = generate(key, { date: '2026-10-12', level: 'hard' });
-    assert(analyzeDifficulty(hard.ir).partitionWidths.length >= 3);
-    assert.match(emit(hard), /return VM_EQU\(a,b\)/);
-    hard.ir.stages = hard.ir.stages.filter(stage => stage.kind !== 'feistel');
-    assert.throws(() => assertDifficulty(hard.ir));
+    const hardcore = generate(key, { date: '2026-10-12', level: 'hardcore' });
+    assert(analyzeDifficulty(hardcore.ir).partitionWidths.length >= 3);
+    assert.match(emit(hardcore), /return VM_EQU\(a,b\)/);
+    hardcore.ir.stages = hardcore.ir.stages.filter(stage => stage.kind !== 'feistel');
+    assert.throws(() => assertDifficulty(hardcore.ir));
 });
 
 test('fingerprints retain conditional branch order and generalized round connections', () => {
-    const challenge = generate(Buffer.alloc(32, 38), { date: '2026-10-12', level: 'hard' });
+    const challenge = generate(Buffer.alloc(32, 38), { date: '2026-10-12', level: 'hardcore' });
     const changed = structuredClone(challenge.ir);
     const round = changed.stages.find(stage => stage.kind === 'feistel');
     [round.sources[0], round.sources[1]] = [round.sources[1], round.sources[0]];

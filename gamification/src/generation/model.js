@@ -29,6 +29,8 @@ function evaluate(node, right, bits = 16, refs = []) {
     if (node.kind === 'or') return x | evaluate(node.right, right, bits, refs);
     if (node.kind === 'sub') return (x - evaluate(node.right, right, bits, refs)) & mask;
     if (node.kind === 'rot') return rotate(x, node.value, bits);
+    if (node.kind === 'shlXor') return (x ^ (x << node.value)) & mask;
+    if (node.kind === 'shrXor') return x ^ (x >>> node.value);
     if (node.kind === 'mul') return (x * node.value) & mask;
     if (node.kind === 'constant') return (x + node.value) & mask;
     if (node.kind === 'xorConstant') return x ^ node.value;

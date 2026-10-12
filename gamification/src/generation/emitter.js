@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { LEVEL_LABELS } from '../core/config.js';
 import { emitFamily } from './family-emitter.js';
 export function emit({ ir, target }, { mutate = null } = {}) {
-    const hard = ['hard', 'extreme'].includes(ir.level),
+    const hardcore = ['hardcore', 'extreme'].includes(ir.level),
         mask = 2 ** ir.bits - 1;
     const stages = mutate === 'drop' ? ir.stages.slice(1) : ir.stages;
     const rows = [],
@@ -20,6 +20,7 @@ export function emit({ ir, target }, { mutate = null } = {}) {
         if (node.kind === 'or') return `p_or(${x},${expression(node.right, coordinates)})`;
         if (node.kind === 'sub') return `bounded(p_sub(${x},${expression(node.right, coordinates)}))`;
         if (node.kind === 'rot') return `rot(${x},${node.value}u)`;
+        if (['shlXor', 'shrXor'].includes(node.kind)) return `fold_${node.kind === 'shlXor' ? 'left' : 'right'}(${x},${node.value}u)`;
         if (node.kind === 'mul') return `bounded(p_mul(${x},${node.value}u))`;
         if (node.kind === 'constant') return `bounded(p_add(${x},${node.value}u))`;
         if (node.kind === 'xorConstant') return `p_xor(${x},${node.value}u)`;
@@ -82,7 +83,7 @@ export function emit({ ir, target }, { mutate = null } = {}) {
     const opFunctions = maths
         .map(
             (op) =>
-                `static unsigned p_${op.toLowerCase()}(unsigned a,unsigned b){ return ${hard ? `VM_${op}(a,b)` : `(a ${native[op]} b)`}; }`
+                `static unsigned p_${op.toLowerCase()}(unsigned a,unsigned b){ return ${hardcore ? `VM_${op}(a,b)` : `(a ${native[op]} b)`}; }`
         )
         .join('\n');
     const groups = [];
@@ -101,7 +102,7 @@ export function emit({ ir, target }, { mutate = null } = {}) {
 #include <shellapi.h>
 #define OBFH_BUILD_SEED ${ir.seed}u
 ${ir.level !== 'easy' ? '#define CFLOW_V2 1\n#define ANTIDEBUG_V2 1' : ''}
-${hard ? '#define VIRT 1' : ''}
+${hardcore ? '#define VIRT 1' : ''}
 #ifdef SELFTEST
 static unsigned long vm_steps;
 void daily_vm_step(unsigned op, unsigned pc) { (void)op; (void)pc; ++vm_steps; }
@@ -111,15 +112,17 @@ void daily_vm_step(unsigned op, unsigned pc) { (void)op; (void)pc; ++vm_steps; }
 #define BITS ${ir.bits}
 #define MASK ${mask}u
 #define PASSWORD_LENGTH ${ir.length}
-#define DAILY_DIFFICULTY_COLOR ${{ easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hard: 'RGB(244,105,113)', extreme: 'RGB(232,178,255)' }[ir.level]}
+#define DAILY_DIFFICULTY_COLOR ${{ easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hardcore: 'RGB(244,105,113)', extreme: 'RGB(232,178,255)' }[ir.level]}
 typedef struct { unsigned i,j; } Operation;
 static const Operation ops[] = {${rows.length ? rows.join(',\n') : '{0}'}};
 static const unsigned storage[] = {${ir.storage.join(',')}};
 static const unsigned expected[] = {${target.map((n, i) => n ^ ((i * 7919 + ir.seed) & mask)).join(',')}};
 ${opFunctions}
-static unsigned p_equ(unsigned a,unsigned b){return ${hard ? 'VM_EQU(a,b)' : '(a==b)'};}
+static unsigned p_equ(unsigned a,unsigned b){return ${hardcore ? 'VM_EQU(a,b)' : '(a==b)'};}
 static unsigned bounded(unsigned x){return p_and(x,MASK);}
 static unsigned rot(unsigned x,unsigned n){return bounded(p_or(p_shl(x,n),p_shr(x,BITS-n)));}
+static unsigned fold_left(unsigned x,unsigned n){return bounded(p_xor(x,p_shl(x,n)));}
+static unsigned fold_right(unsigned x,unsigned n){return p_xor(x,p_shr(x,n));}
 #ifdef SELFTEST
 static int tracing;
 static void observe(unsigned *s){if(tracing){unsigned i;for(i=0;i<WIDTH;i++)printf("%u%c",s[storage[i]],i+1==WIDTH?'\\n':' ');}}
@@ -134,7 +137,7 @@ static int verify_state(unsigned *s){
  unsigned i,bad=0;
  ${ir.groups.map((_, i) => `stage_${i}(s);`).join('\n')}
  for(i=${mutate === 'coordinate' ? 1 : 0};i<WIDTH;i++)bad=p_or(bad,p_xor(s[storage[i]],p_xor(expected[i],(i*7919u+${ir.seed}u)&MASK)));
- ${hard ? 'VM_IF(VM_EQU(bad,0))' : 'if(bad==0)'}{int accepted=1;RET_BY_VAR(accepted);}return 0;
+ ${hardcore ? 'VM_IF(VM_EQU(bad,0))' : 'if(bad==0)'}{int accepted=1;RET_BY_VAR(accepted);}return 0;
 }
 static int verify_bytes(const unsigned char *password,size_t length){
  unsigned s[WIDTH],i;
@@ -166,7 +169,7 @@ ${readFileSync(new URL('../ui/gui.c', import.meta.url), 'utf8')
             .replaceAll('@DATE@', ir.date)
             .replaceAll('@ROUND@', String(ir.round))
             .replaceAll('@LEVEL@', ir.level === 'extreme' ? LEVEL_LABELS[ir.level] : LEVEL_LABELS[ir.level][0] + LEVEL_LABELS[ir.level].slice(1).toLowerCase())
-            .replaceAll('@COLOR@', { easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hard: 'RGB(244,105,113)', extreme: 'RGB(232,178,255)' }[ir.level])}
+            .replaceAll('@COLOR@', { easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hardcore: 'RGB(244,105,113)', extreme: 'RGB(232,178,255)' }[ir.level])}
 #endif
 `;
     return mutate === 'vm' ? source.replace('return VM_ADD(a,b);', 'return 0;') : source;
