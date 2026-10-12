@@ -1,7 +1,10 @@
-![](pics/obfus.h.png)
+<p align="center"><img src="pics/obfus.h.png" width="560" alt="obfus.h — compile-time obfuscation"></p>
+
 # obfus.h
 
-**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time obfuscating C applications, designed specifically for the **[Tiny C (tcc)](https://bellard.org/tcc/)**. It is tailored for Windows x86 and x64 platforms and supports almost all versions of the compiler. **Very reliable armor for your C programs!**
+**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for **TinyCC 0.9.28rc** on Windows x86 and x64. Download the complete compiler package from **[TinyCC-builder releases](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**. **One file. Protection baked into your binary.**
+
+**Just seeing obfus.h in your binary will make a reverse engineer question the existence of God.**
 
 ### What features does it have?...
 - 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
@@ -11,6 +14,22 @@
 - 🚫 **Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
 - 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
 - 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
+- 🪟 **Windows API Protection**: Automatically protects common GUI and system calls with no extra setup.
+
+## 🕹️ [Daily Crackmes](https://github.com/DosX-dev/obfus.h/releases/tag/daily-crackme)
+
+**Four levels: Easy, Medium, Hardcore and Extreme. Unique crackmes, automatically generated and built every day.** Each challenge has its own generated verification logic, not just a different password. Sharpen your reverse-engineering skills or see how obfus.h works in real binaries — no compiler or test setup needed. **Download. Disassemble. Find the password.**
+
+## 🎯 Intended use
+
+**obfus.h is a full-featured obfuscation tool, not a proof of concept.** It is a powerful tool when you understand where and how to apply it: use it to protect selected native components containing sensitive logic.
+
+Since obfus.h requires **TCC**, the recommended approach for larger projects is to isolate that logic in C DLLs compiled with TCC and obfuscated with obfus.h. The main application can remain in **C#, C++**, another language, or **C compiled with GCC, LLVM/Clang or Visual C** and call those DLLs through their exported interfaces.
+
+The resulting binaries can also be processed by commercial protectors and packers to add another layer of protection. Check compatibility with your chosen protector and settings before distributing the protected components.
+
+> [!IMPORTANT]
+> obfus.h significantly raises the barrier to reverse engineering, but it is not a panacea. Protecting trade secrets also requires your own internal protection mechanisms; obfuscation should be one layer of your protection strategy.
 
 ## 👾 Usage
 
@@ -18,31 +37,44 @@ Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/ob
 ```c
 #include "obfus.h"
 ```
-This will automatically obfuscate your code during compilation, ensuring protection and confidentiality of your intellectual property.
+**One file. Powerful protection.** Include it and build your application: the protection code is baked directly into the output binary, making your native code much harder to analyze.
 
-> Available options for protection configuring:
+Protection is polymorphic throughout the application: even small changes to the source code can substantially reshape the protection baked into the output binary, changing its instructions, constants and control-flow paths.
+
+Control-flow protection uses **Control Flow Explosion**: straightforward conditions and loops expand into a tangled graph of branches, indirect transitions and fake functions. Polymorphic instruction sequences carry state and select continuations, so removing them without preserving their dependencies can break execution. The graph's structure and instruction forms vary with the source code, making the original logic harder to follow in disassemblers and decompilers. `CFLOW_V2` adds another layer of control-flow mutation.
+
+Automatic control-flow protection transforms `if`, `else`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
+
+IntelliSense remains available. No extra tools or code generation are required.
+
+> Define options **before** including `obfus.h`:
 > ```c
 > // Advanced code protection (see the "Virtualization" part of the documentation!)
 > #define VIRT           1  // Allows you to use the functions of a math VM
 > 
 > // Additional options
-> #define CFLOW_V2       1  // More powerful Control Flow obfuscation (slowly!)
-> #define ANTIDEBUG_V2   1  // Use better dynamic anti-debugging protection
-> #define FAKE_SIGNS     1  // Adds fake signatures of various protectors or packers
+> #define CFLOW_V2       1  // Stronger control-flow protection (slower execution)
+> #define ANTIDEBUG_V2   1  // Add hardware-breakpoint checks to anti-debugging protection
+> #define FAKE_SIGNS     1  // Fake protector/packer signatures (crackme/CTF only)
 > 
 > // Disabling default features
 > #define NO_OBF         1  // Don't obfuscate (for debugging)
 > #define NO_CFLOW       1  // Don't use Control-Flow obfuscation
 > #define NO_ANTIDEBUG   1  // Don't build in debugging protection
+> #define NO_PDATA_DECOYS 1 // Disable additional x64 fake functions
 > ```
+
+> [!WARNING]
+> **Reserve `FAKE_SIGNS` for crackme/CTF challenges; avoid it in production software.** Fake protector and packer signatures can trigger antivirus detections and cause tools such as Detect It Easy to flag the binary as suspicious or potentially malicious.
+
 > or use it with compiler args:
 > 
 > ```
 > tcc "app.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
 > ```
 
-> [!WARNING]
-> When compiling an application with obfuscation, use the `-w` argument to suppress warnings. Otherwise, the console will display numerous intimidating logs that have no impact on the final result. There's no need to be alarmed by them.
+> [!TIP]
+> Use `-w` to suppress warnings generated by the protection during compilation.
 
 🔐 Debugging protection is triggered by calls to many basic MSVCRT functions.
 In critical places in the code you can use the `ANTI_DEBUG;` construct. For example:
@@ -54,12 +86,11 @@ if (!licenseExpired()) {
 ```
 
 ## 🧶 Strings hiding
-The `HIDE_STRING(str)` obfuscates and visually hides strings by mutating them, significantly complicating their discovery and patching in the source code. When declared in this manner, the strings are assembled on the stack through `mov` instructions rather than being loaded all at once. This method ensures that the strings are not statically declared and are instead constructed at runtime, making them less susceptible to static analysis. However, it is important to note that this feature cannot be used for hiding static fields during their declaration, as it involves a function call.
+Use `HIDE_STRING(str)` to build a string at runtime instead of storing it as a plain string in the binary. Use it inside functions; it cannot initialize static variables.
 
-> [!IMPORTANT]
-> Some decompilers may still reveal them due to static optimizations. In disassembler output, the code will appear complex and cumbersome, which can deter straightforward analysis but may not fully prevent determined reverse engineering efforts.
+The returned pointer remains valid until the enclosing block ends. Copy the string if it needs to outlive that block. Some decompilers can still reconstruct its contents.
 
-An example of calling the `printf` function from the standard library with static hiding of the message and its decryption on the stack:
+Example:
 ```c
 char *hidden_message = HIDE_STRING("Hello, world!");
 // ...
@@ -67,7 +98,7 @@ printf(hidden_message);
 ```
 
 ## 👺 Virtualization
-This is a protection technique in which certain calculations are performed through an embedded virtual machine upon command. Makes analysis of mathematical operations **very difficult**! It will work with the `VIRT` option enabled (and only!). Otherwise, all virtual machine commands will be replaced by ordinary mathematical operators.
+Enable `VIRT` and use the VM macro-operators to run selected calculations through an embedded virtual machine. No extra initialization is required. With `VIRT` disabled, these macro-operators use ordinary calculations.
 
 > [!WARNING]
 > Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
@@ -79,6 +110,12 @@ This is a protection technique in which certain calculations are performed throu
 | **`VM_MUL`**     | *long*         |`*` | Multiplies two numbers                                                     | `VM_MUL(5, 3)` = **`15`**            |
 | **`VM_DIV`**     | *long*         |`/` | Divides two numbers                                                        | `VM_DIV(6, 3)` = **`2`**             |
 | **`VM_MOD`**     | *long*         |`%` | Calculates the modulus of two numbers                                      | `VM_MOD(5, 3)` = **`2`**             |
+| **`VM_AND`**     | *unsigned int* |`&` | Calculates the bitwise AND of two numbers                                  | `VM_AND(6, 3)` = **`2`**             |
+| **`VM_OR`**      | *unsigned int* |`\|`| Calculates the bitwise OR of two numbers                                   | `VM_OR(6, 3)` = **`7`**              |
+| **`VM_XOR`**     | *unsigned int* |`^` | Calculates the bitwise XOR of two numbers                                  | `VM_XOR(6, 3)` = **`5`**             |
+| **`VM_NOT`**     | *unsigned int* |`~` | Inverts all bits of a number                                               | `VM_NOT(0)` = **`0xFFFFFFFFu`**      |
+| **`VM_SHL`**     | *unsigned int* |`<<`| Shifts a number left by the specified number of bits                       | `VM_SHL(1, 3)` = **`8`**             |
+| **`VM_SHR`**     | *unsigned int* |`>>`| Shifts a number right by the specified number of bits, filling with zeros  | `VM_SHR(8, 3)` = **`1`**             |
 | **`VM_EQU`**     | *BOOL*         |`==`| Checks if two numbers are equal                                            | `VM_EQU(5, 5)` = **`true`**          |
 | **`VM_NEQ`**     | *BOOL*         |`!=`| Checks if two numbers are not equal                                        | `VM_NEQ(5, 3)` = **`true`**          |
 | **`VM_LSS`**     | *BOOL*         |`<` | Checks if the first number is less than the second number                  | `VM_LSS(3, 5)` = **`true`**          |
@@ -124,9 +161,9 @@ VM_IF (condition1) {
 }
 ```
 
-You can find examples of using all the functions of a virtual machine in the file [tests/virtualmachine.c](tests/virtualmachine.c)
+You can find examples of using all the functions of a virtual machine in the file [tests/vm.c](tests/vm.c)
 
-## ❓ Example of using
+## ❓ Example
 If you need advanced protection against skilled reversers, use `CFLOW_V2` and `ANTIDEBUG_V2` options.
 ```c
 // Let's obfuscate your code!
@@ -143,16 +180,18 @@ If you need advanced protection against skilled reversers, use `CFLOW_V2` and `A
 #define NO_CFLOW     0 // [-] Disable ControlFlow
 #define NO_ANTIDEBUG 0 // [-] Disable AntiDebug
 
-
 #include "obfus.h"
 
-void main() {
+void _start(void) {
+	ANTI_DEBUG;
+
 	char *out = malloc(256);
 
-	strcpy(out, HIDE_STRING("Hello, world!\n"));
+	STACK_PROXY_FUNCTIONS;
 
 	if (out) {
-		printf(out);
+		strcpy(out, HIDE_STRING("Hello, world!\n"));
+		printf("%s", out);
 	} else {
 		printf("Error!\n");
 	}
@@ -161,30 +200,45 @@ void main() {
 
 	int result = VM_ADD(5, 7); // 5 + 7
 
+	BREAK_STACK_CFLOW;
 	VM_IF (VM_EQU(result, 12)) { // (5 + 7) == 12
 		printf("5 + 7 == 12");
 	}
+
+	exit(0);
 }
 ```
 
-## 🤖 How it works?
+## 🤖 How it works
 > ![](pics/how-it-works.png)
 
 ## 🛠 Compiler (important)
-The latest version of **Tiny C** (`0.9.27`) is recommended for use. Unfortunately, some versions of the compiler do not support the functionality needed to completely obfuscation. **Visual C**, **GCC** and **Clang** *is not supported* and is unlikely to be supported.
+Use **TinyCC `0.9.28rc` from [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**, which includes the Windows headers, libraries and `obfh-update.cmd`. TinyCC `0.9.27`, **Visual C**, **GCC** and **Clang** are not supported.
+
+> [!NOTE]
+> To build the latest compiler yourself, download [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder) and double-click `build.cmd`; sources and dependencies are downloaded automatically.
 
 ## 🌐 obfus.h updater
-You can use [special script](include-updater/obfh-update.cmd) for Windows to get the latest versions of `obfus.h` by downloading the package from the official repository. This is useful if you need to automate security updates without using `git`.
+**`obfh-update.cmd` is already included in the standard [TinyCC-builder package](https://github.com/DosX-dev/TinyCC-builder/releases/latest), next to `tcc.exe`.** No separate download is needed.
 
-> For example, you can use it before building your project:
-> ```diff
-> + C:\...> call obfh-update
->   C:\...> tcc app.c -w
-> ```
-> The script will update the contents of the obfus.h file in the current directory (according to the specified configuration)
+Run it manually from your project directory or add it to your build pipeline. It downloads the latest `obfus.h` into the current directory:
 
-## 📖 Summarize
-The code of a program (and its original original logic) protected using **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is almost **impossible to recover (deobfuscate)**. However, using this obfuscator does not guarantee complete protection against all types of threats. **It's important to develop and maintain internal program security systems.**
+```bat
+call "C:\TinyCC\obfh-update.cmd"
+if errorlevel 1 exit /b 1
+"C:\TinyCC\tcc.exe" app.c -w
+```
+
+Without the compiler package, you can also [download the script separately](include-updater/obfh-update.cmd).
+
+## 🦎 Security Audits and the Community
+ * **[Defeating a Heavily Obfuscated Binary](https://vxcall.github.io/posts/defeating-a-heavily-obfuscated-binary/)** - Black-box analysis of internal obfus.h security mechanisms and it deobfuscation. All vulnerabilities have now been patched.
+ * **[V1t CTF 2026 Writeup: 8 Challenges Solved](https://cybersecurityelite.com/ctf-writeups/v1t-ctf-2026-writeup/)** - Reverse engineering of the obfus.h-protected Sealed Input Verifier challenge.
+ * **[\[CTF\] 2024 CISCN x 长城杯 初赛逆向0解题-VT 解题全流程](https://www.52pojie.cn/thread-2008228-1-1.html#1)** -  Reversing CTF with previous generation of obfus.h using the original protection code.
+ * **[ObfusHunter](https://github.com/hACKCASCAC/ObfusHunter)** - A utility for scanning files protected by obfus.h
+
+## 📖 Protection in practice
+**Extremely aggressive polymorphic obfuscation is the core of obfus.h.** Its protection deliberately uses aggressive transformations to disrupt the semantic structure recovered by analysis tools while preserving the program's behavior. Instructions and control-flow paths vary throughout the binary, making the original logic harder to reconstruct and modify. Use it alongside your application's own checks and protections.
 
 > **What the diagrammatic code will look like after obfuscation:**
 > ![](pics/before_and_after.png)
@@ -210,25 +264,6 @@ The code of a program (and its original original logic) protected using **[obfus
 >   ; etc . . .                                                     ;
 >   ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 > ```
-
-<!-- ```c
-// BEFORE OBFUSCATION       
-__int64 sub_4010B8() {
-	printf("Hello, world!");
-	return 0i64;
-}
-```
-
-```c
-// AFTER OBFUSCATION
- __int64 sub_401000() {
-	 *(_DWORD *)(a2 + v2) += v2;
-	 if ( !(_DWORD)a2 )
-	   JUMPOUT(0x100C3C9);
-	 MEMORY[0x100C3C9] &= a2;
-	 return (loc_4017B1)(asc_404159);
- }
-``` -->
 
 ## 🌈 Special thanks
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️

@@ -1,0 +1,132 @@
+import { hash } from '../core/crypto.js';
+import { RELEASE_TAG } from '../core/config.js';
+import { validateState, stateEqual } from './state.js';
+import { description } from './description.js';
+
+const assetMatches = (asset, file) => asset.name === file.name && asset.storage === file.storage;
+
+async function verifyAssets(api, release, state) {
+    const assets = await api.assets(release.id);
+    for (const file of state.files) {
+        const asset = assets.find((a) => assetMatches(a, file));
+        if (!asset || hash(await api.download(asset)) !== file.sha256)
+            throw new Error('Published asset integrity failure');
+    }
+}
+async function finish(api, release, transaction) {
+    validateState(transaction.next);
+    const extraRound = transaction.advanceFromRound !== undefined;
+    if (extraRound && (!Number.isSafeInteger(transaction.advanceFromRound) || transaction.advanceFromRound < 1 || transaction.next.round !== transaction.advanceFromRound + 1)) throw new Error('Invalid manual advance journal');
+    const journalName = extraRound ? `transaction-${transaction.next.date}-round-${transaction.next.round}.json` : `transaction-${transaction.next.date}.json`;
+    if (transaction.journal !== journalName) throw new Error('Journal date mismatch');
+    const current = await api.readManifest();
+    if (current) validateState(current);
+    if (!stateEqual(current, transaction.next)) {
+        if (extraRound) {
+            if (!current || current.round !== transaction.advanceFromRound || transaction.next.date !== current.date) throw new Error('Invalid manual advance recovery sequence');
+        } else if (current ? transaction.next.round !== current.round + 1 || transaction.next.date <= current.date : transaction.next.round !== 1) throw new Error('Invalid recovery sequence');
+    }
+    await verifyAssets(api, release, transaction.next);
+    // The journal is durable before either visible pointer changes. Retrying is idempotent.
+    await api.updateRelease(release.id, {
+        name: 'Daily Crackmes',
+        body: description(transaction.next),
+        prerelease: true,
+        make_latest: 'false'
+    });
+    if (!stateEqual(await api.readManifest(), transaction.next)) await api.writeManifest(transaction.next);
+    const keep = transaction.next.files;
+    for (const asset of await api.assets(release.id)) {
+        if (
+            !keep.some(file => assetMatches(asset, file)) &&
+            /^(obfus-crackme-|answers-|history-|transaction-)/.test(asset.name)
+        ) {
+            // Keep the recovery journal until all obsolete assets are gone.
+            if (asset.name !== transaction.journal) await api.deleteAsset(asset.id);
+        }
+    }
+    const journal = (await api.assets(release.id)).find((a) => a.name === transaction.journal);
+    if (journal) await api.deleteAsset(journal.id);
+    return transaction.next;
+}
+export async function recover(api) {
+    const release = await api.release();
+    if (!release) {
+        if (await api.readManifest()) throw new Error('Published manifest exists but the daily release is missing; refusing to reset history');
+        return null;
+    }
+    if (release.immutable) throw new Error('Daily release must be mutable');
+    const journals = (await api.assets(release.id)).filter((a) => /^transaction-\d{4}-\d{2}-\d{2}(?:-round-[1-9]\d*)?\.json$/.test(a.name));
+    if (journals.length > 1) throw new Error('Multiple publication journals; manual inspection required');
+    if (journals.length) {
+        const transaction = JSON.parse((await api.download(journals[0])).toString());
+        if (transaction.version !== 1 || transaction.journal !== journals[0].name)
+            throw new Error('Invalid publication journal');
+        return finish(api, release, transaction);
+    }
+    const state = await api.readManifest();
+    if (state) {
+        validateState(state);
+        await verifyAssets(api, release, state);
+    } else if (release.body !== 'Preparing the first verified round.') {
+        throw new Error('Daily release state is incomplete; refusing to reset history');
+    }
+    return state;
+}
+export async function publish(api, state, files, { advanceFromRound = null } = {}) {
+    if (advanceFromRound !== null && (!Number.isSafeInteger(advanceFromRound) || advanceFromRound < 1)) throw new Error('Invalid manual advance request');
+    validateState(state);
+    if (!Array.isArray(files) || files.length !== state.files.length || new Set(files.map(file => file.name)).size !== files.length || files.some(file => state.files.find(entry => entry.name === file.name)?.sha256 !== hash(file.data))) throw new Error('Publication bundle does not match its manifest');
+    let release = await api.release();
+    if (release?.immutable) throw new Error('Daily release must be mutable');
+    if (!release) {
+        if (await api.readManifest()) throw new Error('Published manifest exists but the daily release is missing; refusing to reset history');
+        release = await api.createRelease({
+            tag_name: RELEASE_TAG,
+            name: 'Daily Crackmes',
+            prerelease: true,
+            make_latest: 'false',
+            body: 'Preparing the first verified round.'
+        });
+    }
+    const current = await recover(api);
+    if (stateEqual(current, state) || current?.date === state.date && advanceFromRound === null) return current;
+    if (advanceFromRound !== null) {
+        if (!current || current.date !== state.date || current.round !== advanceFromRound) throw new Error('Expected current round/date mismatch');
+        if (state.files.some(file => current.files.some(before => assetMatches(before, file)))) throw new Error('Extra round requires distinct asset names');
+    }
+    if (current && (state.date < current.date || state.round !== current.round + 1))
+        throw new Error('Invalid publication sequence');
+    if (!current && state.round !== 1) throw new Error('First round must be 1');
+    const journal = advanceFromRound !== null ? `transaction-${state.date}-round-${state.round}.json` : `transaction-${state.date}.json`;
+    let durable = false;
+    try {
+        // Clean orphan uploads from an interruption before a journal was written.
+        const active = current?.files || [];
+        for (const asset of await api.assets(release.id)) {
+            if (!active.some(file => assetMatches(asset, file)) && files.some((f) => f.name === asset.name)) await api.deleteAsset(asset.id);
+        }
+        for (const file of files) {
+            const a = await api.upload(release.id, file.name, file.data);
+            if (hash(await api.download(a)) !== hash(file.data)) throw new Error('Uploaded asset checksum mismatch');
+        }
+        await verifyAssets(api, release, state);
+        const transaction = { version: 1, journal, next: state, ...(advanceFromRound !== null ? { advanceFromRound } : {}) };
+        await api.upload(release.id, journal, Buffer.from(JSON.stringify(transaction)));
+        durable = true;
+        return await finish(api, release, transaction);
+    } catch (error) {
+        // An upload can succeed even if its response was lost. Look for the journal.
+        durable ||= (await api.assets(release.id)).some((a) => a.name === journal);
+        // Deleting the final journal can succeed while its HTTP response is lost.
+        // In that case the committed manifest is the durable completion record.
+        durable ||= stateEqual(await api.readManifest(), state);
+        if (!durable)
+            for (const asset of await api.assets(release.id)) {
+                if (files.some((f) => f.name === asset.name) && !current?.files.some((f) => assetMatches(asset, f)))
+                    await api.deleteAsset(asset.id);
+            }
+        // With a durable complete journal, leave the old set intact and resume next run.
+        throw error;
+    }
+}

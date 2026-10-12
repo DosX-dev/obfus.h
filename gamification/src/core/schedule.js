@@ -1,0 +1,17 @@
+export function moscow(now = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Moscow',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(now);
+    const get = (type) => parts.find((p) => p.type === type).value;
+    return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) };
+}
+
+export function roundDue(state, time, manual = false, advanceFromRound = null) {
+    if (advanceFromRound !== null) return manual && state?.date === time.date && state.round === advanceFromRound;
+    return state?.date !== time.date && (manual || time.hour >= 13);
+}
