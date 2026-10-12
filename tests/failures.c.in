@@ -75,7 +75,7 @@ static BOOL fake_close(HANDLE h) {
 static int module_calls, export_calls, api_calls;
 static BOOL WINAPI fake_debugger_check(void) {
     api_calls++;
-    return mode == 14;
+    return mode == 14 || mode == 16;
 }
 static HMODULE fake_module(const char *name) {
     module_calls++;
@@ -109,10 +109,10 @@ int main(void) {
         if (targets != (mode != 1) || suspends != (mode != 1 && mode != 2) ||
             resumes != (mode != 1 && mode != 2 && mode != 7) || contexts != resumes) return 50 + mode;
     }
-    for (mode = 12; mode <= 15; ++mode) {
+    for (mode = 12; mode <= 16; ++mode) {
         module_calls = export_calls = api_calls = 0;
-        if (obfh_ad_process_probe() != (mode == 14) || module_calls != 1 ||
-            export_calls != (mode != 12) || api_calls != (mode >= 14)) return 80 + mode;
+        if (obfh_ad_process_probe() != (mode == 14 || mode == 16) || module_calls != (mode <= 14) ||
+            export_calls != (mode == 13 || mode == 14) || api_calls != (mode >= 14)) return 80 + mode;
     }
     puts("ANTIDEBUG_V2 failure branches passed");
     return 0;

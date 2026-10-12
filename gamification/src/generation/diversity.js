@@ -16,6 +16,10 @@ export function profile(ir) {
     const add = text => counts.set(text, (counts.get(text) || 0) + 1);
     for (const stage of ir.stages) {
         add('stage:' + stage.kind);
+        for (const gate of stage.gates || []) {
+            const controlWords = new Set(gate.controls.map(wire => Math.floor(wire / ir.bits))).size;
+            add(`bitnetwork:${gate.destination === undefined ? 'flip' : 'swap'}:${controlWords}:${gate.truth.map(value => value ^ gate.truth[0]).join('')}`);
+        }
         for (const node of stage.nodes || []) add('circuit:' + expression(node));
         if (['feistel', 'braid'].includes(stage.kind)) add(`partition:${stage.sources.length}/${stage.targets.length}`);
         if (stage.round) add('sequentialRound');

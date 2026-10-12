@@ -18,6 +18,13 @@ export function analyzeDifficulty(ir) {
     }
     for (const stage of ir.stages) {
         kinds.set(stage.kind, (kinds.get(stage.kind) || 0) + 1);
+        if (stage.kind === 'bitnetwork') {
+            for (const gate of stage.gates) {
+                const targets = [gate.target, ...(gate.destination === undefined ? [] : [gate.destination])].map(wire => Math.floor(wire / ir.bits));
+                const combined = new Set([...targets, ...gate.controls.map(wire => Math.floor(wire / ir.bits))].flatMap(word => [...dependencies[word]]));
+                for (const target of targets) dependencies[target] = new Set(combined);
+            }
+        }
         if (stage.kind === 'permute') dependencies = stage.order.map(source => dependencies[source]);
         if (stage.kind === 'weave') {
             for (const op of stage.ops) {
@@ -74,7 +81,8 @@ export function assertDifficulty(ir) {
     if (ir.level === 'easy') valid = ir.bits === 8 && ir.length === 12
         && summary.stages >= 2 && summary.stages <= 4
         && ir.stages.some(stage => stage.kind === 'substitute')
-        && ir.stages.every(stage => ['affine', 'permute', 'substitute', 'bitshuffle'].includes(stage.kind));
+        && ir.stages.every(stage => ['affine', 'permute', 'substitute', 'bitshuffle', 'bitnetwork'].includes(stage.kind))
+        && ir.stages.filter(stage => stage.kind === 'bitnetwork').every(stage => stage.span === 1);
     if (ir.level === 'medium') valid = ir.bits === 16 && ir.length === 24
         && summary.stages >= 8 && summary.stages <= 12
         && summary.coupled >= 4 && summary.functions >= 3
@@ -91,6 +99,9 @@ export function assertDifficulty(ir) {
         && summary.branches > 0 && summary.partitionWidths.length >= 4
         && summary.updateForms.length === 5 && summary.minimumInputDependencies === ir.width
         && ir.stages.filter(stage => stage.kind === 'affine').length >= 8;
+    valid = valid && ir.stages.some(stage => stage.kind === 'bitnetwork');
+    if (ir.level === 'extreme') valid = valid && ir.stages.filter(stage => stage.kind === 'bitnetwork').length >= 2
+        && ir.stages.filter(stage => stage.kind === 'bitnetwork').every(stage => stage.span === ir.width && stage.layers >= 2);
     if (!valid) throw new Error('Generated algorithm does not meet its difficulty structure contract');
     return summary;
 }

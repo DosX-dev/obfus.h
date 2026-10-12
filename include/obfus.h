@@ -3467,7 +3467,7 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     unsigned int length = 0;
     if (!name) return NULL;
     while (length < 32 && name[length]) ++length;
-    if (length < 32 && InterlockedCompareExchange(&entry->state, 2, 2) == 2) {
+    if (length < 32 && OBFH_LOADER_READ(entry->state) == 2) {
         unsigned int i = 0;
         for (; i <= length; ++i) {
             unsigned char mask = (unsigned char)(key >> ((i % sizeof(key)) * 8u)) + (unsigned char)(i * 13u);
@@ -7653,12 +7653,31 @@ static int obfh_ad_register_probe(void) {
 
 static int obfh_ad_process_probe(void) {
     typedef BOOL(WINAPI * ObfhDebuggerCheck)(void);
+    static struct {
+        PVOID volatile encoded;
+        LONG volatile ready;
+    } cached;
+    enum { __obfh_ad_key = RND(1, 2147483646),
+           __obfh_ad_bias = RND(1, 2147483646) };
+    ULONG_PTR key = (ULONG_PTR)&cached ^ (ULONG_PTR)__obfh_ad_key;
+    ObfhDebuggerCheck check;
     BREAK_STACK_CFLOW;
-    // Caller-owned names remain alive through the export lookup.
-    char library[9], symbol[18];
-    HMODULE kernel = GetModuleHandleA(getKernel32Name_proxy(library));
-    BREAK_STACK_CFLOW;
-    ObfhDebuggerCheck check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, getDebuggerName_proxy(symbol)) : NULL;
+    // Cache the encoded address, never the debugger status. Kernel32 remains
+    // loaded for the process lifetime; every probe still invokes the real API.
+    if (OBFH_LOADER_READ(cached.ready)) {
+        check = (ObfhDebuggerCheck)(((ULONG_PTR)cached.encoded - (ULONG_PTR)__obfh_ad_bias) ^ key);
+    } else {
+        // Caller-owned names remain alive through the export lookup.
+        char library[9], symbol[18];
+        HMODULE kernel = GetModuleHandleA(getKernel32Name_proxy(library));
+        BREAK_STACK_CFLOW;
+        check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, getDebuggerName_proxy(symbol)) : NULL;
+        if (check) {
+            ULONG_PTR encoded = ((ULONG_PTR)check ^ key) + (ULONG_PTR)__obfh_ad_bias;
+            InterlockedCompareExchangePointer(&cached.encoded, (PVOID)encoded, NULL);
+            InterlockedExchange(&cached.ready, 1);
+        }
+    }
     PHANTOM_NOP;
     if (check)
         return check() != FALSE;

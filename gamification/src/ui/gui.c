@@ -11,6 +11,10 @@ static HBRUSH background, editbackground;
 static int verdict, hover, focused, animating;
 static int hover_mix, focus_mix, result_mix, about_hover, about_mix;
 static int paste_attempts;
+static HANDLE verification_thread;
+static int verifying, closing, verification_result;
+static char verification_input[1024];
+#define UI_VERIFIED (WM_APP + 1)
 static WNDPROC edit_proc, button_proc, about_proc;
 static HMODULE gdiplus;
 static ULONG_PTR gdiptoken;
@@ -21,26 +25,7 @@ static GdipDrawFn draw_image;
 static GdipDisposeFn dispose_image, dispose_graphics;
 static GdipShutdownFn shutdown_gdip;
 static COLORREF accent = DAILY_DIFFICULTY_COLOR;
-#define UI_BG RGB(12, 15, 20)
-#define UI_FIELD RGB(21, 26, 34)
-static COLORREF blend(COLORREF a, COLORREF b, int amount) {
-    return RGB((GetRValue(a) * (256 - amount) + GetRValue(b) * amount) / 256, (GetGValue(a) * (256 - amount) + GetGValue(b) * amount) / 256, (GetBValue(a) * (256 - amount) + GetBValue(b) * amount) / 256);
-}
-static void label(HDC dc, int x, int y, const char *s, COLORREF color, HFONT font) {
-    SelectObject(dc, font);
-    SetTextColor(dc, color);
-    TextOutA(dc, x, y, s, lstrlenA(s));
-}
-static void rounded(HDC dc, int x, int y, int w, int h, int radius, COLORREF fill, COLORREF stroke) {
-    HBRUSH b = CreateSolidBrush(fill);
-    HPEN p = CreatePen(PS_SOLID, 1, stroke);
-    HGDIOBJ ob = SelectObject(dc, b), op = SelectObject(dc, p);
-    RoundRect(dc, x, y, x + w, y + h, radius, radius);
-    SelectObject(dc, ob);
-    SelectObject(dc, op);
-    DeleteObject(b);
-    DeleteObject(p);
-}
+/* @GUI_STYLE@ */
 static void wake_animation(void) {
     if (!animating) {
         animating = 1;
@@ -93,6 +78,12 @@ static LRESULT CALLBACK input_proc(HWND window, UINT message, WPARAM wp, LPARAM 
 }
 static LRESULT CALLBACK check_proc(HWND window, UINT message, WPARAM wp, LPARAM lp) {
     int is_about = window == aboutbutton;
+    /* Owner-draw buttons treat the second stationary click as a double-click notification.
+       Every physical press should enter the ordinary pressed/clicked path instead. */
+    if (message == WM_LBUTTONDBLCLK) message = WM_LBUTTONDOWN;
+    if (message == WM_LBUTTONDOWN || (message == WM_KEYDOWN && wp == VK_SPACE) || (message == BM_SETSTATE && wp)) ui_press(window);
+    if (message == WM_LBUTTONDOWN || message == WM_LBUTTONUP || message == WM_CAPTURECHANGED || message == WM_CANCELMODE || message == BM_SETSTATE || (message == WM_KEYDOWN && wp == VK_SPACE) || (message == WM_KEYUP && wp == VK_SPACE)) wake_animation();
+    if (message == WM_LBUTTONDOWN) SendMessageA(mainwindow, WM_CHANGEUISTATE, MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS), 0);
     if (message == WM_ERASEBKGND) return 1;
     if (message == WM_MOUSEMOVE && !(is_about ? about_hover : hover)) {
         TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE, window, 0};
@@ -110,8 +101,15 @@ static LRESULT CALLBACK check_proc(HWND window, UINT message, WPARAM wp, LPARAM 
             hover = 0;
         wake_animation();
     }
-    if (message == WM_SETFOCUS || message == WM_KILLFOCUS || message == WM_LBUTTONDOWN || message == WM_LBUTTONUP) InvalidateRect(window, 0, FALSE);
-    return CallWindowProcA(is_about ? about_proc : button_proc, window, message, wp, lp);
+    {
+        LRESULT result = CallWindowProcA(is_about ? about_proc : button_proc, window, message, wp, lp);
+        /* Paint the native pressed state after it changes, before the next input event. */
+        if (message == WM_SETFOCUS || message == WM_KILLFOCUS || message == WM_LBUTTONDOWN || message == WM_LBUTTONUP || message == WM_CAPTURECHANGED || message == WM_KEYDOWN || message == WM_KEYUP) {
+            InvalidateRect(window, 0, FALSE);
+            UpdateWindow(window);
+        }
+        return result;
+    }
 }
 static void load_logo(HINSTANCE instance) {
     struct {
@@ -159,10 +157,28 @@ static void load_logo(HINSTANCE instance) {
     }
     from_stream(logostream, &logoimage);
 }
+static DWORD WINAPI verification_worker(void *argument) {
+    volatile char *wipe = verification_input;
+    unsigned i;
+    ANTI_DEBUG;
+    verification_result = verify(verification_input) ? 1 : 2;
+    for (i = 0; i < sizeof(verification_input); i++) wipe[i] = 0;
+    PostMessageA((HWND)argument, UI_VERIFIED, 0, 0);
+    return 0;
+}
+static void show_verdict(HWND window, int result) {
+    verdict = result;
+    SetWindowTextA(statusbox, verdict == 1 ? HIDE_STRING("Accepted.") : HIDE_STRING("Incorrect password."));
+    result_mix = 0;
+    wake_animation();
+    InvalidateRect(window, 0, FALSE);
+}
 static void check_password(HWND window) {
     char input[1024];
     WCHAR unicode_input[1024];
-    int length = GetWindowTextLengthW(inputbox);
+    int length;
+    if (verifying || closing) return;
+    length = GetWindowTextLengthW(inputbox);
     if (length != PASSWORD_LENGTH)
         verdict = 2;
     else {
@@ -172,8 +188,22 @@ static void check_password(HWND window) {
             input[i] = (char)unicode_input[i];
         }
         input[length] = 0;
-        ANTI_DEBUG;
-        verdict = valid && verify(input) ? 1 : 2;
+        if (valid) {
+            memcpy(verification_input, input, length + 1);
+            verifying = 1;
+            /* Keep mouse/keyboard and animation processing on the window thread. No job queue. */
+            EnableWindow(inputbox, FALSE);
+            verification_thread = CreateThread(0, 0, verification_worker, window, 0, 0);
+            if (!verification_thread) {
+                volatile char *wipe = verification_input;
+                unsigned at;
+                for (at = 0; at < sizeof(verification_input); at++) wipe[at] = 0;
+                verifying = 0;
+                EnableWindow(inputbox, TRUE);
+                verdict = 2;
+            }
+        } else
+            verdict = 2;
     }
     {
         volatile char *wipe = input;
@@ -182,13 +212,30 @@ static void check_password(HWND window) {
         wipe = (volatile char *)unicode_input;
         for (i = 0; i < sizeof(unicode_input); i++) wipe[i] = 0;
     }
-    SetWindowTextA(statusbox, verdict == 1 ? HIDE_STRING("Accepted.") : HIDE_STRING("Incorrect password."));
-    result_mix = 0;
-    wake_animation();
-    InvalidateRect(window, 0, FALSE);
+    if (!verifying) show_verdict(window, verdict);
 }
 static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wp, LPARAM lp) {
     switch (message) {
+        case UI_VERIFIED:
+            /* The thread handle supplies completion ordering for the shared result. */
+            WaitForSingleObject(verification_thread, INFINITE);
+            CloseHandle(verification_thread);
+            verification_thread = 0;
+            verifying = 0;
+            if (closing)
+                DestroyWindow(window);
+            else {
+                EnableWindow(inputbox, TRUE);
+                show_verdict(window, verification_result);
+            }
+            return 0;
+        case WM_CLOSE:
+            if (verifying) {
+                closing = 1;
+                ShowWindow(window, SW_HIDE);
+            } else
+                DestroyWindow(window);
+            return 0;
         case WM_CREATE: {
             HINSTANCE instance = ((CREATESTRUCT *)lp)->hInstance;
             mainwindow = window;
@@ -215,6 +262,7 @@ static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wp, LPARAM
         }
         case WM_TIMER:
             if (wp == 1) {
+                int buttons_settled = ui_button_tick();
                 hover_mix = ease(hover_mix, hover ? 256 : 0);
                 focus_mix = ease(focus_mix, focused ? 256 : 0);
                 result_mix = ease(result_mix, verdict ? 256 : 0);
@@ -225,7 +273,7 @@ static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wp, LPARAM
                 }
                 InvalidateRect(checkbutton, 0, FALSE);
                 InvalidateRect(aboutbutton, 0, FALSE);
-                if (hover_mix == (hover ? 256 : 0) && focus_mix == (focused ? 256 : 0) && result_mix == (verdict ? 256 : 0) && about_mix == (about_hover ? 256 : 0)) {
+                if (buttons_settled && hover_mix == (hover ? 256 : 0) && focus_mix == (focused ? 256 : 0) && result_mix == (verdict ? 256 : 0) && about_mix == (about_hover ? 256 : 0)) {
                     KillTimer(window, 1);
                     animating = 0;
                 }
@@ -253,116 +301,10 @@ static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wp, LPARAM
                 InvalidateRect(window, 0, FALSE);
             }
             break;
-        case WM_DRAWITEM: {
-            if (((DRAWITEMSTRUCT *)lp)->CtlID == 103) {
-                DRAWITEMSTRUCT *about = (DRAWITEMSTRUCT *)lp;
-                HDC dc = CreateCompatibleDC(about->hDC);
-                HBITMAP bitmap = CreateCompatibleBitmap(about->hDC, 64, 28);
-                HGDIOBJ old = SelectObject(dc, bitmap);
-                HBRUSH brush = CreateSolidBrush(RGB(15, 18, 24));
-                COLORREF fill = blend(RGB(27, 32, 42), RGB(41, 46, 61), about_mix);
-                FillRect(dc, &about->rcItem, brush);
-                DeleteObject(brush);
-                if (about->itemState & ODS_SELECTED) fill = RGB(23, 27, 37);
-                rounded(dc, 0, 0, 64, 28, 12, fill, (about->itemState & ODS_FOCUS) ? RGB(126, 120, 215) : blend(RGB(42, 48, 61), RGB(65, 71, 90), about_mix));
-                SetBkMode(dc, TRANSPARENT);
-                SetTextColor(dc, blend(RGB(166, 176, 192), RGB(229, 233, 242), about_mix));
-                SelectObject(dc, smallfont);
-                DrawTextA(dc, "About", -1, &about->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                BitBlt(about->hDC, 0, 0, 64, 28, dc, 0, 0, SRCCOPY);
-                SelectObject(dc, old);
-                DeleteObject(bitmap);
-                DeleteDC(dc);
-                return TRUE;
-            }
-            /* Paint the complete button offscreen. Parent paints exclude child windows. */
-            DRAWITEMSTRUCT *d = (DRAWITEMSTRUCT *)lp;
-            HDC dc = CreateCompatibleDC(d->hDC);
-            HBITMAP bitmap = CreateCompatibleBitmap(d->hDC, 366, 48);
-            HGDIOBJ old = SelectObject(dc, bitmap);
-            COLORREF fill = blend(RGB(115, 108, 220), RGB(137, 131, 237), hover_mix);
-            if (d->itemState & ODS_SELECTED) fill = RGB(96, 90, 193);
-            FillRect(dc, &d->rcItem, background);
-            rounded(dc, 0, 0, 366, 48, 20, fill, fill);
-            SetBkMode(dc, TRANSPARENT);
-            SetTextColor(dc, RGB(255, 255, 255));
-            SelectObject(dc, bodyfont);
-            DrawTextA(dc, HIDE_STRING("Check password"), -1, &d->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            if (d->itemState & ODS_FOCUS) {
-                HPEN p = CreatePen(PS_SOLID, 1, RGB(199, 195, 255));
-                HGDIOBJ op = SelectObject(dc, p), ob = SelectObject(dc, GetStockObject(NULL_BRUSH));
-                RoundRect(dc, 3, 3, 363, 45, 16, 16);
-                SelectObject(dc, op);
-                SelectObject(dc, ob);
-                DeleteObject(p);
-            }
-            BitBlt(d->hDC, 0, 0, 366, 48, dc, 0, 0, SRCCOPY);
-            SelectObject(dc, old);
-            DeleteObject(bitmap);
-            DeleteDC(dc);
-            return TRUE;
-        }
-        case WM_PAINT: {
-            PAINTSTRUCT ps;
-            HDC screen = BeginPaint(window, &ps), dc = CreateCompatibleDC(screen);
-            HBITMAP bitmap = CreateCompatibleBitmap(screen, 760, 460);
-            HGDIOBJ old = SelectObject(dc, bitmap);
-            RECT area = {0, 0, 760, 460};
-            void *graphics = 0;
-            COLORREF ink = RGB(233, 237, 243), muted = RGB(137, 148, 165);
-            FillRect(dc, &area, background);
-            SetBkMode(dc, TRANSPARENT);
-            if (logoimage && !graphics_from_hdc(dc, &graphics)) {
-                draw_image(graphics, logoimage, 8, 42, 320, 320);
-                dispose_graphics(graphics);
-            }
-            {
-                const char *difficulty = HIDE_STRING("@LEVEL@");
-                SIZE size;
-                HGDIOBJ previous = SelectObject(dc, smallfont);
-                GetTextExtentPoint32A(dc, difficulty, (int)strlen(difficulty), &size);
-                SelectObject(dc, previous);
-                rounded(dc, 346, 54, size.cx + 16, 26, 12, blend(UI_BG, accent, 18), blend(UI_BG, accent, 65));
-                label(dc, 354, 54 + (26 - size.cy) / 2, difficulty, accent, smallfont);
-            }
-            label(dc, 346, 87, HIDE_STRING("Daily Crackme"), ink, titlefont);
-            label(dc, 346, 136, HIDE_STRING("Recover the original password."), muted, bodyfont);
-            label(dc, 346, 179, HIDE_STRING("Password"), RGB(175, 185, 199), smallfont);
-            {
-                char lengthtext[64];
-                sprintf(lengthtext, HIDE_STRING("%d ASCII characters"), PASSWORD_LENGTH);
-                label(dc, 604, 179, lengthtext, RGB(103, 116, 134), smallfont);
-            }
-            rounded(dc, 346, 199, 366, 48, 20, UI_FIELD, blend(RGB(38, 45, 57), RGB(126, 120, 215), focus_mix));
-            if (verdict) {
-                char status[64];
-                COLORREF result = verdict == 1 ? RGB(103, 217, 164) : RGB(239, 130, 137);
-                GetWindowTextA(statusbox, status, sizeof(status));
-                label(dc, 346, 324, status, blend(UI_BG, result, result_mix), bodyfont);
-            }
-            {
-                RECT footer = {0, 404, 760, 460};
-                HBRUSH brush = CreateSolidBrush(RGB(15, 18, 24));
-                FillRect(dc, &footer, brush);
-                DeleteObject(brush);
-            }
-            {
-                HPEN pen = CreatePen(PS_SOLID, 1, RGB(32, 37, 47));
-                HGDIOBJ oldpen = SelectObject(dc, pen);
-                MoveToEx(dc, 0, 404, 0);
-                LineTo(dc, 760, 404);
-                SelectObject(dc, oldpen);
-                DeleteObject(pen);
-            }
-            label(dc, 32, 422, HIDE_STRING("Round @ROUND@  /  @DATE@"), RGB(115, 126, 144), smallfont);
-            label(dc, 346, 422, HIDE_STRING("Daily at 13:00 Moscow (UTC+3)"), RGB(115, 126, 144), smallfont);
-            BitBlt(screen, 0, 0, 760, 460, dc, 0, 0, SRCCOPY);
-            SelectObject(dc, old);
-            DeleteObject(bitmap);
-            DeleteDC(dc);
-            EndPaint(window, &ps);
-            return 0;
-        }
+        case WM_DRAWITEM:
+            return ui_draw_button((DRAWITEMSTRUCT *)lp);
+        case WM_PAINT:
+            return ui_draw_window(window);
         case WM_ERASEBKGND:
             return 1;
         case WM_DESTROY:
@@ -436,10 +378,17 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command, int sh
             FreeLibrary(dwm);
         }
     }
+    SendMessageA(window, WM_CHANGEUISTATE, MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS), 0);
     ShowWindow(window, show);
     UpdateWindow(window);
     while (GetMessageW(&msg, 0, 0, 0) > 0) {
+        if (msg.message == WM_KEYDOWN && msg.wParam == VK_TAB) SendMessageA(window, WM_CHANGEUISTATE, MAKEWPARAM(UIS_CLEAR, UISF_HIDEFOCUS), 0);
         if (msg.message == WM_KEYDOWN && msg.wParam == VK_RETURN) {
+            HWND button = msg.hwnd == aboutbutton ? aboutbutton : checkbutton;
+            ui_press(button);
+            wake_animation();
+            InvalidateRect(button, 0, FALSE);
+            UpdateWindow(button);
             if (msg.hwnd == aboutbutton)
                 SendMessageA(window, WM_COMMAND, MAKEWPARAM(103, BN_CLICKED), (LPARAM)aboutbutton);
             else

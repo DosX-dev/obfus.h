@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { LEVEL_LABELS } from '../core/config.js';
 import { emitFamily } from './family-emitter.js';
+import { emitNetwork } from './bit-network.js';
 export function emit({ ir, target }, { mutate = null } = {}) {
     const hardcore = ['hardcore', 'extreme'].includes(ir.level),
         mask = 2 ** ir.bits - 1;
@@ -34,6 +35,10 @@ export function emit({ ir, target }, { mutate = null } = {}) {
         throw new Error('Unknown emitted update');
     }
     for (const s of stages) {
+        if (s.kind === 'bitnetwork') {
+            calls.push(emitNetwork(s, ir.bits, slot));
+            continue;
+        }
         if (['substitute', 'matrix', 'spn', 'controlled', 'bitshuffle', 'weave'].includes(s.kind)) {
             calls.push(emitFamily(s, ir.bits, slot));
             continue;
@@ -166,6 +171,7 @@ int main(void){
 }
 #else
 ${readFileSync(new URL('../ui/gui.c', import.meta.url), 'utf8')
+            .replace('/* @GUI_STYLE@ */', readFileSync(new URL('../ui/gui-style.c', import.meta.url), 'utf8'))
             .replaceAll('@DATE@', ir.date)
             .replaceAll('@ROUND@', String(ir.round))
             .replaceAll('@LEVEL@', ir.level === 'extreme' ? LEVEL_LABELS[ir.level] : LEVEL_LABELS[ir.level][0] + LEVEL_LABELS[ir.level].slice(1).toLowerCase())

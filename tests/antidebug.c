@@ -3,6 +3,17 @@
 
 #include "../include/obfus.h"
 
+#if !NO_OBF && NO_ANTIDEBUG != 1
+static HANDLE probe_gate;
+static DWORD WINAPI probe_worker(void *unused) {
+    (void)unused;
+    if (WaitForSingleObject(probe_gate, 10000) != WAIT_OBJECT_0) return 1;
+    for (int i = 0; i < 32; ++i)
+        if (obfh_ad_process_probe()) return 2;
+    return 0;
+}
+#endif
+
 int main(int argc, char **argv) {
 #if !NO_OBF && NO_ANTIDEBUG != 1
     if (argc > 1) {
@@ -25,6 +36,22 @@ int main(int argc, char **argv) {
         puts("RESPONSE_RETURNED");
         return 1;
     }
+    // Race cold address publication, then exercise immutable warm reads.
+    HANDLE workers[4];
+    probe_gate = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!probe_gate) return 10;
+    for (int i = 0; i < 4; ++i) {
+        workers[i] = CreateThread(NULL, 0, probe_worker, NULL, 0, NULL);
+        if (!workers[i]) return 11;
+    }
+    SetEvent(probe_gate);
+    for (int i = 0; i < 4; ++i) {
+        DWORD status;
+        if (WaitForSingleObject(workers[i], 10000) != WAIT_OBJECT_0 ||
+            !GetExitCodeThread(workers[i], &status) || status) return 12;
+        CloseHandle(workers[i]);
+    }
+    CloseHandle(probe_gate);
     if (IsDebuggerPresent_proxy()) return 2;
 #endif
     int taken = 0;

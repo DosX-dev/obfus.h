@@ -742,6 +742,8 @@ async function main() {
             '\nstatic volatile char _0 = 0;\n';
         const processProbe =
             nameSetup +
+            '#define RND(min, max) (min)\n' +
+            source.slice(source.indexOf('#define OBFH_LOADER_READ(state)'), source.indexOf('static volatile LONG obfh_alpha_low_state')) +
             processNames +
             '\n' +
             source.slice(

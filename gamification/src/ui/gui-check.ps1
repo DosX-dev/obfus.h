@@ -15,6 +15,8 @@ public static class DailyGui {
     public static extern IntPtr SendMessage(IntPtr w, uint m, IntPtr wp, IntPtr lp);
     [DllImport("user32.dll")]
     public static extern bool PostMessage(IntPtr w, uint m, IntPtr wp, IntPtr lp);
+    [DllImport("user32.dll")]
+    public static extern IntPtr SendMessageTimeout(IntPtr w, uint m, IntPtr wp, IntPtr lp, uint flags, uint timeout, out IntPtr result);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetWindowText(IntPtr w, StringBuilder text, int count);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -29,6 +31,8 @@ public static class DailyGui {
     public static extern bool ShowWindow(IntPtr w, int how);
     [DllImport("user32.dll")]
     public static extern bool IsWindow(IntPtr w);
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowEnabled(IntPtr w);
     [DllImport("user32.dll")]
     public static extern int GetWindowLong(IntPtr w, int index);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -135,6 +139,65 @@ try {
             Check-Result $job.password $true 'Accepted.'
             Check-Result ($job.password + '!') $false 'Incorrect password.'
             Check-Result $job.password $false 'Accepted.'
+            # Mouse edges must remain synchronous while verification runs, without a queued backlog.
+            [DailyGui]::SetText($status, '')
+            for ($click = 0; $click -lt 20; $click++) {
+                $pressMessage = 0x0201
+                if ($click % 2) { $pressMessage = 0x0203 } # Windows stationary double-click sequence.
+                foreach ($message in @($pressMessage, 0x0202)) {
+                    $edgeResult = [IntPtr]::Zero
+                    $edgeFlags = [IntPtr]::Zero
+                    if ($message -ne 0x0202) { $edgeFlags = [IntPtr]1 }
+                    for ($edgeAttempt = 0; $edgeAttempt -lt 3; $edgeAttempt++) {
+                        if ([DailyGui]::SendMessageTimeout($button, $message, $edgeFlags, [IntPtr]0x001800b7, 2, 500, [ref]$edgeResult) -eq [IntPtr]::Zero) {
+                            throw 'Mouse edge blocked by verification'
+                        }
+                        $pressed = ([DailyGui]::SendMessage($button, 0x00f2, [IntPtr]::Zero, [IntPtr]::Zero).ToInt64() -band 4) -ne 0
+                        if ($pressed -eq ($message -ne 0x0202)) { break }
+                        # Physical cursor movement can cancel synthetic capture. Replay the same edge, including DBLCLK.
+                        Start-Sleep -Milliseconds 10
+                    }
+                    if ($pressed -ne ($message -ne 0x0202)) { throw 'Stationary click pressed state mismatch' }
+                }
+            }
+            $rapidDeadline = [Diagnostics.Stopwatch]::StartNew()
+            do {
+                Start-Sleep -Milliseconds 20
+            } while (([DailyGui]::Text($status) -ne 'Accepted.' -or ![DailyGui]::IsWindowEnabled($edit)) -and $rapidDeadline.Elapsed.TotalSeconds -lt 10)
+            if ([DailyGui]::Text($status) -ne 'Accepted.' -or ![DailyGui]::IsWindowEnabled($edit)) { throw 'Rapid clicks lost the verdict' }
+            function Button-Color([IntPtr]$control, [int]$width, [int]$height) {
+                [DailyGui+Rect]$outer = New-Object DailyGui+Rect
+                [DailyGui+Rect]$buttonRect = New-Object DailyGui+Rect
+                [void][DailyGui]::GetWindowRect($window, [ref]$outer)
+                [void][DailyGui]::GetWindowRect($control, [ref]$buttonRect)
+                $image = New-Object Drawing.Bitmap ($outer.R - $outer.L), ($outer.B - $outer.T)
+                $graphics = [Drawing.Graphics]::FromImage($image)
+                $dc = $graphics.GetHdc()
+                try {
+                    if (![DailyGui]::PrintWindow($window, $dc, 0)) { throw 'Button capture failed' }
+                } finally { $graphics.ReleaseHdc($dc) }
+                $color = $image.GetPixel($buttonRect.L - $outer.L + 8, $buttonRect.T - $outer.T + [int]($height / 2)).ToArgb()
+                $graphics.Dispose()
+                $image.Dispose()
+                return $color
+            }
+            foreach ($motionButton in @(@($button, 366, 48), @($about, 64, 28))) {
+                Start-Sleep -Milliseconds 160
+                $control = $motionButton[0]
+                # Hold the native state without mouse capture; real cursor movement must not cancel this sample.
+                [void][DailyGui]::SendMessage($control, 0x00f3, [IntPtr]1, [IntPtr]::Zero)
+                $pressStart = Button-Color $control $motionButton[1] $motionButton[2]
+                Start-Sleep -Milliseconds 100
+                $pressEnd = Button-Color $control $motionButton[1] $motionButton[2]
+                [void][DailyGui]::SendMessage($control, 0x00f3, [IntPtr]::Zero, [IntPtr]::Zero)
+                Start-Sleep -Milliseconds 100
+                $releaseEnd = Button-Color $control $motionButton[1] $motionButton[2]
+                if ($pressStart -eq $pressEnd -or $releaseEnd -eq $pressEnd) { throw "Button press/release animation did not progress: width=$($motionButton[1]), colors=$pressStart/$pressEnd/$releaseEnd" }
+            }
+            if (([DailyGui]::SendMessage($button, 0x0129, [IntPtr]::Zero, [IntPtr]::Zero).ToInt64() -band 1) -eq 0) { throw 'Mouse click exposed keyboard focus cues' }
+            [void][DailyGui]::PostMessage($edit, 0x0100, [IntPtr]9, [IntPtr]::Zero)
+            Start-Sleep -Milliseconds 100
+            if (([DailyGui]::SendMessage($button, 0x0129, [IntPtr]::Zero, [IntPtr]::Zero).ToInt64() -band 1) -ne 0) { throw 'Tab did not expose keyboard focus cues' }
             # Test native paste, preserving the user's clipboard and awaiting UI completion.
             $oldClipboard = New-Object Windows.Forms.DataObject
             $clipboardSource = [Windows.Forms.Clipboard]::GetDataObject()
@@ -192,6 +255,10 @@ try {
                 [Windows.Forms.Application]::DoEvents()
                 Start-Sleep -Milliseconds 350
                 [void][DailyGui]::SendMessage($button, 0x00f5, [IntPtr]::Zero, [IntPtr]::Zero)
+                $contentionDeadline = [Diagnostics.Stopwatch]::StartNew()
+                do {
+                    Start-Sleep -Milliseconds 20
+                } while ([DailyGui]::Text($status) -ne 'Accepted.' -and $contentionDeadline.Elapsed.TotalSeconds -lt 10)
                 if ([DailyGui]::Text($status) -ne 'Accepted.') {
                     throw 'Paste did not recover from clipboard contention'
                 }
@@ -254,6 +321,9 @@ try {
                 $graphics.Dispose()
                 $bitmap.Dispose()
             }
+            # Close immediately after starting another check: no dead worker or stale HWND delivery.
+            [DailyGui]::SetText($edit, $job.password)
+            [void][DailyGui]::PostMessage($window, 0x0111, [IntPtr]101, [IntPtr]::Zero)
             [void][DailyGui]::PostMessage($window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
             if (!$process.WaitForExit(10000) -or $process.ExitCode -ne 0) {
                 throw 'GUI failed to close cleanly'

@@ -4,6 +4,7 @@ import { transform, words } from './model.js';
 import { assertDifficulty } from './difficulty.js';
 import { braid } from './extreme.js';
 import { families } from './families.js';
+import { bitNetwork } from './bit-network.js';
 function shuffle(n, random) {
     const a = Array.from({ length: n }, (_, i) => i);
     for (let i = n - 1; i > 0; --i) {
@@ -20,6 +21,7 @@ export function fingerprint(ir) {
             width: ir.width,
             stages: ir.stages.map((s) => ({
                 kind: s.kind,
+                gates: s.gates?.map(gate => ({ target: gate.target, destination: gate.destination, controls: gate.controls, truth: gate.truth.map(value => value ^ gate.truth[0]) })),
                 order: s.order,
                 sources: s.sources,
                 targets: s.targets,
@@ -146,6 +148,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         return { kind: 'permute', order };
     };
     const extra = families(width, bits, random, shuffle);
+    const network = () => bitNetwork(width, bits, level === 'easy' ? 1 : level === 'medium' ? [3, 4, 6][random(3)] : level === 'hardcore' ? [4, 8, width][random(3)] : width, level === 'easy' ? 1 : level === 'extreme' ? 2 + random(2) : 1 + random(2), random, shuffle);
     const couple = (round = false) => ({
         kind: 'couple',
         round,
@@ -157,20 +160,20 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
     if (level === 'easy') {
         const count = 3 + random(2);
         stages.push(affine());
-        const factories = [extra.substitute, extra.bitshuffle];
-        while (factories.length < count - 1) factories.push([affine, permute, extra.substitute][random(3)]);
+        const factories = [extra.substitute, network];
+        while (factories.length < count - 1) factories.push([affine, permute, extra.substitute, extra.bitshuffle][random(4)]);
         stages.push(...shuffle(factories.length, random).map(i => factories[i]()));
     } else if (level === 'medium') {
         const coupled = 4 + random(3);
-        const count = Math.max(8 + random(5), coupled + 3);
-        const factories = [...Array.from({ length: coupled }, () => () => couple()), extra.spn, extra.controlled];
+        const count = Math.max(8 + random(5), coupled + 4);
+        const factories = [...Array.from({ length: coupled }, () => () => couple()), extra.spn, extra.controlled, network];
         const eligible = [affine, permute, extra.matrix, extra.substitute, extra.spn, extra.controlled, extra.bitshuffle, extra.weave];
         while (factories.length < count - 1) factories.push(eligible[random(eligible.length)]);
         stages.push(affine(), ...shuffle(factories.length, random).map(i => factories[i]()));
     } else {
         const extreme = level === 'extreme';
         const count = extreme ? 96 + random(49) : 48 + random(33);
-        stages.push(affine(), extra.spn(), extra.controlled(), extra.bitshuffle(), extra.weave(), permute());
+        stages.push(affine(), extra.spn(), extra.controlled(), extra.bitshuffle(), extra.weave(), network(), permute());
         const sequential = extreme ? 24 + random(9) : 12 + random(9);
         const braided = extreme ? 32 + random(9) : 0;
         const roundKinds = shuffle(count, random).map(index => index < sequential ? 1 : index < sequential + braided ? 2 : 0);
@@ -194,6 +197,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
             }
         }
         stages.push(couple());
+        if (extreme) stages.push(network());
     }
     // A physical storage permutation changes addressing without affecting the model.
     const ir = {
