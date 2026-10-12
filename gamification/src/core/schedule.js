@@ -10,3 +10,7 @@ export function moscow(now = new Date()) {
     const get = (type) => parts.find((p) => p.type === type).value;
     return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) };
 }
+
+export function roundDue(state, time, manual = false) {
+    return state?.date !== time.date && (manual || time.hour >= 13);
+}

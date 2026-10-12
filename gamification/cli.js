@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { GAMIFICATION_ROOT } from './src/core/paths.js';
 import { provision } from './src/build/toolchain.js';
 import { masterKey } from './src/core/crypto.js';
-import { moscow } from './src/core/schedule.js';
+import { moscow, roundDue } from './src/core/schedule.js';
 import { prepare } from './src/round/prepare.js';
 import { previousAnswers } from './src/round/answers.js';
 import { loadHistory } from './src/round/history.js';
@@ -46,7 +46,7 @@ async function main() {
         const key = masterKey(process.env.CRACKME_MASTER_KEY);
         api = new GitHub(process.env.GITHUB_REPOSITORY, process.env.GITHUB_TOKEN);
         state = await recover(api);
-        if (state?.date === time.date || time.hour < 13) {
+        if (!roundDue(state, time, args.includes('--now'))) {
             console.log('No new round due');
             return;
         }

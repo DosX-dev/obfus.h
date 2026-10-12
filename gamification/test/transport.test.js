@@ -72,4 +72,3 @@ test('daily activation rejects unsafe setup before any GitHub connection', async
         assert(!result.stderr.includes(env.CRACKME_MASTER_KEY));
     }
 });
-
