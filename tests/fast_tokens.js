@@ -50,7 +50,7 @@ function exportedProbe(file, wanted = 'fast_probe', whole = false) {
     throw new Error('fast_probe export missing');
 }
 
-exports.runSuite = async function({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
+exports.runSuite = async function ({ arch, compiler, directory, source, fixturesRoot = __dirname, check, compile, execute, run, assert }) {
     await check(`${arch}/fast transfer bytes, fixed-seed replay and semantic negative controls`, async () => {
         const root = path.join(directory, `${arch}-fast-transfer`);
         fs.mkdirSync(path.join(root, 'include'), { recursive: true });
@@ -75,14 +75,19 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         // primitives for the byte matrix. Unrelated VM/CRT bodies are not part
         // of the exported insertion under examination.
         const probeFlags = ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1'];
-        const fullFirst = await compile(compiler, directory, `${arch}-fast-full-first.exe`, probe,
-            [...probeFlags, 'OBFH_BUILD_SEED=0u']);
-        await execute(fullFirst, 'FAST_PROBE_PASS');
+        const fullBuilds = await Promise.allSettled(['first', 'repeat'].map(async name => {
+            const file = await compile(compiler, directory, `${arch}-fast-full-${name}.exe`, probe,
+                [...probeFlags, 'OBFH_BUILD_SEED=0u']);
+            await execute(file, 'FAST_PROBE_PASS');
+            return file;
+        }));
+        for (const result of fullBuilds)
+            if (result.status === 'rejected' && result.reason.suiteDeadline) throw result.reason;
+        assert(fullBuilds.every(result => result.status === 'fulfilled'), fullBuilds.map((result, index) =>
+            result.status === 'rejected' ? `full probe ${index}: ${result.reason.message}` : '').filter(Boolean).join('\n'));
+        const [fullFirst, fullRepeat] = fullBuilds.map(result => result.value);
         const fullBytes = exportedProbe(fullFirst);
         const fullDoBytes = exportedProbe(fullFirst, 'protected_do', true);
-        const fullRepeat = await compile(compiler, directory, `${arch}-fast-full-repeat.exe`, probe,
-            [...probeFlags, 'OBFH_BUILD_SEED=0u']);
-        await execute(fullRepeat, 'FAST_PROBE_PASS');
         assert(fullBytes.equals(exportedProbe(fullRepeat)), 'full-header fast insertion replay changed');
         assert(fullDoBytes.equals(exportedProbe(fullRepeat, 'protected_do', true)), 'full-header do replay changed');
         const primitiveHeader = path.join(root, 'include', 'fast_primitives.h');
@@ -104,10 +109,21 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         const primitiveProbe = path.join(root, 'tests', 'primitive_probe.c');
         fs.writeFileSync(primitiveProbe, fs.readFileSync(probe, 'utf8').replace('../include/obfus.h', '../include/fast_primitives.h'));
         const variants = [], lengths = new Set(), fastForms = new Set(), doForms = new Set(), doVariants = [], blobs = [], prefixLengths = [];
-        for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 0x10000, 0x10001, 0xdead0000, 0xdeadbeef, 0xffffffff, 0]) {
-            const file = await compile(compiler, directory, `${arch}-fast-probe-${variants.length}.exe`, primitiveProbe,
+        const seeds = [0, 1, 2, 3, 4, 5, 6, 7, 0x10000, 0x10001, 0xdead0000, 0xdeadbeef, 0xffffffff, 0];
+        const probes = await Promise.allSettled(seeds.map(async (seed, index) => {
+            const file = await compile(compiler, directory, `${arch}-fast-probe-${index}.exe`, primitiveProbe,
                 ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1', `OBFH_BUILD_SEED=${seed}u`]);
             await execute(file, 'FAST_PROBE_PASS');
+            return file;
+        }));
+        for (const result of probes)
+            if (result.status === 'rejected' && result.reason.suiteDeadline) throw result.reason;
+        assert(probes.every(result => result.status === 'fulfilled'), probes.map((result, index) =>
+            result.status === 'rejected' ? `probe ${index}/seed ${seeds[index]}: ${result.reason.message}` : '').filter(Boolean).join('\n'));
+        // Preserve original seed order for replay comparisons and state blobs,
+        // regardless of the order in which independent processes finish.
+        for (const result of probes) {
+            const file = result.value;
             const bytes = exportedProbe(file);
             assert(!bytes.equals(exportedProbe(file, 'fast_probe_second')), 'different sites share fast transfer bytes');
             variants.push(bytes.toString('hex'));
@@ -181,7 +197,7 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         assert(matrixVariants.size === 512 && matrixRegisters.size === 3, 'matrix lacks site/register diversity');
         const stateFixture = path.join(root, 'tests', 'fast_state.c');
         const stateData = `static const unsigned char blobs[][128] = {\n${blobs.map(b => '{' + [...b].join(',') + '}').join(',\n')}\n};\nstatic const unsigned lengths[] = {${blobs.map(b => b.length).join(',')}};`;
-        const stateSource = fs.readFileSync(path.join(__dirname, 'fast_state.c.in'), 'utf8');
+        const stateSource = fs.readFileSync(path.join(fixturesRoot, 'fast_state.c.in'), 'utf8');
         fs.writeFileSync(stateFixture, stateSource.replace('/*FAST_BLOBS*/', stateData));
         await execute(await compile(compiler, directory, `${arch}-fast-register-state.exe`, stateFixture, []), 'FAST_STATE_PASS');
         const mutantBlobs = blobs.map(b => Buffer.from(b));
@@ -199,43 +215,56 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         fs.writeFileSync(stateFixture, stateSource.replace('/*FAST_BLOBS*/', mutantData));
         const changedState = await run(await compile(compiler, directory, `${arch}-fast-register-mutant.exe`, stateFixture, []), []);
         assert(changedState.status === 1 && !changedState.stdout.includes('FAST_STATE_PASS'), 'unbalanced LEA escaped state oracle');
-        for (const name of ['fast_tokens.c', 'fast_tokens_body.h'])
-            fs.copyFileSync(path.join(__dirname, name), path.join(root, 'tests', name));
-        const fixture = path.join(root, 'tests', 'fast_tokens.c');
-        fs.copyFileSync(path.join(__dirname, 'do_entry.c'), path.join(root, 'tests', 'do_entry.c'));
-        for (const mode of [0, 1])
-            await execute(await compile(compiler, directory, `${arch}-do-entry-${mode}.exe`,
-                path.join(root, 'tests', 'do_entry.c'), ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`]), 'DO_ENTRY_PASS');
-        fs.copyFileSync(path.join(__dirname, 'do_scan.c'), path.join(root, 'tests', 'do_scan.c'));
-        const scanFixture = path.join(root, 'tests', 'do_scan.c');
-        for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
-            await execute(await compile(compiler, directory, `${arch}-do-scan-${seed}.exe`, scanFixture,
-                ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'DO_SCAN_PASS');
-        fs.writeFileSync(header, source.replace('0xbcu + __obfh_do_reverse', '0xbdu - __obfh_do_reverse'));
-        const wrongScan = await run(await compile(compiler, directory, `${arch}-do-scan-mutant.exe`, scanFixture,
-            ['NO_ANTIDEBUG=1']), []);
-        assert(wrongScan.status === 1 && !wrongScan.stdout.includes('DO_SCAN_PASS'), 'wrong scan direction escaped oracle');
-        fs.writeFileSync(header, source);
-        const nativeDo = source.replace(/#define do \\\r?\n\s*do \\\r?\n\s*if OBFH_FLOW_DO_GUARD/, '#define do do');
-        assert(nativeDo !== source, 'do interception mutation target missing');
-        fs.writeFileSync(header, nativeDo);
-        const removedDo = await run(await compile(compiler, directory, `${arch}-do-entry-bypass.exe`,
-            path.join(root, 'tests', 'do_entry.c'), ['NO_ANTIDEBUG=1']), []);
-        assert(removedDo.status === 1 && !removedDo.stdout.includes('DO_ENTRY_PASS'), 'removed do entry escaped trace');
-        fs.writeFileSync(header, source);
-        for (const disabled of ['NO_CFLOW=1', 'NO_OBF=1'])
-            await execute(await compile(compiler, directory, `${arch}-fast-disabled-${disabled}.exe`, fixture,
-                ['NO_ANTIDEBUG=1', disabled]), 'FAST_TOKENS_PASS');
-        for (const [kind, mutant] of [
-            ['continue-target', source.replace('#define continue ({ OBFH_FLOW_FAST_TRANSFER; continue; })',
-                '#define continue ({ OBFH_FLOW_FAST_TRANSFER; break; })')],
-            ['default-dispatch', source.replace(/(#define default\s*(?:\\\r?\n\s*)?)default:/, '$1case 12345:')]
-        ]) {
-            assert(mutant !== source, `${kind} mutation target missing`);
-            fs.writeFileSync(header, mutant);
-            const file = await compile(compiler, directory, `${arch}-fast-mutant-${kind}.exe`, fixture, ['NO_ANTIDEBUG=1']);
-            const result = await run(file, []);
-            assert(result.status === 1 && result.stderr.includes('fast token failure'), `${kind} semantic regression escaped`);
-        }
     });
+
+    // Independent contracts own immutable inputs. Mutants never overwrite a
+    // header consumed by another queued compiler; the runner retains its RAM
+    // and process limits, deadlines and one fresh build per original case.
+    function prepare(name, text, files) {
+        const root = path.join(directory, `${arch}-fast-independent-${name}`);
+        fs.mkdirSync(path.join(root, 'include'), { recursive: true });
+        fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+        fs.writeFileSync(path.join(root, 'include', 'obfus.h'), text);
+        for (const file of files)
+            fs.copyFileSync(path.join(fixturesRoot, file), path.join(root, 'tests', file));
+        return path.join(root, 'tests', files[0]);
+    }
+    for (const mode of [0, 1])
+        await check(`${arch}/fast transfer bytes/do entry/cflow-v${mode + 1}`, async () => {
+            const file = prepare('entry-' + mode, source, ['do_entry.c']);
+            await execute(await compile(compiler, directory, `${arch}-do-entry-${mode}.exe`, file,
+                ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`]), 'DO_ENTRY_PASS');
+        });
+    for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
+        await check(`${arch}/fast transfer bytes/do scan/seed ${seed}`, async () => {
+            const file = prepare('scan-' + seed, source, ['do_scan.c']);
+            await execute(await compile(compiler, directory, `${arch}-do-scan-${seed}.exe`, file,
+                ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'DO_SCAN_PASS');
+        });
+    for (const disabled of ['NO_CFLOW=1', 'NO_OBF=1'])
+        await check(`${arch}/fast transfer bytes/disabled/${disabled}`, async () => {
+            const file = prepare('disabled-' + disabled, source, ['fast_tokens.c', 'fast_tokens_body.h']);
+            await execute(await compile(compiler, directory, `${arch}-fast-disabled-${disabled}.exe`, file,
+                ['NO_ANTIDEBUG=1', disabled]), 'FAST_TOKENS_PASS');
+        });
+    for (const [kind, mutate, fixture, marker, diagnostic] of [
+        ['do-scan-mutant', text => text.replace('0xbcu + __obfh_do_reverse', '0xbdu - __obfh_do_reverse'),
+            'do_scan.c', 'DO_SCAN_PASS', ''],
+        ['do-entry-bypass', text => text.replace(/#define do \\\r?\n\s*do \\\r?\n\s*if OBFH_FLOW_DO_GUARD/, '#define do do'),
+            'do_entry.c', 'DO_ENTRY_PASS', ''],
+        ['continue-target', text => text.replace('#define continue ({ OBFH_FLOW_FAST_TRANSFER; continue; })',
+            '#define continue ({ OBFH_FLOW_FAST_TRANSFER; break; })'), 'fast_tokens.c', '', 'fast token failure'],
+        ['default-dispatch', text => text.replace(/(#define default\s*(?:\\\r?\n\s*)?)default:/, '$1case 12345:'),
+            'fast_tokens.c', '', 'fast token failure']
+    ])
+        await check(`${arch}/fast transfer bytes/negative control/${kind}`, async () => {
+            const mutant = mutate(source);
+            assert(mutant !== source, `${kind} mutation target missing`);
+            const file = prepare(kind, mutant, fixture === 'fast_tokens.c'
+                ? [fixture, 'fast_tokens_body.h'] : [fixture]);
+            const result = await run(await compile(compiler, directory, `${arch}-fast-mutant-${kind}.exe`, file,
+                ['NO_ANTIDEBUG=1']), []);
+            assert(result.status === 1 && (!marker || !result.stdout.includes(marker)) && result.stderr.includes(diagnostic),
+                `${kind} semantic regression escaped`);
+        });
 };

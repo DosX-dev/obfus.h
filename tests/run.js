@@ -1096,7 +1096,10 @@ async function main() {
                                 path.join(__dirname, 'fast_tokens.c'),
                                 ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`]), 'FAST_TOKENS_PASS')
                         );
-                await require('./fast_tokens').runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
+                await require('./fast_tokens').runSuite({
+                    arch, compiler, directory, source,
+                    fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, execute, run, assert
+                });
             }
             if (process.argv.includes('--only-flow-tokens')) {
                 for (const mode of [0, 1])
@@ -1730,11 +1733,11 @@ async function main() {
                                 );
                             }
                         );
-                for (const [config, flags] of Object.entries(configs))
-                    await check(`${arch}/${config}/multiple translation units + exports`, async () => {
-                        const files = ['multi_a.c', 'multi_b.c', 'multi_main.c'].map((name) =>
-                            path.join(__dirname, name)
-                        );
+                for (const [config, flags] of Object.entries(configs)) {
+                    const files = ['multi_a.c', 'multi_b.c', 'multi_main.c'].map((name) =>
+                        path.join(__dirname, name)
+                    );
+                    await check(`${arch}/${config}/multiple translation units + exports/EXE`, async () => {
                         const exe = await compile(
                             compiler,
                             directory,
@@ -1744,6 +1747,8 @@ async function main() {
                             files.slice(1)
                         );
                         await execute(exe, 'MULTI_PASS');
+                    });
+                    await check(`${arch}/${config}/multiple translation units + exports/DLL`, async () => {
                         const dll = await compile(compiler, directory, `${arch}-${config}-multi.dll`, files[0], flags, [
                             files[1],
                             '-shared'
@@ -1765,6 +1770,7 @@ async function main() {
                         const client = await getDllHost(compiler, arch, config, flags);
                         await execute(client, 'MULTI_DLL_PASS', ['multi_client', dll]);
                     });
+                }
                 if (process.argv.includes('--only-platform')) continue;
                 await check(`${arch}/CRT per-site cache concurrency, lifetime and variable names`, async () => {
                     const traceRoot = path.join(directory, arch + '-cache');
