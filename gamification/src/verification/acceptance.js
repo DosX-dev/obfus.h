@@ -41,7 +41,7 @@ export async function acceptance(toolchain, count = 10) {
             const byteCases = await verifyBytes(challenge, probe);
             const boundaryStates = await verifyStates(challenge, probe);
             if (round === 1) {
-                for (const mutate of level === 'hard' ? ['drop', 'vm'] : ['drop']) {
+                for (const mutate of ['hard', 'extreme'].includes(level) ? ['drop', 'vm'] : ['drop']) {
                     const mutant = await buildChallenge(challenge, path.join(folder, mutate), toolchain, arch, { mutate });
                     await verifyProbe(challenge, mutant, { mutation: true });
                 }

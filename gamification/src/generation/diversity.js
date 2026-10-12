@@ -1,8 +1,10 @@
 // Compare complete update shapes after removing constants and coordinate labels.
 // This is a conservative structural comparison, not a difficulty score.
+import { LEVELS } from '../core/config.js';
 import { hash } from '../core/crypto.js';
 function expression(node) {
     if (node.kind === 'source') return 'source';
+    if (node.kind === 'ref') return `ref${node.index}`;
     const left = expression(node.left);
     if (!node.right) return `${node.kind}(${left})`;
     const children = [left, expression(node.right)];
@@ -14,7 +16,8 @@ export function profile(ir) {
     const add = text => counts.set(text, (counts.get(text) || 0) + 1);
     for (const stage of ir.stages) {
         add('stage:' + stage.kind);
-        if (stage.kind === 'feistel') add(`partition:${stage.sources.length}/${stage.targets.length}`);
+        for (const node of stage.nodes || []) add('circuit:' + expression(node));
+        if (['feistel', 'braid'].includes(stage.kind)) add(`partition:${stage.sources.length}/${stage.targets.length}`);
         if (stage.round) add('sequentialRound');
         if (stage.program) add('spn:flow:' + stage.program.map(step => step.box !== undefined ? 'B' : 'P').join(','));
         for (const box of stage.boxes || []) {
@@ -59,7 +62,7 @@ export function shapeFingerprint(ir) {
 }
 export function diversityReport(challenges) {
     const report = {};
-    for (const level of ['easy', 'medium', 'hard']) {
+    for (const level of LEVELS) {
         const group = challenges.filter(challenge => challenge.ir.level === level);
         const distances = [];
         for (let i = 0; i < group.length; i++) {

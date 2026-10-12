@@ -1,17 +1,13 @@
 'use strict';
 
 const siteCount = 512;
-const heavy = new Set([86, 89, 90, 91, 92, 93, 94]);
 
 // Independent uint32 reference for the header's compile-time selector.
 function expectedIndex(site, seed) {
     let value = (site ^ seed ^ 2654435769) >>> 0;
     value = Math.imul(value ^ (value >>> 16), 2246822507) >>> 0;
     value = Math.imul(value ^ (value >>> 13), 3266489909) >>> 0;
-    const slot = (value ^ (value >>> 16)) & 255;
-    if (slot < 7) return slot === 0 ? 86 : slot + 88;
-    const light = (slot - 7) % 121;
-    return light < 86 ? light : light < 88 ? light + 1 : light + 7;
+    return (value ^ (value >>> 16)) & 127;
 }
 
 function fixture() {
@@ -48,8 +44,7 @@ function measurements(stdout, seed, assert) {
     const rows = [...stdout.matchAll(/^SITE (\d+) (\d+) (\d+)\r?$/gm)].map((m) => m.slice(1).map(Number));
     assert(rows.length === siteCount, 'public selector output is incomplete');
     const histogram = Array(128).fill(0);
-    let repeats = 0,
-        heavyCount = 0;
+    let repeats = 0;
     rows.forEach(([site, counter, index], i) => {
         assert(
             site === i && index === expectedIndex(counter, seed),
@@ -57,22 +52,18 @@ function measurements(stdout, seed, assert) {
         );
         assert(i === 0 || counter > rows[i - 1][1], 'counter was not captured independently for each call');
         histogram[index]++;
-        if (heavy.has(index)) heavyCount++;
         if (i && index === rows[i - 1][2]) repeats++;
     });
     return {
         rows,
         histogram,
         distinctTemplates: histogram.filter(Boolean).length,
-        adjacentRepeats: repeats,
-        heavyCount
+        adjacentRepeats: repeats
     };
 }
 
 function extraIndex(index) {
-    const ordinal = index < 86 ? index : index < 89 ? index - 1 : index - 7;
-    const light = (ordinal + 37) % 121;
-    return light < 86 ? light : light < 88 ? light + 1 : light + 7;
+    return (index + 37) & 127;
 }
 
-module.exports = { extraIndex, siteCount, heavy, expectedIndex, fixture, measurements };
+module.exports = { extraIndex, siteCount, expectedIndex, fixture, measurements };

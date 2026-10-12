@@ -5,10 +5,11 @@ export function analyzeDifficulty(ir) {
     let branches = 0;
     const forms = new Set(), partitions = new Set();
     const kinds = new Map();
-    function sources(node, coordinates) {
+    function sources(node, coordinates, refs = []) {
+        if (node.kind === 'ref') return new Set(refs[node.index]);
         if (node.kind === 'source') return new Set(dependencies[coordinates[node.index]]);
-        const result = sources(node.left, coordinates);
-        if (node.right) for (const source of sources(node.right, coordinates)) result.add(source);
+        const result = sources(node.left, coordinates, refs);
+        if (node.right) for (const source of sources(node.right, coordinates, refs)) result.add(source);
         if (node.kind === 'select') {
             branches++;
             for (const source of dependencies[coordinates[node.selector]]) result.add(source);
@@ -32,13 +33,15 @@ export function analyzeDifficulty(ir) {
                 dependencies[op.i] = new Set([...dependencies[op.i], ...sources(op.expr, coordinates)]);
             }
         }
-        if (stage.kind === 'feistel') {
+        if (['feistel', 'braid'].includes(stage.kind)) {
             partitions.add(stage.sources.length);
+            const refs = [];
+            for (const node of stage.nodes || []) refs.push(sources(node, stage.sources, refs));
             const changed = dependencies.map(values => new Set(values));
             stage.ops.forEach((op, i) => {
                 forms.add(op.form);
                 const destination = stage.targets[i];
-                changed[destination] = new Set([...dependencies[destination], ...sources(op.expr, stage.sources)]);
+                changed[destination] = new Set([...dependencies[destination], ...sources(op.expr, stage.sources, refs)]);
             });
             dependencies = stage.order.map(source => changed[source]);
         }
@@ -46,7 +49,8 @@ export function analyzeDifficulty(ir) {
     return {
         stages: ir.stages.length,
         coupled: kinds.get('couple') || 0,
-        rounds: (kinds.get('feistel') || 0) + ir.stages.filter(stage => stage.kind === 'couple' && stage.round).length,
+        braidedRounds: kinds.get('braid') || 0,
+        rounds: (kinds.get('braid') || 0) + (kinds.get('feistel') || 0) + ir.stages.filter(stage => stage.kind === 'couple' && stage.round).length,
         feistelRounds: kinds.get('feistel') || 0,
         sequentialRounds: ir.stages.filter(stage => stage.kind === 'couple' && stage.round).length,
         branches,
@@ -74,6 +78,12 @@ export function assertDifficulty(ir) {
         && summary.feistelRounds >= 24 && summary.sequentialRounds >= 12
         && summary.branches > 0 && summary.partitionWidths.length >= 3
         && summary.updateForms.length === 5 && summary.minimumInputDependencies === ir.width;
+    if (ir.level === 'extreme') valid = ir.bits === 16 && ir.length === 48
+        && summary.rounds >= 96 && summary.rounds <= 144
+        && summary.braidedRounds >= 32 && summary.feistelRounds >= 24 && summary.sequentialRounds >= 24
+        && summary.branches > 0 && summary.partitionWidths.length >= 4
+        && summary.updateForms.length === 5 && summary.minimumInputDependencies === ir.width
+        && ir.stages.filter(stage => stage.kind === 'affine').length >= 8;
     if (!valid) throw new Error('Generated algorithm does not meet its difficulty structure contract');
     return summary;
 }

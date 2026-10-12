@@ -29,7 +29,9 @@ for (const level of LEVELS)
                 maximum = Array(c.ir.width).fill(2 ** c.ir.bits - 1);
             for (const v of [zero, maximum]) assert.deepEqual(transform(c.ir, transform(c.ir, v), true), v);
             function numeric(node, excluded, width) {
-                if (node.kind === 'source') {
+                if (node.kind === 'ref') {
+                    assert(Number.isInteger(node.index) && node.index >= 0);
+                } else if (node.kind === 'source') {
                     assert(Number.isInteger(node.index) && node.index >= 0 && node.index < width && node.index !== excluded);
                 } else if (node.right) {
                     assert(['add', 'sub', 'xor', 'and', 'or', 'select'].includes(node.kind));
@@ -48,7 +50,7 @@ for (const level of LEVELS)
                 }
             }
             for (const stage of c.ir.stages) for (const op of stage.ops || []) {
-                if (op.expr) numeric(op.expr, stage.kind === 'couple' ? op.i : -1, stage.kind === 'feistel' ? stage.sources.length : c.ir.width);
+                if (op.expr) numeric(op.expr, stage.kind === 'couple' ? op.i : -1, ['feistel', 'braid'].includes(stage.kind) ? stage.sources.length : c.ir.width);
                 for (const item of op.sequence || []) {
                     if (item.kind === 'mul') assert(item.value % 2 === 1 && item.value <= 15);
                     else if (['rot', 'shlXor', 'shrXor'].includes(item.kind)) assert(item.value > 0 && item.value < c.ir.bits);

@@ -316,7 +316,15 @@ static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wp, LPARAM
                 draw_image(graphics, logoimage, 8, 42, 320, 320);
                 dispose_graphics(graphics);
             }
-            label(dc, 346, 60, HIDE_STRING("@LEVEL@ challenge"), accent, bodyfont);
+            {
+                const char *difficulty = HIDE_STRING("@LEVEL@");
+                SIZE size;
+                HGDIOBJ previous = SelectObject(dc, smallfont);
+                GetTextExtentPoint32A(dc, difficulty, (int)strlen(difficulty), &size);
+                SelectObject(dc, previous);
+                rounded(dc, 346, 54, size.cx + 16, 26, 12, blend(UI_BG, accent, 18), blend(UI_BG, accent, 65));
+                label(dc, 354, 54 + (26 - size.cy) / 2, difficulty, accent, smallfont);
+            }
             label(dc, 346, 87, HIDE_STRING("Daily Crackme"), ink, titlefont);
             label(dc, 346, 136, HIDE_STRING("Recover the original password."), muted, bodyfont);
             label(dc, 346, 179, HIDE_STRING("Password"), RGB(175, 185, 199), smallfont);
@@ -409,7 +417,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command, int sh
     if (!window) return 1;
     {
         WCHAR title[80];
-        MultiByteToWideChar(CP_UTF8, 0, HIDE_STRING("Daily Crackme \xE2\x80\x94 \"protected with obfus.h\""), -1, title, 80);
+        MultiByteToWideChar(CP_UTF8, 0, HIDE_STRING("Daily Crackme \xE2\x80\x94 protected with obfus.h"), -1, title, 80);
         SetWindowTextW(window, title);
     }
     /* Optional system decoration; unsupported attributes leave the native caption intact. */

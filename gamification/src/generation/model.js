@@ -17,16 +17,17 @@ function inverseOdd(a, modulus) {
     if (r !== 1) throw new Error('Non-invertible multiplier');
     return ((t % modulus) + modulus) % modulus;
 }
-function evaluate(node, right, bits = 16) {
+function evaluate(node, right, bits = 16, refs = []) {
     const mask = 2 ** bits - 1;
     if (node.kind === 'source') return right[node.index];
-    if (node.kind === 'select') return evaluate(right[node.selector] & node.value ? node.left : node.right, right, bits);
-    const x = evaluate(node.left, right, bits);
-    if (node.kind === 'add') return (x + evaluate(node.right, right, bits)) & mask;
-    if (node.kind === 'xor') return x ^ evaluate(node.right, right, bits);
-    if (node.kind === 'and') return x & evaluate(node.right, right, bits);
-    if (node.kind === 'or') return x | evaluate(node.right, right, bits);
-    if (node.kind === 'sub') return (x - evaluate(node.right, right, bits)) & mask;
+    if (node.kind === 'ref') return refs[node.index];
+    if (node.kind === 'select') return evaluate(right[node.selector] & node.value ? node.left : node.right, right, bits, refs);
+    const x = evaluate(node.left, right, bits, refs);
+    if (node.kind === 'add') return (x + evaluate(node.right, right, bits, refs)) & mask;
+    if (node.kind === 'xor') return x ^ evaluate(node.right, right, bits, refs);
+    if (node.kind === 'and') return x & evaluate(node.right, right, bits, refs);
+    if (node.kind === 'or') return x | evaluate(node.right, right, bits, refs);
+    if (node.kind === 'sub') return (x - evaluate(node.right, right, bits, refs)) & mask;
     if (node.kind === 'rot') return rotate(x, node.value, bits);
     if (node.kind === 'mul') return (x * node.value) & mask;
     if (node.kind === 'constant') return (x + node.value) & mask;
@@ -83,12 +84,14 @@ export function stage(input, s, bits, inverse = false) {
             const term = evaluate(c.expr, out, bits);
             out[c.i] = update(out[c.i], term, c.form, bits, inverse);
         }
-    } else if (s.kind === 'feistel') {
+    } else if (['feistel', 'braid'].includes(s.kind)) {
         const state = [...input];
         if (inverse) s.order.forEach((source, i) => { state[source] = input[i]; });
         const sources = s.sources.map(i => state[i]);
+        const refs = [];
+        for (const node of s.nodes || []) refs.push(evaluate(node, sources, bits, refs));
         s.targets.forEach((destination, i) => {
-            state[destination] = update(state[destination], evaluate(s.ops[i].expr, sources, bits), s.ops[i].form, bits, inverse);
+            state[destination] = update(state[destination], evaluate(s.ops[i].expr, sources, bits, refs), s.ops[i].form, bits, inverse);
         });
         return inverse ? state : s.order.map(source => state[source]);
     } else throw new Error('Unknown IR stage');

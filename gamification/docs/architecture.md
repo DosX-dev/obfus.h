@@ -102,3 +102,9 @@ Missing durable state, rollback journals and inconsistent asset hashes fail visi
 -   Moving modules: update direct imports, static-template/tool paths and documentation. Compare deterministic emitted C before rebuilding so accidental protection changes are visible.
 
 Storage versions and generator versions serve different purposes. Change durable protocols deliberately with an explicit migration strategy. The command interface, verification guarantees and secrecy boundaries are more important than today's module names.
+
+## Extreme shared circuits (version 5)
+
+`generation/extreme.js` constructs `braid` stages. Their `sources` and `targets` are disjoint. Circuit nodes use the expression language plus backward-only `ref` edges; targets reuse captured nodes. The model evaluates controls on the unchanged source bank, while the C emitter captures each node once before writing the destination bank. Reverse execution first undoes `order`, recomputes the same control graph and inverts the target updates. This contract prohibits references to targets and forward/cyclic node references.
+
+Display labels are separate from stored level keys: `hard` is shown as HARDCORE; `extreme` is the fourth key. Encrypted answers from pre-v5 rounds retain the original three keys. Publication of a v5 round requires four public players and two private state files; recovery tests cover interruption while replacing a three-player round with a four-player round.

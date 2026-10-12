@@ -41,7 +41,7 @@ test('recent profile retention is bounded per level without losing all-time fing
 
 test('recent profiles reload through authenticated history and malformed metadata fails closed', async () => {
     let checks = LEVELS.map(level => entry(1, level));
-    const state = { round: 1, historyCount: 3, files: [{ name: 'history.json.gz', role: 'history' }] };
+    const state = { round: 1, historyCount: LEVELS.length, files: [{ name: 'history.json.gz', role: 'history' }] };
     let data;
     function encode() {
         data = gzipSync(JSON.stringify({ version: 1, checks }));
@@ -60,10 +60,11 @@ test('recent profiles reload through authenticated history and malformed metadat
     await assert.rejects(loadHistory(api, state), /Invalid recent-profile data/);
 });
 
-test('100 daily rounds clear both all-time novelty and recent similarity gates', async () => {
+const days = process.env.CRACKME_QUICK_TESTS === '1' ? 20 : 100;
+test(`${days} daily rounds clear both all-time novelty and recent similarity gates`, async () => {
     const key = Buffer.alloc(32, 41), start = Date.UTC(2026, 9, 12);
     let history = [];
-    for (let day = 0; day < 100; day++) {
+    for (let day = 0; day < days; day++) {
         const date = new Date(start + day * 86400000).toISOString().slice(0, 10);
         const index = createHistoryIndex(history), additions = [];
         for (const level of LEVELS) {
@@ -85,7 +86,7 @@ test('100 daily rounds clear both all-time novelty and recent similarity gates',
         assert(history.filter(entry => entry.profile).length <= RECENT_CHECKS_PER_LEVEL * LEVELS.length);
     }
     const data = gzipSync(JSON.stringify({ version: 1, checks: history }));
-    const state = { round: 100, historyCount: 300, files: [{ name: 'history.json.gz', role: 'history', sha256: hash(data) }] };
+    const state = { round: days, historyCount: days * LEVELS.length, files: [{ name: 'history.json.gz', role: 'history', sha256: hash(data) }] };
     const api = { release: async () => ({ id: 1 }), assets: async () => [{ name: 'history.json.gz' }], download: async () => data };
     assert.deepEqual(await loadHistory(api, state), history, 'Actual generated profiles must survive durable reload');
 });

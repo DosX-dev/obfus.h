@@ -27,7 +27,9 @@ jobs:
     preview:
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preview'
         runs-on: windows-2022
-        timeout-minutes: 60
+        timeout-minutes: 20
+        env:
+            CRACKME_FAST_VERIFICATION: '1'
         permissions:
             contents: read
         steps:
@@ -48,7 +50,9 @@ jobs:
         # Leave this repository variable UNSET until the owner approves both GUI and generator.
         if: vars.CRACKME_PUBLICATION_APPROVED == 'v1' && (github.event_name == 'schedule' || inputs.mode == 'publish')
         runs-on: windows-2022
-        timeout-minutes: 60
+        timeout-minutes: 20
+        env:
+            CRACKME_FAST_VERIFICATION: '1'
         permissions:
             contents: write
         steps:

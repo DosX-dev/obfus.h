@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { unseal, hash } from '../core/crypto.js';
-import { LEVELS } from '../core/config.js';
+import { levelsForVersion } from '../core/config.js';
 
 export async function previousAnswers(api, key, state) {
     if (!state) return null;
@@ -14,7 +14,7 @@ export async function previousAnswers(api, key, state) {
     const value = unseal(key, JSON.parse(data.toString()));
     assert.equal(value.date, state.date);
     assert.equal(value.round, state.round);
-    assert.deepEqual(Object.keys(value.answers).sort(), [...LEVELS].sort(), 'Saved answer levels mismatch');
+    assert.deepEqual(Object.keys(value.answers).sort(), [...levelsForVersion(state.version)].sort(), 'Saved answer levels mismatch');
     assert(Object.values(value.answers).every(answer => typeof answer === 'string' && /^[\x21-\x7e]+$/.test(answer)), 'Saved answers must be printable ASCII');
     return { date: value.date, round: value.round, answers: value.answers };
 }

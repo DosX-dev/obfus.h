@@ -30,7 +30,7 @@ int main(void) {
     int seen = 0;
     for (unsigned int index = 0; index < 128; ++index) {
         unsigned int extra = OBFH_CFLOW_EXTRA_INDEX(index);
-        if (extra >= 128 || extra == index || extra == 86 || (extra >= 89 && extra <= 94)) return 95;
+        if (extra >= 128 || extra == index) return 95;
     }
     DIRECT(0);
     DIRECT(1);

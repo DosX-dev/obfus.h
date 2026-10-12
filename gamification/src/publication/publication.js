@@ -9,9 +9,9 @@ const assetMatches = (asset, file) => asset.name === file.name && (asset.storage
 async function verifyRepackage(api, release, current, next) {
     const { files: oldFiles, ...oldMetadata } = current;
     const { files: newFiles, ...newMetadata } = next;
-    if (!stateEqual(oldMetadata, newMetadata) || newFiles.length !== 5) throw new Error('Repackaging must preserve the original round');
+    if (!stateEqual(oldMetadata, newMetadata) || newFiles.length !== oldFiles.length) throw new Error('Repackaging must preserve the original round');
     const assets = await api.assets(release.id);
-    for (const level of ['easy', 'medium', 'hard']) {
+    for (const level of oldFiles.filter(file => !['answers', 'history'].includes(file.role)).map(file => file.role)) {
         const before = oldFiles.find(file => file.role === level), after = newFiles.find(file => file.role === level);
         if (!before?.name.endsWith('.exe') || !after || after.storage !== 'public' || after.name !== before.name.replace(/\.exe$/, '.zip')) throw new Error('Invalid repackaged player');
         const asset = assets.find(asset => assetMatches(asset, after));

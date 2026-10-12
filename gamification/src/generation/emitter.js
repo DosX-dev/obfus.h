@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { LEVEL_LABELS } from '../core/config.js';
 import { emitFamily } from './family-emitter.js';
 export function emit({ ir, target }, { mutate = null } = {}) {
-    const hard = ir.level === 'hard',
+    const hard = ['hard', 'extreme'].includes(ir.level),
         mask = 2 ** ir.bits - 1;
     const stages = mutate === 'drop' ? ir.stages.slice(1) : ir.stages;
     const rows = [],
@@ -10,6 +11,7 @@ export function emit({ ir, target }, { mutate = null } = {}) {
     function expression(node, coordinates = null) {
         const source = index => `s[${slot(coordinates ? coordinates[index] : index)}]`;
         if (node.kind === 'source') return source(node.index);
+        if (node.kind === 'ref') return `q${node.index}`;
         if (node.kind === 'select') return `(p_equ(p_and(${source(node.selector)},${node.value}u),0u)?${expression(node.right, coordinates)}:${expression(node.left, coordinates)})`;
         const x = expression(node.left, coordinates);
         if (node.kind === 'add') return `bounded(p_add(${x},${expression(node.right, coordinates)}))`;
@@ -64,9 +66,9 @@ export function emit({ ir, target }, { mutate = null } = {}) {
             );
             continue;
         }
-        if (s.kind === 'feistel' && s.ops[0].expr) {
+        if (['feistel', 'braid'].includes(s.kind) && s.ops[0].expr) {
             calls.push(
-                `{unsigned t[WIDTH];\n${Array.from({ length: ir.width }, (_, i) => `t[${i}]=s[${i}];`).join('\n')}\n${s.ops.map((c, i) => update(`t[${slot(s.targets[i])}]`, `s[${slot(s.targets[i])}]`, expression(c.expr, s.sources), c.form)).join('\n')}\n${s.order.map((source, i) => `s[${slot(i)}]=t[${slot(source)}];`).join('\n')}\n} observe(s);`
+                `{unsigned t[WIDTH];\n${(s.nodes || []).map((node, i) => `unsigned q${i}=${expression(node, s.sources)};`).join('\n')}\n${Array.from({ length: ir.width }, (_, i) => `t[${i}]=s[${i}];`).join('\n')}\n${s.ops.map((c, i) => update(`t[${slot(s.targets[i])}]`, `s[${slot(s.targets[i])}]`, expression(c.expr, s.sources), c.form)).join('\n')}\n${s.order.map((source, i) => `s[${slot(i)}]=t[${slot(source)}];`).join('\n')}\n} observe(s);`
             );
             continue;
         }
@@ -109,7 +111,7 @@ void daily_vm_step(unsigned op, unsigned pc) { (void)op; (void)pc; ++vm_steps; }
 #define BITS ${ir.bits}
 #define MASK ${mask}u
 #define PASSWORD_LENGTH ${ir.length}
-#define DAILY_DIFFICULTY_COLOR ${{ easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hard: 'RGB(244,105,113)' }[ir.level]}
+#define DAILY_DIFFICULTY_COLOR ${{ easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hard: 'RGB(244,105,113)', extreme: 'RGB(232,178,255)' }[ir.level]}
 typedef struct { unsigned i,j; } Operation;
 static const Operation ops[] = {${rows.length ? rows.join(',\n') : '{0}'}};
 static const unsigned storage[] = {${ir.storage.join(',')}};
@@ -163,8 +165,8 @@ int main(void){
 ${readFileSync(new URL('../ui/gui.c', import.meta.url), 'utf8')
             .replaceAll('@DATE@', ir.date)
             .replaceAll('@ROUND@', String(ir.round))
-            .replaceAll('@LEVEL@', ir.level[0].toUpperCase() + ir.level.slice(1))
-            .replaceAll('@COLOR@', { easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hard: 'RGB(244,105,113)' }[ir.level])}
+            .replaceAll('@LEVEL@', ir.level === 'extreme' ? LEVEL_LABELS[ir.level] : LEVEL_LABELS[ir.level][0] + LEVEL_LABELS[ir.level].slice(1).toLowerCase())
+            .replaceAll('@COLOR@', { easy: 'RGB(99,211,159)', medium: 'RGB(239,184,88)', hard: 'RGB(244,105,113)', extreme: 'RGB(232,178,255)' }[ir.level])}
 #endif
 `;
     return mutate === 'vm' ? source.replace('return VM_ADD(a,b);', 'return 0;') : source;

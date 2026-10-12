@@ -52,7 +52,8 @@ export function remember(index, { structure, behavior, shape, level, profile }) 
 
 export async function loadHistory(api, state) {
     if (!state) return [];
-    assert.equal(state.historyCount, state.round * LEVELS.length, 'History does not cover every published round');
+    assert(Number.isSafeInteger(state.historyCount) && state.historyCount >= state.round * 3 && state.historyCount <= state.round * LEVELS.length, 'History does not cover every published round');
+    if (state.version && state.version < 5) assert.equal(state.historyCount, state.round * 3, 'Legacy history must cover all three-level rounds');
     const release = await api.release();
     const assets = await api.assets(release.id);
     const file = state.files.find(entry => entry.role === 'history');
@@ -71,7 +72,7 @@ export async function loadHistory(api, state) {
     const recentCounts = new Map();
     for (const entry of history) if (entry.profile !== undefined) {
         assert(LEVELS.includes(entry.level), 'Invalid recent-profile difficulty');
-        assert(Array.isArray(entry.profile) && entry.profile.length > 0 && entry.profile.length <= 2000, 'Invalid recent-profile size');
+        assert(Array.isArray(entry.profile) && entry.profile.length > 0 && entry.profile.length <= 8192, 'Invalid recent-profile size');
         assert(entry.profile.every(item => Array.isArray(item) && item.length === 2
             && typeof item[0] === 'string' && item[0].length <= 4096 && /^[a-zA-Z0-9:(),/]+$/.test(item[0])
             && Number.isSafeInteger(item[1]) && item[1] > 0 && item[1] <= 10000), 'Invalid recent-profile data');

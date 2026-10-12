@@ -359,3 +359,31 @@ test('extra same-date rounds are explicitly fenced and recover at every request 
     const collision = { ...next, files: fixture.next.files };
     await assert.rejects(publish(new FakeGitHub(), collision, fixture.newFiles, { advanceFromRound: 0 }), /Invalid manual/);
 });
+
+test('four-level migration publishes atomically and recovers every request boundary', async () => {
+    const fixture = legacyPlayers();
+    const files = fixture.newFiles.map((file, i) => ({ ...file, role: fixture.next.files[i].role, name: file.name.replace('2026-10-12', '2026-10-13') }));
+    const extra = { role: 'extreme', name: 'obfus-crackme-2026-10-13-extreme-x64.zip', data: playerZip('extreme.exe', Buffer.from('fixture-extreme')) };
+    files.push(extra);
+    const next = { ...fixture.next, version: 5, date: '2026-10-13', round: 2, files: files.map(file => ({ name: file.name, role: file.role, storage: ['answers', 'history'].includes(file.role) ? 'private' : 'public', sha256: hash(file.data), url: 'https://example.test/' + file.name })) };
+    const baseline = new FakeGitHub();
+    await publish(baseline, fixture.state, fixture.files);
+    baseline.calls = []; baseline.splitStorage = true;
+    await publish(baseline, next, files);
+    const boundaries = baseline.calls.length;
+    for (const after of [false, true]) for (let at = 1; at <= boundaries; at++) {
+        const api = new FakeGitHub();
+        await publish(api, fixture.state, fixture.files);
+        api.calls = []; api.splitStorage = true; api.failAt = at; api.after = after;
+        try { await publish(api, next, files); } catch { }
+        api.failAt = null;
+        await recover(api);
+        await publish(api, next, files);
+        assert.deepEqual(api.manifest, next);
+        assert.equal(api.list.filter(asset => asset.storage === 'public').length, 4);
+        assert.equal(api.list.filter(asset => asset.storage === 'private').length, 2);
+        assert(api.r.body.includes('🟣 [EXTREME]'));
+    }
+    const incomplete = { ...next, files: next.files.filter(file => file.role !== 'extreme') };
+    await assert.rejects(publish(new FakeGitHub(), incomplete, files), /Incomplete four-level/);
+});

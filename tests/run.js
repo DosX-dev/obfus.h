@@ -632,7 +632,8 @@ async function main() {
             for (const macro of macros)
                 assert(/OBFH_VM_EXEC\s*\(\s*Obfh_VirtualMachine\s*,/.test(macro), `VM bypass: ${macro}`);
         });
-        await check('source: legacy CPUID/NOP macros removed', async () => {
+        await check('source: serializing instructions and legacy junk macros removed', async () => {
+            assert(!/\b(?:cpuid|rdtscp)\b/i.test(source), 'serializing instruction remains in the header');
             assert(!/\b(?:FAKE_CPUID|NOP_FLOOD)\b/.test(source), 'legacy junk macro remains');
             assert(!source.includes('__obfh_strcmp_junk_done'), 'inline legacy NOP clone remains');
             assert(!/^#define\s+\w+_custom\b/m.test(source), 'undocumented custom compatibility alias remains');
@@ -671,7 +672,7 @@ async function main() {
             );
             assert(source.includes('float junk, float condition'), 'condition float conversion removed');
             assert(!source.includes('_0 && rdtsc_result'), 'timestamp proxy short-circuited');
-            assert(source.includes('0x0f, 0x01, 0xf9'), 'actual RDTSCP missing');
+            assert(source.includes('0x0f, 0x31'), 'actual timestamp read missing');
             assert(source.includes('MEM_CLEANER__JUST_FOR_FUN'), 'working-set feature removed');
             assert(
                 !source.includes('FARPROC fallback') && !source.includes('(FARPROC)(vprintf)'),
@@ -759,6 +760,16 @@ async function main() {
                 .replace('/* PROCESS_PROBE */', processProbe)
         );
         for (const [arch, compiler] of Object.entries(compilers)) {
+            if (process.argv.includes('--only-exports') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
+                if (selectedArch && selectedArch !== arch) continue;
+                for (const seed of [1, 2])
+                    await check(`${arch}/PE exports + ordinary forwarders + bounded names/seed ${seed}`, async () => {
+                        await execute(await compile(compiler, directory, `${arch}-exports-${seed}.exe`,
+                            path.join(__dirname, 'export_lookup.c'),
+                            ['NO_ANTIDEBUG=1', 'CFLOW_V2=1', `OBFH_BUILD_SEED=${seed}u`]), 'EXPORT_LOOKUP_PASS');
+                    });
+                if (process.argv.includes('--only-exports')) continue;
+            }
             if (process.argv.includes('--only-custom') || process.argv.includes('--only-custom33')) {
                 const only33 = process.argv.includes('--only-custom33');
                 if (selectedArch && selectedArch !== arch) continue;
@@ -1344,8 +1355,8 @@ async function main() {
                         assert(instruction >= 0 && code[anchor] === 0xe8, 'legacy skip anchor changed');
                         const destination = anchor + code.readInt32LE(instruction + 4);
                         assert(
-                            destination >= anchor + 10 && code[destination] === 0x0f && code[destination + 1] === 0xa2,
-                            'junk skip does not land at CPUID'
+                            destination >= anchor + 10 && code[destination] === 0xb8,
+                            'junk skip does not land at arithmetic transport'
                         );
                         return code.subarray(anchor + 1, anchor + 5);
                     });
@@ -1363,10 +1374,10 @@ async function main() {
                     for (const index of [0, 3, 4, 5, 6, 7, 8]) {
                         const code = first[index],
                             branch = code.indexOf(Buffer.from([0x0f, 0x84]));
-                        const { destination } = withoutSkippedPayload(code, branch);
+                        const { liveBytes } = withoutSkippedPayload(code, branch);
                         assert(
-                            code[destination] === 0x0f && code[destination + 1] === 0xa2,
-                            'legacy skip no longer reaches CPUID'
+                            !liveBytes.includes(Buffer.from([0x0f, 0xa2])),
+                            'serializing instruction remains on a junk live path'
                         );
                     }
                     for (const index of [9, 10, 11, 12]) {
@@ -1505,18 +1516,15 @@ async function main() {
                 await check(`${arch}/public break distribution + reproducibility`, async () => {
                     assert(randomBuilds.size === 5, 'public selector sampling build failed');
                     const histogram = Array(128).fill(0);
-                    let heavyCount = 0,
-                        adjacentRepeats = 0;
+                    let adjacentRepeats = 0;
                     for (const sample of randomBuilds.values()) {
                         sample.histogram.forEach((count, index) => (histogram[index] += count));
-                        heavyCount += sample.heavyCount;
                         adjacentRepeats += sample.adjacentRepeats;
                     }
                     assert(
                         histogram.every((count) => count > 0),
                         'not all 128 templates were selected across sampled seeds'
                     );
-                    assert(heavyCount > 0 && heavyCount < 2560 * 0.06, 'CPUID weighting failed');
                     assert(adjacentRepeats < 2560 * 0.04, 'too many adjacent template repetitions');
                     const first = randomBuilds.get(1),
                         second = randomBuilds.get(2);
@@ -1542,7 +1550,6 @@ async function main() {
                     const report = {
                         samples: 2560,
                         histogram,
-                        heavyCount,
                         adjacentRepeats,
                         changedTemplates,
                         builds: [...randomBuilds].map(([seed, { code, ...measurement }]) => ({ seed, ...measurement }))
@@ -1552,7 +1559,7 @@ async function main() {
                         JSON.stringify(report, null, 2)
                     );
                     console.log(
-                        `RANDOM ${arch}: 128/128 templates, ${heavyCount}/2560 CPUID selections, ${adjacentRepeats} adjacent repeats, ${changedTemplates}/512 templates changed between seeds 1 and 2`
+                        `RANDOM ${arch}: 128/128 templates, ${adjacentRepeats} adjacent repeats, ${changedTemplates}/512 templates changed between seeds 1 and 2`
                     );
                 });
                 await check(`${arch}/public break CFLOW_V2 + syntax`, async () => {
@@ -2046,7 +2053,7 @@ async function main() {
                     );
                     await execute(imported, 'DLL_IMPORT_PASS');
                 });
-                await check(`${label}/hidden-string binary + CPUID`, async () => {
+                await check(`${label}/hidden-string binary + timestamp`, async () => {
                     const exe = await compile(
                         compiler,
                         directory,
@@ -2065,16 +2072,12 @@ async function main() {
                         assertNoConstantSignature(binary);
                         for (const name of ['GetProcAddress', 'LoadLibraryA', 'abs', 'memchr', 'vprintf'])
                             assert(!binary.includes(Buffer.from('\0' + name + '\0')), 'native import leaked: ' + name);
-                        assert(binary.includes(Buffer.from([0x0f, 0x01, 0xf9])), 'RDTSCP missing from executable');
+                        assert(binary.includes(Buffer.from([0x0f, 0x31])), 'timestamp read missing from executable');
                         const protectedSection = data.sections.find(
                             (section) => section.name === (flags.includes('FAKE_SIGNS=1') ? 'UPX0' : '.obfh')
                         );
                         assert(protectedSection, 'protected data section missing');
                         const executableSections = data.sections.filter((section) => section.executable);
-                        assert(
-                            executableSections.some((section) => section.bytes.includes(Buffer.from([0x0f, 0xa2]))),
-                            'CPUID/junk obfuscation missing from executable sections'
-                        );
                         if (arch === 'x64') {
                             assert(
                                 executableSections.some((section) =>

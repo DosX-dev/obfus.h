@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { seal, hash } from '../core/crypto.js';
-import { VERSION, RELEASE_TAG } from '../core/config.js';
+import { VERSION, RELEASE_TAG, LEVELS } from '../core/config.js';
 import { HISTORY_VERSION, retainHistory } from './history.js';
 import { profile } from '../generation/diversity.js';
 import { playerZip } from '../core/zip.js';
@@ -11,6 +11,7 @@ import { playerZip } from '../core/zip.js';
 // Generated source, plaintext current answers, traces and replay keys never enter files.
 export async function createBundle(key, { date, round, repository, previous, history, header, revision, selected, publicDirectory, toolchainMetadata }) {
     if (!toolchainMetadata?.versions?.x86 || !toolchainMetadata?.versions?.x64) throw new Error('Actual compiler metadata is required');
+    if (JSON.stringify(selected.map(item => item.level).sort()) !== JSON.stringify([...LEVELS].sort())) throw new Error('A bundle requires every current difficulty exactly once');
     const files = [];
     const answers = {};
     const graphs = [];

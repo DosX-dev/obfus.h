@@ -12,11 +12,11 @@ node cli.js acceptance --toolchain PATH_TO_TCC_DIRECTORY --count 10
 node test/long-horizon.js 3653
 ```
 
-`preview` builds locally without publishing. Private sources, targets, diagnostic logs and replay material are kept under ignored `out/`; never upload this working directory as an Actions artifact. A completed preview's `public/` directory contains only three player ZIPs. Its sibling `state/` directory contains authenticated encrypted answers and compressed history.
+`preview` builds locally without publishing. Private sources, targets, diagnostic logs and replay material are kept under ignored `out/`; never upload this working directory as an Actions artifact. A completed preview's `public/` directory contains only four player ZIPs. Its sibling `state/` directory contains authenticated encrypted answers and compressed history.
 
 Tests check deterministic generation, domain separation, forward/inverse models, 1000 generated programs per level, meaningful structural fingerprints, answer authentication and publication recovery. Protected probes compare all intermediate states with the model and check correct/incorrect input, changed characters, transpositions and lengths. A passing model suite alone does not replace compiler, GUI, mutation or reverse-engineering acceptance.
 
-Actions set `CRACKME_QUICK_TESTS=1`: the model sample is 100 programs per difficulty and the 36,525-day Easy simulation is skipped. Exhaustive primitive tests, family checks, 100-day three-level novelty admission, publication recovery and native/player verification remain enabled. Without that environment variable, `npm test` retains the full 1000-program samples and century simulation for deeper local validation.
+Actions set `CRACKME_QUICK_TESTS=1`: the model sample is 100 programs per difficulty and the 36,525-day Easy simulation is skipped. Exhaustive primitive tests, family checks, 20-day four-level novelty admission, publication recovery and native/player verification remain enabled. Without that environment variable, `npm test` retains the full 1000-program samples and century simulation for deeper local validation.
 
 Acceptance builds ten candidates per difficulty on both x86 and x64. It checks every possible single-byte replacement, including NUL and non-ASCII values; full-block boundary traces; removal of a real stage; a corrupted Hard VM operation; and an omitted final comparison coordinate. GUI checks cover repeated attempts, Enter, ANSI/Unicode clipboard paste, deliberately occupied clipboard recovery, and clean shutdown. Generated source and all test entry points remain private; final players are checked for plaintext passwords, test markers, symbols and intact logo resources. A verification failure cancels publication rather than silently reducing coverage.
 
@@ -52,3 +52,15 @@ Novelty tests reject near-copies even with three fresh hashes, verify bounded re
 
 Recovery regressions also cover loss of both the committed manifest and every release asset. Rejected novelty attempts retain private diagnostics without reaching the compiler. GUI acceptance checks About through both command activation and Enter, closes it with No, and verifies that this never invokes the password check or opens the browser.
 Packaging tests check ZIP round-trip, corruption rejection and the three-link presentation. Storage tests check draft routing, visibility guards and lost creation responses. Publication tests interrupt every repackaging request before and after its effects, reject changed EXE bytes, and verify subsequent daily updates across public/private stores.
+
+## Fast daily publication checks
+
+Actions set `CRACKME_FAST_VERIFICATION=1` for both preview and publish preparation. Each architecture runs 100 text inputs and 100 byte inputs per level: the correct password, every coordinate changed individually, invalid bytes across all positions, empty/short/long inputs, adjacent swaps and deterministic random incorrect strings. Six full-block boundary traces, the accepted-input trace, real VM execution, x64 GUI interactions, binary leak/resource audits, provenance and transactional publication checks remain mandatory. Failures still prevent publication. This is representative daily verification, not the exhaustive replacement matrix.
+
+Local preparation defaults to full verification. `acceptance` also keeps the complete alphabet/byte replacement tests regardless of the fast preparation environment variable. The quick Node suite retains 100 independently generated models per level and exercises the seven-entry novelty window across 20 days; its full local mode retains 1000 models and the 100-day/century simulations. Workflow timeouts are 20 minutes as a failure ceiling, not a desired duration. Measure hosted elapsed time before claiming a fixed publication SLA.
+
+## Local version-5 evidence (2026-10-12)
+
+- 100 independently generated models per level and the 100-round novelty simulation passed before enabling the fast daily mode. Final fast suite: 73 tests, 72 passed, one intentional century-test skip, zero failures (about 54 seconds locally).
+- Full Extreme x86/x64 matrix: 4,581 text cases, 12,243 byte cases and six boundary traces per architecture. Both executed 501,203 VM trace steps on the accepted input. A second generated program passed both architectures, boundary traces and stage/VM/comparison negative controls. The batched full text verifier also passed.
+- Fresh four-level fast preparation passed native x86/x64, final GUI interactions and binary leak audits in 121.6 seconds locally. Each level/architecture processed 100 text and 100 byte cases. This is local timing, not a hosted Actions guarantee or a measured human-difficulty multiplier. No version-5 round was published by these checks.

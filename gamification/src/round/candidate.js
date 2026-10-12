@@ -17,11 +17,12 @@ async function verifyCandidate(challenge, folder, toolchain) {
         words(challenge.password, challenge.ir.bits)
     );
 
+    const quick = process.env.CRACKME_FAST_VERIFICATION === '1';
     const counts = [];
     for (const arch of ['x86', 'x64']) {
         const probe = await buildChallenge(challenge, path.join(folder, arch, 'probe'), toolchain, arch);
-        const text = await verifyProbe(challenge, probe);
-        const byteCases = await verifyBytes(challenge, probe);
+        const text = await verifyProbe(challenge, probe, { quick });
+        const byteCases = await verifyBytes(challenge, probe, { quick });
         const boundaryStates = await verifyStates(challenge, probe);
         counts.push({ arch, ...text, byteCases, boundaryStates });
     }

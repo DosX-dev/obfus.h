@@ -7,6 +7,11 @@ export function validateState(state) {
         && new Date(state.date + 'T00:00:00Z').toISOString().slice(0, 10) === state.date;
     const validFiles = Array.isArray(state.files) && state.files.length > 0;
     if (!validRound || !validDate || !validFiles) throw new Error('Invalid publication state');
+    if (state.version >= 5) {
+        const roles = state.files.map(file => file.role).sort();
+        if (JSON.stringify(roles) !== JSON.stringify(['answers', 'easy', 'extreme', 'hard', 'history', 'medium'])) throw new Error('Incomplete four-level publication');
+        if (state.files.some(file => file.storage !== (['answers', 'history'].includes(file.role) ? 'private' : 'public'))) throw new Error('Invalid four-level asset visibility');
+    }
     const names = new Set();
     for (const file of state.files) {
         if (

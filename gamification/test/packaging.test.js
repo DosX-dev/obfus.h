@@ -22,7 +22,7 @@ test('player release shows three large emoji links and hides previous answers in
     const state = { date: '2026-10-12', round: 1, files: ['easy', 'medium', 'hard', 'answers', 'history'].map(role => ({ role, url: 'https://example.test/' + role })) };
     const body = description(state);
     assert.equal(body.match(/^## /gm).length, 3);
-    for (const label of ['🟢 [EASY]', '🟠 [MEDIUM]', '🔴 [HARD]']) assert(body.includes(label));
+    for (const label of ['🟢 [EASY]', '🟠 [MEDIUM]', '🔴 [HARDCORE]']) assert(body.includes(label));
     assert(!body.includes('https://example.test/answers'));
     assert(!body.includes('https://example.test/history'));
     assert(!body.includes('No previous answers'));

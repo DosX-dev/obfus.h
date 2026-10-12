@@ -28,8 +28,8 @@ test('bundle assembly preserves player ZIPs, private state and provenance', asyn
         publicDirectory: path.join(directory, 'public'),
         toolchainMetadata: { source: 'local', versions: { x86: 'fixture-x86', x64: 'fixture-x64' } }
     });
-    assert.equal(result.files.length, 5);
-    assert.equal(result.state.historyCount, 3);
+    assert.equal(result.files.length, LEVELS.length + 2);
+    assert.equal(result.state.historyCount, LEVELS.length);
     for (const file of result.files) {
         assert.equal(result.state.files.find(entry => entry.name === file.name).sha256, hash(file.data));
         for (const { challenge } of selected) {
@@ -40,10 +40,10 @@ test('bundle assembly preserves player ZIPs, private state and provenance', asyn
     const saved = unseal(key, JSON.parse(answerFile.data));
     assert.deepEqual(saved.answers, Object.fromEntries(selected.map(item => [item.level, item.challenge.password])));
     assert.deepEqual(result.state.toolchain, { source: 'local', versions: { x86: 'fixture-x86', x64: 'fixture-x64' } });
-    assert.equal(result.state.files.filter(file => file.storage === 'public').length, 3);
+    assert.equal(result.state.files.filter(file => file.storage === 'public').length, LEVELS.length);
     assert.equal(result.state.files.filter(file => file.storage === 'private').length, 2);
     assert(result.state.files.filter(file => file.storage === 'public').every(file => file.name.endsWith('.zip')));
     const assets = result.files.map((file, id) => ({ ...file, id }));
     const api = { release: async () => ({ id: 1 }), assets: async () => assets, download: async asset => asset.data };
-    assert.equal((await loadHistory(api, result.state)).length, 3);
+    assert.equal((await loadHistory(api, result.state)).length, LEVELS.length);
 });

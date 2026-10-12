@@ -2,6 +2,7 @@ import { ALPHABET, LEVELS, VERSION } from '../core/config.js';
 import { derive, rng, hash } from '../core/crypto.js';
 import { transform, words } from './model.js';
 import { assertDifficulty } from './difficulty.js';
+import { braid } from './extreme.js';
 import { families } from './families.js';
 function shuffle(n, random) {
     const a = Array.from({ length: n }, (_, i) => i);
@@ -23,6 +24,7 @@ export function fingerprint(ir) {
                 sources: s.sources,
                 targets: s.targets,
                 round: s.round,
+                nodes: s.nodes?.map(expressionShape),
                 program: s.program,
                 boxes: s.boxes?.map(box => ({ i: box.i, tables: box.tables.length, route: box.route, before: box.before?.map(op => op.kind), after: box.after?.map(op => op.kind) })).sort((a, b) => a.i - b.i),
                 ops: (s.kind === 'affine' ? [...s.ops].sort((a, b) => a.i - b.i) : s.ops)?.map((c) => ({
@@ -47,7 +49,7 @@ export function behaviorFingerprint(ir) {
     return hash(JSON.stringify(['A', 'Z', '9'].map(char => transform(ir, words(char.repeat(ir.length), ir.bits)))));
 }
 function expressionShape(node) {
-    if (node.kind === 'source') return { kind: node.kind, index: node.index };
+    if (['source', 'ref'].includes(node.kind)) return { kind: node.kind, index: node.index };
     const left = expressionShape(node.left);
     if (!node.right) return { kind: node.kind, left };
     const children = [left, expressionShape(node.right)];
@@ -107,7 +109,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         throw new Error('Invalid round parameters');
     const context = { date, round, level, attempt },
         random = rng(key, 'structure', context);
-    const length = { easy: 12, medium: 24, hard: 32 }[level],
+    const length = { easy: 12, medium: 24, hard: 32, extreme: 48 }[level],
         bits = level === 'easy' ? 8 : 16;
     const width = (length * 8) / bits,
         mask = 2 ** bits - 1;
@@ -145,7 +147,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         round,
         ops: shuffle(width, random).map((i) => {
             const sources = Array.from({ length: width }, (_, index) => index).filter((index) => index !== i);
-            return { i, expr: roundExpression(sources, random, bits, round ? 4 : 2, round ? 6 : level === 'medium' ? 4 : 5, level === 'hard'), form: random(5) };
+            return { i, expr: roundExpression(sources, random, bits, round ? 4 : 2, round ? 6 : level === 'medium' ? 4 : 5, ['hard', 'extreme'].includes(level)), form: random(5) };
         })
     });
     if (level === 'easy') {
@@ -162,16 +164,19 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
         while (factories.length < count - 1) factories.push(eligible[random(eligible.length)]);
         stages.push(affine(), ...shuffle(factories.length, random).map(i => factories[i]()));
     } else {
-        const count = 48 + random(33);
+        const extreme = level === 'extreme';
+        const count = extreme ? 96 + random(49) : 48 + random(33);
         stages.push(affine(), extra.spn(), extra.controlled(), permute());
-        const sequential = 12 + random(9);
-        const roundKinds = shuffle(count, random).map(index => index < sequential);
+        const sequential = extreme ? 24 + random(9) : 12 + random(9);
+        const braided = extreme ? 32 + random(9) : 0;
+        const roundKinds = shuffle(count, random).map(index => index < sequential ? 1 : index < sequential + braided ? 2 : 0);
         let remaining = 6 + random(7);
         for (let i = 0; i < count; ++i) {
-            if (roundKinds[i]) stages.push(couple(true));
+            if (roundKinds[i] === 1) stages.push(couple(true));
+            else if (roundKinds[i] === 2) stages.push(braid(width, random, shuffle, roundExpression));
             else {
                 const coordinates = shuffle(width, random);
-                const split = 6 + random(5);
+                const split = extreme ? 8 + random(9) : 6 + random(5);
                 const sources = coordinates.slice(0, split), targets = coordinates.slice(split);
                 const localSources = Array.from({ length: split }, (_, index) => index);
                 const ops = targets.map(() => ({ expr: roundExpression(localSources, random, bits, 4, split, true), form: random(5) }));
@@ -180,6 +185,7 @@ export function generate(key, { date, round = 1, level, attempt = 0 }) {
             if (--remaining === 0) {
                 const eligible = [() => couple(), permute, affine, extra.spn, extra.matrix, extra.controlled, extra.substitute];
                 stages.push(eligible[random(eligible.length)]());
+                if (extreme) stages.push(affine(), permute());
                 remaining = 6 + random(7);
             }
         }

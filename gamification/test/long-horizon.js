@@ -1,3 +1,4 @@
+import { LEVELS } from '../src/core/config.js';
 import assert from 'node:assert/strict';
 import { generate, behaviorFingerprint } from '../src/generation/generator.js';
 import { shapeFingerprint, profile, profileDistance } from '../src/generation/diversity.js';
@@ -7,7 +8,7 @@ assert(Number.isSafeInteger(days) && days > 0 && days <= 36525);
 const index = createHistoryIndex([]), start = Date.UTC(2026, 9, 12), key = Buffer.alloc(32, 83), counts = {}, families = {}, minimum = {}, attempts = {};
 for (let day = 0; day < days; day++) {
     const date = new Date(start + day * 86400000).toISOString().slice(0, 10);
-    for (const level of ['easy', 'medium', 'hard']) {
+    for (const level of LEVELS) {
         let selected, challenge;
         for (let attempt = 0; attempt < 3; attempt++) {
             challenge = generate(key, { date, round: day + 1, level, attempt });

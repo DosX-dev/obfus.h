@@ -1082,12 +1082,12 @@ OBFH_PD_DEFINE(127);
 #define OBFH_JUNK_INPUTS "i"(RND(1, 15)), "i"(RND(0, 255)), OBFH_JUNK_RANDOM_INPUTS
 #define OBFH_STACK_JUNK_INPUTS "i"(RND(1, 32767)), OBFH_JUNK_INPUTS
 #define OBFH_CFLOW_RANDOM_INPUTS "i"(RND(1, 32767)), "i"(RND(1, 15)), "i"(RND(0, 255)), "i"(RND(1, 2147483646u))
-#define OBFH_CPUID_CLOBBERS "eax", "ebx", "ecx", "edx", "cc", "memory"
+#define OBFH_JUNK_CLOBBERS "eax", "ebx", "ecx", "edx", "cc", "memory"
 #define OBFH_CFLOW_CLOBBERS "eax", "edx", "ecx", "cc", "memory"
 #define OBFH_JUNK_ASM(code) __obfh_asm__(code \
                                          : \
                                          : OBFH_JUNK_INPUTS \
-                                         : OBFH_CPUID_CLOBBERS)
+                                         : OBFH_JUNK_CLOBBERS)
 #define OBFH_STACK_JUNK_ASM(code, ...) __obfh_asm__(code \
                                                     : \
                                                     : OBFH_STACK_JUNK_INPUTS \
@@ -1252,7 +1252,7 @@ OBFH_PD_DEFINE(127);
     __obfh_asm__(code \
                  : \
                  : OBFH_CFLOW_LOCAL_JUNK_INPUTS \
-                 : OBFH_CPUID_CLOBBERS)
+                 : OBFH_JUNK_CLOBBERS)
 #define OBFH_CFLOW_LOCAL_STACK_ASM(code, ...) \
     __obfh_asm__(code \
                  : \
@@ -1305,15 +1305,11 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; \
     __builtin_choose_expr((index) < 64u, __builtin_choose_expr((index) < 32u, __builtin_choose_expr((index) < 16u, __builtin_choose_expr((index) < 8u, OBFH_CFLOW_GROUP_0(index), OBFH_CFLOW_GROUP_1(index)), __builtin_choose_expr((index) < 24u, OBFH_CFLOW_GROUP_2(index), OBFH_CFLOW_GROUP_3(index))), __builtin_choose_expr((index) < 48u, __builtin_choose_expr((index) < 40u, OBFH_CFLOW_GROUP_4(index), OBFH_CFLOW_GROUP_5(index)), __builtin_choose_expr((index) < 56u, OBFH_CFLOW_GROUP_6(index), OBFH_CFLOW_GROUP_7(index)))), __builtin_choose_expr((index) < 96u, __builtin_choose_expr((index) < 80u, __builtin_choose_expr((index) < 72u, OBFH_CFLOW_GROUP_8(index), OBFH_CFLOW_GROUP_9(index)), __builtin_choose_expr((index) < 88u, OBFH_CFLOW_GROUP_10(index), OBFH_CFLOW_GROUP_11(index))), __builtin_choose_expr((index) < 112u, __builtin_choose_expr((index) < 104u, OBFH_CFLOW_GROUP_12(index), OBFH_CFLOW_GROUP_13(index)), __builtin_choose_expr((index) < 120u, OBFH_CFLOW_GROUP_14(index), OBFH_CFLOW_GROUP_15(index))))); (void)0; })
 
-// Avalanche the captured counter and seed before weighted selection.
-// Seven CPUID variants occupy 7/256 slots; the other 121 share the remaining slots.
-#define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 255u)
-#define OBFH_CFLOW_LIGHT_INDEX(value) ((value) < 86u ? (value) : ((value) < 88u ? (value) + 1u : (value) + 7u))
-#define OBFH_CFLOW_WEIGHTED_INDEX(slot) ((slot) < 7u ? ((slot) == 0u ? 86u : (slot) + 88u) : OBFH_CFLOW_LIGHT_INDEX(((slot)-7u) % 121u))
-#define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_WEIGHTED_INDEX(OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u))))
+// All 128 families use nonserializing arithmetic; keep selection uniform.
+#define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
+#define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u)))
 #define OBFH_CFLOW_SINGLE(index) ((void)0)
-#define OBFH_CFLOW_LIGHT_ORDINAL(index) ((index) < 86u ? (index) : ((index) < 89u ? (index)-1u : (index)-7u))
-#define OBFH_CFLOW_EXTRA_INDEX(index) OBFH_CFLOW_LIGHT_INDEX((OBFH_CFLOW_LIGHT_ORDINAL(index) + 37u) % 121u)
+#define OBFH_CFLOW_EXTRA_INDEX(index) (((index) + 37u) & 127u)
 #if CFLOW_V2
 // Capture once: the 128-way selector must not duplicate the mapping expression.
 #define OBFH_CFLOW_EXTRA(index) ({ \
@@ -1330,7 +1326,7 @@ OBFH_PD_DEFINE(127);
            __obfh_break_hash1 = OBFH_MIX_A((unsigned int)__obfh_break_id ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u), \
            __obfh_break_hash2 = OBFH_MIX_B(__obfh_break_hash1), \
            __obfh_break_slot = OBFH_CFLOW_SLOT(__obfh_break_hash2), \
-           __obfh_break_index = OBFH_CFLOW_WEIGHTED_INDEX(__obfh_break_slot) }; \
+           __obfh_break_index = __obfh_break_slot }; \
     OBFH_CFLOW_SELECT(__obfh_break_index); \
     extra(__obfh_break_index); \
     (void)0; \
@@ -1599,7 +1595,7 @@ OBFH_PD_DEFINE(127);
     OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl %0, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testl $1, %%edx; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%eax; addl %0, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testl $1, %%eax; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
 
 #define OBFH_CFLOW_TEMPLATE_86 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%eax; roll $%c0, %%eax; xorl %%eax, %%edx;")
 
 #define OBFH_CFLOW_TEMPLATE_87 ({ \
     enum { __obfh_break_salt = RND(1, 32767), \
@@ -1607,7 +1603,7 @@ OBFH_PD_DEFINE(127);
     __obfh_asm__("movzbl %7, %%eax; xorl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0xE8; " OBFH_JUNK_PAYLOAD "1:" \
                  : \
                  : OBFH_CFLOW_LOCAL_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_gap) \
-                 : OBFH_CPUID_CLOBBERS); \
+                 : OBFH_JUNK_CLOBBERS); \
 })
 
 #define OBFH_CFLOW_TEMPLATE_88 ({ \
@@ -1618,26 +1614,26 @@ OBFH_PD_DEFINE(127);
                  "1: cmpl %10, %%eax; jne 2f; .byte 0xFF, 0x25; " OBFH_JUNK_PAYLOAD "2:" \
                  : \
                  : OBFH_CFLOW_LOCAL_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_case1), "i"(__obfh_break_salt + __obfh_break_case2) \
-                 : OBFH_CPUID_CLOBBERS); \
+                 : OBFH_JUNK_CLOBBERS); \
 })
 
 #define OBFH_CFLOW_TEMPLATE_89 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; " OBFH_JUNK_PAYLOAD "1: leal %c6(%%ebx), %%ecx; rorl $%c0, %%ecx;")
 
 #define OBFH_CFLOW_TEMPLATE_90 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%edx; bswap %%edx; xorl %%edx, %%eax;")
 
 #define OBFH_CFLOW_TEMPLATE_91 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%ecx; negl %%ecx; roll $%c0, %%ecx;")
 
 #define OBFH_CFLOW_TEMPLATE_92 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%eax; notl %%eax; leal (%%eax,%%eax,2), %%edx;")
 
 #define OBFH_CFLOW_TEMPLATE_93 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0x50; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0x50; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%ecx; rorl $%c0, %%ecx; xorl %%ecx, %%eax;")
 
 #define OBFH_CFLOW_TEMPLATE_94 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD "1: cpuid;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%edx; roll $%c0, %%edx; leal (%%edx,%%edx,4), %%eax;")
 
 #define OBFH_CFLOW_TEMPLATE_95 \
     OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testl $1, %%eax; jz 1f; .byte 0xE8; " OBFH_STACK_JUNK_PAYLOAD "1:", "eax", "edx")
@@ -3321,7 +3317,7 @@ OBFH_PD_DEFINE(127);
 // ============================================================================
 
 #if defined(__x86_64__)
-#define BAD_JMP __obfh_asm__("cpuid; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4;")
+#define BAD_JMP __obfh_asm__("xorl %eax, %eax; mov %eax, %rax; mov %ebx, %edx; .byte 0xFF, 0x25, 0xF1, 0xF2, 0xF3, 0xF4;")
 #else
 #define BAD_JMP __obfh_asm__(".byte 0xEB, 0xE1;")
 #endif
@@ -3440,6 +3436,7 @@ static int obfh_condition_proxy(float junk, float condition, ...) OBFH_CODE_SECT
 
 static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
+    unsigned long long rdtsc_result;
     {
         unsigned int lo, hi;
         __obfh_asm__(".byte 0x0f, 0x31;"  // rdtsc
@@ -3447,47 +3444,15 @@ static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
                      :
                      : "memory");
 
-        unsigned long long rdtsc_result = ((unsigned long long)hi << 32) | lo;
+        rdtsc_result = ((unsigned long long)hi << 32) | lo;
 
         if (rdtsc_result == obfh_int_proxy(0))
             __obfh_asm__(".byte 0xE8;");
     }
 
-    unsigned long long time;
-    unsigned int low, high;
-    static volatile LONG rdtscpAvailable = -1;
-    LONG supported = rdtscpAvailable;
-    PHANTOM_NOP;
-    if (supported < 0) {
-        unsigned int leaf, b, c, d;
-        __obfh_asm__("cpuid;"
-                     : "=a"(leaf), "=b"(b), "=c"(c), "=d"(d)
-                     : "a"(0x80000000u)
-                     : "cc", "memory");
-        if (leaf >= 0x80000001u) {
-            __obfh_asm__("cpuid;"
-                         : "=a"(leaf), "=b"(b), "=c"(c), "=d"(d)
-                         : "a"(0x80000001u)
-                         : "cc", "memory");
-        } else
-            d = 0;
-        supported = !!(d & (1u << 27));
-        InterlockedCompareExchange(&rdtscpAvailable, supported, -1);
-    }
-    if (supported) {
-        unsigned int auxiliary;
-        __obfh_asm__(".byte 0x0f, 0x01, 0xf9;"  // rdtscp
-                     : "=a"(low), "=d"(high), "=c"(auxiliary)
-                     :
-                     : "memory");
-    } else {
-        __obfh_asm__(".byte 0x0f, 0x31;"
-                     : "=a"(low), "=d"(high)
-                     :
-                     : "memory");
-    }
-    time = ((unsigned long long)high << 32) | low;
-    return time;
+    // This is entropy for hidden-string transport, not an ordered timing measurement.
+    // Reuse the timestamp already read; no feature probe or serializing read is needed.
+    return rdtsc_result;
 }
 
 // ============================================================================
@@ -7463,13 +7428,23 @@ static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int
             return NULL;
         index = ordinal - table->Base;
     } else {
-        for (DWORD i = 0; i < table->NumberOfNames; ++i) {
-            if (!obfh_image_range(size, names[i], 1) || !obfh_find_zero(base + names[i], size - names[i]))
+        // PE export names are sorted lexicographically. Validate each visited name
+        // before comparing; subtraction keeps the midpoint safe from overflow.
+        DWORD low = 0, high = table->NumberOfNames;
+        while (low < high) {
+            DWORD middle = low + (high - low) / 2;
+            DWORD name_rva = names[middle];
+            if (!obfh_image_range(size, name_rva, 1) || !obfh_find_zero(base + name_rva, size - name_rva))
                 return NULL;
-            if (strcmp(lpProcName, (const char *)(base + names[i])) == 0) {
-                index = ordinals[i];
+            int order = strcmp(lpProcName, (const char *)(base + name_rva));
+            if (order == 0) {
+                index = ordinals[middle];
                 break;
             }
+            if (order < 0)
+                high = middle;
+            else
+                low = middle + 1;
         }
     }
     BREAK_STACK_CFLOW;
