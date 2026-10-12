@@ -50,17 +50,17 @@ IntelliSense remains available. No extra tools or code generation are required.
 > Define options **before** including `obfus.h`:
 > ```c
 > // Advanced code protection (see the "Virtualization" part of the documentation!)
-> #define VIRT           1  // Allows you to use the functions of a math VM
+> #define VIRT            1  // Allows you to use the functions of a math VM
 > 
 > // Additional options
-> #define CFLOW_V2       1  // Stronger control-flow protection (slower execution)
-> #define ANTIDEBUG_V2   1  // Add hardware-breakpoint checks to anti-debugging protection
-> #define FAKE_SIGNS     1  // Fake protector/packer signatures (crackme/CTF only)
+> #define CFLOW_V2        1  // Stronger control-flow protection (slower execution)
+> #define ANTIDEBUG_V2    1  // Add hardware-breakpoint checks to anti-debugging protection
+> #define FAKE_SIGNS      1  // Fake protector/packer signatures (crackme/CTF only)
 > 
 > // Disabling default features
-> #define NO_OBF         1  // Don't obfuscate (for debugging)
-> #define NO_CFLOW       1  // Don't use Control-Flow obfuscation
-> #define NO_ANTIDEBUG   1  // Don't build in debugging protection
+> #define NO_OBF          1  // Don't obfuscate (for debugging)
+> #define NO_CFLOW        1  // Don't use Control-Flow obfuscation
+> #define NO_ANTIDEBUG    1  // Don't build in debugging protection
 > #define NO_PDATA_DECOYS 1 // Disable additional x64 fake functions
 > ```
 
