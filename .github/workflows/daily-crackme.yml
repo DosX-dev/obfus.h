@@ -1,0 +1,62 @@
+name: Daily Crackme (publication disabled until approval)
+on:
+    workflow_dispatch:
+        inputs:
+            mode:
+                description: 'Preview verifies the runner without updating releases or Git'
+                type: choice
+                required: true
+                default: preview
+                options:
+                    - preview
+                    - publish
+    schedule:
+        - cron: '0 10 * * *'
+        - cron: '17 10,11 * * *'
+permissions:
+    contents: read
+concurrency:
+    group: daily-crackme-publication
+    cancel-in-progress: false
+jobs:
+    preview:
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preview'
+        runs-on: windows-2022
+        timeout-minutes: 60
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+            - name: Test generator and publication recovery
+              working-directory: gamification
+              run: npm test
+            - name: Verify complete local preparation on the Windows runner
+              working-directory: gamification
+              run: node cli.js preview --out out/runner-preview
+            # Deliberately no release updates, commits, secret inputs or artifact uploads.
+    daily:
+        # Leave this repository variable UNSET until the owner approves both GUI and generator.
+        if: vars.CRACKME_PUBLICATION_APPROVED == 'v1' && (github.event_name == 'schedule' || inputs.mode == 'publish')
+        runs-on: windows-2022
+        timeout-minutes: 60
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+            - name: Test generator and publication recovery
+              working-directory: gamification
+              run: npm test
+            - name: Prepare, verify and publish today's round
+              working-directory: gamification
+              run: node cli.js daily --publish
+              env:
+                  CRACKME_PUBLICATION_APPROVED: ${{ vars.CRACKME_PUBLICATION_APPROVED }}
+                  CRACKME_MASTER_KEY: ${{ secrets.CRACKME_MASTER_KEY }}
+                  GITHUB_TOKEN: ${{ github.token }}
+            # Do not upload the working directory: it contains private generated source/answers.
