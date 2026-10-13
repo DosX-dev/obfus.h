@@ -231,6 +231,13 @@ if errorlevel 1 exit /b 1
 "C:\TinyCC\tcc.exe" app.c -w
 ```
 
+To update another directory, pass its relative or absolute path. The directory must exist; the filename is always `obfus.h`:
+
+```bat
+call "C:\TinyCC\obfh-update.cmd" "include"
+call "C:\TinyCC\obfh-update.cmd" "C:\My project\include"
+```
+
 Without the compiler package, you can also [download the script separately](include-updater/obfh-update.cmd).
 
 ## 🦎 Security Audits and the Community

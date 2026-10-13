@@ -1,4 +1,5 @@
 @echo off
+setlocal DisableDelayedExpansion
 call:print "         _       __                 _     "
 call:print "   ___  | |__   / _| _   _  ___    | |__  "
 call:print "  / _ \ | '_ \ | |_ | | | |/ __|   | '_ \ "
@@ -14,9 +15,10 @@ set "host=github.com:443"
 :: Path to file of obfus.h
 set "obfus_h_path=DosX-dev/obfus.h/raw/main/include/obfus.h"
 
-:: Save to directory...
-:: "\." - current directory (.\obfus.h)
-set "output_dir=.\"
+:: Optional directory argument, relative to the caller's current directory.
+:: Without an argument, save to the current directory.
+set "output_dir=%CD%"
+if not "%~1" == "" set "output_dir=%~f1"
 
 :: If error:
 ::  0 - stop
@@ -29,14 +31,19 @@ set "special=--ssl-no-revoke -s"
 
 
 call :process
-set /a process_el=errorlevel
+set "process_el=%errorlevel%"
 
-if "%onerror%" == "0" if "%errorlevel%" == "1" ( timeout 1 /nobreak>nul && call:log "STOPPED!" && pause>nul )
+if "%onerror%" == "0" if "%process_el%" == "1" ( timeout 1 /nobreak>nul && call:log "STOPPED!" && pause>nul )
 
 exit /b %process_el%
 
 :process
 set "curl_path=%windir%\System32\curl.exe"
+if not exist "%output_dir%\" (
+    echo [%time%][pkg:obfus.h] Output directory does not exist: "%output_dir%"
+    exit /b 1
+)
+
 call:log "Getting the latest version of obfus.h protection from %host%..."
 
 if not exist "%curl_path%" (
@@ -44,7 +51,7 @@ if not exist "%curl_path%" (
     exit /b 1
 )
 
-call "%curl_path%" -L %special% "%protocol%://%host%/%obfus_h_path%" -o "%output_dir%\obfus.h"
+"%curl_path%" -L %special% "%protocol%://%host%/%obfus_h_path%" -o "%output_dir%\obfus.h"
 
 if "%errorlevel%" == "0" (
     call:log "Latest version of protection has been installed."
