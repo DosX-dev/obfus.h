@@ -16,6 +16,13 @@ const option = (name) => {
     const at = args.indexOf('--' + name);
     return at < 0 ? undefined : args[at + 1];
 };
+async function testGenerator(quick = false) {
+    const directory = path.join(GAMIFICATION_ROOT, 'test'), files = (await fs.readdir(directory)).filter(name => name.endsWith('.test.js')).map(name => path.join(directory, name));
+    const result = await run(process.execPath, ['--test', ...files], { timeout: 600000, ...(quick ? { env: { ...process.env, CRACKME_QUICK_TESTS: '1' } } : {}) });
+    process.stdout.write(result.stdout);
+    process.stderr.write(result.stderr);
+    if (result.code !== 0) throw new Error('Generator tests failed; publication stopped');
+}
 async function main() {
     if (Number(process.versions.node.split('.')[0]) !== 24) throw new Error('Use Node.js 24 LTS');
     const advanceText = option('advance-from-round') || process.env.CRACKME_ADVANCE_FROM_ROUND;
@@ -23,12 +30,7 @@ async function main() {
     if (advanceFromRound !== null && (!Number.isSafeInteger(advanceFromRound) || advanceFromRound < 1 || command !== 'daily' || !args.includes('--now')))
         throw new Error('A manual extra round requires --now and a positive expected current round');
     if (command === 'test') {
-        const directory = path.join(GAMIFICATION_ROOT, 'test'), files = (await fs.readdir(directory)).filter(name => name.endsWith('.test.js')).map(name => path.join(directory, name));
-        const result = await run(process.execPath, ['--test', ...files], { timeout: 600000 });
-        process.stdout.write(result.stdout);
-        process.stderr.write(result.stderr);
-        process.exitCode = result.code || 0;
-        return;
+        return testGenerator();
     }
     if (process.platform !== 'win32') throw new Error('Build/GUI acceptance requires Windows');
     if (command === 'acceptance') {
@@ -56,6 +58,8 @@ async function main() {
             console.log('No new round due');
             return;
         }
+        // Completed dates skip tests and builds; due rounds must still pass every quick check.
+        await testGenerator(true);
         previous = await previousAnswers(api, key, state);
     }
     const key =

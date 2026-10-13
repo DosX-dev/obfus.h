@@ -16,8 +16,8 @@ on:
                 required: false
                 default: ''
     schedule:
-        - cron: '0 10 * * *'
-        - cron: '17 10,11 * * *'
+        # 13:00-23:45 Moscow: retry every 15 minutes until today's round exists.
+        - cron: '0,15,30,45 10-20 * * *'
 permissions:
     contents: read
 concurrency:
@@ -60,11 +60,6 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: '24'
-            - name: Test generator and publication recovery
-              working-directory: gamification
-              env:
-                  CRACKME_QUICK_TESTS: '1'
-              run: npm test
             - name: Prepare, verify and publish today's round
               working-directory: gamification
               run: node cli.js daily --publish ${{ github.event_name == 'workflow_dispatch' && '--now' || '' }}

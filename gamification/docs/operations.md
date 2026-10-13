@@ -1,6 +1,6 @@
 # Activation, state and recovery
 
-Publication remains disabled until owner approval and hosted-runner verification. Preview and tests do not authorize release updates.
+Publication requires owner approval and hosted-runner verification. Preview and tests do not authorize release updates.
 
 ## Automatic latest compiler
 
@@ -8,7 +8,7 @@ Each preparation resolves the latest stable published release of `DosX-dev/TinyC
 
 No retained compiler release or `CRACKME_TOOLCHAIN_URL` variable is required. The actual release, asset identity, archive hash, download URL and both compiler version responses are recorded in the round manifest. Local `--toolchain` directories remain available for offline preview/acceptance, but are forbidden for daily publication. A new compiler is accepted only if the normal x86/x64 model/native checks, GUI checks and player audits pass for the entire round. Download, metadata, compiler or verification failures abort preparation before new publication; there is no fallback to an older compiler or weaker protection.
 
-The rolling `daily-crackme` release is separate from compiler storage. Enabling publication requires both the workflow approval variable and the CLI publication switch; these barriers are deliberately still closed.
+The rolling `daily-crackme` release is separate from compiler storage. Enabling publication requires both the workflow approval variable and the CLI publication switch; both checks remain enforced.
 
 After the owner authorizes pushing the workflow, run its manual **preview** mode first. Preview has read-only repository permissions, uses an ephemeral test key, exercises real builds/GUI on the hosted Windows runner, and uploads no artifacts. The local GUI/compiler tests do not establish that a hosted runner has the same desktop environment. A green hosted preview is required before setting `CRACKME_PUBLICATION_APPROVED=v1`, adding the master secret and enabling production publishing. Manual runs default to preview; publishing requires an explicit mode selection.
 
@@ -17,6 +17,8 @@ JavaScript formatting follows VS Code's built-in `vscode.typescript-language-fea
 ## Operational recovery
 
 Transient GitHub reads are retried up to three times with bounded backoff. Rate-limit retry delays above one minute abort the run so a backup schedule can recover later. Mutations are not blindly retried: the publication journal and committed manifest resolve lost responses. Interrupted first-round uploads also recover without a committed manifest.
+
+Actions checks every 15 minutes from 13:00 through 23:45 Moscow time. After recovering publication state, an already completed date skips generator tests and builds. A due round must pass the quick generator suite before preparation or publication. GitHub can still delay or skip scheduled runs; these backups improve recovery without guaranteeing an exact publication time.
 
 Saved state and journals are validated before release updates or deletion. Missing published releases, missing committed state and rollback journals fail closed instead of resetting numbering/history or overwriting previous challenges. External deletion of durable state requires owner recovery; it cannot safely be treated as a fresh installation. Child processes terminated without an exit code, exceeding time limits or output bounds fail verification.
 
