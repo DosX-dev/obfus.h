@@ -66,7 +66,7 @@ static DWORD WINAPI worker(void *unused) {
     p = ref_token(NULL, ";");
     return !p || strcmp(p, "b") || !strtok(NULL, ";") || strtok(NULL, ";") != NULL;
 }
-#if !NO_OBF && !OBFH_EDITOR_VIEW
+#if !OBFH_DISABLE_ANY_OBFUSCATION && !OBFH_EDITOR_VIEW
 static int allocation_attempts;
 static void *failed_allocation(size_t size) {
     ++allocation_attempts;
@@ -127,7 +127,7 @@ int main(void) {
     wchar_t *wd = _wcsdup(L"wide \x0410");
     CHECK(wd && wcscmp(wd, L"wide \x0410") == 0);
     free(wd);
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
 #if !OBFH_EDITOR_VIEW
     CHECK(!allocation_failure());
 #endif

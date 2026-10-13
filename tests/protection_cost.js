@@ -24,8 +24,8 @@ function run(file, args) {
 for (const arch of ['x86', 'x64']) for (const advanced of [false, true]) for (const seed of seeds) {
     const compiler = path.join(toolchain, arch === 'x64' ? 'tcc.exe' : 'i386-win32-tcc.exe');
     const exe = path.join(directory, `${arch}-${advanced ? 'advanced' : 'default'}-${seed}.exe`);
-    const args = ['-w', '-I', include, '-D', `OBFH_BUILD_SEED=${seed}u`];
-    if (advanced) args.push('-D', 'CFLOW_V2=1', '-D', 'ANTIDEBUG_V2=1');
+    const args = ['-w', '-I', include, '-D', `OBFH_SEED=${seed}u`];
+    if (advanced) args.push('-D', 'OBFH_BETTER_CONTROL_FLOW=1', '-D', 'OBFH_BETTER_ANTIDEBUG=1');
     const started = performance.now();
     run(compiler, [...args, path.join(__dirname, 'protection_cost.c'), '-o', exe]);
     const compileMs = performance.now() - started;

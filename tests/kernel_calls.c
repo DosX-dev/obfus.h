@@ -35,7 +35,7 @@ static LPSTR native_command(void) { return GetCommandLineA(); }
 static BOOL native_console(HANDLE h, DWORD *m) { return GetConsoleMode(h, m); }
 static BOOL native_write(HANDLE h, DWORD *n) { return WriteConsoleA(h, "x", 1, n, NULL); }
 #include "../include/obfus.h"
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
 static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #endif
 #undef if
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     CHECK(native_error() == 0xA5B61234u);
     SetLastError(0x01020304u);
     CHECK(GetLastError() == 0x01020304u);
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
     HMODULE kernel = native_module("kernel32.dll");
     CHECK(kernel);
     ADDRESS(136, GetCurrentThreadId);

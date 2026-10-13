@@ -43,36 +43,45 @@ Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/ob
 
 Protection is polymorphic throughout the application: even small changes to the source code can substantially reshape the protection baked into the output binary, changing its instructions, constants and control-flow paths.
 
-Control-flow protection uses **Control Flow Explosion**: straightforward conditions and loops expand into a tangled graph of branches, indirect transitions and fake functions. Polymorphic instruction sequences carry state and select continuations, so removing them without preserving their dependencies can break execution. The graph's structure and instruction forms vary with the source code, making the original logic harder to follow in disassemblers and decompilers. `CFLOW_V2` adds another layer of control-flow mutation.
+Control-flow protection uses **Control Flow Explosion**: straightforward conditions and loops expand into a tangled graph of branches, indirect transitions and fake functions. Polymorphic instruction sequences carry state and select continuations, so removing them without preserving their dependencies can break execution. The graph's structure and instruction forms vary with the source code, making the original logic harder to follow in disassemblers and decompilers. `OBFH_BETTER_CONTROL_FLOW` adds another layer of control-flow mutation.
 
-Automatic control-flow protection transforms `if`, `else`, `case`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `NO_CFLOW` disables automatic control-flow protection; `NO_OBF` disables obfuscation.
+Automatic control-flow protection transforms `if`, `else`, `case`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `OBFH_DISABLE_CONTROL_FLOW` disables automatic control-flow protection; `OBFH_DISABLE_ANY_OBFUSCATION` disables obfuscation.
 
 IntelliSense remains available. No extra tools or code generation are required.
 
 > Define options **before** including `obfus.h`:
 > ```c
 > // Advanced code protection (see the "Virtualization" part of the documentation!)
-> #define VIRT            1  // Allows you to use the functions of a math VM
+> #define OBFH_VIRTUALIZATION          1          // Allows you to use the functions of a math VM
+> #define OBFH_SEED                    123456789u // Choose compile-time protection variants
 > 
 > // Additional options
-> #define CFLOW_V2        1  // Stronger control-flow protection (slower execution)
-> #define ANTIDEBUG_V2    1  // Add hardware-breakpoint checks to anti-debugging protection
-> #define FAKE_SIGNS      1  // Fake protector/packer signatures (crackme/CTF only)
+> #define OBFH_BETTER_CONTROL_FLOW     1          // Stronger control-flow protection (slower execution)
+> #define OBFH_BETTER_ANTIDEBUG        1          // Add hardware-breakpoint checks to anti-debugging protection
+> #define OBFH_FAKE_SIGNATURES         1          // Fake protector/packer signatures (crackme/CTF only)
 > 
 > // Disabling default features
-> #define NO_OBF          1  // Don't obfuscate (for debugging)
-> #define NO_CFLOW        1  // Don't use Control-Flow obfuscation
-> #define NO_ANTIDEBUG    1  // Don't build in debugging protection
-> #define NO_PDATA_DECOYS 1 // Disable additional x64 fake functions
+> #define OBFH_DISABLE_ANY_OBFUSCATION 1          // Don't obfuscate (for debugging)
+> #define OBFH_DISABLE_CONTROL_FLOW    1          // Don't use Control-Flow obfuscation
+> #define OBFH_DISABLE_ANTIDEBUG       1          // Don't build in debugging protection
+> #define OBFH_DISABLE_PDATA_DECOYS    1          // Disable additional x64 fake functions
 > ```
 
+`OBFH_SEED` is an unsigned 32-bit build seed (default: `0u`). Change it to vary
+the generated protection while keeping your program's behavior. It is not a secret
+or a password; identical binaries also depend on the source, compiler and build settings.
+For command-line builds, use `-DOBFH_SEED=123456789u`.
+
+Older names such as `OBFH_BUILD_SEED` remain compatible but produce a
+`#warning`. If both names are defined, the new `OBFH_*` option takes precedence.
+
 > [!WARNING]
-> **Reserve `FAKE_SIGNS` for crackme/CTF challenges; avoid it in production software.** Fake protector and packer signatures can trigger antivirus detections and cause tools such as Detect It Easy to flag the binary as suspicious or potentially malicious.
+> **Reserve `OBFH_FAKE_SIGNATURES` for crackme/CTF challenges; avoid it in production software.** Fake protector and packer signatures can trigger antivirus detections and cause tools such as Detect It Easy to flag the binary as suspicious or potentially malicious.
 
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D NO_CFLOW  -D ANTIDEBUG_V2  -D FAKE_SIGNS  -D VIRT
+> tcc "app.c" -w  -D OBFH_DISABLE_CONTROL_FLOW  -D OBFH_BETTER_ANTIDEBUG  -D OBFH_FAKE_SIGNATURES  -D OBFH_VIRTUALIZATION
 > ```
 
 > [!TIP]
@@ -100,7 +109,9 @@ printf(hidden_message);
 ```
 
 ## 👺 Virtualization
-Enable `VIRT` and use the VM macro-operators to run selected calculations through an embedded virtual machine. No extra initialization is required. With `VIRT` disabled, these macro-operators use ordinary calculations.
+Enable `OBFH_VIRTUALIZATION` and use the VM macro-operators to run selected calculations through an embedded virtual machine. No extra initialization is required. With `OBFH_VIRTUALIZATION` disabled, these macro-operators use ordinary calculations.
+
+It also strengthens protection of arguments passed to selected standard math functions.
 
 > [!WARNING]
 > Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
@@ -143,7 +154,7 @@ You can use logical operators that use virtual machine calls to further complica
 A simple example of using virtualization:
 ```c
 // ...
-#define VIRT 1
+#define OBFH_VIRTUALIZATION 1
 // ...
 
 // if ((2 + 2) == 4) { ... }
@@ -166,21 +177,21 @@ VM_IF (condition1) {
 You can find examples of using all the functions of a virtual machine in the file [tests/vm.c](tests/vm.c)
 
 ## ❓ Example
-If you need advanced protection against skilled reversers, use `CFLOW_V2` and `ANTIDEBUG_V2` options.
+If you need advanced protection against skilled reversers, use `OBFH_BETTER_CONTROL_FLOW` and `OBFH_BETTER_ANTIDEBUG` options.
 ```c
 // Let's obfuscate your code!
 
 #include <stdio.h>
 
-#define VIRT         1 // [+] Use math virtual machine
+#define OBFH_VIRTUALIZATION          1 // [+] Use math virtual machine
 
-#define CFLOW_V2     1 // [+] ControlFlow v2
-#define FAKE_SIGNS   1 // [+] Fake signatures
-#define ANTIDEBUG_V2 1 // [+] AntiDebug v2
+#define OBFH_BETTER_CONTROL_FLOW     1 // [+] ControlFlow v2
+#define OBFH_FAKE_SIGNATURES         1 // [+] Fake signatures
+#define OBFH_BETTER_ANTIDEBUG        1 // [+] AntiDebug v2
 
-#define NO_OBF       0 // [-] Don't obfuscate (disable all)
-#define NO_CFLOW     0 // [-] Disable ControlFlow
-#define NO_ANTIDEBUG 0 // [-] Disable AntiDebug
+#define OBFH_DISABLE_ANY_OBFUSCATION 0 // [-] Don't obfuscate (disable all)
+#define OBFH_DISABLE_CONTROL_FLOW    0 // [-] Disable ControlFlow
+#define OBFH_DISABLE_ANTIDEBUG       0 // [-] Disable AntiDebug
 
 #include "obfus.h"
 

@@ -3,20 +3,20 @@
 
 #include "../include/obfus.h"
 
-#if !NO_OBF && NO_ANTIDEBUG != 1
+#if !OBFH_DISABLE_ANY_OBFUSCATION && OBFH_DISABLE_ANTIDEBUG != 1
 static HANDLE probe_gate;
 static DWORD WINAPI probe_worker(void *unused) {
     (void)unused;
     if (WaitForSingleObject(probe_gate, 10000) != WAIT_OBJECT_0) return 1;
     for (int i = 0; i < 32; ++i) {
         if (obfh_ad_process_probe()) return 2;
-#if ANTIDEBUG_V2 == 1
+#if OBFH_BETTER_ANTIDEBUG == 1
         if (obfh_ad_register_probe()) return 3;
 #endif
     }
     return 0;
 }
-#if ANTIDEBUG_V2 == 1
+#if OBFH_BETTER_ANTIDEBUG == 1
 static HANDLE hardware_step, hardware_done;
 static int hardware_results[3];
 static DWORD WINAPI hardware_worker(void *unused) {
@@ -59,7 +59,7 @@ static int hardware_checks(void) {
 #endif
 
 int main(int argc, char **argv) {
-#if !NO_OBF && NO_ANTIDEBUG != 1
+#if !OBFH_DISABLE_ANY_OBFUSCATION && OBFH_DISABLE_ANTIDEBUG != 1
     if (argc > 1) {
         puts("RESPONSE_ENTER");
         fflush(stdout);
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
         CloseHandle(workers[i]);
     }
     CloseHandle(probe_gate);
-#if ANTIDEBUG_V2 == 1
+#if OBFH_BETTER_ANTIDEBUG == 1
     int hardware_status = hardware_checks();
     if (hardware_status) return hardware_status;
 #endif

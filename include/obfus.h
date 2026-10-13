@@ -8,19 +8,22 @@
               Very reliable armor for your C programs!
                     Coded by (C) DosX, 2026
 
+ [Build settings]
+ ~ OBFH_SEED                     = unsigned 32-bit build seed (default: 0u)
+
  [Additional options]
- ~ CFLOW_V2       = more powerful Control Flow obfuscation (slowly!)
- ~ ANTIDEBUG_V2   = use better dynamic anti-debugging protection
- ~ FAKE_SIGNS     = adds fake signatures of various protectors or packers
+ ~ OBFH_BETTER_CONTROL_FLOW      = more powerful Control Flow obfuscation (slowly!)
+ ~ OBFH_BETTER_ANTIDEBUG         = use better dynamic anti-debugging protection
+ ~ OBFH_FAKE_SIGNATURES          = adds fake signatures of various protectors or packers
 
  [Advanced code protection]
- ~ VIRT           = allows you to use the functions of a math VM
+ ~ OBFH_VIRTUALIZATION           = allows you to use the functions of a math VM
 
  [Disabling default features]
- ~ NO_CFLOW       = disable control flow obfuscation
- ~ NO_ANTIDEBUG   = disable antidebug protection
+ ~ OBFH_DISABLE_CONTROL_FLOW     = disable control flow obfuscation
+ ~ OBFH_DISABLE_ANTIDEBUG        = disable antidebug protection
 
- ~ NO_OBF         = disable obfuscation
+ ~ OBFH_DISABLE_ANY_OBFUSCATION  = disable obfuscation
 
  GitHub:
  -> https://github.com/DosX-dev/obfus.h
@@ -63,17 +66,92 @@
 #define OBFH_EDITOR_VIEW 0
 #endif
 
+// Legacy option names: canonical OBFH_* options take precedence.
+#ifdef NO_OBF
+#warning NO_OBF is deprecated; use OBFH_DISABLE_ANY_OBFUSCATION.
+#ifndef OBFH_DISABLE_ANY_OBFUSCATION
+#define OBFH_DISABLE_ANY_OBFUSCATION NO_OBF
+#endif
+#endif
+
+#ifdef NO_CFLOW
+#warning NO_CFLOW is deprecated; use OBFH_DISABLE_CONTROL_FLOW.
+#ifndef OBFH_DISABLE_CONTROL_FLOW
+#define OBFH_DISABLE_CONTROL_FLOW NO_CFLOW
+#endif
+#endif
+
+#ifdef NO_ANTIDEBUG
+#warning NO_ANTIDEBUG is deprecated; use OBFH_DISABLE_ANTIDEBUG.
+#ifndef OBFH_DISABLE_ANTIDEBUG
+#define OBFH_DISABLE_ANTIDEBUG NO_ANTIDEBUG
+#endif
+#endif
+
+#ifdef NO_PDATA_DECOYS
+#warning NO_PDATA_DECOYS is deprecated; use OBFH_DISABLE_PDATA_DECOYS.
+#ifndef OBFH_DISABLE_PDATA_DECOYS
+#define OBFH_DISABLE_PDATA_DECOYS NO_PDATA_DECOYS
+#endif
+#endif
+
+#ifdef VIRT
+#warning VIRT is deprecated; use OBFH_VIRTUALIZATION.
+#ifndef OBFH_VIRTUALIZATION
+#define OBFH_VIRTUALIZATION VIRT
+#endif
+#endif
+
+#ifdef virt_std
+#warning virt_std is obsolete; math protection now follows OBFH_VIRTUALIZATION.
+#endif
+
+#ifdef CFLOW_V2
+#warning CFLOW_V2 is deprecated; use OBFH_BETTER_CONTROL_FLOW.
+#ifndef OBFH_BETTER_CONTROL_FLOW
+#define OBFH_BETTER_CONTROL_FLOW CFLOW_V2
+#endif
+#endif
+
+#ifdef ANTIDEBUG_V2
+#warning ANTIDEBUG_V2 is deprecated; use OBFH_BETTER_ANTIDEBUG.
+#ifndef OBFH_BETTER_ANTIDEBUG
+#define OBFH_BETTER_ANTIDEBUG ANTIDEBUG_V2
+#endif
+#endif
+
+#ifdef FAKE_SIGNS
+#warning FAKE_SIGNS is deprecated; use OBFH_FAKE_SIGNATURES.
+#ifndef OBFH_FAKE_SIGNATURES
+#define OBFH_FAKE_SIGNATURES FAKE_SIGNS
+#endif
+#endif
+
+#ifdef MEM_CLEANER__JUST_FOR_FUN
+#warning MEM_CLEANER__JUST_FOR_FUN is deprecated; use OBFH_MEMORY_CLEANER.
+#ifndef OBFH_MEMORY_CLEANER
+#define OBFH_MEMORY_CLEANER MEM_CLEANER__JUST_FOR_FUN
+#endif
+#endif
+
+#ifdef OBFH_BUILD_SEED
+#warning OBFH_BUILD_SEED is deprecated; use OBFH_SEED.
+#ifndef OBFH_SEED
+#define OBFH_SEED OBFH_BUILD_SEED
+#endif
+#endif
+
 // Shared entropy settings for compilation and editor expressions.
-#if !NO_OBF || OBFH_EDITOR_VIEW
-#ifndef OBFH_BUILD_SEED
-#define OBFH_BUILD_SEED 0u
+#if !OBFH_DISABLE_ANY_OBFUSCATION || OBFH_EDITOR_VIEW
+#ifndef OBFH_SEED
+#define OBFH_SEED 0u
 #endif
 #define RND(min, max) \
-    ((min) + ((__COUNTER__ + __LINE__ + (unsigned int)OBFH_BUILD_SEED) * 2654435761u % ((max) - (min) + 1)))
+    ((min) + ((__COUNTER__ + __LINE__ + (unsigned int)OBFH_SEED) * 2654435761u % ((max) - (min) + 1)))
 #endif
 
 // Platform declarations used by the implementation and editor aliases.
-#if !NO_OBF || OBFH_EDITOR_VIEW
+#if !OBFH_DISABLE_ANY_OBFUSCATION || OBFH_EDITOR_VIEW
 #include <conio.h>
 #include <ctype.h>
 #include <direct.h>
@@ -90,7 +168,7 @@
 #include <windows.h>
 #endif
 
-#if NO_OBF || OBFH_EDITOR_VIEW
+#if OBFH_DISABLE_ANY_OBFUSCATION || OBFH_EDITOR_VIEW
 #define OBFH_LOADER ((void)0)
 #endif
 
@@ -129,7 +207,7 @@
 #define wcsnlen_s(text, count) OBFH_EDITOR_BOUNDED_LENGTH(wchar_t, text, count)
 
 // The bundled import library omits these tokenizers and lldiv. Keep editor
-// results typed without adding NO_OBF exports.
+// results typed without adding OBFH_DISABLE_ANY_OBFUSCATION exports.
 #define strtok_s(text, delimiters, context) \
     ((char *(__cdecl *)(char *, const char *, char **)) \
          GetProcAddress(GetModuleHandleA("msvcrt"), "strtok_s"))((text), (delimiters), (context))
@@ -151,7 +229,7 @@
 
 // VM editor expressions preserve protected result types and single evaluation.
 // These expressions describe the interface; they are not runtime VM handlers.
-#if OBFH_EDITOR_VIEW && NO_OBF != 1 && VIRT == 1
+#if OBFH_EDITOR_VIEW && OBFH_DISABLE_ANY_OBFUSCATION != 1 && OBFH_VIRTUALIZATION == 1
 #define VM_ADD(a, b) ((long)((long double)(a) + (long double)(b)))
 #define VM_SUB(a, b) ((long)((long double)(a) - (long double)(b)))
 #define VM_MUL(a, b) ((long)((long double)(a) * (long double)(b)))
@@ -181,7 +259,7 @@
 #define VM_ELSE_IF(condition) else if (condition)
 #define VM_ELSE else
 // Native expressions when virtualization is disabled.
-#elif NO_OBF == 1 || VIRT != 1 || OBFH_EDITOR_VIEW
+#elif OBFH_DISABLE_ANY_OBFUSCATION == 1 || OBFH_VIRTUALIZATION != 1 || OBFH_EDITOR_VIEW
 #define VM_ADD(num1, num2) ((num1) + (num2))
 #define VM_SUB(num1, num2) ((num1) - (num2))
 #define VM_MUL(num1, num2) ((num1) * (num2))
@@ -213,7 +291,7 @@
 #endif
 
 // Disabled protection and editor-only placeholders.
-#if NO_OBF == 1 || OBFH_EDITOR_VIEW
+#if OBFH_DISABLE_ANY_OBFUSCATION == 1 || OBFH_EDITOR_VIEW
 #define HIDE_STRING(str) str
 #define BREAK_STACK_CFLOW ((void)0)
 #define STACK_PROXY_FUNCTIONS ((void)0)
@@ -221,7 +299,7 @@
 #define ANTI_DEBUG 0
 #endif
 
-#if !NO_OBF && !OBFH_EDITOR_VIEW
+#if !OBFH_DISABLE_ANY_OBFUSCATION && !OBFH_EDITOR_VIEW
 
 // ============================================================================
 // 02. Platform compatibility and section placement
@@ -245,7 +323,7 @@
 #define TEXT_SECTION_ATTRIBUTE SECTION_ATTRIBUTE(".text")  // Text section
 
 // Optional packer/protector signature data.
-#if FAKE_SIGNS == 1
+#if OBFH_FAKE_SIGNATURES == 1
 
 static const char FAKE_ENIGMAVM_1[] SECTION_ATTRIBUTE(".enigma1") = {0};
 static const char FAKE_ENIGMAVM_2[] SECTION_ATTRIBUTE(".enigma2") = {0};
@@ -493,9 +571,9 @@ static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
 #define OBFH_CRT_NAME_ORDER_FOR(groups, forward, reverse) OBFH_NAME_ORDER_FOR(groups, forward, reverse)
 #define OBFH_CRT_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER(forward, reverse)
 
-#define OBFH_DATA_DRAW(salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u)))
+#define OBFH_DATA_DRAW(salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)__LINE__ ^ (unsigned int)OBFH_SEED ^ ((unsigned int)(salt)*2654435761u)))
 #define OBFH_DATA_FIELDS(name, salt) \
-    OBFH_MIX_FIELDS(name, (unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ ((unsigned int)(salt)*2654435761u))
+    OBFH_MIX_FIELDS(name, (unsigned int)__LINE__ ^ (unsigned int)OBFH_SEED ^ ((unsigned int)(salt)*2654435761u))
 
 // ============================================================================
 // 04. Retained data and optional instruction padding
@@ -710,11 +788,11 @@ enum { OBFH_ALPHA_LOW = 1u,
 
 // Compile-time byte variation only: no runtime branch, register or flag changes.
 #define OBFH_PHANTOM_DRAW(site) \
-    OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u))
+    OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_SEED ^ (unsigned int)__LINE__ * 2654435761u))
 // Capture the first mix before expanding the second; its argument is repeated.
 #define OBFH_PHANTOM_CAPTURE(site_name, draw_name, site) \
     enum { site_name = (site), \
-           site_name##_mix = OBFH_MIX_A((unsigned int)site_name ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u), \
+           site_name##_mix = OBFH_MIX_A((unsigned int)site_name ^ (unsigned int)OBFH_SEED ^ (unsigned int)__LINE__ * 2654435761u), \
            draw_name = OBFH_MIX_B(site_name##_mix) }
 #define OBFH_PHANTOM_NOP_AT(site) \
     ({ \
@@ -732,10 +810,10 @@ enum { OBFH_ALPHA_LOW = 1u,
 // Static PE unwind-backed decoys. TCC alone supplies the RVA relocations.
 // TCC 0.9.28rc records the actual C entry. Let it allocate the native frame;
 // the ASM body uses a Windows-recognized epilogue matching that unwind info.
-#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !OBFH_DISABLE_PDATA_DECOYS
 #define OBFH_PD_MIX_A(value) ((((value) ^ ((value) >> 16)) * 2246822519u) & 0xffffffffu)
 #define OBFH_PD_MIX_B(value) ((((value) ^ ((value) >> 13)) * 3266489917u) & 0xffffffffu)
-#define OBFH_PD_DRAW(site, salt) OBFH_PD_MIX_B(OBFH_PD_MIX_A(((OBFH_BUILD_SEED & 0xffffffffu) ^ (((site) + 1u) * 2654435761u & 0xffffffffu) ^ ((salt)*2246822519u & 0xffffffffu))))
+#define OBFH_PD_DRAW(site, salt) OBFH_PD_MIX_B(OBFH_PD_MIX_A(((OBFH_SEED & 0xffffffffu) ^ (((site) + 1u) * 2654435761u & 0xffffffffu) ^ ((salt)*2246822519u & 0xffffffffu))))
 #ifndef OBFH_PDATA_DECOY_COUNT
 #define OBFH_PDATA_DECOY_COUNT (86u + (OBFH_PD_DRAW(0u, 97u) % 43u))
 #endif
@@ -769,7 +847,7 @@ enum { OBFH_ALPHA_LOW = 1u,
           [rotate] "i"(__obfh_pd_rotate), [loops] "i"(__obfh_pd_loops), \
           [phantom] "i"(OBFH_PHANTOM_DRAW(__obfh_pd_key) & 1u) \
         : "rax", "rcx", "rdx", "cc", "memory")
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 #define OBFH_PD_LIVE_ENABLED 1
 #else
 #define OBFH_PD_LIVE_ENABLED 0
@@ -1307,10 +1385,10 @@ OBFH_PD_DEFINE(127);
 
 // All 128 families use nonserializing arithmetic; keep selection uniform.
 #define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
-#define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u)))
+#define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_SEED ^ 2654435769u)))
 #define OBFH_CFLOW_SINGLE(index) ((void)0)
 #define OBFH_CFLOW_EXTRA_INDEX(index) (((index) + 37u) & 127u)
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
 // Capture once: the 128-way selector must not duplicate the mapping expression.
 #define OBFH_CFLOW_EXTRA(index) ({ \
     enum { __obfh_extra_index = OBFH_CFLOW_EXTRA_INDEX(index) }; \
@@ -1323,7 +1401,7 @@ OBFH_PD_DEFINE(127);
 
 #define OBFH_CFLOW_EMIT(site, extra) ({ \
     enum { __obfh_break_id = (site), \
-           __obfh_break_hash1 = OBFH_MIX_A((unsigned int)__obfh_break_id ^ (unsigned int)OBFH_BUILD_SEED ^ 2654435769u), \
+           __obfh_break_hash1 = OBFH_MIX_A((unsigned int)__obfh_break_id ^ (unsigned int)OBFH_SEED ^ 2654435769u), \
            __obfh_break_hash2 = OBFH_MIX_B(__obfh_break_hash1), \
            __obfh_break_slot = OBFH_CFLOW_SLOT(__obfh_break_hash2), \
            __obfh_break_index = __obfh_break_slot }; \
@@ -1879,7 +1957,7 @@ OBFH_PD_DEFINE(127);
         __obfh_sf_alu_a = RND(0, 4), \
         __obfh_sf_alu_b = RND(0, 6), \
         __obfh_sf_shift = RND(0, 4), \
-        OBFH_MIX_FIELDS(__obfh_sf_phantom, (unsigned int)__LINE__ ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ * 2654435761u), \
+        OBFH_MIX_FIELDS(__obfh_sf_phantom, (unsigned int)__LINE__ ^ (unsigned int)OBFH_SEED ^ (unsigned int)__LINE__ * 2654435761u), \
         __obfh_sf_salt = RND(1, 32767), \
         __obfh_sf_rotate = RND(1, 31), \
         __obfh_sf_frame_a = RND(2, 12) * 16u, \
@@ -3304,7 +3382,7 @@ OBFH_PD_DEFINE(127);
 
 #define STACK_PROXY_FUNCTIONS ({ \
     enum { __obfh_sf_id = __COUNTER__, \
-           OBFH_MIX_FIELDS(__obfh_sf_draw, (unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u), \
+           OBFH_MIX_FIELDS(__obfh_sf_draw, (unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u), \
            __obfh_sf_variant = (unsigned int)__obfh_sf_draw % OBFH_SF_VARIANT_COUNT }; \
     OBFH_SF_SELECT(__obfh_sf_variant); \
     (void)0; \
@@ -3357,7 +3435,7 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key);
            __obfh_crt_draw = OBFH_MIX_B(OBFH_JUNK_WORD ^ __obfh_crt_site) }; \
     static OBFH_CRT_ENTRY __obfh_crt_slot; \
     const char *__obfh_cache_input = (name); \
-    ULONG_PTR __obfh_crt_key = (ULONG_PTR)__obfh_crt_draw ^ ((ULONG_PTR)OBFH_BUILD_SEED << (sizeof(ULONG_PTR) == 8 ? 32 : 0)); \
+    ULONG_PTR __obfh_crt_key = (ULONG_PTR)__obfh_crt_draw ^ ((ULONG_PTR)OBFH_SEED << (sizeof(ULONG_PTR) == 8 ? 32 : 0)); \
     obfh_crt_site(__obfh_cache_input, &__obfh_crt_slot, __obfh_crt_key); \
 })
 #define OBFH_CRT_TARGET(type, name) ((type)obfh_crt_resolve(name))
@@ -3489,7 +3567,7 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     return function;
 }
 
-#if VIRT == 1
+#if OBFH_VIRTUALIZATION == 1
 // Transport object bytes instead of adding a salt to the numeric value.
 // This preserves subnormals, signed zero, infinities and NaN payloads.
 typedef struct {
@@ -3503,7 +3581,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int fl
     OBFH_VM_VALUE encoded;
     volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
     const unsigned char *bytes = (const unsigned char *)&value;
-    encoded.nonce = (floating >> 1) ^ (unsigned int)OBFH_BUILD_SEED;
+    encoded.nonce = (floating >> 1) ^ (unsigned int)OBFH_SEED;
     encoded.floating = floating & 1u;
     unsigned int state = encoded.nonce ^ ((unsigned int)key * 2246822519u) ^ 0x9e3779b9u;
     size_t offset = encoded.nonce % sizeof(value);
@@ -3543,10 +3621,10 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 // 10. CFLOW helpers: selectors, permutations and local graphs
 // ============================================================================
 
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 
-#ifndef CFLOW_V2
-#define CFLOW_V2 0
+#ifndef OBFH_BETTER_CONTROL_FLOW
+#define OBFH_BETTER_CONTROL_FLOW 0
 #endif
 
 // Instruction starts and their following bytes belong only to skipped regions.
@@ -3568,7 +3646,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #define OBFH_PUBLIC_ELSE_GUARD \
     (({ \
         enum { __obfh_else_site = __COUNTER__, \
-               OBFH_MIX_FIELDS(__obfh_flow_hash, (unsigned int)OBFH_BUILD_SEED ^ \
+               OBFH_MIX_FIELDS(__obfh_flow_hash, (unsigned int)OBFH_SEED ^ \
                                                      (unsigned int)__obfh_else_site ^ (unsigned int)__LINE__ * 2654435761u ^ 0x454C5345u), \
                __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u), \
                __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u) }; \
@@ -3576,7 +3654,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     }))
 #define OBFH_FLOW_ELSE_GUARD OBFH_PUBLIC_ELSE_GUARD
 
-#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !OBFH_DISABLE_PDATA_DECOYS
 #define OBFH_FLOW_ELSE_TRANSPORT \
     __builtin_choose_expr(OBFH_PD_LIVE_ENABLED && ((__obfh_flow_hash & 15u) == 0u), ({ \
                               unsigned int __obfh_flow_state = __obfh_false_tag; \
@@ -3596,7 +3674,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 // Each expression describes EAX at label 9 in the corresponding native guard.
 // A live ladder is selected at a subset of intercepted if sites. All nodes
 // are existing x64 native carriers; disabled modes keep their previous bodies.
-#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !NO_PDATA_DECOYS
+#if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !OBFH_DISABLE_PDATA_DECOYS
 // The third argument becomes the next node's second argument; NULL ends a ladder.
 typedef unsigned int (*OBFH_PD_LIVE_FN)(unsigned int, void *, void *);
 #define OBFH_PD_LIVE_ADDRESS(site) ((OBFH_PD_LIVE_FN)__obfh_pdata_decoy_##site)
@@ -3739,7 +3817,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_PROXY ({ \
     unsigned int __obfh_live_actual, __obfh_live_expected, __obfh_live_input; \
     enum { __obfh_sf_id = __COUNTER__, \
-           __obfh_sf_seed = (unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_BUILD_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u, \
+           __obfh_sf_seed = (unsigned int)__obfh_sf_id ^ (unsigned int)OBFH_SEED ^ (unsigned int)__LINE__ ^ 0x53504631u, \
            __obfh_sf_mixed = OBFH_MIX_A(__obfh_sf_seed), \
            __obfh_sf_variant = OBFH_MIX_B(__obfh_sf_mixed) % OBFH_SF_VARIANT_COUNT }; \
     __builtin_choose_expr((__obfh_sf_variant & 3u) == 0u, OBFH_P_CHAIN(__obfh_true_tag), ((void)0)); \
@@ -4072,7 +4150,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_ARGS_31 [d1] "i"(_D311), [v1] "i"(_V311), [d2] "i"(_D312), [v2] "i"(_V312), [d3] "i"(_D313), [v3] "i"(_V313), [d4] "i"(_D314), [v4] "i"(_V314), [d5] "i"(_D315), [v5] "i"(_V315), [d6] "i"(_D316), [v6] "i"(_V316), [d7] "i"(_D317), [v7] "i"(_V317), [d8] "i"(_D318), [v8] "i"(_V318)
 // clang-format on
 // V1 has one graph: do not instantiate the unused second-stage constants.
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
 #define OBFH_P_SECOND_PREPARE \
     OBFH_P_SELECTOR_META(2); \
     OBFH_P_SELECTOR_META(3); \
@@ -4091,7 +4169,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_GAP(shift, part, split) \
     __obfh_asm__(".fill 1,%c0,(((%c1)&0xffffffff)^0x80000000)-0x80000000;" \
                  : \
-                 : "i"((CFLOW_V2 ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
+                 : "i"((OBFH_BETTER_CONTROL_FLOW ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
                    "i"(__obfh_flow_hash ^ (0x9e3779b9u * ((shift) + 1u))))
 
 #define OBFH_P_STEP(s, p) \
@@ -4348,19 +4426,19 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     ({ \
         enum { \
             __obfh_flow_site = (site_value), \
-            __obfh_flow_seed = (unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x43464C57u, \
+            __obfh_flow_seed = (unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_SEED ^ 0x43464C57u, \
             __obfh_flow_mixed = OBFH_MIX_A(__obfh_flow_seed), \
             __obfh_flow_hash = OBFH_MIX_B(__obfh_flow_mixed), \
-            __obfh_flow_layout = __obfh_flow_hash % (CFLOW_V2 ? 8u : 4u), \
+            __obfh_flow_layout = __obfh_flow_hash % (OBFH_BETTER_CONTROL_FLOW ? 8u : 4u), \
             __obfh_flow_key = OBFH_JUNK_WORD & 0x7fffffffu, \
             __obfh_flow_exit = (__obfh_flow_hash >> 16) & 7u, \
             __obfh_false_tag = OBFH_MIX_A(__obfh_flow_hash ^ 0x15729f81u), \
             __obfh_true_tag = __obfh_false_tag ^ (OBFH_MIX_B(__obfh_flow_hash ^ 0x74ba953du) | 1u), \
-            __obfh_flow_first = CFLOW_V2 ? (__obfh_flow_layout == 0 || __obfh_flow_layout == 2   ? 0 \
-                                            : __obfh_flow_layout == 1 || __obfh_flow_layout == 4 ? 1 \
-                                            : __obfh_flow_layout == 5 || __obfh_flow_layout == 6 ? 2 \
-                                                                                                 : 3) \
-                                         : __obfh_flow_layout, \
+            __obfh_flow_first = OBFH_BETTER_CONTROL_FLOW ? (__obfh_flow_layout == 0 || __obfh_flow_layout == 2   ? 0 \
+                                                            : __obfh_flow_layout == 1 || __obfh_flow_layout == 4 ? 1 \
+                                                            : __obfh_flow_layout == 5 || __obfh_flow_layout == 6 ? 2 \
+                                                                                                                 : 3) \
+                                                         : __obfh_flow_layout, \
             __obfh_flow_second = __obfh_flow_layout == 0 || __obfh_flow_layout == 5   ? 1 \
                                  : __obfh_flow_layout == 1 || __obfh_flow_layout == 3 ? 0 \
                                  : __obfh_flow_layout == 2 || __obfh_flow_layout == 6 ? 3 \
@@ -4437,14 +4515,14 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     })
 
 #endif /* CFLOW helpers; kernel precedes keyword interception. */
-#if VIRT == 1
+#if OBFH_VIRTUALIZATION == 1
 typedef enum { SALT_NUM1 = RND(16, 48),
                SALT_NUM2 = RND(16, 48) } VM_SALT;
 #endif
 // ============================================================================
 // 11. VM kernel: registers, flags, decoding and instruction execution
 // ============================================================================
-#if VIRT == 1
+#if OBFH_VIRTUALIZATION == 1
 typedef char OBFH_V_WORD_32[(sizeof(unsigned int) == 4 && CHAR_BIT == 8) ? 1 : -1];
 enum {
     OBFH_V_LOAD_A = 1,
@@ -4510,17 +4588,17 @@ typedef struct
 } OBFH_V_REGISTER;
 typedef struct
 {
-#if (OBFH_BUILD_SEED >> 4) % 4u == 0u
+#if (OBFH_SEED >> 4) % 4u == 0u
     OBFH_V_REGISTER registers[4];
     unsigned int controls[4];
     unsigned int flags, flag_key, pc, steps, initialized, key, status, flags_ready;
     long double result;
-#elif (OBFH_BUILD_SEED >> 4) % 4u == 1u
+#elif (OBFH_SEED >> 4) % 4u == 1u
     long double result;
     unsigned int key, initialized, steps, pc, flags_ready, status, flag_key, flags;
     unsigned int controls[4];
     OBFH_V_REGISTER registers[4];
-#elif (OBFH_BUILD_SEED >> 4) % 4u == 2u
+#elif (OBFH_SEED >> 4) % 4u == 2u
     unsigned int controls[4];
     unsigned int pc, key, status, flags, steps, flag_key, flags_ready, initialized;
     long double result;
@@ -4535,7 +4613,7 @@ typedef struct
 
 // Four byte permutations with different dependencies, selected at compile time.
 // Every decoder costs one multiply and one add/subtract or XOR; no runtime selector.
-#define OBFH_V_OPCODE_MODE ((OBFH_BUILD_SEED >> 2) & 3u)
+#define OBFH_V_OPCODE_MODE ((OBFH_SEED >> 2) & 3u)
 #define OBFH_V_OPCODE_MULTIPLIER(key) ((((unsigned int)(key) >> 8) & 255u) | 1u)
 #if OBFH_V_OPCODE_MODE == 0u
 #define OBFH_V_OPCODE_ENCODE(op, key) (((unsigned int)(op)*OBFH_V_OPCODE_MULTIPLIER(key) + ((key)&255u)) & 255u)
@@ -4552,7 +4630,7 @@ typedef struct
 #endif
 
 // Word masking changes independently of opcode encoding and context placement.
-#define OBFH_V_WORD_MODE ((OBFH_BUILD_SEED >> 6) & 3u)
+#define OBFH_V_WORD_MODE ((OBFH_SEED >> 6) & 3u)
 #if OBFH_V_WORD_MODE == 0u
 #define OBFH_V_WORD_ENCODE(word, key, pc) ((word) ^ ((key) + (unsigned int)(pc)*0x9e3779b9u))
 #define OBFH_V_WORD_DECODE(word, key, pc) OBFH_V_WORD_ENCODE(word, key, pc)
@@ -4677,7 +4755,7 @@ static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
     finish
 #define OBFH_VM_FIELDS_ORDER(a, b, c, d) a(goto fields_ready;) b(goto fields_ready;) c(goto fields_ready;) d()
 #define OBFH_VM_FIELDS_EXPAND(...) OBFH_VM_FIELDS_ORDER(__VA_ARGS__)
-#define OBFH_VM_FIELDS_DRAW (((OBFH_BUILD_SEED ^ 0x564d4644u) * 2654435761u) & 0xffffffffu)
+#define OBFH_VM_FIELDS_DRAW (((OBFH_SEED ^ 0x564d4644u) * 2654435761u) & 0xffffffffu)
 #if (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 0u
 #define OBFH_VM_FIELDS_TAIL(a, b, c) a, b, c
 #elif (OBFH_VM_FIELDS_DRAW / 4u) % 6u == 1u
@@ -4703,7 +4781,7 @@ static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
 
 static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE input_a,
                                        OBFH_VM_VALUE input_b) OBFH_CODE_SECTION_ATTRIBUTE {
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
     enum {
         __obfh_vm_dispatch_site = RND(1, 65535),
         __obfh_vm_finish_site = RND(1, 65535)
@@ -4762,7 +4840,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         if ((op == OBFH_V_JUMP || op == OBFH_V_JFLAG) && imm >= length)
             obfh_v_failure(&c, 5);
             /* OBFH_VM_TRACE_STEP */
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
         if (!OBFH_FLOW_CONDITION(op != 0u, __obfh_vm_dispatch_site))
             obfh_v_failure(&c, 3);
 #endif
@@ -4964,7 +5042,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         if (imm > 6 || !c.flags_ready)
             obfh_v_failure(&c, 6);
         switch (imm) {
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
             case (-1 * RND(0xBAD, 0xBEEF)):
                 OBFH_FLOW_DEAD_BYTES;
 #endif
@@ -5041,7 +5119,7 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
         continue;
     }
     finish:
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
         if (!OBFH_FLOW_CONDITION(c.initialized != 0, __obfh_vm_finish_site))
             obfh_v_failure(&c, 4);
 #endif
@@ -6877,7 +6955,7 @@ typedef struct {
 static PVOID volatile obfh_gui_modules[4];
 static HMODULE LoadLibraryA_proxy(LPCSTR name);
 static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
-#define OBFH_GUI_DRAW(index, salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)(index) ^ (unsigned int)OBFH_BUILD_SEED ^ (salt)))
+#define OBFH_GUI_DRAW(index, salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)(index) ^ (unsigned int)OBFH_SEED ^ (salt)))
 #if defined(__x86_64__)
 #define OBFH_GUI_WIDTH "q"
 #define OBFH_GUI_KEY(index) ((ULONG_PTR)OBFH_GUI_DRAW(index, 0x47554931u) | ((ULONG_PTR)OBFH_GUI_DRAW(index, 0x47554932u) << 32))
@@ -6887,7 +6965,7 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #endif
 #define OBFH_GUI_BIAS(index) ((ULONG_PTR)OBFH_GUI_DRAW(index, 0x47554933u))
 #define OBFH_GUI_FIELDS(name, index, salt) \
-    OBFH_MIX_FIELDS(name, (unsigned int)(index) ^ (unsigned int)OBFH_BUILD_SEED ^ (salt))
+    OBFH_MIX_FIELDS(name, (unsigned int)(index) ^ (unsigned int)OBFH_SEED ^ (salt))
 #if defined(__x86_64__)
 #define OBFH_GUI_KEY_FIELDS(index) \
     OBFH_GUI_FIELDS(__obfh_gui_key_lo, index, 0x47554931u), \
@@ -6908,9 +6986,9 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #define OBFH_GUI_NAME_WORD(buffer, position, api, word) ({ \
     enum { __obfh_nc_site = __COUNTER__, \
            __obfh_nc_input = (unsigned int)(word), \
-           __obfh_nc_key_a = OBFH_MIX_A(__obfh_nc_site ^ (api) ^ (position) ^ (unsigned int)OBFH_BUILD_SEED ^ 0x4e414d45u), \
+           __obfh_nc_key_a = OBFH_MIX_A(__obfh_nc_site ^ (api) ^ (position) ^ (unsigned int)OBFH_SEED ^ 0x4e414d45u), \
            __obfh_nc_key = OBFH_MIX_B(__obfh_nc_key_a), \
-           __obfh_nc_bias_a = OBFH_MIX_A(__obfh_nc_site ^ (unsigned int)OBFH_BUILD_SEED ^ 0x42595445u), \
+           __obfh_nc_bias_a = OBFH_MIX_A(__obfh_nc_site ^ (unsigned int)OBFH_SEED ^ 0x42595445u), \
            __obfh_nc_bias = OBFH_MIX_B(__obfh_nc_bias_a), \
            __obfh_nc_form = __obfh_nc_key & 3u, \
            __obfh_nc_rotate = (__obfh_nc_key % 31u) + 1u }; \
@@ -7033,7 +7111,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 // 13. Keyword interception: if / else / case / break / switch / while / for / continue / default / do
 // ============================================================================
 
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 // One short jump, optionally two inverse LEAs on a caller-scratch register.
 // Full register width is preserved, including x64 upper bits; no flags, memory
 // or stack changes. Each complete insertion is 10..25 bytes on both targets.
@@ -7267,7 +7345,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 // ============================================================================
 
 // Virtualization (instruction programs)
-#if VIRT == 1
+#if OBFH_VIRTUALIZATION == 1
 
 /* Each expression owns an immutable encoded instruction stream. */
 #define OBFH_V_INSTRUCTION(op, d, a, b, imm) \
@@ -7409,7 +7487,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
         enum { \
             __obfh_vsite = __COUNTER__, \
             __obfh_voperation = (operation), \
-            __obfh_vkey = OBFH_MIX_A(OBFH_JUNK_WORD ^ __obfh_vsite ^ (unsigned int)OBFH_BUILD_SEED), \
+            __obfh_vkey = OBFH_MIX_A(OBFH_JUNK_WORD ^ __obfh_vsite ^ (unsigned int)OBFH_SEED), \
             __obfh_vvariant = RND(0, 7), \
             __obfh_va = __obfh_vkey & 3u, \
             __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u, \
@@ -7673,7 +7751,7 @@ __obfh_getprocaddress_done: \
 // 16. Module loading and loader proxy chain
 // ============================================================================
 
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 #undef if
 #define if(...) if (OBFH_HELPER_CONDITION((__VA_ARGS__)))
 #undef OBFH_FLOW_ELSE_GUARD
@@ -7706,7 +7784,7 @@ static HMODULE obfh_load_library_core(LPCSTR lpLibFileName) OBFH_CODE_SECTION_AT
                 if (loader)
                     InterlockedCompareExchangePointer(&cachedLoader, (PVOID)loader, NULL);
             }
-#if MEM_CLEANER__JUST_FOR_FUN
+#if OBFH_MEMORY_CLEANER
             SIZE_T value = (SIZE_T)(LONG_PTR)obfh_int_proxy(_1 * -1);
             SetProcessWorkingSetSize(GetCurrentProcess(), value, value);
 #endif
@@ -7728,7 +7806,7 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
 }
 #define LoadLibraryA(...) LoadLibraryA_proxy(__VA_ARGS__)
 
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 #undef if
 #define if(...) if (OBFH_PUBLIC_IF_CONDITION(__VA_ARGS__))
 #undef OBFH_FLOW_ELSE_GUARD
@@ -7739,9 +7817,9 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
 // 17. Anti-debug probes and response routing
 // ============================================================================
 // Probes collect evidence; response routing is separate from the call site.
-#if NO_ANTIDEBUG != 1
+#if OBFH_DISABLE_ANTIDEBUG != 1
 
-#if ANTIDEBUG_V2 == 1
+#if OBFH_BETTER_ANTIDEBUG == 1
 // The worker owns the duplicated handle, including after a failed/timed-out wait.
 static DWORD WINAPI obfh_ad_register_worker(void *argument) {
     HANDLE thread = (HANDLE)argument;
@@ -7928,7 +8006,7 @@ static int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     int detected = obfh_ad_process_probe();
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
-#if ANTIDEBUG_V2 == 1
+#if OBFH_BETTER_ANTIDEBUG == 1
     if (!detected)
         detected = obfh_ad_register_probe();
 #endif
@@ -8128,7 +8206,7 @@ static char *getScanfName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8139,7 +8217,7 @@ static char *getScanfName_proxy(char *name) {
 // 19. CRT name builders and public function aliases
 // ============================================================================
 
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 #undef if
 #define if(...) if (OBFH_HELPER_CONDITION((__VA_ARGS__)))
 #undef OBFH_FLOW_ELSE_GUARD
@@ -8363,7 +8441,7 @@ static char *getSprintfName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
                         (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8376,7 +8454,7 @@ static char *getFcloseName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8389,7 +8467,7 @@ static char *getFopenName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8402,7 +8480,7 @@ static char *getFreadName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8415,7 +8493,7 @@ static char *getFwriteName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8428,7 +8506,7 @@ static char *getExitName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _e, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _0),
                         (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(0)] = _e));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8443,7 +8521,7 @@ static char *getStrtokName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8456,7 +8534,7 @@ static char *getRandName_proxy(char *name) {
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(4)] = _0),
                         (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -8469,7 +8547,7 @@ static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(7)] = _0),
                         (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
-#if CFLOW_V2
+#if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
 #endif
     return name;
@@ -11755,7 +11833,7 @@ static int obfh_abs_proxy(int value) {
 }
 #define abs(x) obfh_abs_proxy(x)
 
-#if virt_std == 1
+#if OBFH_VIRTUALIZATION == 1
 #define OBFH_MATH_KEY ((ULONG_PTR)VM_OBF_INT(SALT_SHIFT))
 #else
 #define OBFH_MATH_KEY ((ULONG_PTR)obfh_condition_proxy((float)_1, (float)obfh_int_proxy(SALT_SHIFT)))
@@ -12006,7 +12084,7 @@ static int obfh_abs_proxy(int value) {
 // 23. Library marker and disabled-mode diagnostic
 // ============================================================================
 
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 #undef if
 #define if(...) if (OBFH_PUBLIC_IF_CONDITION(__VA_ARGS__))
 #undef OBFH_FLOW_ELSE_GUARD
@@ -12020,7 +12098,7 @@ __declspec(dllexport) __attribute__((weak)) char *WhatSoundDoesACowMake() OBFH_C
 
 // The matched outer conditional preserves dangling else; intercepted else runs
 // the transport once, rather than duplicating it for every value/void return.
-#if NO_CFLOW != 1
+#if OBFH_DISABLE_CONTROL_FLOW != 1
 #define OBFH_FLOW_RETURN_GUARD (0)
 #define return \
     if OBFH_FLOW_RETURN_GUARD { \

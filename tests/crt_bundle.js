@@ -58,7 +58,7 @@ function fixture(header, fixturesRoot = __dirname, selectedCases = cases) {
         if (name === 'custom_extra' && mutations.filter(match => match[2] === 'malloc').map(match => match[0]).join('\n') !==
             '#undef malloc\n#define malloc(size) failed_allocation(size)\n#undef malloc\n#define malloc(...) malloc_proxy(__VA_ARGS__)')
             throw new Error(name + ': allocation failure override no longer restores malloc');
-        if (name === 'custom33' && !/^#if NO_OBF\r?\n#define strtok_s\(\.\.\.\) ref_tok\(__VA_ARGS__\)\r?\n#define wcstok_s\(\.\.\.\) ref_wtok\(__VA_ARGS__\)\r?\n#define lldiv\(\.\.\.\) ref_lldiv\(__VA_ARGS__\)\r?\n#endif/m.test(body))
+        if (name === 'custom33' && !/^#if OBFH_DISABLE_ANY_OBFUSCATION\r?\n#define strtok_s\(\.\.\.\) ref_tok\(__VA_ARGS__\)\r?\n#define wcstok_s\(\.\.\.\) ref_wtok\(__VA_ARGS__\)\r?\n#define lldiv\(\.\.\.\) ref_lldiv\(__VA_ARGS__\)\r?\n#endif/m.test(body))
             throw new Error(name + ': native export bridges changed; review protection boundary');
         if (name === 'custom33' && mutations.filter(match => ['strtok_s', 'wcstok_s', 'lldiv'].includes(match[2])).length !== 3)
             throw new Error(name + ': native export bridges changed; review protection boundary');

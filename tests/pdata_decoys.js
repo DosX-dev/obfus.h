@@ -14,7 +14,7 @@ function fixture() {
 #undef GetProcAddress
 #undef GetModuleHandleA
 #undef atoi
-#if defined(OBFH_PDATA_DECOY_COUNT) && !NO_PDATA_DECOYS && !NO_OBF && defined(__x86_64__)
+#if defined(OBFH_PDATA_DECOY_COUNT) && !OBFH_DISABLE_PDATA_DECOYS && !OBFH_DISABLE_ANY_OBFUSCATION && defined(__x86_64__)
 typedef unsigned (*NativeFn)(unsigned,void *,void *);
 typedef PRUNTIME_FUNCTION (WINAPI *LookupFn)(DWORD64,PDWORD64,void *);
 typedef PVOID (WINAPI *UnwindFn)(DWORD,DWORD64,DWORD64,PRUNTIME_FUNCTION,PCONTEXT,PVOID *,PDWORD64,PVOID);
@@ -167,7 +167,7 @@ module.exports.runSuite = async function({
     fs.writeFileSync(path.join(root, 'include', 'obfus.h'), source);
     const file = path.join(root, 'tests', 'pdata.c');
     fs.writeFileSync(file, fixture());
-    const flags = ['NO_CFLOW=1', 'NO_ANTIDEBUG=1'];
+    const flags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1'];
     if (arch === 'x86') {
         await check(
             'x86/pdata decoys are absent',
@@ -181,9 +181,9 @@ module.exports.runSuite = async function({
     }
     const builds = new Map();
     for (const [label, extra] of [
-        ['seed-0', ['OBFH_BUILD_SEED=0u']],
-        ['seed-1', ['OBFH_BUILD_SEED=1u']],
-        ['seed-max', ['OBFH_BUILD_SEED=4294967295u']],
+        ['seed-0', ['OBFH_SEED=0u']],
+        ['seed-1', ['OBFH_SEED=1u']],
+        ['seed-max', ['OBFH_SEED=4294967295u']],
         ['minimum', ['OBFH_PDATA_DECOY_COUNT=86']],
         ['maximum', ['OBFH_PDATA_DECOY_COUNT=128']]
     ]) {
@@ -209,7 +209,7 @@ module.exports.runSuite = async function({
             directory,
             'x64-pdata-repeat.exe',
             file,
-            flags.concat('OBFH_BUILD_SEED=1u')
+            flags.concat('OBFH_SEED=1u')
         );
         const result = await execute(exe, 'PDATA_PASS');
         const data = measure(result.stdout, fs.readFileSync(exe), assert);
@@ -223,7 +223,7 @@ module.exports.runSuite = async function({
         assert(data, 'maximum pool missing');
         for (let i = 0; i < data.count; i++) await execute(data.exe, 'PDATA_EXCEPTION_PASS', [String(i)]);
     });
-    for (const flag of ['NO_PDATA_DECOYS=1', 'NO_OBF=1'])
+    for (const flag of ['OBFH_DISABLE_PDATA_DECOYS=1', 'OBFH_DISABLE_ANY_OBFUSCATION=1'])
         await check(
             'x64/pdata/disabled/' + flag,
             async () =>

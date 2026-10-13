@@ -32,7 +32,7 @@ static int native_metrics(int n) { return GetSystemMetrics(n); }
 static int native_caps(HDC d, int n) { return GetDeviceCaps(d, n); }
 static BOOL native_move(HWND h, HWND a, int x, int y, int cx, int cy, UINT f) { return SetWindowPos(h, a, x, y, cx, cy, f); }
 #include "../include/obfus.h"
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
 static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #endif
 #define CHECK(x) \
@@ -71,7 +71,7 @@ static DWORD WINAPI race(void *argument) {
     return 0;
 }
 int main(int argc, char **argv) {
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
     if (argc > 1 && argv[1][0] == 'x') {
         const unsigned char bad[] = {1};
         obfh_gui_cold(2, NULL, 0, bad, 1);
@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
         CloseHandle(threads[i]);
     }
     CloseHandle(start);
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
     HMODULE user = LoadLibraryA("user32.dll"), gdi = LoadLibraryA("gdi32.dll");
     CHECK(user && gdi);
     ULONG_PTR encoded, decoded;

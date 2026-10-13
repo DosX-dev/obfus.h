@@ -17,7 +17,7 @@ static int reference_printf(const char *format, ...) {
             return 1; \
         } \
     } while (0)
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
 static int shifted(int shift) { RET_BY_VAR(shift); }
 static double addressed(double address) { RET_BY_VAR(address); }
 #endif
@@ -31,8 +31,8 @@ int main(void) {
     int *pointer = &calls;
     if (pointer) ++calls;
     CHECK(calls == 2);
-#if !NO_OBF
-#if NO_CFLOW != 1
+#if !OBFH_DISABLE_ANY_OBFUSCATION
+#if OBFH_DISABLE_CONTROL_FLOW != 1
     CHECK(OBFUS_CONDITION_BLOCK(0.25));
     CHECK(!OBFUS_CONDITION_BLOCK(0.0));
     CHECK(OBFUS_CONDITION_BLOCK(pointer));

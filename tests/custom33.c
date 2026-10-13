@@ -26,9 +26,14 @@ static wchar_t *ref_wnset(wchar_t *s, wchar_t v, size_t n) { return _wcsnset(s, 
 NATIVE_TEXT(_itoa, int, char)
 NATIVE_TEXT(_ltoa, long, char)
 NATIVE_TEXT(_ultoa, unsigned long, char)
-    NATIVE_TEXT(_i64toa, long long, char) NATIVE_TEXT(_ui64toa, unsigned long long, char)
-        NATIVE_TEXT(_itow, int, wchar_t) NATIVE_TEXT(_ltow, long, wchar_t) NATIVE_TEXT(_ultow, unsigned long, wchar_t)
-            NATIVE_TEXT(_i64tow, long long, wchar_t) NATIVE_TEXT(_ui64tow, unsigned long long, wchar_t) static long ref_labs(long v) { return labs(v); }
+NATIVE_TEXT(_i64toa, long long, char)
+NATIVE_TEXT(_ui64toa, unsigned long long, char)
+NATIVE_TEXT(_itow, int, wchar_t)
+NATIVE_TEXT(_ltow, long, wchar_t)
+NATIVE_TEXT(_ultow, unsigned long, wchar_t)
+NATIVE_TEXT(_i64tow, long long, wchar_t)
+NATIVE_TEXT(_ui64tow, unsigned long long, wchar_t)
+static long ref_labs(long v) { return labs(v); }
 static long long ref_abs64(long long v) { return _abs64(v); }
 static div_t ref_div(int n, int d) { return div(n, d); }
 static ldiv_t ref_ldiv(long n, long d) { return ldiv(n, d); }
@@ -46,7 +51,7 @@ static lldiv_t(__cdecl *ref_lldiv)(long long, long long);
 #undef return
 /* The bundled import library omits these native exports. Baseline/editor probes
  * bridge only those exports; protected builds exercise the real header macros. */
-#if NO_OBF
+#if OBFH_DISABLE_ANY_OBFUSCATION
 #define strtok_s(...) ref_tok(__VA_ARGS__)
 #define wcstok_s(...) ref_wtok(__VA_ARGS__)
 #define lldiv(...) ref_lldiv(__VA_ARGS__)

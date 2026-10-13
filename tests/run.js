@@ -82,12 +82,12 @@ function snapshotFile(file) {
         : file;
 }
 const configs = {
-    plain: ['NO_OBF=1'],
+    plain: ['OBFH_DISABLE_ANY_OBFUSCATION=1'],
     default: [],
-    'vm-no-cflow': ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1'],
-    vm: ['VIRT=1'],
-    advanced: ['VIRT=1', 'CFLOW_V2=1', 'ANTIDEBUG_V2=1', 'FAKE_SIGNS=1'],
-    'math-vm': ['VIRT=1', 'virt_std=1', 'NO_ANTIDEBUG=1']
+    'vm-no-cflow': ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1'],
+    vm: ['OBFH_VIRTUALIZATION=1'],
+    advanced: ['OBFH_VIRTUALIZATION=1', 'OBFH_BETTER_CONTROL_FLOW=1', 'OBFH_BETTER_ANTIDEBUG=1', 'OBFH_FAKE_SIGNATURES=1'],
+    'math-vm': ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1']
 };
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -444,14 +444,14 @@ async function checkFlowTransport(arch, compiler, directory, mode, part) {
     fs.writeFileSync(header, traced);
     const file = path.join(traceRoot, 'tests', 'cflow.c');
     fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
-    const flags = [`CFLOW_V2=${mode}`, 'NO_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
+    const flags = [`OBFH_BETTER_CONTROL_FLOW=${mode}`, 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
     if (source.includes('#define OBFH_P_COUPLED_FIRST(') || source.includes('#define OBFH_P_COUPLED_CODE('))
         flags.push('OBFH_TEST_COUPLED_PRIMITIVES=1');
     for (const seed of typeof part === 'number' ? [part] : []) {
         await execute(
             await compile(compiler, directory, `${arch}-cflow-${mode}-seed-${seed}.exe`, file, [
                 ...flags,
-                `OBFH_BUILD_SEED=${seed}u`
+                `OBFH_SEED=${seed}u`
             ]),
             'CFLOW_PASS'
         );
@@ -461,7 +461,7 @@ async function checkFlowTransport(arch, compiler, directory, mode, part) {
                 directory,
                 `${arch}-cflow-${mode}-proxy-${seed}.exe`,
                 path.join(__dirname, 'cflow_proxy.c'),
-                [...flags.filter((flag) => flag !== 'OBFH_TEST_FLOW_TRACE=1'), `OBFH_BUILD_SEED=${seed}u`]
+                [...flags.filter((flag) => flag !== 'OBFH_TEST_FLOW_TRACE=1'), `OBFH_SEED=${seed}u`]
             ),
             'FLOW_PROXY_PASS'
         );
@@ -740,7 +740,7 @@ async function main() {
             assert(source.includes('float junk, float condition'), 'condition float conversion removed');
             assert(!source.includes('_0 && rdtsc_result'), 'timestamp proxy short-circuited');
             assert(source.includes('0x0f, 0x31'), 'actual timestamp read missing');
-            assert(source.includes('MEM_CLEANER__JUST_FOR_FUN'), 'working-set feature removed');
+            assert(source.includes('OBFH_MEMORY_CLEANER'), 'working-set feature removed');
             assert(
                 !source.includes('FARPROC fallback') && !source.includes('(FARPROC)(vprintf)'),
                 'native CRT fallback leaked'
@@ -830,10 +830,15 @@ async function main() {
             failureFile,
             fs
                 .readFileSync(path.join(__dirname, 'failures.c.in'), 'utf8')
-                .replace('/* REGISTER_PROBES */', '#if ANTIDEBUG_V2 == 1\n' + setup)
+                .replace('/* REGISTER_PROBES */', '#if OBFH_BETTER_ANTIDEBUG == 1\n' + setup)
                 .replace('/* PROCESS_PROBE */', processProbe)
         );
         for (const [arch, compiler] of Object.entries(compilers)) {
+            if (process.argv.includes('--only-options') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
+                if (selectedArch && selectedArch !== arch) continue;
+                await require('./public_options').runSuite({ arch, compiler, directory, source, check, run, assert });
+                if (process.argv.includes('--only-options')) continue;
+            }
             if (process.argv.includes('--only-helpers') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
                 if (selectedArch && selectedArch !== arch) continue;
                 await require('./helper_conditions').runSuite({ arch, compiler, directory, source, check, compile, execute, run, assert });
@@ -850,7 +855,7 @@ async function main() {
                     await check(`${arch}/PE exports + ordinary forwarders + bounded names/seed ${seed}`, async () => {
                         await execute(await compile(compiler, directory, `${arch}-exports-${seed}.exe`,
                             path.join(__dirname, 'export_lookup.c'),
-                            ['NO_ANTIDEBUG=1', 'CFLOW_V2=1', `OBFH_BUILD_SEED=${seed}u`]), 'EXPORT_LOOKUP_PASS');
+                            ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1', `OBFH_SEED=${seed}u`]), 'EXPORT_LOOKUP_PASS');
                     });
                 if (process.argv.includes('--only-exports')) continue;
             }
@@ -863,7 +868,7 @@ async function main() {
                         ? [0]
                         : [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
                         await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
-                            const flags = [...configs[config], `OBFH_BUILD_SEED=${seed}u`];
+                            const flags = [...configs[config], `OBFH_SEED=${seed}u`];
                             if (!only33) {
                                 await crtBundle.runSuite({
                                     compiler, directory,
@@ -934,7 +939,7 @@ async function main() {
                                 directory,
                                 `${arch}-api-names-${seed}.exe`,
                                 path.join(__dirname, 'api_names.c'),
-                                [`OBFH_BUILD_SEED=${seed}u`],
+                                [`OBFH_SEED=${seed}u`],
                                 ['-luser32', '-lgdi32', '-ladvapi32']
                             ),
                             'NAMES_PASS'
@@ -950,7 +955,7 @@ async function main() {
                         directory,
                         `${arch}-cflow-encoding.exe`,
                         path.join(__dirname, 'cflow_encoding.c'),
-                        ['NO_CFLOW=1', 'NO_ANTIDEBUG=1']
+                        ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1']
                     ),
                     'CFLOW_ENCODING_PASS'
                 );
@@ -960,14 +965,14 @@ async function main() {
                 fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, execute, run, assert
             });
             await check(`${arch}/return interception and dangling else`, async () => {
-                for (const flags of [[], ['CFLOW_V2=1'], ['NO_CFLOW=1'], ['NO_OBF=1']])
+                for (const flags of [[], ['OBFH_BETTER_CONTROL_FLOW=1'], ['OBFH_DISABLE_CONTROL_FLOW=1'], ['OBFH_DISABLE_ANY_OBFUSCATION=1']])
                     await execute(
                         await compile(
                             compiler,
                             directory,
                             `${arch}-returns-${flags.join('-') || 'default'}.exe`,
                             path.join(__dirname, 'returns.c'),
-                            ['NO_ANTIDEBUG=1', ...flags]
+                            ['OBFH_DISABLE_ANTIDEBUG=1', ...flags]
                         ),
                         'RETURN_PASS'
                     );
@@ -991,13 +996,13 @@ async function main() {
                             directory,
                             `${arch}-return-transport-${seed}.exe`,
                             path.join(__dirname, 'return_transport.c'),
-                            ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                            ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]
                         ),
                         'RETURN_TRANSPORT_PASS'
                     );
                 });
             for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
-                for (const flags of [[], ['CFLOW_V2=1'], ['NO_PDATA_DECOYS=1']])
+                for (const flags of [[], ['OBFH_BETTER_CONTROL_FLOW=1'], ['OBFH_DISABLE_PDATA_DECOYS=1']])
                     await check(`${arch}/false else guard transport/seed ${seed}/${flags.join('-') || 'default'}`, async () => {
                         await execute(
                             await compile(
@@ -1005,7 +1010,7 @@ async function main() {
                                 directory,
                                 `${arch}-else-guard-${seed}-${flags.join('-') || 'default'}.exe`,
                                 path.join(__dirname, 'else_guard.c'),
-                                ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`, ...flags]
+                                ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`, ...flags]
                             ),
                             'ELSE_GUARD_PASS'
                         );
@@ -1027,7 +1032,7 @@ async function main() {
                     await compile(compiler, directory, `${arch}-editor-real.exe`, file, [
                         '__INTELLISENSE__=1',
                         'EXPECT_EDITOR=0',
-                        'NO_ANTIDEBUG=1'
+                        'OBFH_DISABLE_ANTIDEBUG=1'
                     ]),
                     'EDITOR_VIEW_PASS'
                 );
@@ -1051,7 +1056,7 @@ async function main() {
                             directory,
                             `${arch}-random-constants-${seed}.exe`,
                             path.join(__dirname, 'random_constants.c'),
-                            ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                            ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]
                         ),
                         'RANDOM_CONSTANTS_PASS'
                     );
@@ -1094,7 +1099,7 @@ async function main() {
                         await check(`${arch}/fast continue/default semantics/cflow-v${mode + 1}/seed ${seed}`, async () =>
                             execute(await compile(compiler, directory, `${arch}-fast-tokens-${mode}-${seed}.exe`,
                                 path.join(__dirname, 'fast_tokens.c'),
-                                ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`]), 'FAST_TOKENS_PASS')
+                                ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`]), 'FAST_TOKENS_PASS')
                         );
                 await require('./fast_tokens').runSuite({
                     arch, compiler, directory, source,
@@ -1137,7 +1142,7 @@ async function main() {
                                 'proxy instrumentation target missing'
                             );
                             fs.writeFileSync(proxyHeader, traced);
-                            const flags = ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`];
+                            const flags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
                             const output = await execute(
                                 await compile(compiler, directory, `${arch}-stack-proxy-${seed}.exe`, proxyFile, flags),
                                 'STACK_PROXY_PASS'
@@ -1196,7 +1201,7 @@ async function main() {
                         directory,
                         `${arch}-stack-proxy-repeat.dll`,
                         proxyFile,
-                        ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'],
+                        ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
                         ['-shared']
                     );
                     assert(
@@ -1218,7 +1223,7 @@ async function main() {
                                     directory,
                                     `${arch}-stack-proxy-native-${seed}.exe`,
                                     path.join(root, 'tests', 'stack_proxy_native.c'),
-                                    ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                                    ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]
                                 ),
                                 'STACK_PROXY_NATIVE_PASS'
                             );
@@ -1238,7 +1243,7 @@ async function main() {
                 await check(`${arch}/anti-debug pool: fresh results, failures and late completion`, async () =>
                     await execute(await compile(compiler, directory, `${arch}-antidebug-pool.exe`, poolFailureFile, []), 'ANTIDEBUG_POOL_PASS'));
                 await check(`${arch}/anti-debug pool: DLL unload after callback and timeout`, async () => {
-                    const dll = await compile(compiler, directory, `${arch}-antidebug-pool.dll`, path.join(__dirname, 'antidebug_pool_dll.c'), ['ANTIDEBUG_V2=1', 'CFLOW_V2=1'], ['-shared']);
+                    const dll = await compile(compiler, directory, `${arch}-antidebug-pool.dll`, path.join(__dirname, 'antidebug_pool_dll.c'), ['OBFH_BETTER_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1'], ['-shared']);
                     const host = await compile(compiler, directory, `${arch}-antidebug-pool-host.exe`, path.join(__dirname, 'antidebug_pool_host.c'), []);
                     await execute(host, 'ANTIDEBUG_POOL_DLL_PASS', [dll]);
                 });
@@ -1256,10 +1261,10 @@ async function main() {
                     []
                 );
                 for (const [label, flags] of [
-                    ['plain', ['NO_OBF=1']],
-                    ['disabled', ['NO_ANTIDEBUG=1']],
+                    ['plain', ['OBFH_DISABLE_ANY_OBFUSCATION=1']],
+                    ['disabled', ['OBFH_DISABLE_ANTIDEBUG=1']],
                     ['default', []],
-                    ['advanced', ['ANTIDEBUG_V2=1', 'CFLOW_V2=1', 'VIRT=1']]
+                    ['advanced', ['OBFH_BETTER_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1', 'OBFH_VIRTUALIZATION=1']]
                 ]) {
                     await check(`${arch}/anti-debug statement syntax and normal execution/${label}`, async () => {
                         const exe = await compile(
@@ -1334,8 +1339,8 @@ async function main() {
                 const constantBuilds = new Map();
                 for (const [suffix, flags, modes] of [
                     ...[0, 1, 2, 0xdeadbeef, 0xffffffff].map(seed =>
-                        [seed, [`OBFH_BUILD_SEED=${seed}u`], ['groups', 'automatic', 'concurrent']]),
-                    ...['NO_OBF=1', 'NO_CFLOW=1', 'CFLOW_V2=1'].map(flag => [flag, [flag], ['concurrent']])
+                        [seed, [`OBFH_SEED=${seed}u`], ['groups', 'automatic', 'concurrent']]),
+                    ...['OBFH_DISABLE_ANY_OBFUSCATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_BETTER_CONTROL_FLOW=1'].map(flag => [flag, [flag], ['concurrent']])
                 ])
                     await check(`${arch}/lazy letters: first use, groups and concurrent publication/${suffix}`, async () => {
                         const exe = await compile(
@@ -1343,7 +1348,7 @@ async function main() {
                             directory,
                             `${arch}-constant-loader-${suffix}.exe`,
                             path.join(__dirname, 'constant_loader.c'),
-                            ['NO_ANTIDEBUG=1', ...flags]
+                            ['OBFH_DISABLE_ANTIDEBUG=1', ...flags]
                         );
                         for (const mode of modes)
                             await execute(exe, 'CONSTANT_LOADER_PASS', [mode]);
@@ -1355,7 +1360,7 @@ async function main() {
                             directory,
                             `${arch}-constants-${seed}.exe`,
                             path.join(__dirname, 'constant_data.c'),
-                            ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                            ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]
                         );
                         const output = await execute(exe, 'CONSTANT_DATA_PASS');
                         const rows = [...output.stdout.matchAll(/^JUNK (\w+) (\d+) ([0-9a-f]+)\r?$/gm)];
@@ -1376,7 +1381,7 @@ async function main() {
                         directory,
                         `${arch}-constants-repeat.exe`,
                         path.join(__dirname, 'constant_data.c'),
-                        ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u']
+                        ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u']
                     );
                     const output = await execute(repeated, 'CONSTANT_DATA_PASS');
                     const rows = [...output.stdout.matchAll(/^JUNK (\w+) (\d+) ([0-9a-f]+)\r?$/gm)];
@@ -1413,7 +1418,7 @@ async function main() {
                                 directory,
                                 `${arch}-working-set.exe`,
                                 path.join(__dirname, 'protection.c'),
-                                ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'MEM_CLEANER__JUST_FOR_FUN=1'],
+                                ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_MEMORY_CLEANER=1'],
                                 ['-luser32']
                             ),
                             'PROTECTION_PASS'
@@ -1423,14 +1428,14 @@ async function main() {
                 const junkVariants = new Map();
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/seed ${seed}/all junk sites + VM stress`, async () => {
-                        const flags = ['VIRT=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`, `CFLOW_V2=${seed & 1}`];
+                        const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`, `OBFH_BETTER_CONTROL_FLOW=${seed & 1}`];
                         const file = path.join(__dirname, 'junk.c');
                         await execute(
                             await compile(compiler, directory, `${arch}-junk-${seed}.exe`, file, flags),
                             'JUNK_PASS'
                         );
                         // Keep modes equal for the machine-code diversity comparison.
-                        const dllFlags = ['VIRT=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`];
+                        const dllFlags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
                         const dll = await compile(compiler, directory, `${arch}-junk-${seed}.dll`, file, dllFlags, [
                             '-shared'
                         ]);
@@ -1491,7 +1496,7 @@ async function main() {
                         directory,
                         `${arch}-junk-repeat.dll`,
                         path.join(__dirname, 'junk.c'),
-                        ['VIRT=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'],
+                        ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
                         ['-shared']
                     );
                     const repeated = junkCode(fs.readFileSync(repeat));
@@ -1508,7 +1513,7 @@ async function main() {
                                 directory,
                                 `${arch}-predicates-${seed}.exe`,
                                 path.join(__dirname, 'break_predicates.c'),
-                                ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                                ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]
                             ),
                             'BREAK_PREDICATES_PASS'
                         );
@@ -1521,7 +1526,7 @@ async function main() {
                                 directory,
                                 `${arch}-choose-${seed}.exe`,
                                 path.join(__dirname, 'choose_random.c'),
-                                ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]
+                                ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]
                             ),
                             'CHOOSE_RANDOM_PASS'
                         );
@@ -1529,7 +1534,7 @@ async function main() {
                 const cflowVariants = new Map();
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/CFLOW pool seed ${seed}/128 templates`, async () => {
-                        const flags = ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`];
+                        const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
                         const file = path.join(__dirname, 'cflow_junk.c');
                         await execute(
                             await compile(compiler, directory, `${arch}-cflow-pool-${seed}.exe`, file, flags),
@@ -1552,7 +1557,7 @@ async function main() {
                         directory,
                         `${arch}-cflow-repeat.dll`,
                         path.join(__dirname, 'cflow_junk.c'),
-                        ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_BUILD_SEED=1u'],
+                        ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
                         ['-shared']
                     );
                     const repeated = junkCode(fs.readFileSync(dll), 128);
@@ -1586,7 +1591,7 @@ async function main() {
                 const randomBuilds = new Map();
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/public break seed ${seed}/512 call sites`, async () => {
-                        const flags = ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'CFLOW_V2=0', `OBFH_BUILD_SEED=${seed}u`];
+                        const flags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=0', `OBFH_SEED=${seed}u`];
                         const output = await run(
                             await compile(compiler, directory, `${arch}-random-${seed}.exe`, randomFile, flags),
                             []
@@ -1630,7 +1635,7 @@ async function main() {
                         first.code.every((code, index) => !code.equals(second.code[index])),
                         'seed did not change a public call site'
                     );
-                    const flags = ['NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'CFLOW_V2=0', 'OBFH_BUILD_SEED=1u'];
+                    const flags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=0', 'OBFH_SEED=1u'];
                     const repeated = junkCode(
                         fs.readFileSync(
                             await compile(compiler, directory, `${arch}-random-repeat.dll`, randomCodeFile, flags, [
@@ -1658,14 +1663,14 @@ async function main() {
                         `RANDOM ${arch}: 128/128 templates, ${adjacentRepeats} adjacent repeats, ${changedTemplates}/512 templates changed between seeds 1 and 2`
                     );
                 });
-                await check(`${arch}/public break CFLOW_V2 + syntax`, async () => {
+                await check(`${arch}/public break OBFH_BETTER_CONTROL_FLOW + syntax`, async () => {
                     for (let index = 0; index < 128; ++index)
                         assert(breakRandom.extraIndex(index) !== index, 'advanced second template equals the first');
                     const output = await run(
                         await compile(compiler, directory, `${arch}-random-v2.exe`, randomFile, [
-                            'NO_CFLOW=1',
-                            'NO_ANTIDEBUG=1',
-                            'CFLOW_V2=1'
+                            'OBFH_DISABLE_CONTROL_FLOW=1',
+                            'OBFH_DISABLE_ANTIDEBUG=1',
+                            'OBFH_BETTER_CONTROL_FLOW=1'
                         ]),
                         []
                     );
@@ -1676,7 +1681,7 @@ async function main() {
                         syntax,
                         '#include "../include/obfus.h"\nint main(void) { int x=1; if(x) BREAK_STACK_CFLOW; else x=3; BREAK_STACK_CFLOW; BREAK_STACK_CFLOW; return x != 1; }'
                     );
-                    for (const flags of [['NO_OBF=1'], ['NO_ANTIDEBUG=1'], ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']]) {
+                    for (const flags of [['OBFH_DISABLE_ANY_OBFUSCATION=1'], ['OBFH_DISABLE_ANTIDEBUG=1'], ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1']]) {
                         const nativeHeader = path.join(randomRoot, 'include', 'obfus.h');
                         fs.writeFileSync(nativeHeader, source);
                         const result = await run(
@@ -1718,7 +1723,7 @@ async function main() {
                             async () => {
                                 const flags = [
                                     ...(unicode ? ['UNICODE=1', '_UNICODE=1'] : []),
-                                    ...(protectedBuild ? ['NO_ANTIDEBUG=1', 'CFLOW_V2=1'] : ['NO_OBF=1'])
+                                    ...(protectedBuild ? ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1'] : ['OBFH_DISABLE_ANY_OBFUSCATION=1'])
                                 ];
                                 await execute(
                                     await compile(
@@ -1783,7 +1788,7 @@ async function main() {
                     const file = path.join(traceRoot, 'tests', 'cache.c');
                     fs.copyFileSync(path.join(__dirname, 'cache.c'), file);
                     await execute(
-                        await compile(compiler, directory, arch + '-cache.exe', file, ['NO_ANTIDEBUG=1', 'CFLOW_V2=1']),
+                        await compile(compiler, directory, arch + '-cache.exe', file, ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1']),
                         'CACHE_PASS'
                     );
                     const mutant = traced.replace('if (i > length) {', 'if (0) {');
@@ -1791,8 +1796,8 @@ async function main() {
                     fs.writeFileSync(path.join(traceRoot, 'include', 'obfus.h'), mutant);
                     const result = await run(
                         await compile(compiler, directory, arch + '-cache-bypass.exe', file, [
-                            'NO_ANTIDEBUG=1',
-                            'CFLOW_V2=1'
+                            'OBFH_DISABLE_ANTIDEBUG=1',
+                            'OBFH_BETTER_CONTROL_FLOW=1'
                         ]),
                         []
                     );
@@ -1814,8 +1819,8 @@ async function main() {
                     const file = path.join(mutantRoot, 'tests', 'vm.c');
                     fs.copyFileSync(path.join(__dirname, 'vm.c'), file);
                     const exe = await compile(compiler, directory, arch + '-mutant.exe', file, [
-                        'VIRT=1',
-                        'NO_ANTIDEBUG=1'
+                        'OBFH_VIRTUALIZATION=1',
+                        'OBFH_DISABLE_ANTIDEBUG=1'
                     ]);
                     const result = await run(exe, []);
                     assert(
@@ -1839,7 +1844,7 @@ async function main() {
                     assert(traced.includes('obfh_test_vm_step(op,at);'), 'instruction tracing missing');
                     const headerFile = path.join(tracedRoot, 'include', 'obfus.h');
                     fs.writeFileSync(headerFile, traced);
-                    const traceFlags = ['VIRT=1', 'NO_CFLOW=1', 'NO_ANTIDEBUG=1', 'OBFH_TEST_BRANCH_TRACE=1'];
+                    const traceFlags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_TEST_BRANCH_TRACE=1'];
                     await execute(
                         await compile(compiler, directory, arch + '-branch-trace.exe', testFile, traceFlags),
                         'BRANCH_PASS'
@@ -1904,7 +1909,7 @@ async function main() {
                             )
                     );
                 }
-                if (!flags.includes('NO_OBF=1'))
+                if (!flags.includes('OBFH_DISABLE_ANY_OBFUSCATION=1'))
                     await check(
                         `${label}/per-site API cache isolation + concurrent first use`,
                         async () =>
@@ -1930,7 +1935,7 @@ async function main() {
                         ['-luser32', '-lgdi32']
                     );
                     await execute(exe, 'GUI_CALLS_PASS');
-                    if (!flags.includes('NO_OBF=1'))
+                    if (!flags.includes('OBFH_DISABLE_ANY_OBFUSCATION=1'))
                         assert((await run(exe, ['x'])).status >>> 0 === 0xe0bf4701,
                             'invalid GUI cache input did not fail fast');
                 });
@@ -1944,7 +1949,7 @@ async function main() {
                         ['-luser32', '-lgdi32']
                     );
                     assert((await run(inline, [])).status === 0, 'GUI warm decode or macro nesting failed');
-                    if (!flags.includes('NO_OBF=1')) {
+                    if (!flags.includes('OBFH_DISABLE_ANY_OBFUSCATION=1')) {
                         const modules = importModules(fs.readFileSync(inline));
                         assert(
                             !modules.includes('user32.dll') && !modules.includes('gdi32.dll'),
@@ -2133,7 +2138,7 @@ async function main() {
                             assert(!binary.includes(Buffer.from('\0' + name + '\0')), 'native import leaked: ' + name);
                         assert(binary.includes(Buffer.from([0x0f, 0x31])), 'timestamp read missing from executable');
                         const protectedSection = data.sections.find(
-                            (section) => section.name === (flags.includes('FAKE_SIGNS=1') ? 'UPX0' : '.obfh')
+                            (section) => section.name === (flags.includes('OBFH_FAKE_SIGNATURES=1') ? 'UPX0' : '.obfh')
                         );
                         assert(protectedSection, 'protected data section missing');
                         const executableSections = data.sections.filter((section) => section.executable);
@@ -2154,7 +2159,7 @@ async function main() {
                     }
                 });
             }
-            for (const flags of [[], ['VIRT=1', 'virt_std=1']]) {
+            for (const flags of [[], ['OBFH_VIRTUALIZATION=1']]) {
                 await check(
                     `${arch}/math string and pointer arguments/${flags.length ? 'VM' : 'normal'}`,
                     async () =>

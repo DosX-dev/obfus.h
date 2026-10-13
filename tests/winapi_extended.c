@@ -31,7 +31,7 @@ static DWORD native_pid(void) { return GetCurrentProcessId(); }
 static HANDLE native_process(void) { return GetCurrentProcess(); }
 static HANDLE native_thread(void) { return GetCurrentThread(); }
 #include "../include/obfus.h"
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
 static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #endif
 #undef if
@@ -41,7 +41,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #undef while
 #undef break
 // TCC's bundled headers/import libraries omit these newer/NLS APIs.
-#if NO_OBF == 1
+#if OBFH_DISABLE_ANY_OBFUSCATION == 1
 #if defined(__x86_64__)
 #define GetWindowLongPtrA(...) ((LONG_PTR(WINAPI *)(HWND, int))GetProcAddress(GetModuleHandleA("user32.dll"), "GetWindowLongPtrA"))(__VA_ARGS__)
 #define GetWindowLongPtrW(...) ((LONG_PTR(WINAPI *)(HWND, int))GetProcAddress(GetModuleHandleA("user32.dll"), "GetWindowLongPtrW"))(__VA_ARGS__)
@@ -72,13 +72,13 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
         CHECK(value == (ULONG_PTR)native_export(modules[module_id], #api)); \
     } while (0)
 int main(void) {
-#if NO_OBF == 1
+#if OBFH_DISABLE_ANY_OBFUSCATION == 1
     ULONGLONG(WINAPI * native_GetTickCount64)
     (void) = (void *)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetTickCount64");
     int(WINAPI * native_MultiByteToWideChar)(UINT, DWORD, LPCSTR, int, LPWSTR, int) = (void *)GetProcAddress(GetModuleHandleA("kernel32.dll"), "MultiByteToWideChar");
     int(WINAPI * native_WideCharToMultiByte)(UINT, DWORD, LPCWSTR, int, LPSTR, int, LPCSTR, LPBOOL) = (void *)GetProcAddress(GetModuleHandleA("kernel32.dll"), "WideCharToMultiByte");
 #endif
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
     HMODULE modules[3] = {LoadLibraryA("user32.dll"), LoadLibraryA("gdi32.dll"), LoadLibraryA("kernel32.dll")};
     CHECK(modules[0] && modules[1] && modules[2]);
     ADDRESS(2, HeapDestroy);

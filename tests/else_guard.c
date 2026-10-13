@@ -8,7 +8,7 @@
 #undef return
 #undef printf
 
-#if !NO_OBF && !OBFH_EDITOR_VIEW && NO_CFLOW != 1
+#if !OBFH_DISABLE_ANY_OBFUSCATION && !OBFH_EDITOR_VIEW && OBFH_DISABLE_CONTROL_FLOW != 1
 static unsigned check(void) {
     unsigned result = 0;
     // Separate sites exercise different compile-time tags and completions.
@@ -25,7 +25,7 @@ static unsigned check(void) {
 #endif
 
 int main(void) {
-#if !NO_OBF && !OBFH_EDITOR_VIEW && NO_CFLOW != 1
+#if !OBFH_DISABLE_ANY_OBFUSCATION && !OBFH_EDITOR_VIEW && OBFH_DISABLE_CONTROL_FLOW != 1
     for (unsigned i = 0; i < 256; ++i)
         if (check()) return 1;
 #endif

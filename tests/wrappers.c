@@ -15,7 +15,7 @@
 DWORD WINAPI worker(void *p) { return *(DWORD *)p; }
 int main(void) {
     ULONG_PTR wide = sizeof(void *) == 8 ? 0x1234567887654321ULL : 0x87654321UL;
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     CHECK(obfh_uintptr_proxy(wide) == wide);
     CHECK((ULONG_PTR)OBFH_PTR(void *, wide) == wide);
 #endif
@@ -27,7 +27,7 @@ int main(void) {
     CHECK(strcmp(hidden, "hello") == 0);
     CHECK(strcmp(second_hidden, "second-hidden") == 0);
     CHECK(empty_hidden[0] == 0);
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     hidden[0] = 'H';
     CHECK(strcmp(hidden, "Hello") == 0);
     CHECK(strcmp(second_hidden, "second-hidden") == 0);
@@ -36,7 +36,7 @@ int main(void) {
     memset(large, 'a', sizeof large);
     large[0] = 0;
     large[8191] = 0;
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     CHECK(obfh_process_hidden_string(large) == large + 1);
     CHECK(strlen(obfh_process_hidden_string(large)) == 8190);
 #endif

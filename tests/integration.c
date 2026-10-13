@@ -19,7 +19,7 @@ static void test_phase(const char *phase, int progress) {
         } \
     } while (0)
 
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
 static int export_boundaries(void) {
     BYTE *image = VirtualAlloc(NULL, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     CHECK(image);
@@ -65,7 +65,7 @@ static int export_boundaries(void) {
 }
 #endif
 
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
 static volatile LONG vm_calls;
 static long double observed_vm(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE a, OBFH_VM_VALUE b) {
     InterlockedIncrement(&vm_calls);
@@ -121,11 +121,11 @@ static int exercise(int report) {
         CHECK(modf(3.5, &whole) == 0.5 && whole == 3.0);
         CHECK(frexp(8.0, &exponent) == 0.5 && exponent == 4);
 
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
         LONG calls_before = vm_calls;
 #endif
         CHECK(2 * VM_ADD(3, 4) == 14);
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(vm_calls > calls_before);
 #endif
         CHECK(sin(0.0) == 0.0 && pow(2.0 + 1.0, 2.0) == 9.0);
@@ -133,13 +133,13 @@ static int exercise(int report) {
         CHECK(VM_SUB(5, 8) == -3 && VM_DIV(81, 9) == 9);
         CHECK(VM_ADD(INT_MIN, 0) == INT_MIN && VM_SUB(INT_MAX, 0) == INT_MAX);
         CHECK(VM_MOD(INT_MIN, 3) == INT_MIN % 3);
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(VM_MOD(INT_MIN, -1) == 0);
 #endif
         CHECK(VM_EQU(42, 42) && VM_NEQ(4, 5));
         CHECK(GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA") == reference_export(GetModuleHandleA("kernel32.dll"), "LoadLibraryA"));
         CHECK(GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetCurrentProcess"));
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
         HMODULE error_module = GetModuleHandleA("kernel32.dll");
         SetLastError(0x13572468u);
         CHECK(GetProcAddress(error_module, "GetCurrentProcess"));
@@ -148,7 +148,7 @@ static int exercise(int report) {
         CHECK(GetLastError() == ERROR_PROC_NOT_FOUND);
 #endif
         CHECK(GetProcAddress(GetModuleHandleA("kernel32.dll"), "obfh_nonexistent") == NULL);
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(GetProcAddress(NULL, "anything") == NULL);
         struct {
             char name[18];
@@ -177,7 +177,7 @@ static DWORD WINAPI run_worker(void *unused) { return exercise(0); }
 int main(void) {
     test_phase("startup", 0);
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     CHECK(export_boundaries() == 0);
 #endif
     CHECK(exercise(1) == 0);
@@ -199,7 +199,7 @@ int main(void) {
     large[4096] = 0;
     CHECK(printf("%s", large) == 4096);
     CHECK(printf("\n") == 1);
-#if !NO_OBF && NO_ANTIDEBUG != 1
+#if !OBFH_DISABLE_ANY_OBFUSCATION && OBFH_DISABLE_ANTIDEBUG != 1
     CHECK(IsDebuggerPresent_proxy() == IsDebuggerPresent());
     test_phase("anti-debug check", 0);
     ANTI_DEBUG;

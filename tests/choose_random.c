@@ -14,7 +14,7 @@
         enum { before = __COUNTER__, \
                line = __LINE__ }; \
         int chosen = __builtin_choose_expr(RND(0, 7) < 4, 17, 31); \
-        unsigned int value = ((before + 1u + line + (unsigned int)OBFH_BUILD_SEED) * 2654435761u) % 8u; \
+        unsigned int value = ((before + 1u + line + (unsigned int)OBFH_SEED) * 2654435761u) % 8u; \
         if (chosen != (value < 4 ? 17 : 31)) return n + 1; \
         seen |= chosen == 17 ? 1 : 2; \
         if (printf("DIRECT %d %u %d\n", n, value, chosen) < 0) return 90; \

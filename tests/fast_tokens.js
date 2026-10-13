@@ -50,7 +50,7 @@ function exportedProbe(file, wanted = 'fast_probe', whole = false) {
     throw new Error('fast_probe export missing');
 }
 
-exports.runSuite = async function ({ arch, compiler, directory, source, fixturesRoot = __dirname, check, compile, execute, run, assert }) {
+exports.runSuite = async function({ arch, compiler, directory, source, fixturesRoot = __dirname, check, compile, execute, run, assert }) {
     await check(`${arch}/fast transfer bytes, fixed-seed replay and semantic negative controls`, async () => {
         const root = path.join(directory, `${arch}-fast-transfer`);
         fs.mkdirSync(path.join(root, 'include'), { recursive: true });
@@ -74,10 +74,10 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         // Check the real include boundary, then compile only the production
         // primitives for the byte matrix. Unrelated VM/CRT bodies are not part
         // of the exported insertion under examination.
-        const probeFlags = ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1'];
+        const probeFlags = ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_DISABLE_PDATA_DECOYS=1'];
         const fullBuilds = await Promise.allSettled(['first', 'repeat'].map(async name => {
             const file = await compile(compiler, directory, `${arch}-fast-full-${name}.exe`, probe,
-                [...probeFlags, 'OBFH_BUILD_SEED=0u']);
+                [...probeFlags, 'OBFH_SEED=0u']);
             await execute(file, 'FAST_PROBE_PASS');
             return file;
         }));
@@ -112,7 +112,7 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         const seeds = [0, 1, 2, 3, 4, 5, 6, 7, 0x10000, 0x10001, 0xdead0000, 0xdeadbeef, 0xffffffff, 0];
         const probes = await Promise.allSettled(seeds.map(async (seed, index) => {
             const file = await compile(compiler, directory, `${arch}-fast-probe-${index}.exe`, primitiveProbe,
-                ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1', `OBFH_BUILD_SEED=${seed}u`]);
+                ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_DISABLE_PDATA_DECOYS=1', `OBFH_SEED=${seed}u`]);
             await execute(file, 'FAST_PROBE_PASS');
             return file;
         }));
@@ -172,7 +172,7 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         fs.writeFileSync(matrix, '#include "../include/obfus.h"\n#undef return\n' +
             Array.from({ length: 512 }, (_, i) => `__declspec(dllexport) void matrix_${i}(void) { OBFH_FLOW_FAST_TRANSFER; }`).join('\n') + '\nint main(void) { return 0; }\n');
         const matrixBytes = fs.readFileSync(await compile(compiler, directory, `${arch}-fast-site-matrix.exe`, matrix,
-            ['NO_ANTIDEBUG=1', 'NO_PDATA_DECOYS=1', 'OBFH_BUILD_SEED=0u']));
+            ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_DISABLE_PDATA_DECOYS=1', 'OBFH_SEED=0u']));
         const matrixVariants = new Set(), matrixRegisters = new Set();
         for (let i = 0; i < 512; ++i) {
             const b = exportedProbe(matrixBytes, `matrix_${i}`), width = arch === 'x64' ? 4 : 3;
@@ -233,19 +233,19 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         await check(`${arch}/fast transfer bytes/do entry/cflow-v${mode + 1}`, async () => {
             const file = prepare('entry-' + mode, source, ['do_entry.c']);
             await execute(await compile(compiler, directory, `${arch}-do-entry-${mode}.exe`, file,
-                ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`]), 'DO_ENTRY_PASS');
+                ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`]), 'DO_ENTRY_PASS');
         });
     for (const seed of [0, 1, 2, 0xdeadbeef, 0xffffffff])
         await check(`${arch}/fast transfer bytes/do scan/seed ${seed}`, async () => {
             const file = prepare('scan-' + seed, source, ['do_scan.c']);
             await execute(await compile(compiler, directory, `${arch}-do-scan-${seed}.exe`, file,
-                ['NO_ANTIDEBUG=1', `OBFH_BUILD_SEED=${seed}u`]), 'DO_SCAN_PASS');
+                ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`]), 'DO_SCAN_PASS');
         });
-    for (const disabled of ['NO_CFLOW=1', 'NO_OBF=1'])
+    for (const disabled of ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANY_OBFUSCATION=1'])
         await check(`${arch}/fast transfer bytes/disabled/${disabled}`, async () => {
             const file = prepare('disabled-' + disabled, source, ['fast_tokens.c', 'fast_tokens_body.h']);
             await execute(await compile(compiler, directory, `${arch}-fast-disabled-${disabled}.exe`, file,
-                ['NO_ANTIDEBUG=1', disabled]), 'FAST_TOKENS_PASS');
+                ['OBFH_DISABLE_ANTIDEBUG=1', disabled]), 'FAST_TOKENS_PASS');
         });
     for (const [kind, mutate, fixture, marker, diagnostic] of [
         ['do-scan-mutant', text => text.replace('0xbcu + __obfh_do_reverse', '0xbdu - __obfh_do_reverse'),
@@ -263,7 +263,7 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
             const file = prepare(kind, mutant, fixture === 'fast_tokens.c'
                 ? [fixture, 'fast_tokens_body.h'] : [fixture]);
             const result = await run(await compile(compiler, directory, `${arch}-fast-mutant-${kind}.exe`, file,
-                ['NO_ANTIDEBUG=1']), []);
+                ['OBFH_DISABLE_ANTIDEBUG=1']), []);
             assert(result.status === 1 && (!marker || !result.stdout.includes(marker)) && result.stderr.includes(diagnostic),
                 `${kind} semantic regression escaped`);
         });

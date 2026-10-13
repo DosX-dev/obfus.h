@@ -20,7 +20,7 @@
 #undef SetLastError
 #undef GetLastError
 
-#if !NO_OBF && !OBFH_EDITOR_VIEW
+#if !OBFH_DISABLE_ANY_OBFUSCATION && !OBFH_EDITOR_VIEW
 static HANDLE start;
 static int name_indices_valid(void) {
     unsigned char storage[20];
@@ -93,7 +93,7 @@ static DWORD WINAPI initialize(LPVOID parameter) {
 #endif
 
 int main(int argc, char **argv) {
-#if !NO_OBF && !OBFH_EDITOR_VIEW
+#if !OBFH_DISABLE_ANY_OBFUSCATION && !OBFH_EDITOR_VIEW
     if (obfh_alpha_low_state || obfh_alpha_high_state || obfh_alpha_upper_state ||
         _a == 'a' || _n == 'n' || _S == 'S' || _0 != 0 || _2 != 2) return 1;
     if (argc > 1 && argv[1][0] == 'c') {

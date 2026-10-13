@@ -2,7 +2,7 @@
 #include <windows.h>
 static void cache_observer(void *, unsigned int);
 #define OBFH_GUI_CACHE_OBSERVER(slot, site) cache_observer(slot, site)
-#define NO_ANTIDEBUG 1
+#define OBFH_DISABLE_ANTIDEBUG 1
 #include "../include/obfus.h"
 #undef if
 #undef else

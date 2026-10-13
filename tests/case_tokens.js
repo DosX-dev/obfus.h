@@ -28,11 +28,11 @@ exports.runSuite = async function({ arch, compiler, directory, source, check, co
             await check(`${arch}/case labels, fallthrough and nested grammar/cflow-v${mode + 1}/seed ${seed}`, async () =>
                 execute(await compile(compiler, directory, `${arch}-case-tokens-${mode}-${seed}.exe`,
                     path.join(__dirname, 'case_tokens.c'),
-                    ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`]), 'CASE_TOKENS_PASS'));
-    for (const flag of ['NO_CFLOW=1', 'NO_OBF=1'])
+                    ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`]), 'CASE_TOKENS_PASS'));
+    for (const flag of ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANY_OBFUSCATION=1'])
         await check(`${arch}/case labels disabled/${flag}`, async () =>
             execute(await compile(compiler, directory, `${arch}-case-disabled-${flag}.exe`,
-                path.join(__dirname, 'case_tokens.c'), [flag, 'NO_ANTIDEBUG=1']), 'CASE_TOKENS_PASS'));
+                path.join(__dirname, 'case_tokens.c'), [flag, 'OBFH_DISABLE_ANTIDEBUG=1']), 'CASE_TOKENS_PASS'));
     await check(`${arch}/case rescan, isolated size budget and seed/site diversity`, async () => {
         function definition(name) {
             const match = new RegExp('^#define ' + name + '(?=[ (])', 'm').exec(source);
@@ -62,7 +62,7 @@ exports.runSuite = async function({ arch, compiler, directory, source, check, co
         assert((preprocessed.stdout.match(/__obfh_fast_site\s*=/g) || []).length === 6, 'case must capture one fast draw per site');
         const variants = [], lengths = new Set();
         for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 0xdeadbeef, 0xffffffff, 0]) {
-            const exe = await compile(compiler, directory, `${arch}-case-matrix-${variants.length}.exe`, file, [`OBFH_BUILD_SEED=${seed}u`]);
+            const exe = await compile(compiler, directory, `${arch}-case-matrix-${variants.length}.exe`, file, [`OBFH_SEED=${seed}u`]);
             await execute(exe, 'CASE_MATRIX_PASS');
             const { bytes, result } = exportsAt(exe);
             const native = bytes.subarray(result.native_case, result.native_end), protectedBytes = bytes.subarray(result.protected_case, result.protected_end);

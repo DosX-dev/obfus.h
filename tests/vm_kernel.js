@@ -25,7 +25,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     for (const mode of [0, 1]) {
         // Cover every opcode/word dependency order and context layout, plus boundary seeds.
         for (const seed of [0, 84, 168, 252, 0xdeadbeef, 0xffffffff]) {
-            const flags = ['VIRT=1', 'NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`];
+            const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`];
             const stem = `${arch}-vm-kernel-${mode}-${seed}`;
             const label = `${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`;
             await check(
@@ -82,17 +82,17 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             const mutantFile = path.join(mutantRoot, 'tests', 'vm_kernel.c');
             fs.copyFileSync(file, mutantFile);
             const exe = await compile(compiler, directory, `${arch}-vm-kernel-mutant-${name}.exe`, mutantFile, [
-                'VIRT=1',
-                'NO_CFLOW=1',
-                'NO_ANTIDEBUG=1'
+                'OBFH_VIRTUALIZATION=1',
+                'OBFH_DISABLE_CONTROL_FLOW=1',
+                'OBFH_DISABLE_ANTIDEBUG=1'
             ]);
             const result = await run(exe, []);
             assert(result.status !== 0 && !result.stdout.includes('KERNEL_PASS'), 'VM mutation survived: ' + name);
         });
 
     for (const flags of [
-        ['VIRT=0', 'NO_ANTIDEBUG=1'],
-        ['VIRT=1', 'NO_OBF=1']
+        ['OBFH_VIRTUALIZATION=0', 'OBFH_DISABLE_ANTIDEBUG=1'],
+        ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANY_OBFUSCATION=1']
     ]) {
         await check(`${arch}/VM disabled contract/${flags[0]}/${flags[1]}`, async () => {
             await execute(

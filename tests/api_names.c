@@ -1,5 +1,5 @@
-#define NO_CFLOW 1
-#define NO_ANTIDEBUG 1
+#define OBFH_DISABLE_CONTROL_FLOW 1
+#define OBFH_DISABLE_ANTIDEBUG 1
 #include "../include/obfus.h"
 #undef printf
 int main(void) {

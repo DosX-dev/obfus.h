@@ -29,7 +29,7 @@ static FARPROC native_export(HMODULE module, const char *symbol) {
     return NULL;
 }
 #include "../include/obfus.h"
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
 static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #endif
 #undef if
@@ -70,7 +70,7 @@ static LRESULT CALLBACK procedure(HWND window, UINT message, WPARAM w, LPARAM l)
     return DefWindowProcW(window, message, w, l);
 }
 int main(void) {
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
     HMODULE modules[4] = {LoadLibraryA("user32.dll"), LoadLibraryA("gdi32.dll"), LoadLibraryA("kernel32.dll"), LoadLibraryA("advapi32.dll")};
     ADDRESS(87, 2, CreateFileA);
     ADDRESS(88, 2, CreateFileW);

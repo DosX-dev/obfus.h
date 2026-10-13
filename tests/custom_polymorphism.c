@@ -29,7 +29,7 @@ static void store_xmm(void *p) {
 }
 #include "../include/obfus.h"
 static void *move(void *a, const void *b, size_t n) { return memmove(a, b, n); }
-#if NO_OBF != 1 && !defined(__INTELLISENSE__)
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1 && !defined(__INTELLISENSE__)
 // Both formulas must expand at the same call-site line, even after formatting.
 #define CHECK_CUSTOM_DRAW() ({ \
     OBFH_CUSTOM_BEGIN; \
@@ -42,11 +42,11 @@ int main(void) {
     for (unsigned i = 0; i < 128; ++i) before[i] = (unsigned char)(i * 19 + 7);
     for (unsigned n = 1; n <= 255; ++n) {
         for (unsigned i = 0; i < sizeof data; ++i) data[i] = (unsigned char)i;
-#if NO_OBF != 1 && !defined(__INTELLISENSE__)
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1 && !defined(__INTELLISENSE__)
         load_xmm(before);
 #endif
         fail |= move(data + 3, data, n) != data + 3;
-#if NO_OBF != 1 && !defined(__INTELLISENSE__)
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1 && !defined(__INTELLISENSE__)
         store_xmm(after);
         fail |= !bytes_equal(before, after, 128);
 #endif
@@ -54,7 +54,7 @@ int main(void) {
         for (unsigned i = 0; i < 3; ++i) fail |= data[i] != (unsigned char)i;
         for (unsigned i = n + 3; i < sizeof data; ++i) fail |= data[i] != (unsigned char)i;
     }
-#if NO_OBF != 1 && !defined(__INTELLISENSE__)
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1 && !defined(__INTELLISENSE__)
     {
         __label__ selected;
         fail |= CHECK_CUSTOM_DRAW();

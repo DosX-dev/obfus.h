@@ -30,7 +30,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             const first = selection % 4;
             const rest = [1, 2, 3].map((v) => (first + v) % 4);
             const order = [first, ...permutations[Math.floor(selection / 4)].map((v) => rest[v])];
-            c += `#undef OBFH_BUILD_SEED\n#define OBFH_BUILD_SEED ${seed}u\n` + block;
+            c += `#undef OBFH_SEED\n#define OBFH_SEED ${seed}u\n` + block;
             c += `static int probe_${selection}(unsigned int word, unsigned int layout, unsigned int *result) {\n`;
             c += 'unsigned int op,d,a,b,imm; void *labels[4]={&&fields_0,&&fields_1,&&fields_2,&&fields_3};\n';
             for (let i = 0; i < 3; ++i) c += `if ((uintptr_t)labels[${order[i]}] >= (uintptr_t)labels[${order[i + 1]}]) return 1;\n`;

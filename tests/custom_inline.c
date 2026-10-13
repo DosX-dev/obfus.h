@@ -34,7 +34,7 @@ int main(void) {
     fail |= !__builtin_types_compatible_p(__typeof__(strstr(text, "abc")), char *);
     fail |= !__builtin_types_compatible_p(__typeof__(strcmp(text, text)), int);
     fail |= !__builtin_types_compatible_p(__typeof__(strlen(text)), size_t);
-#if NO_OBF != 1
+#if OBFH_DISABLE_ANY_OBFUSCATION != 1
     fail |= strcmp("a", "z") != -1;
     fail |= strcmp("z", "a") != 1;
     fail |= strcmp("", "") != 0;

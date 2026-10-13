@@ -42,7 +42,7 @@ int main(void) {
                        number(1), number(0x8000000000000001ull), HUGE_VAL, -HUGE_VAL, number(0x7ff8000012345678ull)};
     for (int i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
         double x = values[i];
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(bits(_MUTATE_MATH(x)) == bits(x));
         int calls = 0;
         CHECK(bits(_MUTATE_MATH((++calls, x))) == bits(x) && calls == 1);
@@ -65,7 +65,7 @@ int main(void) {
             }
         }
     }
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     uint64_t wide = 0xfffffffffffffff1ull;
     CHECK(_MUTATE_MATH(wide) == wide);
     int n = 0;
@@ -77,7 +77,7 @@ int main(void) {
         seed = seed * 6364136223846793005ull + 1;
         double x = number(seed & 0xffefffffffffffffull);
         CHECK(bits((double)VM_OBF_DBL(x)) == bits(x));
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(bits(_MUTATE_MATH(x)) == bits(x));
 #endif
     }

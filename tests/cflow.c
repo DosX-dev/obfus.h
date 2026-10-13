@@ -549,7 +549,7 @@ int main(void) {
     CHECK(gate_result == 10 && after_gate - before_gate == 5);
     CHECK(proxy_visits > 0);
     CHECK(linked_visits > 0);
-    for (int variant = 0; variant < (CFLOW_V2 ? 8 : 4); ++variant) {
+    for (int variant = 0; variant < (OBFH_BETTER_CONTROL_FLOW ? 8 : 4); ++variant) {
         CHECK(transport_layouts[variant] > 0);
         CHECK(transport_tests[variant] > 0);
     }
@@ -560,8 +560,8 @@ int main(void) {
         CHECK(exit_routes[kind][0] > 0);
         CHECK(exit_routes[kind][1] > 0);
     }
-    for (unsigned int layout = 0; layout < (CFLOW_V2 ? 8u : 4u); ++layout)
-        for (unsigned int stage = 0; stage < (CFLOW_V2 ? 4u : 2u); ++stage) {
+    for (unsigned int layout = 0; layout < (OBFH_BETTER_CONTROL_FLOW ? 8u : 4u); ++layout)
+        for (unsigned int stage = 0; stage < (OBFH_BETTER_CONTROL_FLOW ? 4u : 2u); ++stage) {
             CHECK(stage_routes[layout][stage][0] > 0);
             CHECK(stage_routes[layout][stage][1] > 0);
         }

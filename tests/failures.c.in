@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <windows.h>
-#define ANTIDEBUG_V2 1
+#define OBFH_BETTER_ANTIDEBUG 1
 #define BREAK_STACK_CFLOW
 #define PHANTOM_NOP ((void)0)
 static int mode, duplicates, creates, waits, exits, targets, workers, suspends, resumes, contexts;
@@ -114,6 +114,6 @@ int main(void) {
         if (obfh_ad_process_probe() != (mode == 14 || mode == 16) || module_calls != (mode <= 14) ||
             export_calls != (mode == 13 || mode == 14) || api_calls != (mode >= 14)) return 80 + mode;
     }
-    puts("ANTIDEBUG_V2 failure branches passed");
+    puts("OBFH_BETTER_ANTIDEBUG failure branches passed");
     return 0;
 }

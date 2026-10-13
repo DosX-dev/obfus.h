@@ -26,8 +26,8 @@ exports.runSuite = async function({ arch, compiler, directory, source, check, co
         const result = await run(await compile(compiler, directory, arch + '-helper-mutant.exe', file, []), []);
         assert(result.status === 1 && !result.stdout.includes('HELPER_CONDITION_PASS'), 'service dependency deletion survived');
     });
-    for (const flags of [[], ['CFLOW_V2=1', 'VIRT=1'], ['NO_CFLOW=1'], ['NO_OBF=1']])
+    for (const flags of [[], ['OBFH_BETTER_CONTROL_FLOW=1', 'OBFH_VIRTUALIZATION=1'], ['OBFH_DISABLE_CONTROL_FLOW=1'], ['OBFH_DISABLE_ANY_OBFUSCATION=1']])
         await check(`${arch}/compact loader: cold concurrency, failures and pointer transport/${flags.join('/') || 'default'}`, async () =>
             execute(await compile(compiler, directory, `${arch}-helper-loader-${flags.join('-') || 'default'}.exe`,
-                path.join(__dirname, 'helper_loader.c'), ['NO_ANTIDEBUG=1', ...flags]), 'HELPER_LOADER_PASS'));
+                path.join(__dirname, 'helper_loader.c'), ['OBFH_DISABLE_ANTIDEBUG=1', ...flags]), 'HELPER_LOADER_PASS'));
 };

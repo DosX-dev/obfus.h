@@ -15,7 +15,7 @@
 #undef memcpy
 #undef memcmp
 
-#if NO_OBF
+#if OBFH_DISABLE_ANY_OBFUSCATION
 #define RET_BY_VAR(value) \
     { return (value); }
 #endif

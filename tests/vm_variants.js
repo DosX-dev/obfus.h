@@ -15,7 +15,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         for (let selection = 0; selection < 64; ++selection) {
             const opcode = selection & 3, layout = (selection >> 2) & 3, word = selection >> 4;
             const seed = (opcode << 2) | (layout << 4) | (word << 6);
-            c += `#define OBFH_BUILD_SEED ${seed}u\nstatic int probe_${selection}(void) {\n` + block;
+            c += `#define OBFH_SEED ${seed}u\nstatic int probe_${selection}(void) {\n` + block;
             // Offsets must genuinely change, without increasing the context's storage.
             const orders = [
                 ['registers', 'controls', 'flags', 'result'],
@@ -43,7 +43,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             ];
             c += `expected=${masks[word]};\n`;
             c += 'if(OBFH_V_WORD_ENCODE(value,key,pc)!=expected||OBFH_V_WORD_DECODE(expected,key,pc)!=value)return 4;}return 0;}\n';
-            c += ['OBFH_BUILD_SEED', ...names].map((name) => '#undef ' + name).join('\n') + '\n';
+            c += ['OBFH_SEED', ...names].map((name) => '#undef ' + name).join('\n') + '\n';
         }
         c += 'int main(void){\n';
         for (let selection = 0; selection < 64; ++selection) c += `if(probe_${selection}())return ${selection + 1};\n`;

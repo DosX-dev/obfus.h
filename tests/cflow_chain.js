@@ -89,7 +89,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         await check('x86/live CFLOW ladder keeps existing transport', async () => {
             await execute(
                 await compile(compiler, directory, 'x86-chain-disabled.exe', prepare('disabled', source), [
-                    'NO_ANTIDEBUG=1'
+                    'OBFH_DISABLE_ANTIDEBUG=1'
                 ]),
                 'CHAIN_DISABLED'
             );
@@ -100,7 +100,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         for (const mode of [0, 1]) {
             await check(`x64/live CFLOW ladder/native routes + state + unwind/v${mode + 1}/seed ${seed}`, async () => {
                 const stem = `chain-${mode}-${seed}`;
-                const flags = ['NO_ANTIDEBUG=1', `CFLOW_V2=${mode}`, `OBFH_BUILD_SEED=${seed}u`];
+                const flags = ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`];
                 const exe = await compile(compiler, directory, stem + '.exe', prepare(stem, trace(source)), [
                     ...flags,
                     'OBFH_TEST_CHAIN_TRACE=1'
@@ -161,7 +161,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         for (const [name, header] of mutants) {
             assert(header !== source, 'chain mutation target missing: ' + name);
             const exe = await compile(compiler, directory, 'chain-mutant-' + name + '.exe', prepare(name, header), [
-                'NO_ANTIDEBUG=1'
+                'OBFH_DISABLE_ANTIDEBUG=1'
             ]);
             const result = await run(exe, []);
             assert(
@@ -171,14 +171,14 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         }
     });
     await check('x64/live CFLOW ladder/disabled contracts', async () => {
-        for (const flag of ['NO_OBF=1', 'NO_CFLOW=1', 'NO_PDATA_DECOYS=1'])
+        for (const flag of ['OBFH_DISABLE_ANY_OBFUSCATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_PDATA_DECOYS=1'])
             await execute(
                 await compile(
                     compiler,
                     directory,
                     'chain-disabled-' + flag.slice(0, -2) + '.exe',
                     prepare(flag, source),
-                    ['NO_ANTIDEBUG=1', flag]
+                    ['OBFH_DISABLE_ANTIDEBUG=1', flag]
                 ),
                 'CHAIN_DISABLED'
             );

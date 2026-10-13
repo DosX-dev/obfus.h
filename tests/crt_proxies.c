@@ -110,7 +110,7 @@ static int local_string_kernels(void) {
     return 0;
 }
 static int crt_name_builders(void) {
-#if !NO_OBF
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     char name[32];
     memset(name, 0xa5, sizeof name);
     CHECK(getKernel32Name_proxy(name) == name && !strcmp(name, "kernel32"));

@@ -29,7 +29,7 @@ void study_step(unsigned int op, unsigned int pc) {
 #define __obfh_voperation operation
 static long double variant_0(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 0u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 0u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -41,7 +41,7 @@ static long double variant_0(unsigned int operation, long double a, long double 
 }
 static long double variant_1(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 1u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 1u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -53,7 +53,7 @@ static long double variant_1(unsigned int operation, long double a, long double 
 }
 static long double variant_2(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 2u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 2u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -65,7 +65,7 @@ static long double variant_2(unsigned int operation, long double a, long double 
 }
 static long double variant_3(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 3u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 3u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -77,7 +77,7 @@ static long double variant_3(unsigned int operation, long double a, long double 
 }
 static long double variant_4(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 4u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 4u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -89,7 +89,7 @@ static long double variant_4(unsigned int operation, long double a, long double 
 }
 static long double variant_5(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 5u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 5u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -101,7 +101,7 @@ static long double variant_5(unsigned int operation, long double a, long double 
 }
 static long double variant_6(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 6u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 6u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -113,7 +113,7 @@ static long double variant_6(unsigned int operation, long double a, long double 
 }
 static long double variant_7(unsigned int operation, long double a, long double b) {
     enum {
-        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_BUILD_SEED) + 7u * 3266489917u,
+        __obfh_vkey = (0x5d721300u ^ (unsigned int)OBFH_SEED) + 7u * 3266489917u,
         __obfh_va = __obfh_vkey & 3u,
         __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u,
         __obfh_vc = (__obfh_va + 2u) & 3u,
@@ -458,7 +458,7 @@ int main(int argc, char **argv) {
         }
     }
     OBFH_V_CONTEXT context;
-    context.key = (unsigned int)OBFH_BUILD_SEED;
+    context.key = (unsigned int)OBFH_SEED;
     context.flag_key = obfh_v_mix(context.key ^ 0x85ebca6bu);
     const unsigned int controls[] = {0, 1, 0x7fffffffu, 0x80000000u, 0xffffffffu};
     for (unsigned int r = 0; r < 4; ++r)

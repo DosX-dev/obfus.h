@@ -103,7 +103,7 @@ async function verify(assert, header, fixturesRoot = __dirname) {
         assert(builds === 1 && results.every(result => result.status === 'rejected'),
             'DLL host retried or hid a failed shared build');
         let changed = false;
-        try { build('compiler', 'x64', 'contract', ['NO_OBF=1']); } catch (_) { changed = true; }
+        try { build('compiler', 'x64', 'contract', ['OBFH_DISABLE_ANY_OBFUSCATION=1']); } catch (_) { changed = true; }
         assert(changed, 'DLL host silently reused an incompatible configuration');
     } finally {
         const resolved = path.resolve(directory);

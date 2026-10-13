@@ -12,7 +12,7 @@
             return 1; \
         } \
     } while (0)
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
 static volatile LONG calls;
 static long double counted_vm(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE a, OBFH_VM_VALUE b) {
     InterlockedIncrement(&calls);
@@ -29,7 +29,7 @@ static long double counted_vm(const unsigned int *program, unsigned int length, 
 #define ROUTE(expr) ((void)(expr))
 #endif
 static int contract(void) {
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     typedef long integer_result;
     typedef long double floating_result;
 #else
@@ -60,7 +60,7 @@ static int contract(void) {
     a = 0;
     b = 0;
     CHECK(VM_ADD_DBL(++a, ++b) == 2 && a == 1 && b == 1);
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     CHECK(VM_DIV(7, 0) == 0);
     CHECK(VM_MOD(7, 0) == 0 && VM_MOD(INT_MIN, -1) == 0);
     CHECK(VM_ADD(1.75L, 2.5L) == 4 && VM_DIV(7.5L, 2.5L) == 3 && VM_MOD(7.5L, 2.5L) == 1);
@@ -91,7 +91,7 @@ static int bitwise_contract(void) {
         (void)VM_AND(++a, ++b);
         CHECK(a == 1 && b == 1);
     }
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     ROUTE(VM_AND(0xffffffffu, 1));
 #endif
     {
@@ -99,7 +99,7 @@ static int bitwise_contract(void) {
         (void)VM_OR(++a, ++b);
         CHECK(a == 1 && b == 1);
     }
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     ROUTE(VM_OR(0xffffffffu, 1));
 #endif
     {
@@ -107,7 +107,7 @@ static int bitwise_contract(void) {
         (void)VM_XOR(++a, ++b);
         CHECK(a == 1 && b == 1);
     }
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     ROUTE(VM_XOR(0xffffffffu, 1));
 #endif
     {
@@ -115,7 +115,7 @@ static int bitwise_contract(void) {
         (void)VM_NOT(++a);
         CHECK(a == 1 && b == 0);
     }
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     ROUTE(VM_NOT(0xffffffffu));
 #endif
     {
@@ -123,7 +123,7 @@ static int bitwise_contract(void) {
         (void)VM_SHL(++a, ++b);
         CHECK(a == 1 && b == 1);
     }
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     ROUTE(VM_SHL(0xffffffffu, 1));
 #endif
     {
@@ -131,7 +131,7 @@ static int bitwise_contract(void) {
         (void)VM_SHR(++a, ++b);
         CHECK(a == 1 && b == 1);
     }
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     ROUTE(VM_SHR(0xffffffffu, 1));
 #endif
     CHECK(VM_AND(-1, 0x80000000u) == 0x80000000u);
@@ -140,7 +140,7 @@ static int bitwise_contract(void) {
     return 0;
 }
 static int stress(void) {
-#if VIRT && !NO_OBF
+#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
     OBFH_VM_VALUE previous = obfh_vm_encode(-1337.25L, SALT_NUM1, 1u | (1u << 1));
     CHECK(previous.floating == 1);
     for (unsigned int nonce = 2; nonce < 34; ++nonce) {

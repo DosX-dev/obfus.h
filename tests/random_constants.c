@@ -19,7 +19,7 @@ static unsigned int reference_mix(unsigned int value) {
         enum { captured = __COUNTER__, \
                value = RND(minimum, maximum) }; \
         unsigned int expected = (minimum) + \
-                                (((captured + 1 + __LINE__ + (unsigned int)OBFH_BUILD_SEED) * \
+                                (((captured + 1 + __LINE__ + (unsigned int)OBFH_SEED) * \
                                   2654435761u) % \
                                  ((maximum) - (minimum) + 1)); \
         if ((unsigned int)value != expected) return 1; \
@@ -31,12 +31,16 @@ static const unsigned int random_cycle[] = {RANDOM_BATCH_16, RANDOM_BATCH_16, RA
 
 #define CHECK_CAPTURE(input, salt) \
     { \
-        enum { OBFH_MIX_FIELDS(mixed, input), OBFH_DATA_FIELDS(data, salt), \
-               OBFH_GUI_FIELDS(gui, input, salt), line = __LINE__, \
-               before = __COUNTER__, OBFH_DATA_FIELDS(counter_draw, __COUNTER__), after = __COUNTER__ }; \
-        unsigned int seed = (unsigned int)OBFH_BUILD_SEED; \
+        enum { OBFH_MIX_FIELDS(mixed, input), \
+               OBFH_DATA_FIELDS(data, salt), \
+               OBFH_GUI_FIELDS(gui, input, salt), \
+               line = __LINE__, \
+               before = __COUNTER__, \
+               OBFH_DATA_FIELDS(counter_draw, __COUNTER__), \
+               after = __COUNTER__ }; \
+        unsigned int seed = (unsigned int)OBFH_SEED; \
         if ((unsigned int)mixed != reference_mix(input)) return 4; \
-        if ((unsigned int)data != reference_mix(line ^ seed ^ (unsigned int)(salt) * 2654435761u)) return 5; \
+        if ((unsigned int)data != reference_mix(line ^ seed ^ (unsigned int)(salt)*2654435761u)) return 5; \
         if ((unsigned int)gui != reference_mix((unsigned int)(input) ^ seed ^ (salt))) return 6; \
         if (after != before + 2 || (unsigned int)counter_draw != reference_mix(line ^ seed ^ (before + 1u) * 2654435761u)) return 7; \
         enum { OBFH_GUI_KEY_FIELDS(input) }; \
