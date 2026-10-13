@@ -183,15 +183,17 @@ If you need advanced protection against skilled reversers, use `OBFH_BETTER_CONT
 
 #include <stdio.h>
 
-#define OBFH_VIRTUALIZATION          1 // [+] Use math virtual machine
+#define OBFH_SEED                     123321u  // [@] Use "123321" as a seed
 
-#define OBFH_BETTER_CONTROL_FLOW     1 // [+] ControlFlow v2
-#define OBFH_FAKE_SIGNATURES         1 // [+] Fake signatures
-#define OBFH_BETTER_ANTIDEBUG        1 // [+] AntiDebug v2
+#define OBFH_VIRTUALIZATION           1        // [+] Use math virtual machine
 
-#define OBFH_DISABLE_ANY_OBFUSCATION 0 // [-] Don't obfuscate (disable all)
-#define OBFH_DISABLE_CONTROL_FLOW    0 // [-] Disable ControlFlow
-#define OBFH_DISABLE_ANTIDEBUG       0 // [-] Disable AntiDebug
+#define OBFH_BETTER_CONTROL_FLOW      1        // [+] Better ControlFlow (stronger)
+#define OBFH_BETTER_ANTIDEBUG         1        // [+] Better AntiDebug (stronger)
+#define OBFH_FAKE_SIGNATURES          1        // [+] Fake signatures
+
+#define OBFH_DISABLE_ANY_OBFUSCATION  0        // [-] Don't obfuscate (disable all)
+#define OBFH_DISABLE_CONTROL_FLOW     0        // [-] Disable ControlFlow
+#define OBFH_DISABLE_ANTIDEBUG        0        // [-] Disable AntiDebug
 
 #include "obfus.h"
 
