@@ -70,6 +70,31 @@ function fixture(header) {
             '"sete %%cl; movzbl %%cl, %%ecx; movl %%ecx, %[same];" : [same] "=m"(same) : [input] "m"(x) : "eax", "ecx", "edx", "cc"); return same == 0; }\n';
         tests.push(`probe_${id}(values[i])`);
     }
+    // Check both encodings against native operands and all defined status flags.
+    // In particular, unequal CMP/SUB operands detect accidental operand reversal.
+    const operations = [['addl', '0x01', '+'], ['orl', '0x09', '|'], ['andl', '0x21', '&'],
+    ['subl', '0x29', '-'], ['xorl', '0x31', '^'], ['cmpl', '0x39', null]];
+    code += '#ifdef __x86_64__\ntypedef unsigned long long flag_word;\n#define SAVE_FLAGS "pushfq; popq %[flags];"\n#else\ntypedef unsigned flag_word;\n#define SAVE_FLAGS "pushfl; popl %[flags];"\n#endif\n';
+    for (const [operation, opcode, symbol] of operations) {
+        for (let dst = 0; dst < 3; ++dst) {
+            for (let src = 0; src < 3; ++src) {
+                for (let direction = 0; direction < 2; ++direction) {
+                    const id = tests.length;
+                    const setup = `movl %[x], %%${registers[dst]}; movl %[x], %%${registers[src]};`;
+                    code += `static int probe_${id}(unsigned x) { unsigned a,b; flag_word fa,fb;\n`;
+                    const operands = ': [output] "=m"(a), [flags] "=m"(fa) : [x] "m"(x) : "eax", "ecx", "edx", "cc", "memory");\n';
+                    // For distinct registers choose unequal values, including signed boundary pairs.
+                    const load = dst === src ? setup : `movl %[x], %%${registers[dst]}; movl %[x], %%${registers[src]}; notl %%${registers[src]};`;
+                    code += `__asm__ __volatile__("${load}${operation} %%${registers[src]}, %%${registers[dst]};" SAVE_FLAGS "movl %%${registers[dst]}, %[output];" ${operands}`;
+                    code += `__asm__ __volatile__("${load}" OBFH_ASM_BINARY32("${opcode}", "${dst}", "${src}", "${direction}", "0") SAVE_FLAGS "movl %%${registers[dst]}, %[output];" ${operands.replace('(a)', '(b)').replace('(fa)', '(fb)')}`;
+                    const rhs = dst === src ? 'x' : '~x';
+                    const flagMask = ['addl', 'subl', 'cmpl'].includes(operation) ? '0x8d5u' : '0x8c5u';
+                    code += `return a == b && b == (${symbol ? `x ${symbol} (${rhs})` : 'x'}) && ((fa ^ fb) & ${flagMask}) == 0; }\n`;
+                    tests.push(`probe_${id}(values[i])`);
+                }
+            }
+        }
+    }
     code += 'int main(void) { unsigned values[263]={0,1,2,255,0x7fffffffu,0x80000000u,0xffffffffu};\n';
     code += 'for(unsigned i=7;i<263;++i) { unsigned x=i*0x9e3779b9u; values[i]=(x^(x>>16))*0x85ebca6bu; }\n';
     code += 'for(unsigned i=0;i<sizeof(values)/sizeof(values[0]);++i) {\n';

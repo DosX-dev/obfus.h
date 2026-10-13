@@ -32,6 +32,14 @@ int main(void) {
         unsigned int extra = OBFH_CFLOW_EXTRA_INDEX(index);
         if (extra >= 128 || extra == index) return 95;
     }
+    // All offsets stay odd/nonzero; seed changes must break the old fixed pair.
+    unsigned long long offsets = 0;
+    for (unsigned int seed = 0; seed < 4096; ++seed) {
+        unsigned int offset = OBFH_CFLOW_EXTRA_OFFSET(0, seed);
+        if (offset >= 128 || !(offset & 1)) return 96;
+        offsets |= 1ull << (offset >> 1);
+    }
+    if (offsets != ~0ull) return 97;
     DIRECT(0);
     DIRECT(1);
     DIRECT(2);

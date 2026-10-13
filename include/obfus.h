@@ -1241,6 +1241,10 @@ OBFH_PD_DEFINE(127);
     ".fill ((" form "==2)&1),1,(((0xb8+" index ")&0xffffffff)^0x80000000)-0x80000000;.fill ((" form "==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_ASM_MOV32(dst, src, key, bit) \
     ".short 0x89+256*(0xc0+8*" src "+" dst ")+((" key ">>" bit ")&1)*(2+1792*(" dst "-" src "));"
+// Alternate opcode direction, not arithmetic operand order. Flags are identical.
+// Only low register-register operands are supported; each form is two bytes.
+#define OBFH_ASM_BINARY32(opcode, dst, src, key, bit) \
+    ".short " opcode "+256*(0xc0+8*" src "+" dst ")+((" key ">>" bit ")&1)*(2+1792*(" dst "-" src "));"
 // Only equality consumers may reverse the operands: other CMP flags differ.
 #define OBFH_ASM_EQ32(dst, src, key, bit) \
     ".short 0x39+256*(0xc0+8*" src "+" dst ")+((" key ">>" bit ")&1)*1792*(" dst "-" src ");"
@@ -1267,35 +1271,35 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_DATA_TRAP ".byte 0x0F, 0x0B, 0x8F, 0x04, 0x24;" OBFH_CFLOW_DATA
 #define OBFH_CFLOW_DATA_RETURN ".byte 0xC2, %c4, %c5, 0xE8; .long %c8;" OBFH_CFLOW_DATA
 
-#define OBFH_CFLOW_PRED_ADD_CARRY OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl %[junk_key], %%eax; andl %[junk_key], %%edx; addl %%edx, %%edx; addl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "addl %[junk_key], %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_OR_AND_SUM OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl %[junk_key], %%eax; andl %[junk_key], %%edx; addl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "addl %[junk_key], %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_SUB_BORROW OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl %[junk_key], %%eax; notl %%edx; andl %[junk_key], %%edx; addl %%edx, %%edx; subl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "subl %[junk_key], %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_DEMORGAN OBFH_CFLOW_INPUT("%%eax", "0") "orl %[junk_key], %%eax; notl %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "notl %%edx; movl %[junk_key], %%ecx; notl %%ecx; andl %%ecx, %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_OR_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl %[junk_key], %%eax; movl %[junk_key], %%ecx; notl %%ecx; orl %%ecx, %%edx; andl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") " cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_AND_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%eax; movl %[junk_key], %%ecx; notl %%ecx; andl %%ecx, %%edx; orl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") " cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_XOR_CANCEL OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl %[junk_key], %%eax; xorl %%edx, %%eax; cmpl %[junk_key], %%eax;"
-#define OBFH_CFLOW_PRED_COMPLEMENT_CARRY OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; notl %%edx; addl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_COMPLEMENT_WRAP OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; notl %%edx; addl %%edx, %%eax; addl $1, %%eax;"
-#define OBFH_CFLOW_PRED_MASK_SUBTRACT OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%edx; subl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_MASK_OR_ORDER OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl %[junk_key], %%eax; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_ROTATE_XOR OBFH_CFLOW_INPUT("%%eax", "0") "xorl %[junk_key], %%eax; roll %[junk_rotate], %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "roll %[junk_rotate], %%edx; movl %[junk_key], %%ecx; roll %[junk_rotate], %%ecx; xorl %%ecx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_ADD_CARRY OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl %[junk_key], %%eax; andl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x01", "2", "2", "%c[junk_key]", "19") " " OBFH_ASM_BINARY32("0x01", "0", "2", "%c[junk_key]", "20") " " OBFH_CFLOW_INPUT("%%edx", "2") "addl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "21") ""
+#define OBFH_CFLOW_PRED_OR_AND_SUM OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl %[junk_key], %%eax; andl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", "%c[junk_key]", "22") " " OBFH_CFLOW_INPUT("%%edx", "2") "addl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "23") ""
+#define OBFH_CFLOW_PRED_SUB_BORROW OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl %[junk_key], %%eax; notl %%edx; andl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x01", "2", "2", "%c[junk_key]", "24") " " OBFH_ASM_BINARY32("0x29", "0", "2", "%c[junk_key]", "25") " " OBFH_CFLOW_INPUT("%%edx", "2") "subl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "26") ""
+#define OBFH_CFLOW_PRED_DEMORGAN OBFH_CFLOW_INPUT("%%eax", "0") "orl %[junk_key], %%eax; notl %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "notl %%edx; movl %[junk_key], %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", "%c[junk_key]", "27") " " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "28") ""
+#define OBFH_CFLOW_PRED_OR_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl %[junk_key], %%eax; movl %[junk_key], %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x09", "2", "1", "%c[junk_key]", "29") " " OBFH_ASM_BINARY32("0x21", "0", "2", "%c[junk_key]", "18") " " OBFH_CFLOW_INPUT("%%edx", "2") " " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "19") ""
+#define OBFH_CFLOW_PRED_AND_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%eax; movl %[junk_key], %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", "%c[junk_key]", "20") " " OBFH_ASM_BINARY32("0x09", "0", "2", "%c[junk_key]", "21") " " OBFH_CFLOW_INPUT("%%edx", "2") " " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "22") ""
+#define OBFH_CFLOW_PRED_XOR_CANCEL OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl %[junk_key], %%eax; " OBFH_ASM_BINARY32("0x31", "0", "2", "%c[junk_key]", "23") " cmpl %[junk_key], %%eax;"
+#define OBFH_CFLOW_PRED_COMPLEMENT_CARRY OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; notl %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", "%c[junk_key]", "24") ""
+#define OBFH_CFLOW_PRED_COMPLEMENT_WRAP OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; notl %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", "%c[junk_key]", "25") " addl $1, %%eax;"
+#define OBFH_CFLOW_PRED_MASK_SUBTRACT OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x29", "0", "2", "%c[junk_key]", "26") ""
+#define OBFH_CFLOW_PRED_MASK_OR_ORDER OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl %[junk_key], %%eax; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "27") ""
+#define OBFH_CFLOW_PRED_ROTATE_XOR OBFH_CFLOW_INPUT("%%eax", "0") "xorl %[junk_key], %%eax; roll %[junk_rotate], %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "roll %[junk_rotate], %%edx; movl %[junk_key], %%ecx; roll %[junk_rotate], %%ecx; " OBFH_ASM_BINARY32("0x31", "2", "1", "%c[junk_key]", "28") " " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "29") ""
 #define OBFH_CFLOW_PRED_ROTATE_RESTORE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_ASM_ROTATE_PAIR("0", "%c[junk_rotate]", "%c[junk_key]", "0") OBFH_ASM_ROTATE_PAIR("0", "%c[junk_rotate]", "%c[junk_key]", "1") OBFH_CFLOW_INPUT("%%edx", "2") " " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
-#define OBFH_CFLOW_PRED_BSWAP_XOR OBFH_CFLOW_INPUT("%%eax", "0") "xorl %[junk_key], %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; movl %[junk_key], %%ecx; bswap %%ecx; xorl %%ecx, %%edx; " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
-#define OBFH_CFLOW_PRED_WORD_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $65535, %%eax; andl $-65536, %%edx; orl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") " cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_BYTE_PARITY OBFH_CFLOW_INPUT("%%eax", "0") "movzbl %%al, %%edx; imull %%eax, %%eax; addl %%edx, %%eax; testb $1, %%al;"
+#define OBFH_CFLOW_PRED_BSWAP_XOR OBFH_CFLOW_INPUT("%%eax", "0") "xorl %[junk_key], %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; movl %[junk_key], %%ecx; bswap %%ecx; " OBFH_ASM_BINARY32("0x31", "2", "1", "%c[junk_key]", "18") " " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
+#define OBFH_CFLOW_PRED_WORD_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $65535, %%eax; andl $-65536, %%edx; " OBFH_ASM_BINARY32("0x09", "0", "2", "%c[junk_key]", "19") " " OBFH_CFLOW_INPUT("%%edx", "2") " " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "20") ""
+#define OBFH_CFLOW_PRED_BYTE_PARITY OBFH_CFLOW_INPUT("%%eax", "0") "movzbl %%al, %%edx; imull %%eax, %%eax; " OBFH_ASM_BINARY32("0x01", "0", "2", "%c[junk_key]", "21") " testb $1, %%al;"
 #define OBFH_CFLOW_PRED_BYTE_ROTATE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; rolb %[junk_rotate], %%al; rorb %[junk_rotate], %%al; cmpb %%dl, %%al;"
 #define OBFH_CFLOW_PRED_WORD_ROTATE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; rolw %[junk_rotate], %%ax; rorw %[junk_rotate], %%ax; cmpw %%dx, %%ax;"
 #define OBFH_CFLOW_PRED_NEG_COMPLEMENT OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; addl $1, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
-#define OBFH_CFLOW_PRED_MUL_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") "addl %[junk_key], %%eax; imull %[junk_salt], %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull %[junk_salt], %%edx; movl %[junk_key], %%ecx; imull %[junk_salt], %%ecx; addl %%ecx, %%edx; " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
-#define OBFH_CFLOW_PRED_SQUARE_EXPAND OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; imull %%edx, %%edx; movl %%eax, %%ecx; imull %[junk_key], %%ecx; addl %%ecx, %%ecx; addl %[junk_key], %%eax; imull %%eax, %%eax; subl %%edx, %%eax; subl %%ecx, %%eax; movl %[junk_key], %%edx; imull %%edx, %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_NEG_SQUARE OBFH_CFLOW_INPUT("%%eax", "0") "negl %%eax; imull %%eax, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull %%edx, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_MUL_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") "addl %[junk_key], %%eax; imull %[junk_salt], %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull %[junk_salt], %%edx; movl %[junk_key], %%ecx; imull %[junk_salt], %%ecx; " OBFH_ASM_BINARY32("0x01", "2", "1", "%c[junk_key]", "22") " " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
+#define OBFH_CFLOW_PRED_SQUARE_EXPAND OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; imull %%edx, %%edx; movl %%eax, %%ecx; imull %[junk_key], %%ecx; " OBFH_ASM_BINARY32("0x01", "1", "1", "%c[junk_key]", "23") " addl %[junk_key], %%eax; imull %%eax, %%eax; " OBFH_ASM_BINARY32("0x29", "0", "2", "%c[junk_key]", "24") " " OBFH_ASM_BINARY32("0x29", "0", "1", "%c[junk_key]", "25") " movl %[junk_key], %%edx; imull %%edx, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "26") ""
+#define OBFH_CFLOW_PRED_NEG_SQUARE OBFH_CFLOW_INPUT("%%eax", "0") "negl %%eax; imull %%eax, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull %%edx, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "27") ""
 #define OBFH_CFLOW_PRED_BSWAP_NOT OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; notl %%edx; " OBFH_ASM_EQ32("0", "2", "%c[junk_key]", "16") ""
-#define OBFH_CFLOW_PRED_SUB_MASK OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%edx; subl %%edx, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "movl %[junk_key], %%ecx; notl %%ecx; andl %%ecx, %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_MASK_ORDER OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%eax; orl %[junk_key], %%edx; cmpl %%edx, %%eax;"
-#define OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; addl %[junk_key], %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; addl %[junk_key], %%edx; subl $1, %%edx; cmpl %%edx, %%eax;"
+#define OBFH_CFLOW_PRED_SUB_MASK OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x29", "0", "2", "%c[junk_key]", "28") " " OBFH_CFLOW_INPUT("%%edx", "2") "movl %[junk_key], %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", "%c[junk_key]", "29") " " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "18") ""
+#define OBFH_CFLOW_PRED_MASK_ORDER OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl %[junk_key], %%eax; orl %[junk_key], %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "19") ""
+#define OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; addl %[junk_key], %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; addl %[junk_key], %%edx; subl $1, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", "%c[junk_key]", "20") ""
 #define OBFH_CFLOW_PRED_SQUARE_RESIDUE OBFH_CFLOW_INPUT("%%eax", "0") "imull %%eax, %%eax; andl $7, %%eax; leal -1(%%eax), %%edx; leal -4(%%eax), %%ecx; imull %%edx, %%eax; imull %%ecx, %%eax; testl %%eax, %%eax;"
 #define OBFH_CFLOW_PRED_FOURTH_RESIDUE OBFH_CFLOW_INPUT("%%eax", "0") "imull %%eax, %%eax; imull %%eax, %%eax; andl $15, %%eax; leal -1(%%eax), %%edx; imull %%edx, %%eax; testl %%eax, %%eax;"
-#define OBFH_CFLOW_PRED_ISOLATE_BIT OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax;"
+#define OBFH_CFLOW_PRED_ISOLATE_BIT OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; negl %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", "%c[junk_key]", "21") " leal -1(%%eax), %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", "%c[junk_key]", "22") " testl %%eax, %%eax;"
 
 // One local set of immediate parameters per selection. Each operand retains
 // its old range and position; no runtime storage or shared helper is needed.
@@ -1387,7 +1391,8 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
 #define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_SEED ^ 2654435769u)))
 #define OBFH_CFLOW_SINGLE(index) ((void)0)
-#define OBFH_CFLOW_EXTRA_INDEX(index) (((index) + 37u) & 127u)
+#define OBFH_CFLOW_EXTRA_OFFSET(index, seed) (1u | ((OBFH_MIX_B((unsigned int)(seed) ^ 0xC6EF3720u) >> ((unsigned int)(index)&15u)) & 126u))
+#define OBFH_CFLOW_EXTRA_INDEX(index) (((index) + OBFH_CFLOW_EXTRA_OFFSET(index, OBFH_SEED)) & 127u)
 #if OBFH_BETTER_CONTROL_FLOW
 // Capture once: the 128-way selector must not duplicate the mapping expression.
 #define OBFH_CFLOW_EXTRA(index) ({ \
@@ -3538,6 +3543,7 @@ static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
 // Cache entries are immutable after atomic publication. Module references are
 // retained by the resolver so cached pointers cannot outlive their DLL.
 // A published slot is immutable. Variable-name calls resolve other names cold.
+// Seed-selected mix order keeps two operations and no runtime selector.
 static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     OBFH_CRT_ENTRY *entry = (OBFH_CRT_ENTRY *)storage;
     unsigned int length = 0;
@@ -3550,7 +3556,11 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
             if ((entry->name[i] ^ mask) != (unsigned char)name[i]) break;
         }
         if (i > length) {
+#if (OBFH_SEED & 1u)
+            return (FARPROC)((entry->address ^ ~key) - key);
+#else
             return (FARPROC)((entry->address - key) ^ ~key);
+#endif
         }
     }
     PHANTOM_NOP;
@@ -3561,7 +3571,11 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
             unsigned char mask = (unsigned char)(key >> ((i % sizeof(key)) * 8u)) + (unsigned char)(i * 13u);
             entry->name[i] = (unsigned char)name[i] ^ mask;
         }
+#if (OBFH_SEED & 1u)
+        entry->address = ((ULONG_PTR)function + key) ^ ~key;
+#else
         entry->address = ((ULONG_PTR)function ^ ~key) + key;
+#endif
         InterlockedExchange(&entry->state, 2);
     }
     return function;
@@ -3575,6 +3589,15 @@ typedef struct {
     unsigned char floating;
     unsigned int nonce;
 } OBFH_VM_VALUE;
+
+// Both forms move object bytes, without changing floating-point values.
+#if (OBFH_SEED >> 10) & 1u
+#define OBFH_VM_BYTE_ENCODE(value, add, mask) ((unsigned char)((value) ^ (mask)) + (add))
+#define OBFH_VM_BYTE_DECODE(value, add, mask) ((unsigned char)((value) - (add)) ^ (mask))
+#else
+#define OBFH_VM_BYTE_ENCODE(value, add, mask) ((unsigned char)((value) + (add)) ^ (mask))
+#define OBFH_VM_BYTE_DECODE(value, add, mask) ((unsigned char)((value) ^ (mask)) - (add))
+#endif
 
 static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int floating) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
@@ -3592,7 +3615,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int fl
         state ^= state << 5;
         unsigned int rotate = (state >> 24) & 7u;
         unsigned char rotated = (unsigned char)((bytes[i] << rotate) | (bytes[i] >> (8u - rotate)));
-        encoded.bytes[(i + offset) % sizeof(value)] = (unsigned char)(rotated + (unsigned char)(state >> 8)) ^ (unsigned char)(state ^ (state >> 16));
+        encoded.bytes[(i + offset) % sizeof(value)] = OBFH_VM_BYTE_ENCODE(rotated, (unsigned char)(state >> 8), (unsigned char)(state ^ (state >> 16)));
     }
     return encoded;
 }
@@ -3610,7 +3633,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
         state ^= state >> 17;
         state ^= state << 5;
         unsigned int rotate = (state >> 24) & 7u;
-        unsigned char rotated = (unsigned char)((encoded.bytes[(i + offset) % sizeof(value)] ^ (unsigned char)(state ^ (state >> 16))) - (unsigned char)(state >> 8));
+        unsigned char rotated = OBFH_VM_BYTE_DECODE(encoded.bytes[(i + offset) % sizeof(value)], (unsigned char)(state >> 8), (unsigned char)(state ^ (state >> 16)));
         bytes[i] = (unsigned char)((rotated >> rotate) | (rotated << (8u - rotate)));
     }
     RET_BY_VAR(value);
@@ -4661,12 +4684,24 @@ static void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int
     c->controls[r] = value ^ obfh_v_mix(c->key ^ (r * 3266489917u));
     PHANTOM_NOP;
 }
+// Controls retain XOR: CXOR updates their encoded bytes directly.
+// Flags and numeric register bytes can use either modular arithmetic or XOR.
+#if (OBFH_SEED >> 8) % 3u == 0u
+#define OBFH_V_VALUE_ENCODE(value, mask) ((value) ^ (mask))
+#define OBFH_V_VALUE_DECODE(value, mask) ((value) ^ (mask))
+#elif (OBFH_SEED >> 8) % 3u == 1u
+#define OBFH_V_VALUE_ENCODE(value, mask) ((value) + (mask))
+#define OBFH_V_VALUE_DECODE(value, mask) ((value) - (mask))
+#else
+#define OBFH_V_VALUE_ENCODE(value, mask) ((value) - (mask))
+#define OBFH_V_VALUE_DECODE(value, mask) ((value) + (mask))
+#endif
 static unsigned int obfh_v_flags(const OBFH_V_CONTEXT *c) {
     PHANTOM_NOP;
-    return c->flags ^ c->flag_key;
+    return OBFH_V_VALUE_DECODE(c->flags, c->flag_key);
 }
 static void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
-    c->flags = flags ^ c->flag_key;
+    c->flags = OBFH_V_VALUE_ENCODE(flags, c->flag_key);
     PHANTOM_NOP;
 }
 static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
@@ -4676,7 +4711,7 @@ static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
     PHANTOM_NOP;
     for (unsigned int i = 0; i < sizeof(v); ++i) {
         m = obfh_v_mix(m + i + 1u);
-        c->registers[r].bytes[i] = p[i] ^ (unsigned char)m;
+        c->registers[r].bytes[i] = OBFH_V_VALUE_ENCODE(p[i], (unsigned char)m);
     }
     c->initialized |= 1u << r;
 }
@@ -4687,7 +4722,7 @@ static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     PHANTOM_NOP;
     for (unsigned int i = 0; i < sizeof(v); ++i) {
         m = obfh_v_mix(m + i + 1u);
-        p[i] = c->registers[r].bytes[i] ^ (unsigned char)m;
+        p[i] = OBFH_V_VALUE_DECODE(c->registers[r].bytes[i], (unsigned char)m);
     }
     return v;
 }
@@ -6977,10 +7012,19 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #endif
 #define OBFH_GUI_ROTATE(index) (OBFH_GUI_DRAW(index, 0x47554934u) % (sizeof(ULONG_PTR) * 8 - 1) + 1)
 // Cold-path name words are decoded at each call site, with no shared name key.
+// Select inverse rotation directions once per build, without expanding both forms.
+#if (OBFH_SEED & 8u)
+#define OBFH_GUI_NAME_ROTATE(value, count) (((value) >> (count)) | ((value) << (32u - (count))))
+#define OBFH_GUI_NAME_UNROTATE "roll"
+#else
+#define OBFH_GUI_NAME_ROTATE(value, count) (((value) << (count)) | ((value) >> (32u - (count))))
+#define OBFH_GUI_NAME_UNROTATE "rorl"
+#endif
 #define OBFH_GUI_NAME_ASM(buffer, position, instructions) ({ \
-    __obfh_asm__(instructions "; movl %0, %1" \
+    __obfh_asm__(OBFH_GUI_NAME_UNROTATE " %4, %0; " instructions "; movl %0, %1" \
                  : "+&r"(__obfh_nc_value), "=m"(*(unsigned char(*)[4])((buffer) + (position))) \
-                 : "r"((unsigned int)__obfh_nc_key), "r"((unsigned int)__obfh_nc_bias), "i"(__obfh_nc_rotate) \
+                 : "r"((unsigned int)__obfh_nc_key), "r"((unsigned int)__obfh_nc_bias), \
+                   "i"(__obfh_nc_rotate) \
                  : "cc"); \
 })
 #define OBFH_GUI_NAME_WORD(buffer, position, api, word) ({ \
@@ -6997,11 +7041,11 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
                               __builtin_choose_expr(__obfh_nc_form == 1, ((unsigned int)__obfh_nc_input + __obfh_nc_bias) ^ __obfh_nc_key, \
                                                     __builtin_choose_expr(__obfh_nc_form == 2, ((unsigned int)__obfh_nc_input ^ __obfh_nc_key) - __obfh_nc_bias, \
                                                                           ((unsigned int)__obfh_nc_input - __obfh_nc_bias) ^ __obfh_nc_key))); \
-    __obfh_nc_value = (__obfh_nc_value << __obfh_nc_rotate) | (__obfh_nc_value >> (32u - __obfh_nc_rotate)); \
-    __builtin_choose_expr(__obfh_nc_form == 0, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; subl %3, %0; xorl %2, %0"), \
-                          __builtin_choose_expr(__obfh_nc_form == 1, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; xorl %2, %0; subl %3, %0"), \
-                                                __builtin_choose_expr(__obfh_nc_form == 2, OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; addl %3, %0; xorl %2, %0"), \
-                                                                      OBFH_GUI_NAME_ASM(buffer, position, "rorl %4, %0; xorl %2, %0; addl %3, %0")))); \
+    __obfh_nc_value = OBFH_GUI_NAME_ROTATE(__obfh_nc_value, __obfh_nc_rotate); \
+    __builtin_choose_expr(__obfh_nc_form == 0, OBFH_GUI_NAME_ASM(buffer, position, "subl %3, %0; xorl %2, %0"), \
+                          __builtin_choose_expr(__obfh_nc_form == 1, OBFH_GUI_NAME_ASM(buffer, position, "xorl %2, %0; subl %3, %0"), \
+                                                __builtin_choose_expr(__obfh_nc_form == 2, OBFH_GUI_NAME_ASM(buffer, position, "addl %3, %0; xorl %2, %0"), \
+                                                                      OBFH_GUI_NAME_ASM(buffer, position, "xorl %2, %0; addl %3, %0")))); \
 })
 
 // Internal fixed names use caller-owned storage and the same compile-time store selector.
@@ -7127,7 +7171,8 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
                __obfh_fast_before = (__obfh_fast_alt >> 17) & 1u, \
                __obfh_fast_wide = sizeof(void *) == 8, \
                __obfh_fast_modrm = 0x40u + 9u * ((__obfh_fast_alt >> 18) % 3u), \
-               __obfh_fast_delta = 1u + ((__obfh_fast_alt >> 1) % 127u), \
+               __obfh_fast_magnitude = 1u + ((__obfh_fast_alt >> 1) % 127u), \
+               __obfh_fast_delta = (__obfh_fast_word & 1u) ? __obfh_fast_magnitude : 256u - __obfh_fast_magnitude, \
                __obfh_fast_lea = (__obfh_fast_wide ? 0x8D48u : 0x8Du) | (__obfh_fast_modrm << (8u + 8u * __obfh_fast_wide)), \
                __obfh_fast_add = __obfh_fast_lea | (__obfh_fast_delta << (16u + 8u * __obfh_fast_wide)), \
                __obfh_fast_sub = __obfh_fast_lea | ((256u - __obfh_fast_delta) << (16u + 8u * __obfh_fast_wide)) }; \
@@ -7488,11 +7533,14 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
             __obfh_vsite = __COUNTER__, \
             __obfh_voperation = (operation), \
             __obfh_vkey = OBFH_MIX_A(OBFH_JUNK_WORD ^ __obfh_vsite ^ (unsigned int)OBFH_SEED), \
-            __obfh_vvariant = RND(0, 7), \
+            __obfh_vvariant = (__obfh_vkey >> 24) & 7u, \
             __obfh_va = __obfh_vkey & 3u, \
-            __obfh_vb = (__obfh_va + ((__obfh_vkey & 4u) ? 3u : 1u)) & 3u, \
-            __obfh_vc = (__obfh_va + 2u) & 3u, \
-            __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u \
+            __obfh_vb_offset = 1u + ((__obfh_vkey >> 3) % 3u), \
+            __obfh_vc_pick = 1u + ((__obfh_vkey >> 5) & 1u), \
+            __obfh_vc_offset = __obfh_vc_pick + (__obfh_vc_pick >= __obfh_vb_offset), \
+            __obfh_vb = (__obfh_va + __obfh_vb_offset) & 3u, \
+            __obfh_vc = (__obfh_va + __obfh_vc_offset) & 3u, \
+            __obfh_vd = (__obfh_va + 6u - __obfh_vb_offset - __obfh_vc_offset) & 3u \
         }; \
         const unsigned int *__obfh_vprogram = OBFH_V_PROGRAM; \
         enum { \
@@ -7914,12 +7962,22 @@ static int obfh_ad_pool_apis(OBFH_AD_SUBMIT *submit, OBFH_AD_MODULE_RELEASE *rel
         FARPROC drop = kernel ? GetProcAddress(kernel, HIDE_STRING("FreeLibraryWhenCallbackReturns")) : NULL;
         if (!send || !drop)
             return 0;
+#if (OBFH_SEED & 2u)
+        InterlockedCompareExchangePointer(&cached.submit, (PVOID)(((ULONG_PTR)send + __obfh_pool_bias) ^ key), NULL);
+        InterlockedCompareExchangePointer(&cached.release, (PVOID)(((ULONG_PTR)drop + __obfh_pool_bias) ^ key), NULL);
+#else
         InterlockedCompareExchangePointer(&cached.submit, (PVOID)(((ULONG_PTR)send ^ key) + __obfh_pool_bias), NULL);
         InterlockedCompareExchangePointer(&cached.release, (PVOID)(((ULONG_PTR)drop ^ key) + __obfh_pool_bias), NULL);
+#endif
         InterlockedExchange(&cached.ready, 1);
     }
+#if (OBFH_SEED & 2u)
+    *submit = (OBFH_AD_SUBMIT)(((ULONG_PTR)cached.submit ^ key) - __obfh_pool_bias);
+    *release = (OBFH_AD_MODULE_RELEASE)(((ULONG_PTR)cached.release ^ key) - __obfh_pool_bias);
+#else
     *submit = (OBFH_AD_SUBMIT)(((ULONG_PTR)cached.submit - __obfh_pool_bias) ^ key);
     *release = (OBFH_AD_MODULE_RELEASE)(((ULONG_PTR)cached.release - __obfh_pool_bias) ^ key);
+#endif
     return 1;
 }
 
@@ -7974,7 +8032,11 @@ static int obfh_ad_process_probe(void) {
     // Cache the encoded address, never the debugger status. Kernel32 remains
     // loaded for the process lifetime; every probe still invokes the real API.
     if (OBFH_LOADER_READ(cached.ready)) {
+#if (OBFH_SEED & 4u)
+        check = (ObfhDebuggerCheck)(((ULONG_PTR)cached.encoded ^ key) - (ULONG_PTR)__obfh_ad_bias);
+#else
         check = (ObfhDebuggerCheck)(((ULONG_PTR)cached.encoded - (ULONG_PTR)__obfh_ad_bias) ^ key);
+#endif
     } else {
         // Caller-owned names remain alive through the export lookup.
         char library[9], symbol[18];
@@ -7982,7 +8044,11 @@ static int obfh_ad_process_probe(void) {
         BREAK_STACK_CFLOW;
         check = kernel ? (ObfhDebuggerCheck)GetProcAddress(kernel, getDebuggerName_proxy(symbol)) : NULL;
         if (check) {
+#if (OBFH_SEED & 4u)
+            ULONG_PTR encoded = ((ULONG_PTR)check + (ULONG_PTR)__obfh_ad_bias) ^ key;
+#else
             ULONG_PTR encoded = ((ULONG_PTR)check ^ key) + (ULONG_PTR)__obfh_ad_bias;
+#endif
             InterlockedCompareExchangePointer(&cached.encoded, (PVOID)encoded, NULL);
             InterlockedExchange(&cached.ready, 1);
         }
@@ -11840,12 +11906,22 @@ static int obfh_abs_proxy(int value) {
 #endif
 // Mutate the typed value's address: arithmetic identities can change -0,
 // rounding, NaN payloads or wide integer exponents before the math call.
+#if (OBFH_SEED >> 12) % 3u == 0u
+#define OBFH_MATH_ADDRESS_ENCODE(address, key) ((address) ^ (key))
+#define OBFH_MATH_ADDRESS_DECODE(address, key) ((address) ^ (key))
+#elif (OBFH_SEED >> 12) % 3u == 1u
+#define OBFH_MATH_ADDRESS_ENCODE(address, key) ((address) + (key))
+#define OBFH_MATH_ADDRESS_DECODE(address, key) ((address) - (key))
+#else
+#define OBFH_MATH_ADDRESS_ENCODE(address, key) ((address) - (key))
+#define OBFH_MATH_ADDRESS_DECODE(address, key) ((address) + (key))
+#endif
 #define _MUTATE_MATH(value) ({ \
     BREAK_STACK_CFLOW; \
     __typeof__((value)) volatile __obfh_math_value = (value); \
     volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY; \
-    ULONG_PTR __obfh_math_address = obfh_uintptr_proxy((ULONG_PTR)&__obfh_math_value ^ __obfh_math_key); \
-    *(__typeof__(&__obfh_math_value))(__obfh_math_address ^ __obfh_math_key); \
+    ULONG_PTR __obfh_math_address = obfh_uintptr_proxy(OBFH_MATH_ADDRESS_ENCODE((ULONG_PTR)&__obfh_math_value, __obfh_math_key)); \
+    *(__typeof__(&__obfh_math_value))OBFH_MATH_ADDRESS_DECODE(__obfh_math_address, __obfh_math_key); \
 })
 
 // TCC math adapters without a guaranteed matching msvcrt export retain native calls.

@@ -138,8 +138,8 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
                 assert(pair.length === 2 * width, 'unbalanced LEA pair');
                 assert((width !== 4 || pair[0] === 0x48 && pair[width] === 0x48) && pair[op] === 0x8d && pair[width + op] === 0x8d, 'LEA width/opcode incorrect');
                 assert([0x40, 0x49, 0x52].includes(pair[op + 1]) && pair[op + 1] === pair[width + op + 1], 'LEA register not preserved');
-                assert(pair.readInt8(op + 2) > 0 && pair.readInt8(op + 2) === -pair.readInt8(width + op + 2), 'LEA displacements are not inverse');
-                fastForms.add(`${jump ? 'before' : 'after'}/${pair[op + 1]}`);
+                assert(pair.readInt8(op + 2) !== 0 && pair.readInt8(op + 2) === -pair.readInt8(width + op + 2), 'LEA displacements are not inverse');
+                fastForms.add(`${jump ? 'before' : 'after'}/${pair[op + 1]}/${pair.readInt8(op + 2) > 0 ? 'positive' : 'negative'}`);
             } else fastForms.add('jump-only');
             // Execute the extracted insertion in a native wrapper, retaining
             // full-width values in all three possible registers and EFLAGS.
@@ -173,7 +173,7 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
             Array.from({ length: 512 }, (_, i) => `__declspec(dllexport) void matrix_${i}(void) { OBFH_FLOW_FAST_TRANSFER; }`).join('\n') + '\nint main(void) { return 0; }\n');
         const matrixBytes = fs.readFileSync(await compile(compiler, directory, `${arch}-fast-site-matrix.exe`, matrix,
             ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_DISABLE_PDATA_DECOYS=1', 'OBFH_SEED=0u']));
-        const matrixVariants = new Set(), matrixRegisters = new Set();
+        const matrixVariants = new Set(), matrixRegisters = new Set(), matrixOrders = new Set();
         for (let i = 0; i < 512; ++i) {
             const b = exportedProbe(matrixBytes, `matrix_${i}`), width = arch === 'x64' ? 4 : 3;
             assert(b.length >= 10 && b.length <= 25, 'matrix insertion size exceeded');
@@ -186,15 +186,16 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
                 assert(pair.length === 2 * width && pair[op] === 0x8d && pair[width + op] === 0x8d &&
                     (width !== 4 || pair[0] === 0x48 && pair[width] === 0x48) &&
                     [0x40, 0x49, 0x52].includes(pair[op + 1]) && pair[op + 1] === pair[width + op + 1] &&
-                    pair.readInt8(op + 2) > 0 && pair.readInt8(op + 2) === -pair.readInt8(width + op + 2), 'matrix LEA identity invalid');
+                    pair.readInt8(op + 2) !== 0 && pair.readInt8(op + 2) === -pair.readInt8(width + op + 2), 'matrix LEA identity invalid');
                 matrixRegisters.add(pair[op + 1]);
+                matrixOrders.add(pair.readInt8(op + 2) > 0 ? 'positive' : 'negative');
             }
             const prefix = arch === 'x64' ? '4989c848b83f00000098badcfe48b9010000000000008048baf0ffffffffffffff39d09c4159'
                 : '53578b7c240cb83f000000b901000000baf0ffffff39d09c5b';
             const suffix = arch === 'x64' ? '9c415a49890049894808498950104d8948184d895020c3' : '8907894f04895708895f0c9c588947105f5bc3';
             blobs.push(Buffer.concat([Buffer.from(prefix, 'hex'), b, Buffer.from(suffix, 'hex')]));
         }
-        assert(matrixVariants.size === 512 && matrixRegisters.size === 3, 'matrix lacks site/register diversity');
+        assert(matrixVariants.size === 512 && matrixRegisters.size === 3 && matrixOrders.size === 2, 'matrix lacks site/register/LEA order diversity');
         const stateFixture = path.join(root, 'tests', 'fast_state.c');
         const stateData = `static const unsigned char blobs[][128] = {\n${blobs.map(b => '{' + [...b].join(',') + '}').join(',\n')}\n};\nstatic const unsigned lengths[] = {${blobs.map(b => b.length).join(',')}};`;
         const stateSource = fs.readFileSync(path.join(fixturesRoot, 'fast_state.c.in'), 'utf8');
