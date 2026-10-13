@@ -20,6 +20,8 @@
 
 **Four levels: Easy, Medium, Hardcore and Extreme. Unique crackmes, automatically generated and built every day.** Each challenge has its own generated verification logic, not just a different password. Sharpen your reverse-engineering skills or see how obfus.h works in real binaries — no compiler or test setup needed. **Download. Disassemble. Find the password.**
 
+New crackmes are published daily. The scheduler is set for **13:00 Moscow time (UTC+3)**, but the actual publication time depends on GitHub Actions' mood.
+
 ## 🎯 Intended use
 
 **obfus.h is a full-featured obfuscation tool, not a proof of concept.** It is a powerful tool when you understand where and how to apply it: use it to protect selected native components containing sensitive logic.
