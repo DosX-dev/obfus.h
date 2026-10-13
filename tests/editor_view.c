@@ -10,6 +10,14 @@
 #error Editor view leaked into a real compiler or was not selected for the editor
 #endif
 
+enum { random_before = __COUNTER__,
+       random_value = RND(7, 99),
+       random_after = __COUNTER__ };
+typedef char RandomIsolation[(EXPECT_EDITOR ? random_value == 7 && random_after == random_before + 1
+                                            : random_value >= 7 && random_value <= 99 && random_after == random_before + 2)
+                                 ? 1
+                                 : -1];
+
 static int value;
 static int next(void) { return ++value; }
 

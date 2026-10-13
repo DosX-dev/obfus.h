@@ -420,8 +420,14 @@ int main(int argc, char **argv) {
                 case 2:
                     word = (opcode ^ (key & 255u)) * multiplier;
                     break;
-                default:
+                case 3:
                     word = (opcode + (key & 255u)) * multiplier;
+                    break;
+                case 4:
+                    word = opcode * multiplier - (key & 255u);
+                    break;
+                default:
+                    word = (opcode - (key & 255u)) * multiplier;
                     break;
             }
             word &= 255u;
@@ -439,18 +445,27 @@ int main(int argc, char **argv) {
             word = word * 1664525u + 1013904223u;
             unsigned int rotated = (word >> rotate) | (word << (32u - rotate));
             unsigned int encoded;
-            switch (OBFH_V_WORD_MODE) {
+            unsigned int mask;
+            switch (OBFH_V_WORD_MODE % 3u) {
                 case 0:
-                    encoded = rotated ^ (__obfh_vkey + pc * 0x9e3779b9u);
+                    mask = __obfh_vkey + pc * 0x9e3779b9u;
                     break;
                 case 1:
-                    encoded = rotated + (__obfh_vkey ^ pc * 0x9e3779b9u);
-                    break;
-                case 2:
-                    encoded = rotated ^ (__obfh_vkey - pc * 0x9e3779b9u);
+                    mask = __obfh_vkey ^ (pc * 0x9e3779b9u);
                     break;
                 default:
-                    encoded = rotated - (__obfh_vkey + pc * 0x9e3779b9u);
+                    mask = __obfh_vkey - pc * 0x9e3779b9u;
+                    break;
+            }
+            switch (OBFH_V_WORD_MODE / 3u) {
+                case 0:
+                    encoded = rotated ^ mask;
+                    break;
+                case 1:
+                    encoded = rotated + mask;
+                    break;
+                default:
+                    encoded = rotated - mask;
                     break;
             }
             if (OBFH_V_ENCODE_RAW(word, pc) != encoded || obfh_v_decode(encoded, __obfh_vkey, pc, rotate) != word)

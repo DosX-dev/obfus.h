@@ -8,6 +8,21 @@ function fixture(header) {
     if (start < 0 || end < start) throw new Error('Short ASM forms missing');
     let code = '#include <stdio.h>\n' + header.slice(start, end) + '\n';
     const tests = [];
+    // A mask below 128 gives identical defined flags at byte and dword width.
+    // In particular neither result can set SF; the operand itself is unchanged.
+    const shortTests = [...new Set([...header.matchAll(/testb \$(\d+), %%(al|bl|cl|dl);/g)].map(match => match[1] + ':' + match[2]))];
+    if (!shortTests.length) throw new Error('short TEST sites missing');
+    for (const item of shortTests) {
+        const [mask, low] = item.split(':');
+        if (Number(mask) >= 128) throw new Error('short TEST changes the sign flag');
+        const reg = { al: 'eax', bl: 'ebx', cl: 'ecx', dl: 'edx' }[low];
+        const id = tests.length;
+        code += `static int probe_${id}(unsigned x){size_t a,b;unsigned y;\n`;
+        code += `__asm__ __volatile__("movl %[x],%%${reg};testl $${mask},%%${reg};pushf;pop %0":"=r"(a):[x]"m"(x):"${reg}","cc","memory");\n`;
+        code += `__asm__ __volatile__("movl %[x],%%${reg};testb $${mask},%%${low};pushf;pop %0;movl %%${reg},%1":"=&r"(b),"=m"(y):[x]"m"(x):"${reg}","cc","memory");\n`;
+        code += 'return y==x&&((a^b)&0x8c5u)==0;}\n';
+        tests.push(`probe_${id}(values[i])`);
+    }
     const registers = ['eax', 'ecx', 'edx'];
     for (let register = 0; register < 3; ++register) {
         for (let form = 0; form < 3; ++form) {

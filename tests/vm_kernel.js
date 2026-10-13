@@ -23,9 +23,10 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     const semanticsFile = semantics.writeFixture(path.join(root, 'semantics'), source, fixturesRoot);
 
     for (const mode of [0, 1]) {
-        // Preserve all opcode/word/context modes; high seed bits also cover
-        // both operand byte orders and all flag/register/address mask forms.
-        for (const seed of [0, 84 | 4096, 168 | 8192, 252 | 1024, 0xdeadbeef, 0xffffffff]) {
+        // Cover all six opcode and nine word forms in real VM execution,
+        // along with context layouts and byte/register/address transport.
+        const seeds = Array.from({ length: 9 }, (_, i) => ((i % 6) << 24) | (i << 6) | ((i % 4) << 4) | ((i % 3) << 12) | ((i & 1) << 10));
+        for (const seed of [...seeds, 0xdeadbeef, 0xffffffff]) {
             const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`];
             const stem = `${arch}-vm-kernel-${mode}-${seed}`;
             const label = `${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`;

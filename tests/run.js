@@ -537,7 +537,7 @@ async function checkFlowTransport(arch, compiler, directory, mode, part) {
             'discarded condition transport was not detected'
         );
     }
-    const proxyEmit = traced.match(/#define OBFH_SF_FLOW_EMIT\(guard,\s*layout\)[\s\S]*?(?=\r?\n#define)/)?.[0];
+    const proxyEmit = traced.match(/#define OBFH_SF_FLOW_EMIT\(guard,\s*layout,\s*\.\.\.\)[\s\S]*?(?=\r?\n#define)/)?.[0];
     assert(proxyEmit, 'linked proxy guard mutation target missing');
     const strippedProxy = proxyEmit.replace(/__obfh_asm__\([\s\S]*?: "edx", "ecx", "cc", "memory"\);/, '(void)0;');
     assert(strippedProxy !== proxyEmit, 'native guard removal target missing');
