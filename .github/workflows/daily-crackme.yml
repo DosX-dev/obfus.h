@@ -16,8 +16,9 @@ on:
                 required: false
                 default: ''
     schedule:
-        # 13:00-23:45 Moscow: retry every 15 minutes until today's round exists.
-        - cron: '0,15,30,45 10-20 * * *'
+        # Main run at 13:00 Moscow; off-hour retries until 23:52.
+        - cron: '0 10 * * *'
+        - cron: '7,22,37,52 10-20 * * *'
 permissions:
     contents: read
 concurrency:
