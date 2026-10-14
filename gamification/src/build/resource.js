@@ -1,7 +1,7 @@
-// One RCDATA PNG resource in a relocatable COFF object. No resource compiler needed.
-export function logoResource(png, arch) {
-    if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) throw new Error('Invalid PNG logo');
-    const raw = Buffer.alloc(88 + png.length);
+// One RCDATA JPEG resource in a relocatable COFF object. No resource compiler needed.
+export function logoResource(jpeg, arch) {
+    if (!jpeg.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex')) || !jpeg.subarray(-2).equals(Buffer.from('ffd9', 'hex'))) throw new Error('Invalid JPEG logo');
+    const raw = Buffer.alloc(88 + jpeg.length);
     for (const offset of [0, 24, 48]) raw.writeUInt16LE(1, offset + 14);
     raw.writeUInt32LE(10, 16);
     raw.writeUInt32LE(0x80000018, 20);
@@ -10,8 +10,8 @@ export function logoResource(png, arch) {
     raw.writeUInt32LE(0x409, 64);
     raw.writeUInt32LE(72, 68);
     raw.writeUInt32LE(88, 72);
-    raw.writeUInt32LE(png.length, 76);
-    png.copy(raw, 88);
+    raw.writeUInt32LE(jpeg.length, 76);
+    jpeg.copy(raw, 88);
     const head = Buffer.alloc(60);
     head.writeUInt16LE(arch === 'x64' ? 0x8664 : 0x14c);
     head.writeUInt16LE(1, 2);

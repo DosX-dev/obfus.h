@@ -34,10 +34,10 @@ export async function auditPlayer(challenge, exe) {
         }
     }
     const resourceRva = binary.readUInt32LE(opt + (magic === 0x20b ? 112 : 96) + 16);
-    assert(resourceRva !== 0, 'Embedded PNG resource required');
+    assert(resourceRva !== 0, 'Embedded JPEG resource required');
     assert(
-        binary.includes(await fs.readFile(path.join(REPOSITORY_ROOT, 'pics/obfus.h.png'))),
-        'Repository PNG must be embedded intact'
+        binary.includes(await fs.readFile(path.join(REPOSITORY_ROOT, 'gamification/assets/logo.jpg'))),
+        'Repository JPEG must be embedded intact'
     );
     return { sha256: hash(binary), size: binary.length };
 }

@@ -117,3 +117,5 @@ Storage versions and generator versions serve different purposes. Change durable
 `generation/extreme.js` constructs `braid` stages. Their `sources` and `targets` are disjoint. Circuit nodes use the expression language plus backward-only `ref` edges; targets reuse captured nodes. The model evaluates controls on the unchanged source bank, while the C emitter captures each node once before writing the destination bank. Reverse execution first undoes `order`, recomputes the same control graph and inverts the target updates. This contract prohibits references to targets and forward/cyclic node references.
 
 The current schema uses `hardcore` throughout generator inputs, IR, manifests, filenames and tests. Publication requires four public player ZIPs and two private state files with explicit storage roles. Only the current generator schema is accepted; migration adapters are not retained.
+
+The GUI embeds `assets/logo.jpg`: a 500×500 JPEG (quality 90, 4:4:4) derived from `pics/obfus.h.png` and composited onto the form background `#0C0F14`. It is drawn at 320×320; regenerate this asset if the form background changes.

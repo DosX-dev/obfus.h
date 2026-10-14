@@ -24,7 +24,7 @@ export async function buildChallenge(challenge, directory, toolchain, arch, { pl
     const args = ['-w', '-I', include, source];
     if (player) {
         const resource = path.join(directory, 'logo.o');
-        await fs.writeFile(resource, logoResource(await fs.readFile(path.join(REPOSITORY_ROOT, 'pics/obfus.h.png')), arch));
+        await fs.writeFile(resource, logoResource(await fs.readFile(path.join(REPOSITORY_ROOT, 'gamification/assets/logo.jpg')), arch));
         args.push(resource, '-luser32', '-lgdi32', '-lole32', '-lshell32', '-Wl,-subsystem=gui');
     } else args.push('-DSELFTEST');
     args.push('-o', exe);
