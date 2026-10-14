@@ -27,6 +27,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         const mathEnd = normalized.indexOf('#define _MUTATE_MATH(', mathBegin);
         assert(maskBegin >= 0 && transportBegin >= 0 && mathBegin >= 0, 'VM transport variants missing');
         let c = '#include <stdio.h>\n#include <string.h>\n#include <stddef.h>\n#include <stdint.h>\ntypedef int LONG;typedef uintptr_t ULONG_PTR;typedef void *PVOID;\n';
+        for (const name of ['OBFH_MIX_A', 'OBFH_MIX_B', 'OBFH_MIX_FIELDS']) c += definition(name) + '\n';
         function structBlock(name) {
             const end = normalized.indexOf('} ' + name + ';') + name.length + 3;
             const begin = normalized.lastIndexOf('typedef struct {', end);
@@ -87,19 +88,23 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             c += 'roles[(__obfh_va<<6)|(__obfh_vb<<4)|(__obfh_vc<<2)|__obfh_vd]=1;programs[__obfh_vvariant]=1;return 0;}\n#undef OBFH_SEED\n';
         }
         // Full byte domain and mask domain, plus uint32/pointer wrap boundaries.
+        const crtBegin = normalized.indexOf('#if (OBFH_SEED % 3u) == 0u');
+        const crtEnd = normalized.indexOf('static FARPROC obfh_crt_site(', crtBegin);
+        assert(crtBegin >= 0 && crtEnd > crtBegin, 'CRT byte encodings missing');
         const transportSeeds = [0, 256, 512, 1024, 1280, 1536, 4096, 8192];
         for (const seed of transportSeeds) {
             c += `#define OBFH_SEED ${seed}u\n`;
-            c += normalized.slice(maskBegin, maskEnd) + normalized.slice(transportBegin, transportEnd) + normalized.slice(mathBegin, mathEnd);
+            c += normalized.slice(maskBegin, maskEnd) + normalized.slice(transportBegin, transportEnd) + normalized.slice(mathBegin, mathEnd) + normalized.slice(crtBegin, crtEnd);
             c += `static int transport_${seed}(void){\n`;
             c += 'for(unsigned int value=0;value<256;++value)for(unsigned int mask=0;mask<256;++mask){\n';
+            c += `unsigned char crt=(unsigned char)(value${['^', '+', '-'][seed % 3]}mask);if(OBFH_CRT_BYTE_ENCODE(value,mask)!=crt||OBFH_CRT_BYTE_DECODE(crt,mask)!=value)return 5;\n`;
             c += 'unsigned char encoded=OBFH_V_VALUE_ENCODE(value,mask);if((unsigned char)OBFH_V_VALUE_DECODE(encoded,mask)!=value)return 1;\n';
             c += 'unsigned char wire=OBFH_VM_BYTE_ENCODE(value,mask,(mask*37u)&255u);if((unsigned char)OBFH_VM_BYTE_DECODE(wire,mask,(mask*37u)&255u)!=value)return 2;}\n';
             c += 'unsigned int values[5]={0,1,0x7fffffffu,0x80000000u,0xffffffffu};\n';
             c += 'for(unsigned int i=0;i<5;++i)for(unsigned int j=0;j<5;++j){unsigned int wire=OBFH_V_VALUE_ENCODE(values[i],values[j]);if(OBFH_V_VALUE_DECODE(wire,values[j])!=values[i])return 3;}\n';
             c += 'size_t pointers[5]={0,1,(size_t)-1,(size_t)-2,((size_t)-1)>>1};\n';
             c += 'for(unsigned int i=0;i<5;++i)for(unsigned int j=0;j<5;++j){size_t wire=OBFH_MATH_ADDRESS_ENCODE(pointers[i],pointers[j]);if(OBFH_MATH_ADDRESS_DECODE(wire,pointers[j])!=pointers[i])return 4;}return 0;}\n';
-            c += ['OBFH_SEED', 'OBFH_V_VALUE_ENCODE', 'OBFH_V_VALUE_DECODE', 'OBFH_VM_BYTE_ENCODE', 'OBFH_VM_BYTE_DECODE', 'OBFH_MATH_ADDRESS_ENCODE', 'OBFH_MATH_ADDRESS_DECODE'].map((name) => '#undef ' + name).join('\n') + '\n';
+            c += ['OBFH_CRT_BYTE_ENCODE', 'OBFH_CRT_BYTE_DECODE', 'OBFH_SEED', 'OBFH_V_VALUE_ENCODE', 'OBFH_V_VALUE_DECODE', 'OBFH_VM_BYTE_ENCODE', 'OBFH_VM_BYTE_DECODE', 'OBFH_MATH_ADDRESS_ENCODE', 'OBFH_MATH_ADDRESS_DECODE'].map((name) => '#undef ' + name).join('\n') + '\n';
         }
         const vectorBegin = normalized.indexOf('// All forms copy the same 128 bits');
         const vectorEnd = normalized.indexOf('#define memmove', vectorBegin);
@@ -121,7 +126,36 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         c += 'for(unsigned i=0;i<128;++i)before[i]=(unsigned char)(i*19+7);\n';
         c += 'for(unsigned f=0;f<24;++f)for(unsigned n=16;n<=256;n+=16)for(unsigned offset=1;offset<32;++offset){\n';
         c += 'for(unsigned i=0;i<400;++i)data[i]=expected[i]=(unsigned char)i;memmove(expected+offset,expected,n);load_xmm(before);copies[f](data+offset,data,n);store_xmm(after);if(memcmp(data,expected,400)||memcmp(before,after,128))return 1;}return 0;}\n';
+        // Exercise the real helper bodies against an independent uint32 oracle.
+        const helperBegin = normalized.indexOf('enum { OBFH_MIX_FIELDS(obfh_v_helper_draw');
+        const helperEnd = normalized.indexOf('// Reverse traversal', helperBegin);
+        assert(helperBegin >= 0 && helperEnd > helperBegin, 'VM helper bodies missing');
+        const helperBlock = normalized.slice(helperBegin, helperEnd);
+        const helperNames = ['OBFH_V_CONTEXT', 'obfh_v_helper_draw', 'obfh_v_helper_draw_mix',
+            'obfh_v_mix', 'obfh_v_control_read', 'obfh_v_control_write', 'obfh_v_flags', 'obfh_v_set_flags'];
+        const helperMacros = [...new Set([...helperBlock.matchAll(/^#define (\w+)/gm)].map(match => match[1]))];
+        c += '#define PHANTOM_NOP ((void)0)\n';
+        for (let seed = 0; seed < 32; ++seed) {
+            let draw = (seed ^ 0x6d2b79f5) >>> 0;
+            draw = Math.imul(draw ^ (draw >>> 16), 2246822507) >>> 0;
+            draw = Math.imul(draw ^ (draw >>> 13), 3266489909) >>> 0;
+            c += `#define OBFH_SEED ${seed}u\n`;
+            for (const name of helperNames) c += `#define ${name} ${name}_${seed}\n`;
+            c += 'typedef struct {unsigned controls[4],key,flags,flag_key;} OBFH_V_CONTEXT;\n' + helperBlock;
+            c += `static int helpers_${seed}(void){OBFH_V_CONTEXT c={0};unsigned x=0;\n`;
+            c += `if(obfh_v_helper_draw!=${draw}u)return 1;\n`;
+            c += 'for(unsigned i=0;i<4096;++i){unsigned y;x=x*1664525u+1013904223u;y=x;\n';
+            c += `y^=y${draw & 64 ? '<<' : '>>'}${11 + (draw & 7)};y*=${[2246822507, 3266489909, 2221713035][draw % 3]}u;y^=y${(draw & 192) === 128 ? '<<' : '>>'}${12 + ((draw >>> 3) & 7)};if(obfh_v_mix(x)!=y)return 2;\n`;
+            c += `c.key=x;c.flag_key=~x;obfh_v_set_flags(&c,i);if(c.flags!=(i${['^', '+', '-'][draw % 3]}c.flag_key)||obfh_v_flags(&c)!=i)return 3;\n`;
+            c += `unsigned r=i%4,mask=c.key${draw & 512 ? '^' : '+'}(r*3266489917u);\n`;
+            c += `mask^=mask${draw & 64 ? '<<' : '>>'}${11 + (draw & 7)};mask*=${[2246822507, 3266489909, 2221713035][draw % 3]}u;mask^=mask${(draw & 192) === 128 ? '<<' : '>>'}${12 + ((draw >>> 3) & 7)};\n`;
+            c += 'obfh_v_control_write(&c,r,x);if(c.controls[r]!=(x^mask)||obfh_v_control_read(&c,r)!=x)return 4;c.controls[r]^=0x87654321u;if(obfh_v_control_read(&c,r)!=(x^0x87654321u))return 5;}return 0;}\n';
+            for (const name of ['OBFH_SEED', ...helperNames, ...helperMacros]) c += '#undef ' + name + '\n';
+        }
+        c += '#undef PHANTOM_NOP\n';
         c += 'int main(void){\n';
+        for (let seed = 0; seed < 32; ++seed) c += `if(helpers_${seed}())return 106;\n`;
+
         c += 'if(vectors())return 105;\n';
         for (let i = 0; i < 6; ++i) c += `if(cache_guard_${i}())return 104;\n`;
         for (let selection = 0; selection < 216; ++selection) c += `if(probe_${selection}())return ${selection + 1};\n`;

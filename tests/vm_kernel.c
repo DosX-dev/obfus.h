@@ -482,23 +482,27 @@ int main(int argc, char **argv) {
         }
     }
     /* Independent formula and inverse check: no uint32 information may be lost. */
-    const unsigned int mix_multipliers[4] = {2246822507u, 3266489909u, 2221713035u, 3266489909u};
-    unsigned int mix_form = ((unsigned int)OBFH_SEED >> 24) & 3u;
-    unsigned int mix_a = mix_form == 3 ? 15u : 16u, mix_b = mix_form == 3 ? 16u : 13u;
+    const unsigned int mix_multipliers[3] = {2246822507u, 3266489909u, 2221713035u};
+    unsigned int mix_draw = (unsigned int)OBFH_SEED ^ 0x6d2b79f5u;
+    mix_draw = (mix_draw ^ (mix_draw >> 16)) * 2246822507u;
+    mix_draw = (mix_draw ^ (mix_draw >> 13)) * 3266489909u;
+    unsigned int mix_form = mix_draw % 3u;
+    unsigned int mix_a = 11u + (mix_draw & 7u), mix_b = 12u + ((mix_draw >> 3) & 7u);
+    unsigned int left_a = mix_draw & 64u, left_b = (mix_draw & 192u) == 128u;
     unsigned int mix_inverse = 1u, mix_sample = 0x12345678u;
     for (unsigned int i = 0; i < 5; ++i)
         mix_inverse *= 2u - mix_multipliers[mix_form] * mix_inverse;
     for (unsigned int i = 0; i < 4096; ++i) {
         mix_sample = mix_sample * 1664525u + 1013904223u;
-        unsigned int expected = (mix_sample ^ (mix_sample >> mix_a)) * mix_multipliers[mix_form];
-        expected ^= expected >> mix_b;
+        unsigned int expected = (mix_sample ^ (left_a ? mix_sample << mix_a : mix_sample >> mix_a)) * mix_multipliers[mix_form];
+        expected ^= left_b ? expected << mix_b : expected >> mix_b;
         unsigned int actual = obfh_v_mix(mix_sample), restored = actual;
         if (actual != expected) return 11;
         for (unsigned int shift = mix_b; shift < 32; shift *= 2)
-            restored ^= restored >> shift;
+            restored ^= left_b ? restored << shift : restored >> shift;
         restored *= mix_inverse;
         for (unsigned int shift = mix_a; shift < 32; shift *= 2)
-            restored ^= restored >> shift;
+            restored ^= left_a ? restored << shift : restored >> shift;
         if (restored != mix_sample) return 12;
     }
     OBFH_V_CONTEXT context;

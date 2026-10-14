@@ -2118,19 +2118,6 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_BYTES("10", "1", "1", "0xb9") \
     OBFH_SF_WORD("10", "1", "%c[arg_a]")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
-#define OBFH_SF_LOCAL \
-    OBFH_SF_BYTES("8", "0", "2", "0x4589") \
-    OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[local_a]") \
-    OBFH_SF_BYTES("8", "0", "2", "0x5589") \
-    OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x5589") \
-    OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x4589") \
-    OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[local_a]")
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
 #define OBFH_SF_FRAME_HEAD(size) \
@@ -2162,6 +2149,8 @@ OBFH_PD_DEFINE(127);
                                                                           "; .byte 0x68; .long " \
                                                                           "%c[arg_a]" \
                                                                           "; call " target "; addl $8, %%esp;"
+#endif
+// The same 32-bit local stores are used in x86 and x64 frames.
 #define OBFH_SF_LOCAL \
     OBFH_SF_BYTES("8", "0", "2", "0x4589") \
     OBFH_SF_BYTES("8", "0", "1", "-" \
@@ -2175,7 +2164,6 @@ OBFH_PD_DEFINE(127);
     OBFH_SF_BYTES("8", "1", "2", "0x4589") \
     OBFH_SF_BYTES("8", "1", "1", "-" \
                                  "%c[local_a]")
-#endif
 #define OBFH_SF_CALL(target) OBFH_SF_CALL_AT(target, "0")
 #define OBFH_SF_PADDING ".fill " \
                         "%c[pad]" \
@@ -5155,6 +5143,17 @@ static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
 #define OBFH_CRT_BIAS +
 #define OBFH_CRT_UNBIAS -
 #endif
+// Byte truncation is part of the inverse for modular add/subtract forms.
+#if (OBFH_SEED % 3u) == 0u
+#define OBFH_CRT_BYTE_ENCODE(value, mask) ((unsigned char)((value) ^ (mask)))
+#define OBFH_CRT_BYTE_DECODE(value, mask) ((unsigned char)((value) ^ (mask)))
+#elif (OBFH_SEED % 3u) == 1u
+#define OBFH_CRT_BYTE_ENCODE(value, mask) ((unsigned char)((value) + (mask)))
+#define OBFH_CRT_BYTE_DECODE(value, mask) ((unsigned char)((value) - (mask)))
+#else
+#define OBFH_CRT_BYTE_ENCODE(value, mask) ((unsigned char)((value) - (mask)))
+#define OBFH_CRT_BYTE_DECODE(value, mask) ((unsigned char)((value) + (mask)))
+#endif
 static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     OBFH_CRT_ENTRY *entry = (OBFH_CRT_ENTRY *)storage;
     unsigned int length = 0;
@@ -5164,7 +5163,7 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
         unsigned int i = 0;
         for (; i <= length; ++i) {
             unsigned char mask = (unsigned char)(key >> ((i % sizeof(key)) * 8u)) + (unsigned char)(i * 13u);
-            if ((entry->name[i] ^ mask) != (unsigned char)name[i]) break;
+            if (OBFH_CRT_BYTE_DECODE(entry->name[i], mask) != (unsigned char)name[i]) break;
         }
         if (i > length) {
 #if (OBFH_SEED & 1u)
@@ -5180,7 +5179,7 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     if (function && length < 32 && InterlockedCompareExchange(&entry->state, 1, 0) == 0) {
         for (unsigned int i = 0; i <= length; ++i) {
             unsigned char mask = (unsigned char)(key >> ((i % sizeof(key)) * 8u)) + (unsigned char)(i * 13u);
-            entry->name[i] = (unsigned char)name[i] ^ mask;
+            entry->name[i] = OBFH_CRT_BYTE_ENCODE((unsigned char)name[i], mask);
         }
 #if (OBFH_SEED & 1u)
         entry->address = ((ULONG_PTR)function OBFH_CRT_BIAS key) ^ ~key;
@@ -6317,27 +6316,29 @@ typedef struct
 #define OBFH_V_WORD_DECODE(word, key, pc) ((word) + OBFH_V_WORD_MASK(key, pc))
 #endif
 
-// Each form is a uint32 permutation: invertible XOR shifts and an odd multiplier.
-// Keep the same operation count; both register transports share the selected form.
-#define OBFH_V_MIX_FORM ((OBFH_SEED >> 24) & 3u)
-#define OBFH_V_MIX_SHIFT_A (OBFH_V_MIX_FORM == 3u ? 15u : 16u)
-#define OBFH_V_MIX_SHIFT_B (OBFH_V_MIX_FORM == 3u ? 16u : 13u)
-#define OBFH_V_MIX_MULTIPLIER (OBFH_V_MIX_FORM == 0u ? 2246822507u : OBFH_V_MIX_FORM == 2u ? 2221713035u \
-                                                                                           : 3266489909u)
+// Capture seed mixing once. Xorshifts and odd multiplication stay bijective.
+// Direction and distance change without adding runtime operations.
+enum { OBFH_MIX_FIELDS(obfh_v_helper_draw, OBFH_SEED ^ 0x6d2b79f5u) };
+#define OBFH_V_MIX_SHIFT_A (11u + (obfh_v_helper_draw & 7u))
+#define OBFH_V_MIX_SHIFT_B (12u + ((obfh_v_helper_draw >> 3) & 7u))
+#define OBFH_V_MIX_MULTIPLIER (obfh_v_helper_draw % 3u == 0u ? 2246822507u : obfh_v_helper_draw % 3u == 1u ? 3266489909u \
+                                                                                                           : 2221713035u)
 static inline unsigned int obfh_v_mix(unsigned int x) {
-    x ^= x >> OBFH_V_MIX_SHIFT_A;
+    x ^= __builtin_choose_expr(obfh_v_helper_draw & 0x40u, x << OBFH_V_MIX_SHIFT_A, x >> OBFH_V_MIX_SHIFT_A);
     x *= OBFH_V_MIX_MULTIPLIER;
     PHANTOM_NOP;
-    x ^= x >> OBFH_V_MIX_SHIFT_B;
+    x ^= __builtin_choose_expr((obfh_v_helper_draw & 0xc0u) == 0x80u, x << OBFH_V_MIX_SHIFT_B, x >> OBFH_V_MIX_SHIFT_B);
     return x;
 }
 /* Encodings are local to an execution; only decoded uint32 values enter ALU operations. */
+#define OBFH_V_CONTROL_MASK(context, reg) \
+    obfh_v_mix(__builtin_choose_expr(obfh_v_helper_draw & 0x200u, (context)->key ^ ((reg)*3266489917u), (context)->key + ((reg)*3266489917u)))
 static inline unsigned int obfh_v_control_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     PHANTOM_NOP;
-    return c->controls[r] ^ obfh_v_mix(c->key ^ (r * 3266489917u));
+    return c->controls[r] ^ OBFH_V_CONTROL_MASK(c, r);
 }
 static inline void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int value) {
-    c->controls[r] = value ^ obfh_v_mix(c->key ^ (r * 3266489917u));
+    c->controls[r] = value ^ OBFH_V_CONTROL_MASK(c, r);
     PHANTOM_NOP;
 }
 // Controls retain XOR: CXOR updates their encoded bytes directly.
@@ -6356,10 +6357,12 @@ static inline void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsig
 #endif
 static inline unsigned int obfh_v_flags(const OBFH_V_CONTEXT *c) {
     PHANTOM_NOP;
-    return OBFH_V_VALUE_DECODE(c->flags, c->flag_key);
+    return __builtin_choose_expr(obfh_v_helper_draw % 3u == 0u, c->flags ^ c->flag_key,
+                                 __builtin_choose_expr(obfh_v_helper_draw % 3u == 1u, c->flags - c->flag_key, c->flags + c->flag_key));
 }
 static inline void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
-    c->flags = OBFH_V_VALUE_ENCODE(flags, c->flag_key);
+    c->flags = __builtin_choose_expr(obfh_v_helper_draw % 3u == 0u, flags ^ c->flag_key,
+                                     __builtin_choose_expr(obfh_v_helper_draw % 3u == 1u, flags + c->flag_key, flags - c->flag_key));
     PHANTOM_NOP;
 }
 // Reverse traversal changes the mask chain without extra per-byte indexing.
@@ -9613,22 +9616,27 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
 #if OBFH_DISABLE_ANTIDEBUG != 1
 
 #if OBFH_BETTER_ANTIDEBUG == 1
+// Both worker paths inspect the same registers and always resume after suspension.
+// Arguments are stable local expressions; ownership stays with each caller.
+#define OBFH_AD_READ_REGISTERS(thread, detected) \
+    { \
+        if (SuspendThread(thread) != (DWORD)-1) { \
+            CONTEXT context = {0}; \
+            context.ContextFlags = CONTEXT_DEBUG_REGISTERS; \
+            if (GetThreadContext(thread, &context)) { \
+                /* Only enabled local/global breakpoints count; DR6 is not evidence. */ \
+                (detected) = (context.Dr7 & 0xffu) != 0; \
+            } \
+            ResumeThread(thread); \
+        } \
+    }
 // The worker owns the duplicated handle, including after a failed/timed-out wait.
 static DWORD WINAPI obfh_ad_register_worker(void *argument) {
     HANDLE thread = (HANDLE)argument;
     DWORD detected = 0;
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
-    if (SuspendThread(thread) != (DWORD)-1) {
-        CONTEXT context = {0};
-        context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-        if (GetThreadContext(thread, &context)) {
-            // Only enabled local/global breakpoints count. DR6 and reserved DR7
-            // bits are not evidence; reading context does not erase breakpoints.
-            detected = (context.Dr7 & 0xffu) != 0;
-        }
-        ResumeThread(thread);
-    }
+    OBFH_AD_READ_REGISTERS(thread, detected);
     CloseHandle(thread);
     return detected;
 }
@@ -9679,13 +9687,7 @@ static void WINAPI obfh_ad_register_callback(void *instance, void *argument) {
     request->release_module(instance, request->module);
     DWORD detected = 0;
     BREAK_STACK_CFLOW;
-    if (SuspendThread(request->target) != (DWORD)-1) {
-        CONTEXT context = {0};
-        context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-        if (GetThreadContext(request->target, &context))
-            detected = (context.Dr7 & 0xffu) != 0;
-        ResumeThread(request->target);
-    }
+    OBFH_AD_READ_REGISTERS(request->target, detected);
     request->detected = detected;
     InterlockedExchange(&request->ready, 1);
     SetEvent(request->completed);
@@ -9879,9 +9881,18 @@ static inline char *getStdLibName_proxy(char *name, size_t capacity) {
     if (!name || capacity < sizeof("msvcrt"))
         return NULL;
     OBFH_HIDE_JUNK;
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _m, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _v, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _v, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _m));
+    OBFH_LOADER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH);
+    // Three independently ordered pairs and group reversal: 16 store orders.
+    enum { OBFH_MIX_FIELDS(name_order, OBFH_SEED ^ 0x91e10da5u) };
+#define OBFH_CRT_NAME_PAIR(bit, a, x, b, y) \
+    __builtin_choose_expr(name_order & (bit), \
+                          (name[OBFH_NAME_INDEX(a)] = (x), name[OBFH_NAME_INDEX(b)] = (y)), \
+                          (name[OBFH_NAME_INDEX(b)] = (y), name[OBFH_NAME_INDEX(a)] = (x)))
+    __builtin_choose_expr(name_order & 8u,
+                          (OBFH_CRT_NAME_PAIR(1u, 0, _m, 5, _t), OBFH_CRT_NAME_PAIR(2u, 1, _s, 4, _r), OBFH_CRT_NAME_PAIR(4u, 2, _v, 3, _c)),
+                          (OBFH_CRT_NAME_PAIR(4u, 2, _v, 3, _c), OBFH_CRT_NAME_PAIR(2u, 1, _s, 4, _r), OBFH_CRT_NAME_PAIR(1u, 0, _m, 5, _t)));
+#undef OBFH_CRT_NAME_PAIR
+    name[OBFH_NAME_INDEX(6)] = _0;
     PHANTOM_NOP;
     return name;
 }
@@ -10369,7 +10380,6 @@ static inline char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE
 #endif
     return name;
 }
-#define realloc(...) OBFH_CRT_CALL(getReallocName_proxy, void *(*)(void *, size_t), __VA_ARGS__)
 
 // #endregion
 

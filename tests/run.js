@@ -782,12 +782,14 @@ async function main() {
             } catch { }
             assert(!alive, 'timeout left a child process alive');
         });
-        const setup = source.slice(
+        const registerProbe = source.slice(source.indexOf('#define OBFH_AD_READ_REGISTERS('), source.indexOf('// The worker owns the duplicated handle'));
+        assert(registerProbe.includes('ResumeThread(thread)'), 'shared register probe missing');
+        const setup = registerProbe + source.slice(
             source.indexOf('static DWORD WINAPI obfh_ad_register_worker'),
             source.indexOf('// Managed callbacks reuse Windows workers;')
         ) + '\n#endif\n';
         assert(setup.includes('DuplicateHandle') && /#endif\s*$/.test(setup), 'failure-test extraction missing');
-        const poolSetup = source.slice(source.indexOf('// Managed callbacks reuse Windows workers;'), source.indexOf('static int obfh_ad_process_probe'));
+        const poolSetup = registerProbe + source.slice(source.indexOf('// Managed callbacks reuse Windows workers;'), source.indexOf('static int obfh_ad_process_probe'));
         assert(poolSetup.includes('TrySubmitThreadpoolCallback') && /#endif\s*$/.test(poolSetup), 'pool-test extraction missing');
         const poolFailureFile = path.join(directory, 'antidebug-pool.c');
         fs.writeFileSync(poolFailureFile, fs.readFileSync(path.join(__dirname, 'antidebug_pool.c.in'), 'utf8')
