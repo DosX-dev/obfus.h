@@ -11,10 +11,10 @@ import { profile, compactProfile } from '../src/generation/diversity.js';
 
 test('generation updates do not change the published round schema or answer storage', () => {
     assert.equal(VERSION, 6);
-    assert.equal(GENERATOR_VERSION, 7);
+    assert.equal(GENERATOR_VERSION, 8);
     const key = Buffer.alloc(32, 17), context = { round: 2 };
     assert.deepEqual(derive(key, 'structure', context), createHmac('sha256', key)
-        .update(JSON.stringify([7, 'structure', context])).digest());
+        .update(JSON.stringify([8, 'structure', context])).digest());
 });
 
 test('stored v1 answers survive a different generator implementation', () => {
