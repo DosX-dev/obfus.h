@@ -5512,10 +5512,10 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_ADDRESS_NOT_D 0xd2f748
 #define OBFH_P_ADDRESS_PREFIX ".byte 0x48;"
 #define OBFH_P_MASK_CAPTURE_0 \
-    "movq %[cookie], %%rcx; .fill (%c[carry]^1),3,(((0xc8c148+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    "movq %[cookie], %%rcx; .fill (%c[carry]^1),3,(((0xc8c148+65536*%c[maskreg]+4096*((%c[rotate]==1)&1))&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1)*((%c[rotate]!=1)&1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
     ".fill %c[carry],4,(((0xe0ba0f48+16777216*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbq %%rcx, %%rcx;"
 #define OBFH_P_MASK_CAPTURE_1 \
-    "movq %[cookie], %%rdx; .fill (%c[carry]^1),3,(((0xc8c148+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    "movq %[cookie], %%rdx; .fill (%c[carry]^1),3,(((0xc8c148+65536*%c[maskreg]+4096*((%c[rotate]==1)&1))&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1)*((%c[rotate]!=1)&1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
     ".fill %c[carry],4,(((0xe0ba0f48+16777216*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbq %%rdx, %%rdx;"
 #define OBFH_P_WORD "q"
 #define OBFH_P_CX "%%rcx"
@@ -5537,10 +5537,10 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_ADDRESS_NOT_D 0xd2f7
 #define OBFH_P_ADDRESS_PREFIX ""
 #define OBFH_P_MASK_CAPTURE_0 \
-    "movl %[cookie], %%ecx; .fill (%c[carry]^1),2,(((0xc8c1+256*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    "movl %[cookie], %%ecx; .fill (%c[carry]^1),2,(((0xc8c1+256*%c[maskreg]+16*((%c[rotate]==1)&1))&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1)*((%c[rotate]!=1)&1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
     ".fill %c[carry],3,(((0xe0ba0f+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbl %%ecx, %%ecx;"
 #define OBFH_P_MASK_CAPTURE_1 \
-    "movl %[cookie], %%edx; .fill (%c[carry]^1),2,(((0xc8c1+256*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
+    "movl %[cookie], %%edx; .fill (%c[carry]^1),2,(((0xc8c1+256*%c[maskreg]+16*((%c[rotate]==1)&1))&0xffffffff)^0x80000000)-0x80000000; .fill (%c[carry]^1)*((%c[rotate]!=1)&1),1,(((%c[rotate])&0xffffffff)^0x80000000)-0x80000000; " \
     ".fill %c[carry],3,(((0xe0ba0f+65536*%c[maskreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[carry],1,(((%c[bit])&0xffffffff)^0x80000000)-0x80000000; sbbl %%edx, %%edx;"
 #define OBFH_P_WORD "l"
 #define OBFH_P_CX "%%ecx"
@@ -5863,7 +5863,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     OBFH_P_FINISH_ASM( \
         "xorl %[tag], %%eax; movl %%eax, %%ecx; negl %%ecx; orl %%ecx, %%eax; shrl $31, %%eax; xorl $1, %%eax;")
 #define OBFH_P_EXIT_7 \
-    OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jnz 9f; movl $0, %%eax; 9:")
+    OBFH_P_FINISH_ASM("xorl %[tag], %%eax; movl $1, %%eax; jnz 9f; movl $0, %%eax; 9:")
 #define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6, OBFH_P_EXIT_7)
 #define OBFH_P_EXIT_SELECT_5(style) \
     __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5, OBFH_P_EXIT_SELECT_6(style))
@@ -5882,7 +5882,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // Each row is an existing exit family, emitted once with assembler-time selection.
 #define OBFH_P_TERMINAL_TEXT \
     ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;" \
-    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; test; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),4,(((0xc085d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
+    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* XOR already supplies ZF; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),2,(((0xd031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
 
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_TERMINAL_SAVE "movl %%eax, %[saved_a]; movl %%edx, %[saved_b];"
@@ -9896,7 +9896,7 @@ static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECT
 // ============================================================================
 
 // Bounded CRT module name in caller-owned storage.
-static char *getStdLibName_proxy(char *name, size_t capacity) {
+static inline char *getStdLibName_proxy(char *name, size_t capacity) {
     BREAK_STACK_CFLOW;
     if (!name || capacity < sizeof("msvcrt"))
         return NULL;
@@ -9909,7 +9909,7 @@ static char *getStdLibName_proxy(char *name, size_t capacity) {
 }
 
 // Resolve through the custom loader/export chain once, then keep its DLL alive.
-static FARPROC obfh_crt_lookup(const char *name) {
+static inline FARPROC obfh_crt_lookup(const char *name) {
     BREAK_STACK_CFLOW;
     static PVOID volatile cachedModule;
     HMODULE module = (HMODULE)InterlockedCompareExchangePointer(&cachedModule, NULL, NULL);
@@ -9931,7 +9931,7 @@ static FARPROC obfh_crt_lookup(const char *name) {
 }
 
 // A count conversion writes to user memory and must not run in a sizing pass.
-static int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_LOADER_FOR(OBFH_ALPHA_HIGH);
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
@@ -9961,7 +9961,7 @@ static int obfh_format_has_count(const char *format) OBFH_CODE_SECTION_ATTRIBUTE
 }
 
 // printf
-static int obfh_printf_variadic(int junk, const char *format, ...) {
+static inline int obfh_printf_variadic(int junk, const char *format, ...) {
     OBFH_CUSTOM_BEGIN;
     OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
@@ -10036,7 +10036,7 @@ static int obfh_printf_variadic(int junk, const char *format, ...) {
 #define OBFH_CRT_COMPACT_CALL(builder, type, ...) \
     OBFH_CRT_INVOKE(builder, type, ((void)0), __VA_ARGS__)
 
-static char *getScanfName_proxy(char *name) {
+static inline char *getScanfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(5)] = _0),
@@ -10063,7 +10063,7 @@ static char *getScanfName_proxy(char *name) {
 #define OBFH_FLOW_ELSE_GUARD OBFH_HELPER_ELSE_GUARD
 #endif
 
-static char *getFreeName_proxy(char *name) {
+static inline char *getFreeName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _0),
                         (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10072,7 +10072,7 @@ static char *getFreeName_proxy(char *name) {
 }
 #define free(...) OBFH_CRT_COMPACT_CALL(getFreeName_proxy, void (*)(void *), __VA_ARGS__)
 
-static char *getAtofName_proxy(char *name) {
+static inline char *getAtofName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _a, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(4)] = _0),
                         (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _a));
@@ -10081,7 +10081,7 @@ static char *getAtofName_proxy(char *name) {
 }
 #define atof(...) OBFH_CRT_COMPACT_CALL(getAtofName_proxy, double (*)(const char *), __VA_ARGS__)
 
-static char *getStrtodName_proxy(char *name) {
+static inline char *getStrtodName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _s));
@@ -10090,7 +10090,7 @@ static char *getStrtodName_proxy(char *name) {
 }
 #define strtod(...) OBFH_CRT_COMPACT_CALL(getStrtodName_proxy, double (*)(const char *, char **), __VA_ARGS__)
 
-static char *getSrandName_proxy(char *name) {
+static inline char *getSrandName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _s));
@@ -10099,7 +10099,7 @@ static char *getSrandName_proxy(char *name) {
 }
 #define srand(...) OBFH_CRT_COMPACT_CALL(getSrandName_proxy, void (*)(unsigned int), __VA_ARGS__)
 
-static char *getFgetsName_proxy(char *name) {
+static inline char *getFgetsName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10108,7 +10108,7 @@ static char *getFgetsName_proxy(char *name) {
 }
 #define fgets(...) OBFH_CRT_COMPACT_CALL(getFgetsName_proxy, char *(*)(char *, int, FILE *), __VA_ARGS__)
 
-static char *getFputsName_proxy(char *name) {
+static inline char *getFputsName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10117,7 +10117,7 @@ static char *getFputsName_proxy(char *name) {
 }
 #define fputs(...) OBFH_CRT_COMPACT_CALL(getFputsName_proxy, int (*)(const char *, FILE *), __VA_ARGS__)
 
-static char *getFprintfName_proxy(char *name) {
+static inline char *getFprintfName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
                         (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10126,7 +10126,7 @@ static char *getFprintfName_proxy(char *name) {
 }
 #define fprintf(...) OBFH_CRT_COMPACT_CALL(getFprintfName_proxy, int (*)(FILE *, const char *, ...), __VA_ARGS__)
 
-static char *getFflushName_proxy(char *name) {
+static inline char *getFflushName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _f, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _u, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _h, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _h, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _u, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _f, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10135,7 +10135,7 @@ static char *getFflushName_proxy(char *name) {
 }
 #define fflush(...) OBFH_CRT_COMPACT_CALL(getFflushName_proxy, int (*)(FILE *), __VA_ARGS__)
 
-static char *getFseekName_proxy(char *name) {
+static inline char *getFseekName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10144,7 +10144,7 @@ static char *getFseekName_proxy(char *name) {
 }
 #define fseek(...) OBFH_CRT_COMPACT_CALL(getFseekName_proxy, int (*)(FILE *, long, int), __VA_ARGS__)
 
-static char *getFtellName_proxy(char *name) {
+static inline char *getFtellName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10153,7 +10153,7 @@ static char *getFtellName_proxy(char *name) {
 }
 #define ftell(...) OBFH_CRT_COMPACT_CALL(getFtellName_proxy, long (*)(FILE *), __VA_ARGS__)
 
-static char *getFgetcName_proxy(char *name) {
+static inline char *getFgetcName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10162,7 +10162,7 @@ static char *getFgetcName_proxy(char *name) {
 }
 #define fgetc(...) OBFH_CRT_COMPACT_CALL(getFgetcName_proxy, int (*)(FILE *), __VA_ARGS__)
 
-static char *getFputcName_proxy(char *name) {
+static inline char *getFputcName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0),
                         (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10171,7 +10171,7 @@ static char *getFputcName_proxy(char *name) {
 }
 #define fputc(...) OBFH_CRT_COMPACT_CALL(getFputcName_proxy, int (*)(int, FILE *), __VA_ARGS__)
 
-static char *getGetcharName_proxy(char *name) {
+static inline char *getGetcharName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _g, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0),
                         (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _g));
@@ -10181,7 +10181,7 @@ static char *getGetcharName_proxy(char *name) {
 #undef getchar
 #define getchar(...) OBFH_CRT_COMPACT_CALL(getGetcharName_proxy, int (*)(void), __VA_ARGS__)
 
-static char *getPutcharName_proxy(char *name) {
+static inline char *getPutcharName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0),
                         (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(0)] = _p));
@@ -10191,7 +10191,7 @@ static char *getPutcharName_proxy(char *name) {
 #undef putchar
 #define putchar(...) OBFH_CRT_COMPACT_CALL(getPutcharName_proxy, int (*)(int), __VA_ARGS__)
 
-static char *getFeofName_proxy(char *name) {
+static inline char *getFeofName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(4)] = _0),
                         (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10201,7 +10201,7 @@ static char *getFeofName_proxy(char *name) {
 #undef feof
 #define feof(...) OBFH_CRT_COMPACT_CALL(getFeofName_proxy, int (*)(FILE *), __VA_ARGS__)
 
-static char *getFerrorName_proxy(char *name) {
+static inline char *getFerrorName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10211,7 +10211,7 @@ static char *getFerrorName_proxy(char *name) {
 #undef ferror
 #define ferror(...) OBFH_CRT_COMPACT_CALL(getFerrorName_proxy, int (*)(FILE *), __VA_ARGS__)
 
-static char *getClearerrName_proxy(char *name) {
+static inline char *getClearerrName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _c, name[OBFH_NAME_INDEX(1)] = _l, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _r, name[OBFH_NAME_INDEX(8)] = _0),
                         (name[OBFH_NAME_INDEX(8)] = _0, name[OBFH_NAME_INDEX(7)] = _r, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _l, name[OBFH_NAME_INDEX(0)] = _c));
@@ -10221,7 +10221,7 @@ static char *getClearerrName_proxy(char *name) {
 #undef clearerr
 #define clearerr(...) OBFH_CRT_COMPACT_CALL(getClearerrName_proxy, void (*)(FILE *), __VA_ARGS__)
 
-static char *getRewindName_proxy(char *name) {
+static inline char *getRewindName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
@@ -10231,7 +10231,7 @@ static char *getRewindName_proxy(char *name) {
 #undef rewind
 #define rewind(...) OBFH_CRT_COMPACT_CALL(getRewindName_proxy, void (*)(FILE *), __VA_ARGS__)
 
-static char *getRemoveName_proxy(char *name) {
+static inline char *getRemoveName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
@@ -10241,7 +10241,7 @@ static char *getRemoveName_proxy(char *name) {
 #undef remove
 #define remove(...) OBFH_CRT_COMPACT_CALL(getRemoveName_proxy, int (*)(const char *), __VA_ARGS__)
 
-static char *getRenameName_proxy(char *name) {
+static inline char *getRenameName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
                         (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
@@ -10251,7 +10251,7 @@ static char *getRenameName_proxy(char *name) {
 #undef rename
 #define rename(...) OBFH_CRT_COMPACT_CALL(getRenameName_proxy, int (*)(const char *, const char *), __VA_ARGS__)
 
-static char *getFreopenName_proxy(char *name) {
+static inline char *getFreopenName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(7)] = _0),
                         (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
@@ -10261,7 +10261,7 @@ static char *getFreopenName_proxy(char *name) {
 #undef freopen
 #define freopen(...) OBFH_CRT_COMPACT_CALL(getFreopenName_proxy, FILE *(*)(const char *, const char *, FILE *), __VA_ARGS__)
 
-static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
     int saved_errno = errno;
     char name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10274,7 +10274,7 @@ static void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define perror(message) perror_proxy(message)
 
-static char *getSprintfName_proxy(char *name) {
+static inline char *getSprintfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
@@ -10287,7 +10287,7 @@ static char *getSprintfName_proxy(char *name) {
 }
 #define sprintf(...) OBFH_CRT_CALL(getSprintfName_proxy, int (*)(char *, const char *, ...), __VA_ARGS__)
 
-static char *getFcloseName_proxy(char *name) {
+static inline char *getFcloseName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
@@ -10300,7 +10300,7 @@ static char *getFcloseName_proxy(char *name) {
 }
 #define fclose(...) OBFH_CRT_CALL(getFcloseName_proxy, int (*)(FILE *), __VA_ARGS__)
 
-static char *getFopenName_proxy(char *name) {
+static inline char *getFopenName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _0),
@@ -10313,7 +10313,7 @@ static char *getFopenName_proxy(char *name) {
 }
 #define fopen(...) OBFH_CRT_CALL(getFopenName_proxy, FILE *(*)(const char *, const char *), __VA_ARGS__)
 
-static char *getFreadName_proxy(char *name) {
+static inline char *getFreadName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
@@ -10326,7 +10326,7 @@ static char *getFreadName_proxy(char *name) {
 }
 #define fread(...) OBFH_CRT_CALL(getFreadName_proxy, size_t (*)(void *, size_t, size_t, FILE *), __VA_ARGS__)
 
-static char *getFwriteName_proxy(char *name) {
+static inline char *getFwriteName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
@@ -10339,7 +10339,7 @@ static char *getFwriteName_proxy(char *name) {
 }
 #define fwrite(...) OBFH_CRT_CALL(getFwriteName_proxy, size_t (*)(const void *, size_t, size_t, FILE *), __VA_ARGS__)
 
-static char *getExitName_proxy(char *name) {
+static inline char *getExitName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _e, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _0),
@@ -10352,7 +10352,7 @@ static char *getExitName_proxy(char *name) {
 }
 #define exit(...) OBFH_CRT_CALL(getExitName_proxy, void (*)(int), __VA_ARGS__)
 
-static char *getStrtokName_proxy(char *name) {
+static inline char *getStrtokName_proxy(char *name) {
     OBFH_CUSTOM_BEGIN;
     OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
@@ -10367,7 +10367,7 @@ static char *getStrtokName_proxy(char *name) {
 }
 #define strtok(...) OBFH_CRT_CALL(getStrtokName_proxy, char *(*)(char *, const char *), __VA_ARGS__)
 
-static char *getRandName_proxy(char *name) {
+static inline char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(4)] = _0),
@@ -10380,7 +10380,7 @@ static char *getRandName_proxy(char *name) {
 }
 #define rand(...) OBFH_CRT_CALL(getRandName_proxy, int (*)(void), __VA_ARGS__)
 
-static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
                         (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(7)] = _0),
@@ -10400,7 +10400,7 @@ static char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
 // 20. CRT adapters with argument/result transport
 // ============================================================================
 
-static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10412,7 +10412,7 @@ static void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_ATTRIBUTE
 #define calloc(nmemb, size) calloc_proxy(nmemb, size)
 
 #undef realloc
-static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char name[32];
     PHANTOM_NOP;
@@ -10422,7 +10422,7 @@ static void *realloc_proxy(void *ptr, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define realloc(ptr, size) realloc_proxy(ptr, size)
 
-static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[5];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10433,7 +10433,7 @@ static char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define gets(s) gets_proxy(s)
 
-static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     va_list args;
     va_start(args, format);
@@ -10445,7 +10445,7 @@ static int snprintf_proxy(char *str, size_t size, const char *format, ...) OBFH_
 }
 #define snprintf(...) snprintf_proxy(__VA_ARGS__)
 
-static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[9];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10456,7 +10456,7 @@ static int vsprintf_proxy(char *str, const char *format, va_list args) OBFH_CODE
 }
 #define vsprintf(str, format, args) vsprintf_proxy(str, format, args)
 
-static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int vsnprintf_proxy(char *str, size_t size, const char *format, va_list args) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     // Keep TCC's formatting adapter: it need not be an msvcrt export.
     int result = vsnprintf(str, size, format, args);
@@ -10464,7 +10464,7 @@ static int vsnprintf_proxy(char *str, size_t size, const char *format, va_list a
 }
 #define vsnprintf(str, size, format, args) vsnprintf_proxy(str, size, format, args)
 
-static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10475,7 +10475,7 @@ static char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define getenv(name) getenv_proxy(name)
 
-static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10486,7 +10486,7 @@ static int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define system(command) system_proxy(command)
 
-static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     PHANTOM_NOP;
     char __obfh_resolved_name[6];
@@ -10498,7 +10498,7 @@ static void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define abort(...) abort_proxy(__VA_ARGS__)
 
-static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10509,7 +10509,7 @@ static int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define atexit(func) atexit_proxy(func)
 
-static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10520,7 +10520,7 @@ static char *getcwd_proxy(char *buf, size_t size) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define getcwd(buf, size) ((char *)getcwd_proxy(buf, size))
 
-static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -10531,7 +10531,7 @@ static int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 }
 #define tolower(c) tolower_proxy(c)
 
-static int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,

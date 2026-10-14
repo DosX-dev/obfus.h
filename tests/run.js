@@ -746,8 +746,8 @@ async function main() {
                 'native CRT fallback leaked'
             );
             const resolver = source.slice(
-                source.indexOf('static FARPROC obfh_crt_lookup(const char *name) {'),
-                source.indexOf('// printf', source.indexOf('static FARPROC obfh_crt_lookup(const char *name) {'))
+                source.indexOf('static inline FARPROC obfh_crt_lookup(const char *name) {'),
+                source.indexOf('// printf', source.indexOf('static inline FARPROC obfh_crt_lookup(const char *name) {'))
             );
             assert(resolver.includes('LoadLibraryA_proxy('), 'CRT loader chain bypassed');
             assert(source.includes('return value < (int)FALSE ? -value : value;'), 'custom abs replaced');
