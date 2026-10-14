@@ -84,10 +84,9 @@ function snapshotFile(file) {
 const configs = {
     plain: ['OBFH_DISABLE_ANY_OBFUSCATION=1'],
     default: [],
-    'vm-no-cflow': ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1'],
-    vm: ['OBFH_VIRTUALIZATION=1'],
-    advanced: ['OBFH_VIRTUALIZATION=1', 'OBFH_BETTER_CONTROL_FLOW=1', 'OBFH_BETTER_ANTIDEBUG=1', 'OBFH_FAKE_SIGNATURES=1'],
-    'math-vm': ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1']
+    'no-cflow': ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1'],
+    advanced: ['OBFH_BETTER_CONTROL_FLOW=1', 'OBFH_BETTER_ANTIDEBUG=1', 'OBFH_FAKE_SIGNATURES=1'],
+    'no-antidebug': ['OBFH_DISABLE_ANTIDEBUG=1']
 };
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -862,9 +861,9 @@ async function main() {
             if (process.argv.includes('--only-custom') || process.argv.includes('--only-custom33')) {
                 const only33 = process.argv.includes('--only-custom33');
                 if (selectedArch && selectedArch !== arch) continue;
-                for (const config of ['plain', 'default', 'vm-no-cflow', 'advanced']) {
+                for (const config of ['plain', 'default', 'no-cflow', 'advanced']) {
                     if (selectedConfigs && !selectedConfigs.includes(config)) continue;
-                    for (const seed of ['plain', 'vm-no-cflow'].includes(config)
+                    for (const seed of ['plain', 'no-cflow'].includes(config)
                         ? [0]
                         : [0, 1, 2, 0xdeadbeef, 0xffffffff]) {
                         await check(`${arch}/${config}/custom extensions/seed ${seed}`, async () => {
@@ -1264,7 +1263,7 @@ async function main() {
                     ['plain', ['OBFH_DISABLE_ANY_OBFUSCATION=1']],
                     ['disabled', ['OBFH_DISABLE_ANTIDEBUG=1']],
                     ['default', []],
-                    ['advanced', ['OBFH_BETTER_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1', 'OBFH_VIRTUALIZATION=1']]
+                    ['advanced', ['OBFH_BETTER_ANTIDEBUG=1', 'OBFH_BETTER_CONTROL_FLOW=1']]
                 ]) {
                     await check(`${arch}/anti-debug statement syntax and normal execution/${label}`, async () => {
                         const exe = await compile(
@@ -1428,14 +1427,14 @@ async function main() {
                 const junkVariants = new Map();
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/seed ${seed}/all junk sites + VM stress`, async () => {
-                        const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`, `OBFH_BETTER_CONTROL_FLOW=${seed & 1}`];
+                        const flags = ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`, `OBFH_BETTER_CONTROL_FLOW=${seed & 1}`];
                         const file = path.join(__dirname, 'junk.c');
                         await execute(
                             await compile(compiler, directory, `${arch}-junk-${seed}.exe`, file, flags),
                             'JUNK_PASS'
                         );
                         // Keep modes equal for the machine-code diversity comparison.
-                        const dllFlags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
+                        const dllFlags = ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
                         const dll = await compile(compiler, directory, `${arch}-junk-${seed}.dll`, file, dllFlags, [
                             '-shared'
                         ]);
@@ -1496,7 +1495,7 @@ async function main() {
                         directory,
                         `${arch}-junk-repeat.dll`,
                         path.join(__dirname, 'junk.c'),
-                        ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
+                        ['OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
                         ['-shared']
                     );
                     const repeated = junkCode(fs.readFileSync(repeat));
@@ -1534,7 +1533,7 @@ async function main() {
                 const cflowVariants = new Map();
                 for (const seed of [0, 1, 2, 3735928559, 4294967295])
                     await check(`${arch}/CFLOW pool seed ${seed}/128 templates`, async () => {
-                        const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
+                        const flags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
                         const file = path.join(__dirname, 'cflow_junk.c');
                         await execute(
                             await compile(compiler, directory, `${arch}-cflow-pool-${seed}.exe`, file, flags),
@@ -1557,7 +1556,7 @@ async function main() {
                         directory,
                         `${arch}-cflow-repeat.dll`,
                         path.join(__dirname, 'cflow_junk.c'),
-                        ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
+                        ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_SEED=1u'],
                         ['-shared']
                     );
                     const repeated = junkCode(fs.readFileSync(dll), 128);
@@ -1819,7 +1818,6 @@ async function main() {
                     const file = path.join(mutantRoot, 'tests', 'vm.c');
                     fs.copyFileSync(path.join(__dirname, 'vm.c'), file);
                     const exe = await compile(compiler, directory, arch + '-mutant.exe', file, [
-                        'OBFH_VIRTUALIZATION=1',
                         'OBFH_DISABLE_ANTIDEBUG=1'
                     ]);
                     const result = await run(exe, []);
@@ -1838,13 +1836,13 @@ async function main() {
                         .replace('/* OBFH_VM_TRACE_ENTER */', 'obfh_test_vm_enter();')
                         .replace('/* OBFH_VM_TRACE_STEP */', 'obfh_test_vm_step(op,at);');
                     traced = traced.replace(
-                        'static long double Obfh_VirtualMachine(',
-                        'void obfh_test_vm_enter(void);\nvoid obfh_test_vm_step(unsigned int op,unsigned int pc);\nstatic long double Obfh_VirtualMachine('
+                        'static inline long double Obfh_VirtualMachine(',
+                        'void obfh_test_vm_enter(void);\nvoid obfh_test_vm_step(unsigned int op,unsigned int pc);\nstatic inline long double Obfh_VirtualMachine('
                     );
                     assert(traced.includes('obfh_test_vm_step(op,at);'), 'instruction tracing missing');
                     const headerFile = path.join(tracedRoot, 'include', 'obfus.h');
                     fs.writeFileSync(headerFile, traced);
-                    const traceFlags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_TEST_BRANCH_TRACE=1'];
+                    const traceFlags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_TEST_BRANCH_TRACE=1'];
                     await execute(
                         await compile(compiler, directory, arch + '-branch-trace.exe', testFile, traceFlags),
                         'BRANCH_PASS'
@@ -2159,9 +2157,9 @@ async function main() {
                     }
                 });
             }
-            for (const flags of [[], ['OBFH_VIRTUALIZATION=1']]) {
+            for (const flags of [[], ['OBFH_DISABLE_ANY_OBFUSCATION=1']]) {
                 await check(
-                    `${arch}/math string and pointer arguments/${flags.length ? 'VM' : 'normal'}`,
+                    `${arch}/math string and pointer arguments/${flags.length ? 'native' : 'protected'}`,
                     async () =>
                         await execute(
                             await compile(

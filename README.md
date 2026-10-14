@@ -53,8 +53,7 @@ IntelliSense remains available. No extra tools or code generation are required.
 
 > Define options **before** including `obfus.h`:
 > ```c
-> // Advanced code protection (see the "Virtualization" part of the documentation!)
-> #define OBFH_VIRTUALIZATION          1          // Allows you to use the functions of a math VM
+> // Build settings
 > #define OBFH_SEED                    123456789u // Choose compile-time protection variants
 > 
 > // Additional options
@@ -83,7 +82,7 @@ Older names such as `OBFH_BUILD_SEED` remain compatible but produce a
 > or use it with compiler args:
 > 
 > ```
-> tcc "app.c" -w  -D OBFH_DISABLE_CONTROL_FLOW  -D OBFH_BETTER_ANTIDEBUG  -D OBFH_FAKE_SIGNATURES  -D OBFH_VIRTUALIZATION
+> tcc "app.c" -w  -D OBFH_DISABLE_CONTROL_FLOW  -D OBFH_BETTER_ANTIDEBUG  -D OBFH_FAKE_SIGNATURES
 > ```
 
 > [!TIP]
@@ -111,9 +110,9 @@ printf(hidden_message);
 ```
 
 ## 👺 Virtualization
-Enable `OBFH_VIRTUALIZATION` and use the VM macro-operators to run selected calculations through an embedded virtual machine. No extra initialization is required. With `OBFH_VIRTUALIZATION` disabled, these macro-operators use ordinary calculations.
+The virtual machine is automatically included when you use its `VM_*` operators. No extra option or initialization is required. Its `static inline` functions keep unused VM code out of the binary. With `OBFH_DISABLE_ANY_OBFUSCATION=1`, these macro-operators use ordinary calculations.
 
-It also strengthens protection of arguments passed to selected standard math functions.
+Selected standard math functions keep lightweight argument protection without using the VM.
 
 > [!WARNING]
 > Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
@@ -156,8 +155,6 @@ You can use logical operators that use virtual machine calls to further complica
 A simple example of using virtualization:
 ```c
 // ...
-#define OBFH_VIRTUALIZATION 1
-// ...
 
 // if ((2 + 2) == 4) { ... }
 VM_IF (VM_EQU(VM_ADD(2, 2), 4)) {
@@ -186,8 +183,6 @@ If you need advanced protection against skilled reversers, use `OBFH_BETTER_CONT
 #include <stdio.h>
 
 #define OBFH_SEED                     123321u  // [@] Use "123321" as a seed
-
-#define OBFH_VIRTUALIZATION           1        // [+] Use math virtual machine
 
 #define OBFH_BETTER_CONTROL_FLOW      1        // [+] Better ControlFlow (stronger)
 #define OBFH_BETTER_ANTIDEBUG         1        // [+] Better AntiDebug (stronger)

@@ -16,9 +16,6 @@
  ~ OBFH_BETTER_ANTIDEBUG         = use better dynamic anti-debugging protection
  ~ OBFH_FAKE_SIGNATURES          = adds fake signatures of various protectors or packers
 
- [Advanced code protection]
- ~ OBFH_VIRTUALIZATION           = allows you to use the functions of a math VM
-
  [Disabling default features]
  ~ OBFH_DISABLE_CONTROL_FLOW     = disable control flow obfuscation
  ~ OBFH_DISABLE_ANTIDEBUG        = disable antidebug protection
@@ -106,17 +103,6 @@
 #ifndef OBFH_DISABLE_PDATA_DECOYS
 #define OBFH_DISABLE_PDATA_DECOYS NO_PDATA_DECOYS
 #endif
-#endif
-
-#ifdef VIRT
-#warning VIRT is deprecated; use OBFH_VIRTUALIZATION.
-#ifndef OBFH_VIRTUALIZATION
-#define OBFH_VIRTUALIZATION VIRT
-#endif
-#endif
-
-#ifdef virt_std
-#warning virt_std is obsolete; math protection now follows OBFH_VIRTUALIZATION.
 #endif
 
 #ifdef CFLOW_V2
@@ -241,7 +227,7 @@
 
 // VM editor expressions preserve protected result types and single evaluation.
 // These expressions describe the interface; they are not runtime VM handlers.
-#if OBFH_EDITOR_VIEW && OBFH_DISABLE_ANY_OBFUSCATION != 1 && OBFH_VIRTUALIZATION == 1
+#if OBFH_EDITOR_VIEW && OBFH_DISABLE_ANY_OBFUSCATION != 1
 #define VM_ADD(a, b) ((long)((long double)(a) + (long double)(b)))
 #define VM_SUB(a, b) ((long)((long double)(a) - (long double)(b)))
 #define VM_MUL(a, b) ((long)((long double)(a) * (long double)(b)))
@@ -270,8 +256,8 @@
 #define VM_IF(condition) if (condition)
 #define VM_ELSE_IF(condition) else if (condition)
 #define VM_ELSE else
-// Native expressions when virtualization is disabled.
-#elif OBFH_DISABLE_ANY_OBFUSCATION == 1 || OBFH_VIRTUALIZATION != 1 || OBFH_EDITOR_VIEW
+// Native expressions when all obfuscation is disabled.
+#elif OBFH_DISABLE_ANY_OBFUSCATION == 1 || OBFH_EDITOR_VIEW
 #define VM_ADD(num1, num2) ((num1) + (num2))
 #define VM_SUB(num1, num2) ((num1) - (num2))
 #define VM_MUL(num1, num2) ((num1) * (num2))
@@ -5206,7 +5192,6 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     return function;
 }
 
-#if OBFH_VIRTUALIZATION == 1
 // Transport object bytes instead of adding a salt to the numeric value.
 // This preserves subnormals, signed zero, infinities and NaN payloads.
 typedef struct {
@@ -5241,7 +5226,7 @@ typedef struct {
     } while (0)
 #endif
 
-static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int floating) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int floating) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     OBFH_VM_VALUE encoded;
     volatile int key = (int)obfh_double_proxy((double)(float)obfh_int_proxy(salt));
@@ -5260,7 +5245,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int fl
     return encoded;
 }
 
-static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     long double value;
     volatile int key = obfh_condition_proxy((float)salt, (float)obfh_int_proxy(salt));
@@ -5276,7 +5261,6 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     }
     RET_BY_VAR(value);
 }
-#endif
 
 // #endregion
 
@@ -6181,17 +6165,14 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     })
 
 #endif /* CFLOW helpers; kernel precedes keyword interception. */
-#if OBFH_VIRTUALIZATION == 1
 typedef enum { SALT_NUM1 = RND(16, 48),
                SALT_NUM2 = RND(16, 48) } VM_SALT;
-#endif
 // #endregion
 
 // #region 11. VM kernel: registers, flags, decoding and instruction execution
 // ============================================================================
 // 11. VM kernel: registers, flags, decoding and instruction execution
 // ============================================================================
-#if OBFH_VIRTUALIZATION == 1
 typedef char OBFH_V_WORD_32[(sizeof(unsigned int) == 4 && CHAR_BIT == 8) ? 1 : -1];
 enum {
     OBFH_V_LOAD_A = 1,
@@ -6343,7 +6324,7 @@ typedef struct
 #define OBFH_V_MIX_SHIFT_B (OBFH_V_MIX_FORM == 3u ? 16u : 13u)
 #define OBFH_V_MIX_MULTIPLIER (OBFH_V_MIX_FORM == 0u ? 2246822507u : OBFH_V_MIX_FORM == 2u ? 2221713035u \
                                                                                            : 3266489909u)
-static unsigned int obfh_v_mix(unsigned int x) {
+static inline unsigned int obfh_v_mix(unsigned int x) {
     x ^= x >> OBFH_V_MIX_SHIFT_A;
     x *= OBFH_V_MIX_MULTIPLIER;
     PHANTOM_NOP;
@@ -6351,11 +6332,11 @@ static unsigned int obfh_v_mix(unsigned int x) {
     return x;
 }
 /* Encodings are local to an execution; only decoded uint32 values enter ALU operations. */
-static unsigned int obfh_v_control_read(const OBFH_V_CONTEXT *c, unsigned int r) {
+static inline unsigned int obfh_v_control_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     PHANTOM_NOP;
     return c->controls[r] ^ obfh_v_mix(c->key ^ (r * 3266489917u));
 }
-static void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int value) {
+static inline void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int value) {
     c->controls[r] = value ^ obfh_v_mix(c->key ^ (r * 3266489917u));
     PHANTOM_NOP;
 }
@@ -6373,11 +6354,11 @@ static void obfh_v_control_write(OBFH_V_CONTEXT *c, unsigned int r, unsigned int
 #define OBFH_V_VALUE_ENCODE(value, mask) ((value) - (mask))
 #define OBFH_V_VALUE_DECODE(value, mask) ((value) + (mask))
 #endif
-static unsigned int obfh_v_flags(const OBFH_V_CONTEXT *c) {
+static inline unsigned int obfh_v_flags(const OBFH_V_CONTEXT *c) {
     PHANTOM_NOP;
     return OBFH_V_VALUE_DECODE(c->flags, c->flag_key);
 }
-static void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
+static inline void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
     c->flags = OBFH_V_VALUE_ENCODE(flags, c->flag_key);
     PHANTOM_NOP;
 }
@@ -6387,7 +6368,7 @@ static void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
 #else
 #define OBFH_V_BYTES(size) for (unsigned int i = 0; i < (size); ++i)
 #endif
-static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
+static inline void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
     unsigned int m = obfh_v_mix(c->key ^ (r * 3266489917u) ^ c->steps);
     const unsigned char *p = (const unsigned char *)&v;
     c->registers[r].mask = m;
@@ -6398,7 +6379,7 @@ static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
     }
     c->initialized |= 1u << r;
 }
-static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
+static inline long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     long double v;
     unsigned char *p = (unsigned char *)&v;
     unsigned int m = c->registers[r].mask;
@@ -6409,23 +6390,23 @@ static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     }
     return v;
 }
-static void obfh_v_copy(OBFH_V_CONTEXT *c, unsigned int d, unsigned int a) {
+static inline void obfh_v_copy(OBFH_V_CONTEXT *c, unsigned int d, unsigned int a) {
     /* Encoded copy preserves numeric object bytes without an FP operation. */
     c->registers[d] = c->registers[a];
     PHANTOM_NOP;
     c->initialized |= 1u << d;
 }
-static void obfh_v_failure(OBFH_V_CONTEXT *c, unsigned int status) {
+static inline void obfh_v_failure(OBFH_V_CONTEXT *c, unsigned int status) {
     c->status = status;
     PHANTOM_NOP;
     ExitProcess(0xE0BF0000u | status);
 }
-static unsigned int obfh_v_decode(unsigned int word, unsigned int key, unsigned int pc, unsigned int rotate) {
+static inline unsigned int obfh_v_decode(unsigned int word, unsigned int key, unsigned int pc, unsigned int rotate) {
     word = OBFH_V_WORD_DECODE(word, key, pc);
     PHANTOM_NOP;
     return (word << rotate) | (word >> (32u - rotate));
 }
-static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
+static inline unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
     unsigned int multiplier = ((key >> 8) & 255u) | 1u, inverse = 1u;
     inverse *= 2u - multiplier * inverse;
     PHANTOM_NOP;
@@ -6536,8 +6517,8 @@ static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
 #define OBFH_VM_FIELDS_LAYOUT OBFH_VM_FIELDS_EXPAND(OBFH_VM_FIELDS_3, OBFH_VM_FIELDS_TAIL(OBFH_VM_FIELDS_0, OBFH_VM_FIELDS_1, OBFH_VM_FIELDS_2))
 #endif
 
-static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE input_a,
-                                       OBFH_VM_VALUE input_b) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline long double Obfh_VirtualMachine(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE input_a,
+                                              OBFH_VM_VALUE input_b) OBFH_CODE_SECTION_ATTRIBUTE {
 #if OBFH_DISABLE_CONTROL_FLOW != 1
     enum {
         __obfh_vm_dispatch_site = RND(1, 65535),
@@ -6886,7 +6867,6 @@ static long double Obfh_VirtualMachine(const unsigned int *program, unsigned int
     obfh_v_failure(&c, 7);
     return 0;
 }
-#endif
 
 // #endregion
 
@@ -9139,7 +9119,6 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 // ============================================================================
 
 // Virtualization (instruction programs)
-#if OBFH_VIRTUALIZATION == 1
 
 /* Each expression owns an immutable encoded instruction stream. */
 #define OBFH_V_INSTRUCTION(op, d, a, b, imm) \
@@ -9344,7 +9323,6 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 #define VM_ELSE_IF(condition) \
     else if ((int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_TRUTH, (long double)!!(condition), (long double)0, 1u))
 #define VM_ELSE else if ((int)OBFH_VM_EXEC(Obfh_VirtualMachine, OBFH_VOP_TRUTH, (long double)!!obfh_condition_true(), (long double)0, 1u))
-#endif
 
 // #endregion
 
@@ -13681,11 +13659,7 @@ static int obfh_abs_proxy(int value) {
 }
 #define abs(x) obfh_abs_proxy(x)
 
-#if OBFH_VIRTUALIZATION == 1
-#define OBFH_MATH_KEY ((ULONG_PTR)VM_OBF_INT(SALT_SHIFT))
-#else
 #define OBFH_MATH_KEY ((ULONG_PTR)obfh_condition_proxy((float)_1, (float)obfh_int_proxy(SALT_SHIFT)))
-#endif
 // Mutate the typed value's address: arithmetic identities can change -0,
 // rounding, NaN payloads or wide integer exponents before the math call.
 #if (OBFH_SEED >> 12) % 3u == 0u

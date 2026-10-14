@@ -4,7 +4,6 @@ const path = require('node:path');
 const options = [
     ['NO_OBF', 'OBFH_DISABLE_ANY_OBFUSCATION'], ['NO_CFLOW', 'OBFH_DISABLE_CONTROL_FLOW'],
     ['NO_ANTIDEBUG', 'OBFH_DISABLE_ANTIDEBUG'], ['NO_PDATA_DECOYS', 'OBFH_DISABLE_PDATA_DECOYS'],
-    ['VIRT', 'OBFH_VIRTUALIZATION'],
     ['CFLOW_V2', 'OBFH_BETTER_CONTROL_FLOW'], ['ANTIDEBUG_V2', 'OBFH_BETTER_ANTIDEBUG'],
     ['FAKE_SIGNS', 'OBFH_FAKE_SIGNATURES'], ['MEM_CLEANER__JUST_FOR_FUN', 'OBFH_MEMORY_CLEANER'],
     ['OBFH_BUILD_SEED', 'OBFH_SEED']
@@ -35,7 +34,5 @@ exports.runSuite = async function({ arch, compiler, directory, source, check, ru
             const conflict = await preprocess([`${old}=${value}u`, `${name}=0u`]);
             assert(conflict.values[index] === 0 && conflict.stderr.includes(old + ' is deprecated'), 'new zero must override legacy value: ' + name);
         }
-        const obsolete = await preprocess(['virt_std=1']);
-        assert(obsolete.values.every(value => value === 0) && obsolete.stderr.includes('virt_std is obsolete'), 'obsolete math option must warn without enabling virtualization');
     });
 };

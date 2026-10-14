@@ -1,4 +1,3 @@
-#define OBFH_VIRTUALIZATION 1
 #include "../include/obfus.h"
 #undef if
 #undef else

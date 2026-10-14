@@ -54,7 +54,7 @@ static int virtual_recursive(int n) {
     return -1000;
 }
 static int semantics(void) {
-#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
+#if !OBFH_DISABLE_ANY_OBFUSCATION
     /* Instruction families and fault checks are covered by vm_kernel.c. */
 #endif
     int effects = 0, selected = 0;

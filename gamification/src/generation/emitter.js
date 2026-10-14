@@ -112,7 +112,6 @@ export function emit({ ir, target }, { mutate = null } = {}) {
 #include <shellapi.h>
 #define OBFH_SEED ${ir.seed}u
 ${ir.level !== 'easy' ? '#define OBFH_BETTER_CONTROL_FLOW 1\n#define OBFH_BETTER_ANTIDEBUG 1' : ''}
-${hardcore ? '#define OBFH_VIRTUALIZATION 1' : ''}
 #ifdef SELFTEST
 static unsigned long vm_steps;
 void daily_vm_step(unsigned op, unsigned pc) { (void)op; (void)pc; ++vm_steps; }

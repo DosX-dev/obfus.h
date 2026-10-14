@@ -13,7 +13,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             return lines.slice(0, count).join('\n');
         }
         const begin = source.indexOf('#if ((OBFH_SEED >> 14) % 6u) == 0u');
-        const end = source.indexOf('static long double Obfh_VirtualMachine(', begin);
+        const end = source.indexOf('static inline long double Obfh_VirtualMachine(', begin);
         assert(begin >= 0 && end > begin, 'missing field layout block');
         const block = source.slice(begin, end);
         const names = [...new Set([...block.matchAll(/^#define (\w+)/gm)].map((m) => m[1]))];

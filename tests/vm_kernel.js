@@ -14,12 +14,22 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     const header = path.join(root, 'include', 'obfus.h');
     const traced = source
         .replace(
-            'static long double Obfh_VirtualMachine(',
-            'void study_step(unsigned int op, unsigned int pc);\nstatic long double Obfh_VirtualMachine('
+            'static inline long double Obfh_VirtualMachine(',
+            'void study_step(unsigned int op, unsigned int pc);\nstatic inline long double Obfh_VirtualMachine('
         )
         .replace('/* OBFH_VM_TRACE_STEP */', 'study_step(op, at);');
     assert(traced.includes('study_step(op, at);'), 'VM instruction trace target missing');
     fs.writeFileSync(header, traced);
+    await check(`${arch}/unused VM: standard math links without the interpreter`, async () => {
+        // The traced interpreter calls study_step, which this fixture never defines.
+        // Linking can succeed only if standard math leaves the VM unreferenced.
+        const mathFile = path.join(root, 'tests', 'math.c');
+        fs.copyFileSync(path.join(__dirname, 'math.c'), mathFile);
+        await execute(
+            await compile(compiler, directory, `${arch}-math-without-vm.exe`, mathFile, ['OBFH_DISABLE_ANTIDEBUG=1']),
+            'Math string/pointer arguments passed'
+        );
+    });
     const semanticsFile = semantics.writeFixture(path.join(root, 'semantics'), source, fixturesRoot);
 
     for (const mode of [0, 1]) {
@@ -27,7 +37,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         // along with context layouts and byte/register/address transport.
         const seeds = Array.from({ length: 9 }, (_, i) => ((i % 6) << 24) | (i << 6) | ((i % 4) << 4) | ((i % 3) << 12) | ((i & 1) << 10) | ((i % 6) << 14) | ((i & 1) << 21) | ((i & 1) << 23) | (((i >> 2) & 1) << 27));
         for (const seed of [...seeds, 0xdeadbeef, 0xffffffff]) {
-            const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`];
+            const flags = ['OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`];
             const stem = `${arch}-vm-kernel-${mode}-${seed}`;
             const label = `${arch}/VM ISA, all programs, faults and contract/cflow-v${mode + 1}/seed ${seed}`;
             await check(
@@ -84,7 +94,6 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             const mutantFile = path.join(mutantRoot, 'tests', 'vm_kernel.c');
             fs.copyFileSync(file, mutantFile);
             const exe = await compile(compiler, directory, `${arch}-vm-kernel-mutant-${name}.exe`, mutantFile, [
-                'OBFH_VIRTUALIZATION=1',
                 'OBFH_DISABLE_CONTROL_FLOW=1',
                 'OBFH_DISABLE_ANTIDEBUG=1'
             ]);
@@ -93,15 +102,15 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         });
 
     for (const flags of [
-        ['OBFH_VIRTUALIZATION=0', 'OBFH_DISABLE_ANTIDEBUG=1'],
-        ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANY_OBFUSCATION=1']
+        ['OBFH_DISABLE_ANTIDEBUG=1'],
+        ['OBFH_DISABLE_ANY_OBFUSCATION=1']
     ]) {
-        await check(`${arch}/VM disabled contract/${flags[0]}/${flags[1]}`, async () => {
+        await check(`${arch}/VM default/native contract/${flags[0]}`, async () => {
             await execute(
                 await compile(
                     compiler,
                     directory,
-                    `${arch}-vm-disabled-${flags[1]}.exe`,
+                    `${arch}-vm-contract-${flags[0]}.exe`,
                     path.join(__dirname, 'vm.c'),
                     flags
                 ),

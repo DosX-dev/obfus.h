@@ -31,7 +31,6 @@ static void measure(const char *name, void (*operation)(void)) {
         }
     printf("COST %s %.3f %u\n", name, samples[2], count);
 }
-#define OBFH_VIRTUALIZATION 1
 #include "obfus.h"
 static void protected_if_operation(void) {
     if (cost_sink & 1u)

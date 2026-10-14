@@ -65,7 +65,7 @@ static int export_boundaries(void) {
 }
 #endif
 
-#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
+#if !OBFH_DISABLE_ANY_OBFUSCATION
 static volatile LONG vm_calls;
 static long double observed_vm(const unsigned int *program, unsigned int length, unsigned int key, OBFH_VM_VALUE a, OBFH_VM_VALUE b) {
     InterlockedIncrement(&vm_calls);
@@ -121,11 +121,11 @@ static int exercise(int report) {
         CHECK(modf(3.5, &whole) == 0.5 && whole == 3.0);
         CHECK(frexp(8.0, &exponent) == 0.5 && exponent == 4);
 
-#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
+#if !OBFH_DISABLE_ANY_OBFUSCATION
         LONG calls_before = vm_calls;
 #endif
         CHECK(2 * VM_ADD(3, 4) == 14);
-#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
+#if !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(vm_calls > calls_before);
 #endif
         CHECK(sin(0.0) == 0.0 && pow(2.0 + 1.0, 2.0) == 9.0);
@@ -133,7 +133,7 @@ static int exercise(int report) {
         CHECK(VM_SUB(5, 8) == -3 && VM_DIV(81, 9) == 9);
         CHECK(VM_ADD(INT_MIN, 0) == INT_MIN && VM_SUB(INT_MAX, 0) == INT_MAX);
         CHECK(VM_MOD(INT_MIN, 3) == INT_MIN % 3);
-#if OBFH_VIRTUALIZATION && !OBFH_DISABLE_ANY_OBFUSCATION
+#if !OBFH_DISABLE_ANY_OBFUSCATION
         CHECK(VM_MOD(INT_MIN, -1) == 0);
 #endif
         CHECK(VM_EQU(42, 42) && VM_NEQ(4, 5));

@@ -7,7 +7,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         const normalized = source.replace(/\r\n/g, '\n');
         const registerEnd = normalized.indexOf('} OBFH_V_REGISTER;');
         const begin = normalized.lastIndexOf('typedef struct', registerEnd);
-        const end = normalized.indexOf('static unsigned int obfh_v_mix(', registerEnd);
+        const end = normalized.indexOf('static inline unsigned int obfh_v_mix(', registerEnd);
         assert(begin >= 0 && end > begin, 'VM representation block missing');
         const block = normalized.slice(begin, end);
         const names = [...new Set([...block.matchAll(/^#define (\w+)/gm)].map((match) => match[1]))];
@@ -20,9 +20,9 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             return lines.slice(0, count).join('\n');
         }
         const maskBegin = normalized.indexOf('#if (OBFH_SEED >> 8) % 3u');
-        const maskEnd = normalized.indexOf('static unsigned int obfh_v_flags(', maskBegin);
+        const maskEnd = normalized.indexOf('static inline unsigned int obfh_v_flags(', maskBegin);
         const transportBegin = normalized.indexOf('#if (OBFH_SEED >> 10) & 1u');
-        const transportEnd = normalized.indexOf('static OBFH_VM_VALUE obfh_vm_encode(', transportBegin);
+        const transportEnd = normalized.indexOf('static inline OBFH_VM_VALUE obfh_vm_encode(', transportBegin);
         const mathBegin = normalized.indexOf('#if (OBFH_SEED >> 12) % 3u');
         const mathEnd = normalized.indexOf('#define _MUTATE_MATH(', mathBegin);
         assert(maskBegin >= 0 && transportBegin >= 0 && mathBegin >= 0, 'VM transport variants missing');
