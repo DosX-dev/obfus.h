@@ -1,10 +1,10 @@
 // Constructors describe transformations only; model and C emission are independent.
 export function families(width, bits, random, shuffle) {
     function mix(maximum = 3) {
-        const kinds = ['xor', 'add', 'sub', 'rot', 'mul'];
+        const kinds = ['xor', 'add', 'sub', 'rot', 'mul', 'shlXor', 'shrXor', 'swapbits'];
         return Array.from({ length: 1 + random(maximum) }, () => {
             const kind = kinds[random(kinds.length)];
-            return { kind, value: kind === 'rot' ? 1 + random(bits - 1) : kind === 'mul' ? 3 + 2 * random(7) : 1 + random(2 ** bits - 1) };
+            return { kind, value: ['rot', 'shlXor', 'shrXor'].includes(kind) ? 1 + random(bits - 1) : kind === 'swapbits' ? 2 ** random(Math.log2(bits)) : kind === 'mul' ? 3 + 2 * random(7) : 1 + random(2 ** bits - 1) };
         });
     }
     function boxes() {

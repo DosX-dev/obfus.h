@@ -8,6 +8,49 @@ import { emitFamily } from '../src/generation/family-emitter.js';
 import { shapeFingerprint } from '../src/generation/diversity.js';
 
 const rotate = (x, r, bits) => Number(((BigInt(x) << BigInt(r)) | (BigInt(x) >> BigInt(bits - r))) & ((1n << BigInt(bits)) - 1n));
+
+test('word routing mixes are bijective over every byte and 16-bit word', () => {
+    for (const bits of [8, 16]) for (const kind of ['shlXor', 'shrXor', 'swapbits']) {
+        for (let amount = 1; amount < bits; amount++) {
+            if (kind === 'swapbits' && (amount & (amount - 1))) continue;
+            const stage = { kind: 'bitshuffle', ops: [{ i: 0, route: Array.from({ length: bits }, (_, i) => i), before: [{ kind, value: amount }] }] };
+            const seen = new Uint8Array(2 ** bits);
+            for (let value = 0; value < 2 ** bits; value++) {
+                const binary = value.toString(2).padStart(bits, '0').split('').reverse().map(Number);
+                const expected = binary.reduce((sum, bit, index) => {
+                    const partner = kind === 'swapbits' ? index ^ amount : kind === 'shlXor' ? index - amount : index + amount;
+                    return sum + (kind === 'swapbits' ? binary[partner] : bit ^ (binary[partner] || 0)) * 2 ** index;
+                }, 0);
+                const output = familyStage([value], stage, bits, false);
+                assert.equal(output[0], expected);
+                assert.equal(seen[output[0]], 0);
+                seen[output[0]] = 1;
+                assert.equal(familyStage(output, stage, bits, true)[0], value);
+            }
+        }
+    }
+});
+
+test('all difficulties use the extended word mixes and track their structure', () => {
+    for (const level of ['easy', 'medium', 'hardcore', 'extreme']) {
+        const seen = new Set();
+        for (let round = 1; round <= 12; round++) {
+            const c = generate(Buffer.alloc(32, 93), { date: '2026-10-15', round, level });
+            const visit = value => {
+                if (!value || typeof value !== 'object') return;
+                if (['shlXor', 'shrXor', 'swapbits'].includes(value.kind)) seen.add(value.kind);
+                for (const child of Object.values(value)) visit(child);
+            };
+            visit(c.ir.stages.filter(stage => stage.kind !== 'affine'));
+            const changed = structuredClone(c.ir);
+            const box = changed.stages.flatMap(stage => stage.boxes || []).find(box => box.before?.length);
+            box.before[0] = { kind: box.before[0].kind === 'swapbits' ? 'shlXor' : 'swapbits', value: 1 };
+            assert.notEqual(fingerprint(changed), fingerprint(c.ir));
+            assert.notEqual(shapeFingerprint(changed), shapeFingerprint(c.ir));
+        }
+        assert.deepEqual([...seen].sort(), ['shlXor', 'shrXor', 'swapbits'].sort(), level);
+    }
+});
 test('composed lifts cover the byte-pair domain and every control operation', () => {
     const kinds = ['xor', 'add', 'sub', 'mul', 'rot'];
     const stage = { kind: 'matrix', ops: [{ i: 0, j: 1, program: kinds.map((kind, i) => ({ target: i % 2, kind, alternate: kinds[(i + 1) % kinds.length], bit: i, sourceMix: [{ kind: 'xor', value: 173 }, { kind: 'rot', value: 3 }] })) }] };

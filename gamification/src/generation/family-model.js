@@ -18,6 +18,18 @@ export function familyStage(input, stage, bits, inverse) {
     function mix(value, operations = [], undo = inverse) {
         for (const op of undo ? [...operations].reverse() : operations) {
             if (op.kind === 'xor') value ^= op.value;
+            else if (op.kind === 'shlXor' || op.kind === 'shrXor') {
+                const original = value;
+                // Inverse is the finite geometric series I + S + S² + ... .
+                for (let shift = op.value; shift < bits; shift += op.value) {
+                    value ^= op.kind === 'shlXor' ? (original << shift) & mask : original >>> shift;
+                    if (!undo) break;
+                }
+            } else if (op.kind === 'swapbits') {
+                let swapped = 0;
+                for (let bit = 0; bit < bits; bit++) swapped |= ((value >>> bit) & 1) << (bit ^ op.value);
+                value = swapped;
+            }
             else if (op.kind === 'rot') value = rotate(value, undo ? bits - op.value : op.value, bits);
             else if (op.kind === 'mul') value = Number(BigInt(value) * BigInt(undo ? oddInverse(op.value, bits) : op.value) & BigInt(mask));
             else if (op.kind === 'add') value = (value + (undo ? -op.value : op.value)) & mask;

@@ -2,7 +2,17 @@
 export function emitFamily(stage, bits, slot) {
     const v = i => `s[${slot(i)}]`, mask = 2 ** bits - 1;
     function mix(destination, operations = []) {
-        return operations.map(op => `${destination}=${op.kind === 'rot' ? `rot(${destination},${op.value}u)` : `bounded(p_${op.kind}(${destination},${op.value}u))`};`).join('');
+        return operations.map(op => {
+            let expression;
+            if (op.kind === 'shlXor' || op.kind === 'shrXor') {
+                expression = `bounded(p_xor(${destination},p_${op.kind === 'shlXor' ? 'shl' : 'shr'}(${destination},${op.value}u)))`;
+            } else if (op.kind === 'swapbits') {
+                let low = 0;
+                for (let bit = 0; bit < bits; bit++) if (!(bit & op.value)) low |= 1 << bit;
+                expression = `p_or(p_shl(p_and(${destination},${low}u),${op.value}u),p_and(p_shr(${destination},${op.value}u),${low}u))`;
+            } else expression = op.kind === 'rot' ? `rot(${destination},${op.value}u)` : `bounded(p_${op.kind}(${destination},${op.value}u))`;
+            return `${destination}=${expression};`;
+        }).join('');
     }
     function boxCode(box) {
         if (box.layout === 2) {
