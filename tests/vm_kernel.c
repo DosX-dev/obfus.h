@@ -12,13 +12,14 @@
 #undef break
 #undef switch
 #undef printf
-static unsigned int visited[OBFH_V_RETURN + 1], paths[8][32], current_variant, current_operation, arithmetic, trace[128], trace_count;
+static unsigned int visited[OBFH_V_RETURN + 1], paths[8][32], current_variant, current_operation, arithmetic, trace[128], trace_ops[128], trace_count;
 static unsigned int operation_paths[8][OBFH_VOP_BSHR + 1][32];
 void study_step(unsigned int op, unsigned int pc) {
     if (op > OBFH_V_RETURN || pc >= 32)
         ExitProcess(90);
     if (trace_count >= 128)
         ExitProcess(90);
+    trace_ops[trace_count] = op;
     trace[trace_count++] = pc;
     visited[op]++;
     paths[current_variant][pc]++;
@@ -48,6 +49,7 @@ static long double variant_1(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 1;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_1;
     return Obfh_VirtualMachine(p, 6, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -120,6 +122,7 @@ static long double variant_7(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 7;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_7;
     return Obfh_VirtualMachine(p, 15, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -219,6 +222,12 @@ static int failure(unsigned int mode) {
 }
 static int route(unsigned int v, long double a, long double b, long double result) {
     unsigned int expected[32], count = 0;
+    unsigned int key = (0x5d721300u ^ (unsigned int)OBFH_SEED) + v * 3266489917u;
+    if (v == 1 && (trace_ops[0] != ((key & 32u) ? OBFH_V_LOAD_A : OBFH_V_LOAD_B) ||
+                   trace_ops[1] != ((key & 32u) ? OBFH_V_LOAD_B : OBFH_V_LOAD_A)))
+        return 0;
+    if (v == 7 && a == 0 && (trace_ops[3] != ((key & 64u) ? OBFH_V_CROL : OBFH_V_MOVE) || trace_ops[4] != ((key & 64u) ? OBFH_V_MOVE : OBFH_V_CROL)))
+        return 0;
 #define PC(n) expected[count++] = (n)
     switch (v) {
         case 0:
@@ -471,6 +480,26 @@ int main(int argc, char **argv) {
             if (OBFH_V_ENCODE_RAW(word, pc) != encoded || obfh_v_decode(encoded, __obfh_vkey, pc, rotate) != word)
                 return 10;
         }
+    }
+    /* Independent formula and inverse check: no uint32 information may be lost. */
+    const unsigned int mix_multipliers[4] = {2246822507u, 3266489909u, 2221713035u, 3266489909u};
+    unsigned int mix_form = ((unsigned int)OBFH_SEED >> 24) & 3u;
+    unsigned int mix_a = mix_form == 3 ? 15u : 16u, mix_b = mix_form == 3 ? 16u : 13u;
+    unsigned int mix_inverse = 1u, mix_sample = 0x12345678u;
+    for (unsigned int i = 0; i < 5; ++i)
+        mix_inverse *= 2u - mix_multipliers[mix_form] * mix_inverse;
+    for (unsigned int i = 0; i < 4096; ++i) {
+        mix_sample = mix_sample * 1664525u + 1013904223u;
+        unsigned int expected = (mix_sample ^ (mix_sample >> mix_a)) * mix_multipliers[mix_form];
+        expected ^= expected >> mix_b;
+        unsigned int actual = obfh_v_mix(mix_sample), restored = actual;
+        if (actual != expected) return 11;
+        for (unsigned int shift = mix_b; shift < 32; shift *= 2)
+            restored ^= restored >> shift;
+        restored *= mix_inverse;
+        for (unsigned int shift = mix_a; shift < 32; shift *= 2)
+            restored ^= restored >> shift;
+        if (restored != mix_sample) return 12;
     }
     OBFH_V_CONTEXT context;
     context.key = (unsigned int)OBFH_SEED;

@@ -27,7 +27,7 @@ function fixture(header) {
         unsigned x=i<7?edges[i]:state;
         unsigned values[]={x,~x,x+1,x-1,0,0xffffffffu,x^0x80000000u};
         for(unsigned j=0;j<7;++j) for(unsigned p=0;p<sizeof(probes)/sizeof(probes[0]);++p)
-            if(probes[p](x,values[j])!=(unsigned)(x==values[j])) {
+            if(probes[p](x,values[j])!=((unsigned)(x==values[j]) ^ (p/3==3 || p/3==5 || p/3==7))) {
                 printf("TERMINAL_FAIL %u %u %u\n",i,j,p);return 1;
             }
     }

@@ -25,7 +25,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
     for (const mode of [0, 1]) {
         // Cover all six opcode and nine word forms in real VM execution,
         // along with context layouts and byte/register/address transport.
-        const seeds = Array.from({ length: 9 }, (_, i) => ((i % 6) << 24) | (i << 6) | ((i % 4) << 4) | ((i % 3) << 12) | ((i & 1) << 10));
+        const seeds = Array.from({ length: 9 }, (_, i) => ((i % 6) << 24) | (i << 6) | ((i % 4) << 4) | ((i % 3) << 12) | ((i & 1) << 10) | ((i % 6) << 14) | ((i & 1) << 21) | ((i & 1) << 23) | (((i >> 2) & 1) << 27));
         for (const seed of [...seeds, 0xdeadbeef, 0xffffffff]) {
             const flags = ['OBFH_VIRTUALIZATION=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_BETTER_CONTROL_FLOW=${mode}`, `OBFH_SEED=${seed}u`];
             const stem = `${arch}-vm-kernel-${mode}-${seed}`;

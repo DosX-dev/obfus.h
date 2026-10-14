@@ -22,7 +22,7 @@ void obfh_test_flow_proxy(unsigned int expected, unsigned int actual) {
     InterlockedIncrement(&linked_visits);
 }
 void obfh_test_flow_exit(unsigned int style, unsigned int before_state, unsigned int before_tag, unsigned int after_state) {
-    if (style >= 8 || after_state > 1 || after_state != (unsigned int)(before_state == before_tag)) {
+    if (style >= 8 || after_state > 1 || after_state != ((unsigned int)(before_state == before_tag) ^ (style == 3 || style == 5 || style == 7))) {
         InterlockedIncrement(&stage_errors);
         return;
     }

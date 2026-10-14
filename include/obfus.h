@@ -5161,6 +5161,14 @@ static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
 // retained by the resolver so cached pointers cannot outlive their DLL.
 // A published slot is immutable. Variable-name calls resolve other names cold.
 // Seed-selected mix order keeps two operations and no runtime selector.
+// Paired unsigned address transforms; selected before compilation.
+#if (OBFH_SEED >> 23) & 1u
+#define OBFH_CRT_BIAS -
+#define OBFH_CRT_UNBIAS +
+#else
+#define OBFH_CRT_BIAS +
+#define OBFH_CRT_UNBIAS -
+#endif
 static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     OBFH_CRT_ENTRY *entry = (OBFH_CRT_ENTRY *)storage;
     unsigned int length = 0;
@@ -5174,9 +5182,9 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
         }
         if (i > length) {
 #if (OBFH_SEED & 1u)
-            return (FARPROC)((entry->address ^ ~key) - key);
+            return (FARPROC)((entry->address ^ ~key) OBFH_CRT_UNBIAS key);
 #else
-            return (FARPROC)((entry->address - key) ^ ~key);
+            return (FARPROC)((entry->address OBFH_CRT_UNBIAS key) ^ ~key);
 #endif
         }
     }
@@ -5189,9 +5197,9 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
             entry->name[i] = (unsigned char)name[i] ^ mask;
         }
 #if (OBFH_SEED & 1u)
-        entry->address = ((ULONG_PTR)function + key) ^ ~key;
+        entry->address = ((ULONG_PTR)function OBFH_CRT_BIAS key) ^ ~key;
 #else
-        entry->address = ((ULONG_PTR)function ^ ~key) + key;
+        entry->address = ((ULONG_PTR)function ^ ~key) OBFH_CRT_BIAS key;
 #endif
         InterlockedExchange(&entry->state, 2);
     }
@@ -5216,6 +5224,23 @@ typedef struct {
 #define OBFH_VM_BYTE_DECODE(value, add, mask) ((unsigned char)((value) ^ (mask)) - (add))
 #endif
 
+// Each step is invertible on 32-bit state; both transports share the choice.
+#if (OBFH_SEED >> 21) & 1u
+#define OBFH_VM_STATE_STEP(state) \
+    do { \
+        (state) ^= (state) >> 13; \
+        (state) ^= (state) << 17; \
+        (state) ^= (state) >> 5; \
+    } while (0)
+#else
+#define OBFH_VM_STATE_STEP(state) \
+    do { \
+        (state) ^= (state) << 13; \
+        (state) ^= (state) >> 17; \
+        (state) ^= (state) << 5; \
+    } while (0)
+#endif
+
 static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int floating) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     OBFH_VM_VALUE encoded;
@@ -5227,9 +5252,7 @@ static OBFH_VM_VALUE obfh_vm_encode(long double value, int salt, unsigned int fl
     size_t offset = encoded.nonce % sizeof(value);
     PHANTOM_NOP;
     for (size_t i = 0; i < sizeof(value); ++i) {
-        state ^= state << 13;
-        state ^= state >> 17;
-        state ^= state << 5;
+        OBFH_VM_STATE_STEP(state);
         unsigned int rotate = (state >> 24) & 7u;
         unsigned char rotated = (unsigned char)((bytes[i] << rotate) | (bytes[i] >> (8u - rotate)));
         encoded.bytes[(i + offset) % sizeof(value)] = OBFH_VM_BYTE_ENCODE(rotated, (unsigned char)(state >> 8), (unsigned char)(state ^ (state >> 16)));
@@ -5246,9 +5269,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
     size_t offset = encoded.nonce % sizeof(value);
     PHANTOM_NOP;
     for (size_t i = 0; i < sizeof(value); ++i) {
-        state ^= state << 13;
-        state ^= state >> 17;
-        state ^= state << 5;
+        OBFH_VM_STATE_STEP(state);
         unsigned int rotate = (state >> 24) & 7u;
         unsigned char rotated = OBFH_VM_BYTE_DECODE(encoded.bytes[(i + offset) % sizeof(value)], (unsigned char)(state >> 8), (unsigned char)(state ^ (state >> 16)));
         bytes[i] = (unsigned char)((rotated >> rotate) | (rotated << (8u - rotate)));
@@ -5283,7 +5304,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
                        "i"(OBFH_JUNK_WORD), "i"(OBFH_JUNK_BYTE & 7u), "i"(OBFH_JUNK_BYTE)); \
     })
 
-// Distinct tags stay distinct through the existing bijective live ladder.
+// Tag equality/inequality survives the existing bijective live ladder.
 // Other sites use scalar transport, whose implementation retains BREAK_STACK_CFLOW.
 // Completion consumes the transported result instead of returning a C constant.
 #define OBFH_PUBLIC_ELSE_GUARD \
@@ -5300,7 +5321,7 @@ static long double obfh_vm_decode(OBFH_VM_VALUE encoded, int salt) OBFH_CODE_SEC
 #if defined(__TINYC__) && defined(__x86_64__) && defined(_WIN32) && !OBFH_DISABLE_PDATA_DECOYS
 #define OBFH_FLOW_ELSE_TRANSPORT \
     __builtin_choose_expr(OBFH_PD_LIVE_ENABLED && ((__obfh_flow_hash & 15u) == 0u), ({ \
-                              unsigned int __obfh_flow_state = __obfh_false_tag; \
+                              unsigned int __obfh_flow_state = ((0xa8u >> ((__obfh_flow_hash >> 16) & 7u)) & 1u) ? __obfh_true_tag : __obfh_false_tag; \
                               unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
                               ULONG_PTR __obfh_cookie = 0; \
                               OBFH_P_CHAIN(__obfh_true_tag); \
@@ -5834,15 +5855,15 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_EXIT_1 OBFH_P_FINISH_ASM("xorl %[tag], %%eax; subl $1, %%eax; sbbl %%eax, %%eax; negl %%eax;")
 #define OBFH_P_EXIT_2 \
     OBFH_P_FINISH_ASM(OBFH_ASM_ZERO32("1", "%c[zero_form]") "cmpl %[tag], %%eax; movl $1, %%eax; cmovnel %%ecx, %%eax;")
-#define OBFH_P_EXIT_3 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax;")
+#define OBFH_P_EXIT_3 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax;")
 #define OBFH_P_EXIT_4 \
     OBFH_P_FINISH_ASM("subl %[tag], %%eax; negl %%eax; sbbl %%eax, %%eax; notl %%eax; andl $1, %%eax;")
-#define OBFH_P_EXIT_5 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; setne %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
+#define OBFH_P_EXIT_5 OBFH_P_FINISH_ASM("cmpl %[tag], %%eax; sete %%cl; movzbl %%cl, %%eax; xorl $1, %%eax;")
 #define OBFH_P_EXIT_6 \
     OBFH_P_FINISH_ASM( \
         "xorl %[tag], %%eax; movl %%eax, %%ecx; negl %%ecx; orl %%ecx, %%eax; shrl $31, %%eax; xorl $1, %%eax;")
 #define OBFH_P_EXIT_7 \
-    OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jz 9f; movl $0, %%eax; 9:")
+    OBFH_P_FINISH_ASM("xorl %[tag], %%eax; testl %%eax, %%eax; movl $1, %%eax; jnz 9f; movl $0, %%eax; 9:")
 #define OBFH_P_EXIT_SELECT_6(style) __builtin_choose_expr(((style)&7u) == 6u, OBFH_P_EXIT_6, OBFH_P_EXIT_7)
 #define OBFH_P_EXIT_SELECT_5(style) \
     __builtin_choose_expr(((style)&7u) == 5u, OBFH_P_EXIT_5, OBFH_P_EXIT_SELECT_6(style))
@@ -5861,7 +5882,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // Each row is an existing exit family, emitted once with assembler-time selection.
 #define OBFH_P_TERMINAL_TEXT \
     ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;" \
-    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; test; mov 1; jz +5; mov 0 */ ".fill ((%c[finish]==7)&1),4,(((0xc085d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057400)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
+    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; test; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),4,(((0xc085d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
 
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_TERMINAL_SAVE "movl %%eax, %[saved_a]; movl %%edx, %[saved_b];"
@@ -5930,6 +5951,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     done: \
         ((void)0); \
     })
+// Alternate exits preserve polarity: equality {0,1,2,4,6}, inequality {3,5,7}.
+// Packed nibble maps rotate each group forward/backward without runtime work.
 #define OBFH_P_GRAPH_2(s, t, last) \
     ({ \
         __label__ a, b, c, d, join, done; \
@@ -5938,7 +5961,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         OBFH_P_STEP(s, 1); \
         OBFH_P_MASK(t, c, d); \
     c: \
-        OBFH_P_LAST_STEP(t, 0, last, __obfh_flow_exit ^ 5u); \
+        OBFH_P_LAST_STEP(t, 0, last, ((0x30765421u >> (4u * __obfh_flow_exit)) & 7u)); \
         goto done; \
         OBFH_P_GAP(s, 0, 0); \
     a: \
@@ -5957,7 +5980,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         OBFH_P_STEP(s, 0); \
         OBFH_P_TABLE(t, c, d); \
     d: \
-        OBFH_P_LAST_STEP(t, 1, last, __obfh_flow_exit ^ 3u); \
+        OBFH_P_LAST_STEP(t, 1, last, ((0x54327106u >> (4u * __obfh_flow_exit)) & 7u)); \
         goto done; \
         OBFH_P_GAP(s, 0, 0); \
     b: \
@@ -6135,11 +6158,11 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         OBFH_P_PREPARE(1, 0); \
         OBFH_P_PREPARE(1, 1); \
         OBFH_P_SECOND_PREPARE \
-        /* Random polarity permutes tags, never negates the user expression. */ \
+        /* Match the selected equality/inequality exit without re-evaluating the condition. */ \
         unsigned int __obfh_flow_state = (condition) \
                                              ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag) \
                                              : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag); \
-        __builtin_choose_expr(__obfh_flow_hash & 1u, (void)0, \
+        __builtin_choose_expr((__obfh_flow_hash & 1u) ^ (__obfh_flow_exit == 3u || __obfh_flow_exit == 5u || __obfh_flow_exit == 7u), (void)0, \
                               (void)(__obfh_flow_state ^= __obfh_false_tag ^ __obfh_true_tag)); \
         unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
         ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash; \
@@ -6313,11 +6336,18 @@ typedef struct
 #define OBFH_V_WORD_DECODE(word, key, pc) ((word) + OBFH_V_WORD_MASK(key, pc))
 #endif
 
+// Each form is a uint32 permutation: invertible XOR shifts and an odd multiplier.
+// Keep the same operation count; both register transports share the selected form.
+#define OBFH_V_MIX_FORM ((OBFH_SEED >> 24) & 3u)
+#define OBFH_V_MIX_SHIFT_A (OBFH_V_MIX_FORM == 3u ? 15u : 16u)
+#define OBFH_V_MIX_SHIFT_B (OBFH_V_MIX_FORM == 3u ? 16u : 13u)
+#define OBFH_V_MIX_MULTIPLIER (OBFH_V_MIX_FORM == 0u ? 2246822507u : OBFH_V_MIX_FORM == 2u ? 2221713035u \
+                                                                                           : 3266489909u)
 static unsigned int obfh_v_mix(unsigned int x) {
-    x ^= x >> 16;
-    x *= 2246822507u;
+    x ^= x >> OBFH_V_MIX_SHIFT_A;
+    x *= OBFH_V_MIX_MULTIPLIER;
     PHANTOM_NOP;
-    x ^= x >> 13;
+    x ^= x >> OBFH_V_MIX_SHIFT_B;
     return x;
 }
 /* Encodings are local to an execution; only decoded uint32 values enter ALU operations. */
@@ -6351,12 +6381,18 @@ static void obfh_v_set_flags(OBFH_V_CONTEXT *c, unsigned int flags) {
     c->flags = OBFH_V_VALUE_ENCODE(flags, c->flag_key);
     PHANTOM_NOP;
 }
+// Reverse traversal changes the mask chain without extra per-byte indexing.
+#if (OBFH_SEED >> 27) & 1u
+#define OBFH_V_BYTES(size) for (unsigned int i = (size); i-- > 0;)
+#else
+#define OBFH_V_BYTES(size) for (unsigned int i = 0; i < (size); ++i)
+#endif
 static void obfh_v_write(OBFH_V_CONTEXT *c, unsigned int r, long double v) {
     unsigned int m = obfh_v_mix(c->key ^ (r * 3266489917u) ^ c->steps);
     const unsigned char *p = (const unsigned char *)&v;
     c->registers[r].mask = m;
     PHANTOM_NOP;
-    for (unsigned int i = 0; i < sizeof(v); ++i) {
+    OBFH_V_BYTES(sizeof(v)) {
         m = obfh_v_mix(m + i + 1u);
         c->registers[r].bytes[i] = OBFH_V_VALUE_ENCODE(p[i], (unsigned char)m);
     }
@@ -6367,7 +6403,7 @@ static long double obfh_v_read(const OBFH_V_CONTEXT *c, unsigned int r) {
     unsigned char *p = (unsigned char *)&v;
     unsigned int m = c->registers[r].mask;
     PHANTOM_NOP;
-    for (unsigned int i = 0; i < sizeof(v); ++i) {
+    OBFH_V_BYTES(sizeof(v)) {
         m = obfh_v_mix(m + i + 1u);
         p[i] = OBFH_V_VALUE_DECODE(c->registers[r].bytes[i], (unsigned char)m);
     }
@@ -6399,40 +6435,71 @@ static unsigned int obfh_v_opcode(unsigned int word, unsigned int key) {
 }
 
 // Decoder order is selected at preprocessing time; only the selected decoder executes its optional NOP.
+// Permute field ownership, independently of register allocation and decoder order.
+#if ((OBFH_SEED >> 14) % 6u) == 0u
+#define OBFH_VM_FIELD_D 8u
+#define OBFH_VM_FIELD_A 10u
+#define OBFH_VM_FIELD_B 12u
+#endif
+#if ((OBFH_SEED >> 14) % 6u) == 1u
+#define OBFH_VM_FIELD_D 8u
+#define OBFH_VM_FIELD_A 12u
+#define OBFH_VM_FIELD_B 10u
+#endif
+#if ((OBFH_SEED >> 14) % 6u) == 2u
+#define OBFH_VM_FIELD_D 10u
+#define OBFH_VM_FIELD_A 12u
+#define OBFH_VM_FIELD_B 8u
+#endif
+#if ((OBFH_SEED >> 14) % 6u) == 3u
+#define OBFH_VM_FIELD_D 10u
+#define OBFH_VM_FIELD_A 8u
+#define OBFH_VM_FIELD_B 12u
+#endif
+#if ((OBFH_SEED >> 14) % 6u) == 4u
+#define OBFH_VM_FIELD_D 12u
+#define OBFH_VM_FIELD_A 8u
+#define OBFH_VM_FIELD_B 10u
+#endif
+#if ((OBFH_SEED >> 14) % 6u) == 5u
+#define OBFH_VM_FIELD_D 12u
+#define OBFH_VM_FIELD_A 10u
+#define OBFH_VM_FIELD_B 8u
+#endif
 #define OBFH_VM_FIELDS_0(finish) \
     fields_0: \
     OBFH_PHANTOM_NOP_AT(__LINE__ + 0u); \
     op = word; \
-    d = (word >> 8) & 3u; \
-    a = (word >> 10) & 3u; \
-    b = (word >> 12) & 3u; \
+    d = (word >> OBFH_VM_FIELD_D) & 3u; \
+    a = (word >> OBFH_VM_FIELD_A) & 3u; \
+    b = (word >> OBFH_VM_FIELD_B) & 3u; \
     imm = word >> 14; \
     finish
 #define OBFH_VM_FIELDS_1(finish) \
     fields_1: \
     OBFH_PHANTOM_NOP_AT(__LINE__ + 1u); \
     op = word >> 24; \
-    d = (word >> 18) & 3u; \
-    a = (word >> 20) & 3u; \
-    b = (word >> 22) & 3u; \
+    d = (word >> (OBFH_VM_FIELD_D + 10u)) & 3u; \
+    a = (word >> (OBFH_VM_FIELD_A + 10u)) & 3u; \
+    b = (word >> (OBFH_VM_FIELD_B + 10u)) & 3u; \
     imm = word & 0x3ffffu; \
     finish
 #define OBFH_VM_FIELDS_2(finish) \
     fields_2: \
     OBFH_PHANTOM_NOP_AT(__LINE__ + 2u); \
     op = word >> 6; \
-    d = word & 3u; \
-    a = (word >> 2) & 3u; \
-    b = (word >> 4) & 3u; \
+    d = (word >> (OBFH_VM_FIELD_D - 8u)) & 3u; \
+    a = (word >> (OBFH_VM_FIELD_A - 8u)) & 3u; \
+    b = (word >> (OBFH_VM_FIELD_B - 8u)) & 3u; \
     imm = word >> 14; \
     finish
 #define OBFH_VM_FIELDS_3(finish) \
     fields_3: \
     OBFH_PHANTOM_NOP_AT(__LINE__ + 3u); \
     op = word; \
-    d = (word >> 12) & 3u; \
-    a = (word >> 8) & 3u; \
-    b = (word >> 10) & 3u; \
+    d = (word >> (OBFH_VM_FIELD_D == 8u ? 12u : OBFH_VM_FIELD_D - 2u)) & 3u; \
+    a = (word >> (OBFH_VM_FIELD_A == 8u ? 12u : OBFH_VM_FIELD_A - 2u)) & 3u; \
+    b = (word >> (OBFH_VM_FIELD_B == 8u ? 12u : OBFH_VM_FIELD_B - 2u)) & 3u; \
     imm = word >> 14; \
     finish
 #define OBFH_VM_FIELDS_ORDER(a, b, c, d) a(goto fields_ready;) b(goto fields_ready;) c(goto fields_ready;) d()
@@ -9076,8 +9143,8 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 
 /* Each expression owns an immutable encoded instruction stream. */
 #define OBFH_V_INSTRUCTION(op, d, a, b, imm) \
-    (OBFH_V_OPCODE_ENCODE(op, __obfh_vkey) | ((unsigned int)(d) << 8) | \
-     ((unsigned int)(a) << 10) | ((unsigned int)(b) << 12) | (((unsigned int)(imm)&0x3ffffu) << 14))
+    (OBFH_V_OPCODE_ENCODE(op, __obfh_vkey) | ((unsigned int)(d) << OBFH_VM_FIELD_D) | \
+     ((unsigned int)(a) << OBFH_VM_FIELD_A) | ((unsigned int)(b) << OBFH_VM_FIELD_B) | (((unsigned int)(imm)&0x3ffffu) << 14))
 #define OBFH_V_OPERATION_0(d, a, b) \
     OBFH_V_INSTRUCTION(__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation \
                                                                                                                                     : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)), \
@@ -9095,6 +9162,14 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 #define OBFH_V_ENCODE_RAW(word, pc) \
     OBFH_V_WORD_ENCODE((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u)))), __obfh_vkey, pc)
 #define OBFH_V_ENCODE(word, pc) OBFH_V_ENCODE_RAW(OBFH_V_PACK(word), pc)
+// Capture reordered words once instead of expanding their selection inside every packing step.
+#define OBFH_V_PROGRAM_SETUP \
+    enum { \
+        __obfh_vload0 = OBFH_V_INSTRUCTION((__obfh_vkey & 32u) ? OBFH_V_LOAD_A : OBFH_V_LOAD_B, (__obfh_vkey & 32u) ? __obfh_va : __obfh_vb, 0, 0, 0), \
+        __obfh_vload1 = OBFH_V_INSTRUCTION((__obfh_vkey & 32u) ? OBFH_V_LOAD_B : OBFH_V_LOAD_A, (__obfh_vkey & 32u) ? __obfh_vb : __obfh_va, 0, 0, 0), \
+        __obfh_vprep0 = ((__obfh_vkey & 64u) ? OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7) : OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0)), \
+        __obfh_vprep1 = ((__obfh_vkey & 64u) ? OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0) : OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7)) \
+    }
 #define OBFH_V_PROGRAM_0 \
     (const unsigned int[]) { \
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
@@ -9104,8 +9179,8 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
     }
 #define OBFH_V_PROGRAM_1 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_B, __obfh_vb, 0, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_A, __obfh_va, 0, 0, 0), 1), \
+        OBFH_V_ENCODE(__obfh_vload0, 0), \
+            OBFH_V_ENCODE(__obfh_vload1, 1), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 2), \
             OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 3), \
             OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 4), \
@@ -9183,8 +9258,8 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
         OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 6), 2), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 3), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7), 4), \
+            OBFH_V_ENCODE(__obfh_vprep0, 3), \
+            OBFH_V_ENCODE(__obfh_vprep1, 4), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 8), 5), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 6), \
             OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 1, 0, 0, 57), 7), \
@@ -9224,6 +9299,7 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
             __obfh_vc = (__obfh_va + __obfh_vc_offset) & 3u, \
             __obfh_vd = (__obfh_va + 6u - __obfh_vb_offset - __obfh_vc_offset) & 3u \
         }; \
+        OBFH_V_PROGRAM_SETUP; \
         const unsigned int *__obfh_vprogram = OBFH_V_PROGRAM; \
         enum { \
             __obfh_vlength = __obfh_vvariant == 0 ? 4 : __obfh_vvariant == 1 ? 6 \
