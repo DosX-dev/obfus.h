@@ -1,5 +1,11 @@
 # Automated Windows TCC tests
 
+## Runner structure
+
+`run.js` selects configurations, freezes inputs and schedules checks. `runner_pool.js` owns queue admission; `runner_process.js` owns child execution, deadlines, output logs and process-tree cleanup. `binary_checks.js` inspects PE files and protected payloads. `flow_transport.js` contains the CFLOW semantic and bypass-control matrix. These modules keep the same check names, seeds, configurations and failure rules.
+
+`source_macros.js` extracts complete macro definitions by exact name. Callers explicitly choose the first definition, the last definition or a starting offset so editor fallbacks cannot silently replace the protected implementation.
+
 ## Shared builds and isolated executions
 
 Compatible correctness fixtures share expensive header compilation. `crt_bundle.js` combines copy, wide-character, custom-polymorphism and extra CRT checks; `vm_semantics.js` combines numeric, branch and public VM contracts. Every original case runs in a fresh process with its original assertions and completion marker. Native reference functions remain before the protected header, original source lines are retained, and unexpected macro changes fail generation. The shared translation unit redistributes `__COUNTER__` values; explicit variant matrices and every seed/configuration remain enabled. Bundle failures identify the original case and do not suppress the other cases.

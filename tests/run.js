@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn, spawnSync } = require('node:child_process');
+const { createProcessRunner } = require('./runner_process');
 const breakRandom = require('./break_random');
 const stackProxy = require('./stack_proxy');
 const pdataDecoys = require('./pdata_decoys');
@@ -11,6 +11,9 @@ const crtBundle = require('./crt_bundle');
 const vmSemantics = require('./vm_semantics');
 const compactAsm = require('./compact_asm');
 const cflowChain = require('./cflow_chain');
+const flowTransport = require('./flow_transport');
+const { macroDefinition } = require('./source_macros');
+const { pe, importModules, assertNoConstantSignature, withoutSkippedPayload, junkCode } = require('./binary_checks');
 const cflowWeave = require('./cflow_weave');
 const cflowPrimitives = require('./cflow_primitives');
 const dllHosts = require('./dll_hosts');
@@ -20,7 +23,6 @@ const taskContext = new AsyncLocalStorage();
 const finalizers = [];
 const suiteStarted = Date.now();
 let compilationCount = 0;
-let childCount = 0;
 let pool,
     buildPool,
     executionPool,
@@ -109,18 +111,8 @@ async function performCheck(name, action) {
 }
 function protectedMacro(text, name) {
     const begin = text.indexOf('// Virtualization (instruction programs)');
-    const start = text.indexOf('#define ' + name + (name === 'VM_ELSE' ? ' ' : '('), begin);
-    assert(begin >= 0 && start >= begin, 'protected VM macro missing: ' + name);
-    let cursor = start,
-        end;
-    do {
-        end = text.indexOf('\n', cursor);
-        if (end < 0) end = text.length;
-        const continued = text.slice(cursor, end).trimEnd().endsWith(String.fromCharCode(92));
-        cursor = end + 1;
-        if (!continued) break;
-    } while (cursor < text.length);
-    return { start, end, body: text.slice(start, end) };
+    assert(begin >= 0, 'protected VM block missing');
+    return macroDefinition(text, name, { from: begin });
 }
 function replaceProtectedMacro(text, name, replacement) {
     const { start, end } = protectedMacro(text, name);
@@ -135,127 +127,16 @@ function timeoutOption(name, fallback) {
 const testTimeout = timeoutOption('test-timeout-ms', 30000);
 const buildTimeout = timeoutOption('build-timeout-ms', 45000);
 const suiteDeadline = Date.now() + timeoutOption('suite-timeout-ms', 3600000);
-const activeChildren = new Set();
-function killTree(pid) {
-    if (process.platform === 'win32') {
-        const killed = spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
-            windowsHide: true,
-            encoding: 'utf8',
-            timeout: 5000
-        });
-        if (killed.error || killed.status !== 0) {
-            try {
-                process.kill(pid, 'SIGKILL');
-            } catch { }
-        }
-    } else {
-        try {
-            process.kill(pid, 'SIGKILL');
-        } catch { }
-    }
-}
-process.once('SIGINT', async () => {
-    for (const pid of activeChildren) killTree(pid);
-    process.exit(130);
-});
-process.once('exit', async () => {
-    for (const pid of activeChildren) killTree(pid);
+const { runChild, activeChildren } = createProcessRunner({
+    root, suiteDeadline, testTimeout, taskContext,
+    isParallel: () => Boolean(pool),
+    getArtifactDirectory: () => artifactDirectory
 });
 async function run(command, args, options = {}) {
     const queue = /^(?:i386-win32-)?tcc\.exe$/i.test(path.basename(command)) ? buildPool : executionPool;
     // Per-process timers start after admission; queue waiting still counts toward
     // the suite deadline, which runChild checks before spawning anything.
     return queue ? processPool.run(() => queue.run(() => runChild(command, args, options))) : runChild(command, args, options);
-}
-async function runChild(command, args, options = {}) {
-    const remaining = suiteDeadline - Date.now();
-    if (remaining <= 0) {
-        const error = new Error('suite timeout exceeded');
-        error.suiteDeadline = true;
-        throw error;
-    }
-    const timeout = Math.min(options.timeout ?? testTimeout, remaining);
-    const childId = ++childCount;
-    return new Promise((resolve, reject) => {
-        const child = spawn(command, args, {
-            cwd: taskContext.getStore()?.cwd ?? root,
-            windowsHide: true,
-            stdio: ['pipe', 'pipe', 'pipe']
-        });
-        if (child.pid) activeChildren.add(child.pid);
-        const started = Date.now();
-        let stdout = '',
-            stderr = '',
-            failure,
-            phase = '';
-        const collect = (channel, data) => {
-            if (channel === 'stdout') stdout += data.toString();
-            else stderr += data.toString();
-            const found = data.toString().match(/TEST_PHASE:([^\r\n]+)/g);
-            if (found) phase = found[found.length - 1].slice(11).trim();
-            if (stdout.length + stderr.length > 8 * 1024 * 1024 && !failure) {
-                failure = new Error('output limit exceeded: ' + path.basename(command));
-                killTree(child.pid);
-            }
-        };
-        child.stdout.on('data', (data) => collect('stdout', data));
-        child.stderr.on('data', (data) => collect('stderr', data));
-        child.stdin.on('error', () => { });
-        child.stdin.end(options.input ?? '');
-        const progress = pool
-            ? undefined
-            : setInterval(
-                async () =>
-                    console.log(
-                        `RUN ${path.basename(command)}: ${Math.round((Date.now() - started) / 1000)}s / ${Math.round(timeout / 1000)}s${phase ? ' [' + phase + ']' : ''}`
-                    ),
-                5000
-            );
-        const timer = setTimeout(async () => {
-            failure = new Error(`timeout ${timeout}ms: ${path.basename(command)}${phase ? ' [' + phase + ']' : ''}`);
-            failure.code = 'ETIMEDOUT';
-            failure.suiteDeadline = remaining <= (options.timeout ?? testTimeout);
-            killTree(child.pid);
-        }, timeout);
-        const finish = () => {
-            clearTimeout(timer);
-            clearInterval(progress);
-            activeChildren.delete(child.pid);
-        };
-        child.once('error', (error) => {
-            finish();
-            reject(error);
-        });
-        child.once('close', (status, signal) => {
-            finish();
-            if (artifactDirectory)
-                fs.writeFileSync(
-                    path.join(artifactDirectory, childId + '-' + path.basename(command) + '-' + child.pid + '.json'),
-                    JSON.stringify(
-                        {
-                            command,
-                            childId,
-                            check: taskContext.getStore()?.name,
-                            args,
-                            status,
-                            signal,
-                            elapsedMs: Date.now() - started,
-                            startedAt: started,
-                            stdout,
-                            stderr,
-                            error: failure?.message
-                        },
-                        null,
-                        2
-                    )
-                );
-            if (failure) {
-                failure.stdout = stdout;
-                failure.stderr = stderr;
-                reject(failure);
-            } else resolve({ status, signal, stdout, stderr, elapsedMs: Date.now() - started });
-        });
-    });
 }
 async function discover() {
     const argument = process.argv.find((value) => value.startsWith('--tcc-dir='));
@@ -276,8 +157,8 @@ async function discover() {
         'C:\\tcc'
     ].filter(Boolean);
     for (const directory of candidates) {
-        const x64 = path.join(directory, 'tcc.exe'),
-            x86 = path.join(directory, 'i386-win32-tcc.exe');
+        const x64 = path.resolve(directory, 'tcc.exe'),
+            x86 = path.resolve(directory, 'i386-win32-tcc.exe');
         if (fs.existsSync(x64) && fs.existsSync(x86)) return { x64, x86 };
     }
     throw new Error(
@@ -312,282 +193,6 @@ async function execute(exe, marker, args = []) {
     assert(result.stdout.includes(marker), `missing completion marker ${marker}`);
     return result;
 }
-function pe(binary) {
-    const nt = binary.readUInt32LE(0x3c),
-        optional = nt + 24;
-    const count = binary.readUInt16LE(nt + 6),
-        optionalSize = binary.readUInt16LE(nt + 20);
-    const sections = [];
-    for (let i = 0; i < count; i++) {
-        const offset = optional + optionalSize + i * 40;
-        sections.push({
-            executable: !!(binary.readUInt32LE(offset + 36) & 0x20000000),
-            name: binary
-                .subarray(offset, offset + 8)
-                .toString()
-                .replace(/\0.*$/, ''),
-            virtualAddress: binary.readUInt32LE(offset + 12),
-            rawOffset: binary.readUInt32LE(offset + 20),
-            rawSize: binary.readUInt32LE(offset + 16),
-            bytes: binary.subarray(
-                binary.readUInt32LE(offset + 20),
-                binary.readUInt32LE(offset + 20) + binary.readUInt32LE(offset + 16)
-            )
-        });
-    }
-    return { machine: binary.readUInt16LE(nt + 4), sections };
-}
-function importModules(binary) {
-    const { sections } = pe(binary);
-    const optional = binary.readUInt32LE(0x3c) + 24;
-    const directory = optional + (binary.readUInt16LE(optional) === 0x20b ? 112 : 96);
-    const rva = binary.readUInt32LE(directory + 8);
-    if (!rva) return [];
-    const offset = (address) => {
-        const section = sections.find(
-            (value) => address >= value.virtualAddress && address - value.virtualAddress < value.rawSize
-        );
-        assert(section, 'import RVA outside image');
-        return section.rawOffset + address - section.virtualAddress;
-    };
-    const modules = [];
-    for (let descriptor = offset(rva); binary.readUInt32LE(descriptor + 12); descriptor += 20) {
-        const name = offset(binary.readUInt32LE(descriptor + 12));
-        modules.push(binary.subarray(name, binary.indexOf(0, name)).toString().toLowerCase());
-    }
-    return modules;
-}
-function assertNoConstantSignature(binary) {
-    for (const signature of [
-        Buffer.from('abcdefghijklmnopqrstuvwxyz'),
-        Buffer.from('a\0b\0c\0d\0e\0f\0g\0h\0'),
-        Buffer.from('SLAIDP'),
-        Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-    ])
-        assert(!binary.includes(signature), 'constant data signature survives: ' + signature.toString('hex'));
-}
-function withoutSkippedPayload(code, branch) {
-    assert(branch >= 0 && branch + 6 <= code.length, 'junk skip branch missing');
-    const end = branch + 6,
-        destination = end + code.readInt32LE(branch + 2);
-    assert(destination >= end && destination < code.length, 'junk skip target outside site');
-    return { destination, liveBytes: Buffer.concat([code.subarray(0, end), code.subarray(destination)]) };
-}
-function junkCode(binary, siteCount = 13) {
-    const { sections } = pe(binary);
-    const offset = (rva) => {
-        const section = sections.find((s) => rva >= s.virtualAddress && rva - s.virtualAddress < s.rawSize);
-        assert(section, 'export RVA is outside the binary');
-        return section.rawOffset + rva - section.virtualAddress;
-    };
-    const optional = binary.readUInt32LE(0x3c) + 24;
-    const exports = offset(binary.readUInt32LE(optional + (binary.readUInt16LE(optional) === 0x20b ? 112 : 96)));
-    const count = binary.readUInt32LE(exports + 24),
-        functions = offset(binary.readUInt32LE(exports + 28));
-    const names = offset(binary.readUInt32LE(exports + 32)),
-        ordinals = offset(binary.readUInt32LE(exports + 36));
-    const entries = new Map();
-    for (let i = 0; i < count; ++i) {
-        const start = offset(binary.readUInt32LE(names + i * 4));
-        const name = binary.subarray(start, binary.indexOf(0, start)).toString();
-        entries.set(name, binary.readUInt32LE(functions + binary.readUInt16LE(ordinals + i * 2) * 4));
-    }
-    return Array.from({ length: siteCount }, (_, i) => {
-        const start = entries.get('junk_site_' + i),
-            end = entries.get(i === siteCount - 1 ? 'junk_anchor' : 'junk_site_' + (i + 1));
-        assert(start && end > start && end - start < 16384, 'invalid junk function boundaries');
-        return binary.subarray(offset(start), offset(end));
-    });
-}
-async function registerFlowTransport(arch, compiler, directory, mode) {
-    for (const part of [0, 1, 2, 0xdeadbeef, 0xffffffff, 'if', 'while', 'for', 'token', 'proxy', 'oracle', 'stage'])
-        await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control/${part}`, async () =>
-            checkFlowTransport(arch, compiler, directory, mode, part)
-        );
-}
-async function checkFlowTransport(arch, compiler, directory, mode, part) {
-    assert([0, 1, 2, 0xdeadbeef, 0xffffffff, 'if', 'while', 'for', 'token', 'proxy', 'oracle', 'stage'].includes(part),
-        'unknown flow transport scenario');
-    const traceRoot = path.join(directory, `${arch}-cflow-${mode}-${part}`);
-    fs.mkdirSync(path.join(traceRoot, 'include'), { recursive: true });
-    fs.mkdirSync(path.join(traceRoot, 'tests'), { recursive: true });
-    const traced = source
-        .replace(
-            '#define OBFH_FLOW_CONDITION(',
-            require('./cflow_single_lane').trace + '\n#define OBFH_FLOW_CONDITION('
-        )
-        .replace(
-            '#define OBFH_P_TERMINAL_TRACE(style) ((void)0)',
-            '#define OBFH_P_TERMINAL_TRACE(style) obfh_test_flow_exit((style)&7u,__obfh_flow_state,__obfh_flow_tag,__obfh_flow_result)'
-        )
-        .replace(
-            'OBFH_CFLOW_SELECT(__obfh_break_index);',
-            'obfh_test_if_junk_visit(__obfh_break_index); OBFH_CFLOW_SELECT(__obfh_break_index);'
-        )
-        .replace('OBFH_P_PROXY; BREAK_STACK_CFLOW', 'obfh_test_proxy_if_visit(); OBFH_P_PROXY; BREAK_STACK_CFLOW')
-        .replace(
-            '__obfh_flow_state ^= __obfh_live_actual;',
-            'obfh_test_flow_proxy(__obfh_live_expected, __obfh_live_actual); __obfh_flow_state ^= __obfh_live_actual;'
-        )
-        .replace(
-            '    OBFH_SF_FLOW_COMMIT;',
-            '    obfh_test_flow_proxy(__obfh_live_expected ^ __obfh_live_input, __obfh_live_actual); OBFH_SF_FLOW_COMMIT;'
-        )
-        .replace(
-            /#define OBFH_P_FINISH\(style\)[\s\S]*?(?=\r?\n#define)/,
-            '#define OBFH_P_FINISH(style) ({ unsigned int __obfh_exit_before_state=__obfh_flow_state, __obfh_exit_before_tag=__obfh_flow_tag; OBFH_P_EXIT_SELECT_0(style); obfh_test_flow_exit((style)&7u,__obfh_exit_before_state,__obfh_exit_before_tag,__obfh_flow_result); })\n'
-        );
-    assert(source.includes('#define OBFH_P_TRACE'), 'local flow trace hooks missing');
-    assert(traced !== source, 'flow trace injection missing');
-    const header = path.join(traceRoot, 'include', 'obfus.h');
-    fs.writeFileSync(header, traced);
-    const file = path.join(traceRoot, 'tests', 'cflow.c');
-    fs.copyFileSync(path.join(__dirname, 'cflow.c'), file);
-    const flags = [`OBFH_BETTER_CONTROL_FLOW=${mode}`, 'OBFH_DISABLE_ANTIDEBUG=1', 'OBFH_TEST_FLOW_TRACE=1'];
-    if (source.includes('#define OBFH_P_COUPLED_FIRST(') || source.includes('#define OBFH_P_COUPLED_CODE('))
-        flags.push('OBFH_TEST_COUPLED_PRIMITIVES=1');
-    for (const seed of typeof part === 'number' ? [part] : []) {
-        await execute(
-            await compile(compiler, directory, `${arch}-cflow-${mode}-seed-${seed}.exe`, file, [
-                ...flags,
-                `OBFH_SEED=${seed}u`
-            ]),
-            'CFLOW_PASS'
-        );
-        await execute(
-            await compile(
-                compiler,
-                directory,
-                `${arch}-cflow-${mode}-proxy-${seed}.exe`,
-                path.join(__dirname, 'cflow_proxy.c'),
-                [...flags.filter((flag) => flag !== 'OBFH_TEST_FLOW_TRACE=1'), `OBFH_SEED=${seed}u`]
-            ),
-            'FLOW_PROXY_PASS'
-        );
-    }
-    if (typeof part === 'number') return;
-    const ifMutant = traced.replace(
-        /^#define if\((?:cond|\.\.\.)\)[^\r\n]*(?:\\\r?\n[^\r\n]*)*/gm,
-        '#define if(...) if (__VA_ARGS__)'
-    );
-    assert(ifMutant !== traced, 'if bypass target missing');
-    if (part === 'if') {
-        fs.writeFileSync(header, ifMutant);
-        const result = await run(await compile(compiler, directory, `${arch}-cflow-${mode}-bypass.exe`, file, flags), []);
-        assert(result.status === 1 && result.stderr.includes('cflow failure'), 'ordinary-if bypass was not detected');
-    }
-    const whileMutant = traced.replace(
-        '#define while(...) while (OBFUS_CONDITION_BLOCK((__VA_ARGS__)))',
-        '#define while(...) while (__VA_ARGS__)'
-    );
-    assert(whileMutant !== traced, 'while bypass target missing');
-    if (part === 'while') {
-        fs.writeFileSync(header, whileMutant);
-        const whileResult = await run(
-            await compile(compiler, directory, `${arch}-cflow-${mode}-while-bypass.exe`, file, flags),
-            []
-        );
-        assert(
-            whileResult.status === 1 && whileResult.stderr.includes('cflow failure'),
-            'ordinary-while bypass was not detected'
-        );
-    }
-    const forMutant = traced.replace(
-        /#define for\(\.\.\.\)[\s\S]*?(?=\r?\n\r?\n)/,
-        '#define for(...) for (__VA_ARGS__)'
-    );
-    assert(forMutant !== traced, 'for bypass target missing');
-    if (part === 'for') {
-        fs.writeFileSync(header, forMutant);
-        const forResult = await run(
-            await compile(compiler, directory, `${arch}-cflow-${mode}-for-bypass.exe`, file, flags),
-            []
-        );
-        assert(
-            forResult.status === 1 && forResult.stderr.includes('cflow failure'),
-            'per-iteration for bypass was not detected'
-        );
-
-    }
-    // Mutate user-site transport after the header's helpers have been compiled.
-    // Corrupting loader/CRT startup instead only tests an unrelated early crash.
-    const transportStart = traced.indexOf('#define OBFH_FLOW_CONDITION(');
-    let transportEnd = transportStart;
-    do {
-        const next = traced.indexOf('\n', transportEnd);
-        const continued = traced.slice(transportEnd, next).trimEnd().endsWith(String.fromCharCode(92));
-        transportEnd = next + 1;
-        if (!continued) break;
-    } while (transportEnd > 0);
-    const transport = traced.slice(transportStart, transportEnd);
-    const tokenMutant = transport.replace(
-        /unsigned int __obfh_flow_state[\\\s]*=[\s\S]*?(?=unsigned int __obfh_flow_tag)/,
-        'unsigned int __obfh_flow_state = __obfh_false_tag; (void)(condition); \\\n        '
-    );
-    assert(tokenMutant !== transport, 'encoded condition mutation target missing');
-    if (part === 'token') {
-        fs.writeFileSync(header, traced + '\n#undef OBFH_FLOW_CONDITION\n' + tokenMutant);
-        const tokenResult = await run(
-            await compile(compiler, directory, `${arch}-cflow-${mode}-token-bypass.exe`, file, flags),
-            []
-        );
-        assert(
-            tokenResult.status === 1 && tokenResult.stderr.includes('cflow failure'),
-            'discarded condition transport was not detected'
-        );
-    }
-    const proxyEmit = traced.match(/#define OBFH_SF_FLOW_EMIT\(guard,\s*layout,\s*\.\.\.\)[\s\S]*?(?=\r?\n#define)/)?.[0];
-    assert(proxyEmit, 'linked proxy guard mutation target missing');
-    const strippedProxy = proxyEmit.replace(/__obfh_asm__\([\s\S]*?: "edx", "ecx", "cc", "memory"\);/, '(void)0;');
-    assert(strippedProxy !== proxyEmit, 'native guard removal target missing');
-    if (part === 'proxy') {
-        fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_EMIT\n' + strippedProxy + '\n');
-        const proxyResult = await run(
-            await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-bypass.exe`, file, flags),
-            []
-        );
-        assert(
-            proxyResult.status === 1 && proxyResult.stderr.includes('cflow failure'),
-            'removed native proxy guard was not detected'
-        );
-    }
-    // The oracle uses ordinary C keywords and no instrumentation callbacks.
-    const oracleProxy = strippedProxy.replace('obfh_test_flow_proxy(__obfh_live_expected, __obfh_live_actual); ', '');
-    if (part === 'oracle') {
-        fs.writeFileSync(header, source + '\n#undef OBFH_SF_FLOW_EMIT\n' + oracleProxy + '\n');
-        const proxyOracle = path.join(traceRoot, 'tests', 'cflow_proxy.c');
-        fs.copyFileSync(path.join(__dirname, 'cflow_proxy.c'), proxyOracle);
-        const proxyOracleResult = await run(
-            await compile(
-                compiler,
-                directory,
-                `${arch}-cflow-${mode}-proxy-oracle.exe`,
-                proxyOracle,
-                flags.filter((flag) => flag !== 'OBFH_TEST_FLOW_TRACE=1')
-            ),
-            []
-        );
-        assert(
-            proxyOracleResult.status === 1 && !proxyOracleResult.stdout.includes('FLOW_PROXY_PASS'),
-            'guard removal preserved the untraced condition-state contract'
-        );
-    }
-    const permutation = traced.match(/#define OBFH_P_STEP\(s,\s*p\)[\s\S]*?(?=\r?\n#define)/)?.[0];
-    assert(permutation, 'stage mutation target missing');
-    if (part === 'stage') {
-        fs.writeFileSync(header, traced + '\n#undef OBFH_P_STEP\n#define OBFH_P_STEP(s,p) ((void)0)\n');
-        const stageResult = await run(
-            await compile(compiler, directory, arch + '-cflow-' + mode + '-stage-bypass.exe', file, flags),
-            []
-        );
-        assert(
-            stageResult.status === 1 && stageResult.stderr.includes('cflow failure'),
-            'skipped permutation was not detected'
-        );
-    }
-
-}
-
 async function main() {
     let directory;
     try {
@@ -631,6 +236,7 @@ async function main() {
         await check('source: compact ASM matches readable fragments on both architectures', async () =>
             compactAsm.verify(source, { x64: compilers.x64, x86: compilers.x86 })
         );
+        await check('source: macro extraction boundaries', require('./source_macros.test').verify);
         await check('runner: parallel queue ordering and failure cleanup', require('./runner_pool.test').verify);
         await check('source: shared CRT fixtures preserve isolation and failure reporting', async () => {
             await crtBundle.verify(assert, path.join(snapshotRoot, 'tests'));
@@ -1109,7 +715,7 @@ async function main() {
             }
             if (process.argv.includes('--only-flow-tokens')) {
                 for (const mode of [0, 1])
-                    await registerFlowTransport(arch, compiler, directory, mode);
+                    await flowTransport.runSuite({ arch, compiler, directory, mode, source, check, compile, execute, run, assert });
                 continue;
             }
             if (!process.argv.includes('--only-integration') && !process.argv.includes('--only-configs')) {
@@ -1809,7 +1415,7 @@ async function main() {
                 });
                 if (process.argv.includes('--only-cache')) continue;
                 for (const mode of [0, 1])
-                    await registerFlowTransport(arch, compiler, directory, mode);
+                    await flowTransport.runSuite({ arch, compiler, directory, mode, source, check, compile, execute, run, assert });
                 if (process.argv.includes('--only-cflow')) continue;
                 await check(`${arch}/negative control: disabled VM must fail`, async () => {
                     const mutantRoot = path.join(directory, arch + '-mutant');

@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { macroDefinition } = require('./source_macros');
 
 async function runSuite({ arch, compiler, directory, source, check, compile, execute, assert }) {
     await check(`${arch}/VM encodings, cache layouts, guard orders and vector transport`, async () => {
@@ -11,14 +12,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         assert(begin >= 0 && end > begin, 'VM representation block missing');
         const block = normalized.slice(begin, end);
         const names = [...new Set([...block.matchAll(/^#define (\w+)/gm)].map((match) => match[1]))];
-        function definition(name) {
-            const start = normalized.lastIndexOf('#define ' + name);
-            assert(start >= 0, 'missing macro: ' + name);
-            const lines = normalized.slice(start).split('\n');
-            let count = 1;
-            while (lines[count - 1].trimEnd().endsWith('\\')) ++count;
-            return lines.slice(0, count).join('\n');
-        }
+        const definition = name => macroDefinition(normalized, name, { last: true }).body;
         const maskBegin = normalized.indexOf('#if (OBFH_SEED >> 8) % 3u');
         const maskEnd = normalized.indexOf('static inline unsigned int obfh_v_flags(', maskBegin);
         const transportBegin = normalized.indexOf('#if (OBFH_SEED >> 10) & 1u');

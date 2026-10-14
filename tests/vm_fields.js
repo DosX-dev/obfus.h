@@ -1,17 +1,11 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { macroDefinition } = require('./source_macros');
 
 async function runSuite({ arch, compiler, directory, source, check, compile, execute, assert }) {
     await check(`${arch}/VM field decoders: 24 orders, six field permutations and exact values`, async () => {
-        function definition(name) {
-            const start = source.lastIndexOf('#define ' + name);
-            assert(start >= 0, 'missing macro: ' + name);
-            const lines = source.slice(start).split('\n');
-            let count = 1;
-            while (lines[count - 1].trimEnd().endsWith('\\')) ++count;
-            return lines.slice(0, count).join('\n');
-        }
+        const definition = name => macroDefinition(source, name, { last: true }).body;
         const begin = source.indexOf('#if ((OBFH_SEED >> 14) % 6u) == 0u');
         const end = source.indexOf('static inline long double Obfh_VirtualMachine(', begin);
         assert(begin >= 0 && end > begin, 'missing field layout block');

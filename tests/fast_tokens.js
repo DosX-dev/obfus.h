@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { macroDefinition } = require('./source_macros');
 
 // Extract a single exported probe, rather than comparing PE timestamps or
 // unrelated polymorphic header bodies. Both PE32 and PE32+ use RVA export tables.
@@ -50,7 +51,7 @@ function exportedProbe(file, wanted = 'fast_probe', whole = false) {
     throw new Error('fast_probe export missing');
 }
 
-exports.runSuite = async function({ arch, compiler, directory, source, fixturesRoot = __dirname, check, compile, execute, run, assert }) {
+exports.runSuite = async function ({ arch, compiler, directory, source, fixturesRoot = __dirname, check, compile, execute, run, assert }) {
     await check(`${arch}/fast transfer bytes, fixed-seed replay and semantic negative controls`, async () => {
         const root = path.join(directory, `${arch}-fast-transfer`);
         fs.mkdirSync(path.join(root, 'include'), { recursive: true });
@@ -91,15 +92,7 @@ int main(void) { fast_probe(); fast_probe_second(); for (unsigned i = 1; i < 100
         assert(fullBytes.equals(exportedProbe(fullRepeat)), 'full-header fast insertion replay changed');
         assert(fullDoBytes.equals(exportedProbe(fullRepeat, 'protected_do', true)), 'full-header do replay changed');
         const primitiveHeader = path.join(root, 'include', 'fast_primitives.h');
-        function definition(name) {
-            const pattern = new RegExp('^#define ' + name + '(?=[ (])', 'm');
-            const match = pattern.exec(source);
-            assert(match, 'missing fast primitive dependency: ' + name);
-            const lines = source.slice(match.index).split('\n');
-            let count = 1;
-            while (lines[count - 1].trimEnd().endsWith('\\')) ++count;
-            return lines.slice(0, count).join('\n');
-        }
+        const definition = name => macroDefinition(source, name).body;
         const start = source.indexOf('#define OBFH_FLOW_FAST_TRANSFER');
         const end = source.indexOf('#define if(', start);
         assert(start >= 0 && end > start, 'fast primitive boundaries missing');

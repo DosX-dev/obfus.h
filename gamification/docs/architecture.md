@@ -51,6 +51,8 @@ Build and verification do not import publication. Round preparation does not imp
 
 `generate(key, context)` returns `{ ir, target, password, fingerprint }`. The plaintext password is private. Context contains date, successful-round number, difficulty and deterministic attempt number. The separate HMAC domains for password, structure and obfuscation seed must remain independent.
 
+`generation/fingerprint.js` owns structural and behavioral fingerprints and expression normalization; it does not draw random values or mutate the IR. `generator.js` constructs challenges and re-exports the fingerprint functions for existing callers. Moving this code must preserve hashes, random draw order and emitted C for identical inputs; it does not require a generator-version change.
+
 The IR contains word width, logical coordinates, stages, physical storage permutation, function groups and the library seed. The model operates on logical coordinates; the emitter maps them to physical slots.
 
 | Stage        | Contract                                                                                                                                                                |

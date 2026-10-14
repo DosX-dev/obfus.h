@@ -13726,203 +13726,124 @@ static int obfh_abs_proxy(int value) {
 #define trunc(x) trunc(_MUTATE_MATH(x))
 
 // Known msvcrt math exports use the same name selector and typed target as other CRT calls.
-#define acos(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
+// Keep the two store orders, typed signature and arguments explicit at each alias.
+// This shares source scaffolding only: each call still constructs its own name.
+#define OBFH_MATH_CRT_CALL(capacity, groups, forward, reverse, type, args) ({ \
+    char __obfh_math_name[capacity]; \
+    OBFH_NAME_ORDER_FOR(groups, forward, reverse); \
+    OBFH_CRT_TARGET(type, __obfh_math_name) \
+    args; \
 })
 
-#define asin(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define acos(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                   double (*)(double), (x))
 
-#define atan(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define asin(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                   double (*)(double), (x))
 
-#define atan2(y, x) ({ \
-    char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a)); \
-    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
-    (y, x); \
-})
+#define atan(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                   double (*)(double), (x))
 
-#define ceil(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define atan2(y, x) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                       (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                                       (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[4] = (_2 + '0'), __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                       double (*)(double, double), (y, x))
 
-#define cos(x) ({ \
-    char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define ceil(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
+                                   double (*)(double), (x))
 
-#define cosh(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define cos(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
+                                  double (*)(double), (x))
 
-#define exp(x) ({ \
-    char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(0)] = _e)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define cosh(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
+                                   double (*)(double), (x))
 
-#define fabs(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define exp(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(0)] = _e), \
+                                  double (*)(double), (x))
 
-#define floor(x) ({ \
-    char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define fabs(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                   double (*)(double), (x))
 
-#define fmod(x, y) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
-    (x, y); \
-})
+#define floor(x) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                    (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                                    (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                    double (*)(double), (x))
 
-#define frexp(x, y) ({ \
-    char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)); \
-    OBFH_CRT_TARGET(double (*)(double, int *), __obfh_math_name) \
-    (x, y); \
-})
+#define fmod(x, y) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                      (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                      (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                      double (*)(double, double), (x, y))
 
-#define ldexp(x, y) ({ \
-    char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)); \
-    OBFH_CRT_TARGET(double (*)(double, int), __obfh_math_name) \
-    (x, y); \
-})
+#define frexp(x, y) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                       (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                                       (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                       double (*)(double, int *), (x, y))
 
-#define log(x) ({ \
-    char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define ldexp(x, y) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                       (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                                       (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l), \
+                                       double (*)(double, int), (x, y))
 
-#define log10(x) ({ \
-    char __obfh_math_name[6]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define log(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l), \
+                                  double (*)(double), (x))
 
-#define modf(x, y) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _m, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _m)); \
-    OBFH_CRT_TARGET(double (*)(double, double *), __obfh_math_name) \
-    (x, y); \
-})
+#define log10(x) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                    (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
+                                    (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[4] = (_0 + '0'), __obfh_math_name[3] = (_1 + '0'), __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l), \
+                                    double (*)(double), (x))
 
-#define pow(x, y) ({ \
-    char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _p)); \
-    OBFH_CRT_TARGET(double (*)(double, double), __obfh_math_name) \
-    (x, y); \
-})
+#define modf(x, y) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                      (__obfh_math_name[OBFH_NAME_INDEX(0)] = _m, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                      (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _m), \
+                                      double (*)(double, double *), (x, y))
 
-#define sin(x) ({ \
-    char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define pow(x, y) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_HIGH, \
+                                     (__obfh_math_name[OBFH_NAME_INDEX(0)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                                     (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _p), \
+                                     double (*)(double, double), (x, y))
 
-#define sinh(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define sin(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
+                                  double (*)(double), (x))
 
-#define sqrt(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define sinh(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
+                                   double (*)(double), (x))
 
-#define tan(x) ({ \
-    char __obfh_math_name[4]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define sqrt(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
+                                   double (*)(double), (x))
 
-#define tanh(x) ({ \
-    char __obfh_math_name[5]; \
-    OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                        (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t)); \
-    OBFH_CRT_TARGET(double (*)(double), __obfh_math_name) \
-    (x); \
-})
+#define tan(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
+                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t), \
+                                  double (*)(double), (x))
+
+#define tanh(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t), \
+                                   double (*)(double), (x))
 
 // #endregion
 

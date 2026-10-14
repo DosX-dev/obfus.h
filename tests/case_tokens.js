@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { macroDefinition } = require('./source_macros');
 
 function exportsAt(file) {
     const bytes = fs.readFileSync(file), pe = bytes.readUInt32LE(0x3c), opt = pe + 24;
@@ -22,7 +23,7 @@ function exportsAt(file) {
     return { bytes, result };
 }
 
-exports.runSuite = async function({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
+exports.runSuite = async function ({ arch, compiler, directory, source, check, compile, execute, run, assert }) {
     for (const mode of [0, 1])
         for (const seed of [0, 1, 0xdeadbeef, 0xffffffff])
             await check(`${arch}/case labels, fallthrough and nested grammar/cflow-v${mode + 1}/seed ${seed}`, async () =>
@@ -34,14 +35,7 @@ exports.runSuite = async function({ arch, compiler, directory, source, check, co
             execute(await compile(compiler, directory, `${arch}-case-disabled-${flag}.exe`,
                 path.join(__dirname, 'case_tokens.c'), [flag, 'OBFH_DISABLE_ANTIDEBUG=1']), 'CASE_TOKENS_PASS'));
     await check(`${arch}/case rescan, isolated size budget and seed/site diversity`, async () => {
-        function definition(name) {
-            const match = new RegExp('^#define ' + name + '(?=[ (])', 'm').exec(source);
-            assert(match, 'missing case dependency: ' + name);
-            const lines = source.slice(match.index).split('\n');
-            let count = 1;
-            while (lines[count - 1].trimEnd().endsWith('\\')) ++count;
-            return lines.slice(0, count).join('\n');
-        }
+        const definition = name => macroDefinition(source, name).body;
         const begin = source.indexOf('#define OBFH_CASE_CONTEXT_I'), end = source.indexOf('#define OBFUS_CONDITION_BLOCK', begin);
         assert(begin >= 0 && end > begin, 'case interception block missing');
         const macros = ['OBFH_MIX_A', 'OBFH_MIX_B', 'OBFH_MIX_FIELDS', 'OBFH_DATA_FIELDS', 'OBFH_FLOW_FAST_TRANSFER'].map(definition).join('\n');
