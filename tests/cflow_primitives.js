@@ -7,6 +7,7 @@ function cases(source) {
     return [
         ...(source.includes('#define OBFH_P_TERMINAL_TEXT') ? [['terminal', 'CFLOW_TERMINAL_PASS', require('./cflow_terminal')]] : []),
         ['forms', 'CFLOW_FORMS_PASS', require('./cflow_forms')],
+        ['packing', 'CFLOW_PACKING_PASS', require('./cflow_packing')],
         ['single_lane', 'MACHINE_PRIMITIVES_PASS', require('./cflow_single_lane')],
         ...(source.includes('#define OBFH_SF_FLOW_COMMIT ') ? [['commit', 'CFLOW_COMMIT_PASS', require('./cflow_commit')]] : [])
     ];

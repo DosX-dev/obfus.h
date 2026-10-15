@@ -11,7 +11,7 @@
 #define OBFH_CFLOW_INPUT(reg, index) "movl %[input], " reg ";"
 static int pred_0(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_ADD_CARRY "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_ADD_CARRY "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -19,7 +19,7 @@ static int pred_0(unsigned int input) {
 }
 static int pred_1(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_OR_AND_SUM "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_OR_AND_SUM "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -27,7 +27,7 @@ static int pred_1(unsigned int input) {
 }
 static int pred_2(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_SUB_BORROW "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_SUB_BORROW "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -35,7 +35,7 @@ static int pred_2(unsigned int input) {
 }
 static int pred_3(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_DEMORGAN "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_DEMORGAN "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -43,7 +43,7 @@ static int pred_3(unsigned int input) {
 }
 static int pred_4(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_OR_DISTRIBUTE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_OR_DISTRIBUTE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -51,7 +51,7 @@ static int pred_4(unsigned int input) {
 }
 static int pred_5(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_AND_PARTITION "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_AND_PARTITION "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -59,7 +59,7 @@ static int pred_5(unsigned int input) {
 }
 static int pred_6(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_XOR_CANCEL "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_XOR_CANCEL "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -67,7 +67,7 @@ static int pred_6(unsigned int input) {
 }
 static int pred_7(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_COMPLEMENT_CARRY "setnc %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_COMPLEMENT_CARRY "setnc %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -75,7 +75,7 @@ static int pred_7(unsigned int input) {
 }
 static int pred_8(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_COMPLEMENT_WRAP "setc %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_COMPLEMENT_WRAP "setc %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -83,7 +83,7 @@ static int pred_8(unsigned int input) {
 }
 static int pred_9(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_MASK_SUBTRACT "setnc %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_MASK_SUBTRACT "setnc %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -91,7 +91,7 @@ static int pred_9(unsigned int input) {
 }
 static int pred_10(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_MASK_OR_ORDER "setae %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_MASK_OR_ORDER "setae %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -99,7 +99,7 @@ static int pred_10(unsigned int input) {
 }
 static int pred_11(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_ROTATE_XOR "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_ROTATE_XOR "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -107,7 +107,7 @@ static int pred_11(unsigned int input) {
 }
 static int pred_12(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_ROTATE_RESTORE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_ROTATE_RESTORE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -115,7 +115,7 @@ static int pred_12(unsigned int input) {
 }
 static int pred_13(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_BSWAP_XOR "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_BSWAP_XOR "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -123,7 +123,7 @@ static int pred_13(unsigned int input) {
 }
 static int pred_14(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_WORD_PARTITION "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_WORD_PARTITION "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -131,7 +131,7 @@ static int pred_14(unsigned int input) {
 }
 static int pred_15(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_BYTE_PARITY "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_BYTE_PARITY "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -139,7 +139,7 @@ static int pred_15(unsigned int input) {
 }
 static int pred_16(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_BYTE_ROTATE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_BYTE_ROTATE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -147,7 +147,7 @@ static int pred_16(unsigned int input) {
 }
 static int pred_17(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_WORD_ROTATE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_WORD_ROTATE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -155,7 +155,7 @@ static int pred_17(unsigned int input) {
 }
 static int pred_18(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_NEG_COMPLEMENT "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_NEG_COMPLEMENT "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -163,7 +163,7 @@ static int pred_18(unsigned int input) {
 }
 static int pred_19(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_MUL_DISTRIBUTE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_MUL_DISTRIBUTE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -171,7 +171,7 @@ static int pred_19(unsigned int input) {
 }
 static int pred_20(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_SQUARE_EXPAND "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_SQUARE_EXPAND "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -179,7 +179,7 @@ static int pred_20(unsigned int input) {
 }
 static int pred_21(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_NEG_SQUARE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_NEG_SQUARE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -187,7 +187,7 @@ static int pred_21(unsigned int input) {
 }
 static int pred_22(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_BSWAP_NOT "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_BSWAP_NOT "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -195,7 +195,7 @@ static int pred_22(unsigned int input) {
 }
 static int pred_23(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_SUB_MASK "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_SUB_MASK "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -203,7 +203,7 @@ static int pred_23(unsigned int input) {
 }
 static int pred_24(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_MASK_ORDER "setbe %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_MASK_ORDER "setbe %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -211,7 +211,7 @@ static int pred_24(unsigned int input) {
 }
 static int pred_25(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -219,7 +219,7 @@ static int pred_25(unsigned int input) {
 }
 static int pred_26(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_SQUARE_RESIDUE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_SQUARE_RESIDUE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -227,7 +227,7 @@ static int pred_26(unsigned int input) {
 }
 static int pred_27(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_FOURTH_RESIDUE "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_FOURTH_RESIDUE "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
@@ -235,7 +235,7 @@ static int pred_27(unsigned int input) {
 }
 static int pred_28(unsigned int input) {
     unsigned char valid;
-    __obfh_asm__(OBFH_CFLOW_PRED_ISOLATE_BIT "sete %[valid];"
+    __obfh_asm__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_PRED_ISOLATE_BIT "sete %[valid];"
                  : [valid] "=m"(valid)
                  : OBFH_CFLOW_NAMED_INPUTS, [input] "m"(input)
                  : OBFH_CFLOW_CLOBBERS);
