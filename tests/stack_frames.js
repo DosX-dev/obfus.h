@@ -25,7 +25,7 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
 #define ADDRESS "leal 1f,%0; jmp 9f; 1:"
 #define SP(x) __asm__ __volatile__("movl %%esp,%0":"=r"(x)::"memory")
 #endif
-#define CARRIER(name,size,draw,frame,epilogue) static Entry name(void){Entry result; __asm__ __volatile__(OBFH_SF_ASM_BITS ADDRESS frame("test") "movl $123,%%eax;" epilogue "9:":"=r"(result):[test]"i"(size),[phantom]"i"(draw):"eax","ecx","edx","cc","memory");return result;}
+#define CARRIER(name,size,draw,frame,epilogue) static Entry name(void){Entry result; __asm__ __volatile__(OBFH_SF_ASM_BITS ".set .Lss_test,%c[test];" ADDRESS frame("test") "movl $123,%%eax;" epilogue "9:":"=r"(result):[test]"i"(size),[phantom]"i"(draw):"eax","ecx","edx","cc","memory");return result;}
 `;
     // Independent x86 encodings: changing selector polarity must fail even if
     // both prologues still restore the stack correctly.
