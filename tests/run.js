@@ -9,16 +9,14 @@ const pdataDecoys = require('./pdata_decoys');
 const vmKernel = require('./vm_kernel');
 const crtBundle = require('./crt_bundle');
 const vmSemantics = require('./vm_semantics');
-const compactAsm = require('./compact_asm');
 const cflowChain = require('./cflow_chain');
 const flowTransport = require('./flow_transport');
 const { macroDefinition } = require('./source_macros');
 const { pe, importModules, assertNoConstantSignature, withoutSkippedPayload, junkCode } = require('./binary_checks');
-const cflowWeave = require('./cflow_weave');
 const cflowPrimitives = require('./cflow_primitives');
 const dllHosts = require('./dll_hosts');
 const { AsyncLocalStorage } = require('node:async_hooks');
-const { CheckPool, ProcessPool, workerCount } = require('./runner_pool');
+const { CheckPool, ProcessPool, workerCount, runInPools, workerLimit } = require('./runner_pool');
 const taskContext = new AsyncLocalStorage();
 const finalizers = [];
 const suiteStarted = Date.now();
@@ -136,7 +134,7 @@ async function run(command, args, options = {}) {
     const queue = /^(?:i386-win32-)?tcc\.exe$/i.test(path.basename(command)) ? buildPool : executionPool;
     // Per-process timers start after admission; queue waiting still counts toward
     // the suite deadline, which runChild checks before spawning anything.
-    return queue ? processPool.run(() => queue.run(() => runChild(command, args, options))) : runChild(command, args, options);
+    return queue ? runInPools(queue, processPool, () => runChild(command, args, options)) : runChild(command, args, options);
 }
 async function discover() {
     const argument = process.argv.find((value) => value.startsWith('--tcc-dir='));
@@ -221,9 +219,8 @@ async function main() {
             require('node:crypto').createHash('sha256').update(source).digest('hex') + '\n'
         );
         console.log(`Artifacts: ${directory}`);
-        const workers = process.argv.includes('--serial')
-            ? 1
-            : workerCount(os.availableParallelism?.() ?? os.cpus().length, os.freemem(), os.totalmem());
+        const workers = workerLimit(process.argv,
+            workerCount(os.availableParallelism?.() ?? os.cpus().length, os.freemem(), os.totalmem()));
         const liveWorkers = () => workerCount(os.availableParallelism?.() ?? os.cpus().length, os.freemem(), os.totalmem());
         buildPool = new ProcessPool(workers, liveWorkers);
         executionPool = new ProcessPool(workers);
@@ -232,10 +229,12 @@ async function main() {
         // buildPool, while shared mutable-header groups remain strictly serial.
         const checkWorkers = process.argv.includes('--serial') ? 1 : workers * 2;
         pool = new CheckPool(checkWorkers, () => checkWorkers);
-        console.log(`Automatic parallelism: ${workers} child processes; builds also limited by available RAM.`);
-        await check('source: compact ASM matches readable fragments on both architectures', async () =>
-            compactAsm.verify(source, { x64: compilers.x64, x86: compilers.x86 })
-        );
+        console.log(`Process parallelism: ${workers} child processes; builds also limited by available RAM.`);
+        await check('source: ASM uses source templates without a generated cache', async () => {
+            assert(!source.includes('// BEGIN COMPACT ASM CACHE'), 'generated ASM cache must not be restored');
+            assert(!source.includes('// BEGIN GENERATED CFLOW SELECTORS') && !source.includes('#define OBFH_P_CACHE_00'),
+                'generated CFLOW cache must not be restored');
+        });
         await check('source: macro extraction boundaries', require('./source_macros.test').verify);
         await check('runner: parallel queue ordering and failure cleanup', require('./runner_pool.test').verify);
         await check('source: shared CRT fixtures preserve isolation and failure reporting', async () => {
@@ -277,7 +276,7 @@ async function main() {
         await check('source: 128 proxy variants with distinct guard/layout pairs', async () => {
             const variants = [
                 ...source.matchAll(
-                    /^#define OBFH_SF_SPEC_(\d+)\(emit\) emit\(OBFH_SF_GUARD_(\d+), OBFH_SF_LAYOUT_(\d+)\(/gm
+                    /^#define OBFH_SF_SPEC_(\d+)\(emit\) emit\((\d+)u,\s*(\d+)u,/gm
                 )
             ];
             assert(
@@ -567,7 +566,11 @@ async function main() {
                     'CFLOW_ENCODING_PASS'
                 );
             });
-            await cflowWeave.runSuite({
+            await cflowPrimitives.runSuite({
+                arch, compiler, directory, source,
+                fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, run, assert
+            });
+            await require('./cflow_selectors').runSuite({
                 arch, compiler, directory, source,
                 fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, execute, run, assert
             });
@@ -674,6 +677,7 @@ async function main() {
                 if (process.argv.includes('--only-chain')) continue;
             }
             if (process.argv.includes('--only-vm') || !process.argv.some((arg) => arg.startsWith('--only-'))) {
+                await require('./vm_packing').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
                 await vmKernel.runSuite({
                     arch, compiler, directory, source,
                     fixturesRoot: path.join(snapshotRoot, 'tests'), check, compile, execute, run, assert
@@ -837,6 +841,11 @@ async function main() {
                         }
                     );
                 await require('./asm_matrix').runSuite({ arch, compiler, directory, source, check, compile, execute, assert });
+                await require('./stack_proxy_pool').runSuite({ arch, compiler, directory, check, compile, execute, assert });
+                await require('./sf_live_guards').runSuite({
+                    arch, compiler, directory, source, fixturesRoot: path.join(snapshotRoot, 'tests'),
+                    check, compile, execute, run, assert
+                });
                 if (process.argv.includes('--only-stack-proxy')) continue;
                 await check(
                     `${arch}/API failure branches`,

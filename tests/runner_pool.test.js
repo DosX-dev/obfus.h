@@ -1,8 +1,42 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { CheckPool, ProcessPool, workerCount } = require('./runner_pool');
+const { CheckPool, ProcessPool, workerCount, runInPools, workerLimit } = require('./runner_pool');
 const { AsyncLocalStorage } = require('node:async_hooks');
 async function verify() {
+    assert.equal(workerLimit([], 30), 30);
+    assert.equal(workerLimit(['--serial'], 30), 1);
+    assert.equal(workerLimit(['--workers=8'], 30), 8);
+    for (const option of ['--workers', '--workers=', '--workers=0', '--workers=-1', '--workers=1.5',
+        '--workers=NaN', '--workers=Infinity', '--workers=1e2', '--workers=9007199254740992'])
+        assert.throws(() => workerLimit([option], 30), /positive safe integer/);
+    assert.throws(() => workerLimit(['--workers=2', '--workers=3'], 30), /duplicate/);
+    assert.throws(() => workerLimit(['--serial', '--workers=2'], 30), /cannot be combined/);
+    // Hold one admitted build behind an explicit barrier. The other builds are
+    // queued by the RAM limit and must not consume the common process budget.
+    // setImmediate drains pending promise admissions; no wall-clock race is used.
+    const shared = new ProcessPool(3), builds = new ProcessPool(3, () => 1);
+    const executions = new ProcessPool(3), admitted = [];
+    let releaseBuild;
+    const barrier = new Promise(resolve => { releaseBuild = resolve; });
+    const waitingBuilds = [0, 1, 2].map(id => runInPools(builds, shared, async () => {
+        admitted.push('build' + id);
+        await barrier;
+    }));
+    await new Promise(resolve => setImmediate(resolve));
+    const readyExecution = runInPools(executions, shared, () => admitted.push('execute'));
+    try {
+        await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(admitted, ['build0', 'execute'], 'queued builds starved a ready executable');
+    } finally {
+        releaseBuild();
+        await Promise.all([...waitingBuilds, readyExecution]);
+        await new Promise(resolve => setImmediate(resolve));
+    }
+    assert.equal(admitted.length, 4);
+    assert.equal(shared.active, 0);
+    assert.equal(builds.active, 0);
+    assert.equal(executions.active, 0);
+
     assert.equal(workerCount(32, 35 * 1024 ** 3, 64 * 1024 ** 3), 30);
     assert.equal(workerCount(8, 2 * 1024 ** 3, 8 * 1024 ** 3), 4);
     assert.equal(workerCount(8, 1024 ** 3, 8 * 1024 ** 3), 1);

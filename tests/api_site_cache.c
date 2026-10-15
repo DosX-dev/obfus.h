@@ -40,7 +40,7 @@ static int decode_forms(void) {
            __obfh_gui_rotate = 17 };
     const ULONG_PTR values[] = {0, 1, (ULONG_PTR)-1, (ULONG_PTR)-2, (ULONG_PTR)1 << (sizeof(ULONG_PTR) * 8 - 1)};
     for (unsigned int i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
-        for (unsigned int form = 0; form < 4; ++form) {
+        for (unsigned int form = 0; form < 6; ++form) {
             ULONG_PTR x = values[i], key = OBFH_GUI_SITE_KEY, bias = (unsigned int)__obfh_gui_bias;
             ULONG_PTR __obfh_gui_value;
 #define ROTATE(x) (((x) << 17) | ((x) >> (sizeof(ULONG_PTR) * 8 - 17)))
@@ -48,11 +48,15 @@ static int decode_forms(void) {
             if (form == 1) __obfh_gui_value = ROTATE(x + bias) ^ key;
             if (form == 2) __obfh_gui_value = (ROTATE(x) ^ key) + bias;
             if (form == 3) __obfh_gui_value = ROTATE((x ^ key) + bias);
+            if (form == 4) __obfh_gui_value = ROTATE((x + bias) ^ key);
+            if (form == 5) __obfh_gui_value = (ROTATE(x) + bias) ^ key;
 #undef ROTATE
             if (form == 0) OBFH_GUI_FORM_0(0);
             if (form == 1) OBFH_GUI_FORM_1(0);
             if (form == 2) OBFH_GUI_FORM_2(0);
             if (form == 3) OBFH_GUI_FORM_3(0);
+            if (form == 4) OBFH_GUI_FORM_4(0);
+            if (form == 5) OBFH_GUI_FORM_5(0);
             if (__obfh_gui_value != x) return 1;
         }
     }
@@ -65,17 +69,25 @@ static int cold_forms(void) {
         OBFH_GUI_SLOT slot = {0};
         ULONG_PTR value = obfh_gui_cold(2, &slot, site, name, sizeof(name));
         ULONG_PTR key = OBFH_GUI_KEY(site), bias = OBFH_GUI_BIAS(site);
-        unsigned int rotate = OBFH_GUI_ROTATE(site), form = OBFH_GUI_DRAW(site, 0x47554936u) & 3u;
+        unsigned int rotate = OBFH_GUI_ROTATE(site), form = OBFH_GUI_DRAW(site, 0x47554936u) % 6u;
         if (!slot.ready || (ULONG_PTR)slot.encoded != value) return 1;
         forms |= 1u << form;
+        if (form == 5) {
+            value ^= key;
+            value -= bias;
+        }
         if (form == 0 || form == 2) value -= bias;
         if (form == 1 || form == 2) value ^= key;
         value = (value >> rotate) | (value << (sizeof(ULONG_PTR) * 8 - rotate));
+        if (form == 4) {
+            value ^= key;
+            value -= bias;
+        }
         if (form == 1 || form == 3) value -= bias;
         if (form == 0 || form == 3) value ^= key;
         if (((DWORD(WINAPI *)(void))value)() != (GetCurrentThreadId)()) return 2;
     }
-    return forms != 15u;
+    return forms != 63u;
 }
 static DWORD WINAPI worker(void *unused) {
     for (unsigned int i = 0; i < 1000; ++i)

@@ -83,7 +83,7 @@ int main(int argc,char **argv){
     printf("PDATA_PASS count=%u states=%u calls=%u\\n",count,states,calls);return fflush(stdout)==EOF ? 90 : 0;
 }
 #else
-int main(void){puts("PDATA_DISABLED");return 0;}
+int main(void){if(puts("PDATA_DISABLED")==EOF)return 90;return fflush(stdout)==EOF ? 90 : 0;}
 #endif
 `;
 }
@@ -147,7 +147,7 @@ function measure(output, binary, assert) {
 }
 module.exports = { fixture, measure };
 
-module.exports.runSuite = async function({
+module.exports.runSuite = async function ({
     arch,
     compiler,
     directory,

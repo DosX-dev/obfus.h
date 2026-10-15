@@ -4,7 +4,7 @@ const path = require('node:path');
 
 function fixture(header, addressKey = 0x6a39de17) {
     const first = header.lastIndexOf('#if defined(__x86_64__)', header.indexOf('#define OBFH_P_WORD'));
-    const last = header.indexOf('// Pair transport:', first);
+    const last = header.indexOf('// V1 has one graph:', first);
     if (first < 0 || last < first) throw new Error('Missing selector definitions');
     let code = '#include <windows.h>\n#include <stdio.h>\n#define __obfh_asm__ __asm__\n' + header.slice(first, last);
     const cases = [];

@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-exports.runSuite = async function ({ arch, compiler, directory, mode, source, check, compile, execute, run, assert }) {
+exports.runSuite = async function({ arch, compiler, directory, mode, source, check, compile, execute, run, assert }) {
     for (const part of [0, 1, 2, 0xdeadbeef, 0xffffffff, 'if', 'while', 'for', 'token', 'proxy', 'oracle', 'stage'])
         await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control/${part}`, async () =>
             checkFlowTransport({ arch, compiler, directory, mode, part, source, compile, execute, run, assert })
@@ -18,10 +18,6 @@ async function checkFlowTransport({ arch, compiler, directory, mode, part, sourc
         .replace(
             '#define OBFH_FLOW_CONDITION(',
             require('./cflow_single_lane').trace + '\n#define OBFH_FLOW_CONDITION('
-        )
-        .replace(
-            '#define OBFH_P_TERMINAL_TRACE(style) ((void)0)',
-            '#define OBFH_P_TERMINAL_TRACE(style) obfh_test_flow_exit((style)&7u,__obfh_flow_state,__obfh_flow_tag,__obfh_flow_result)'
         )
         .replace(
             'OBFH_CFLOW_SELECT(__obfh_break_index);',
@@ -40,7 +36,7 @@ async function checkFlowTransport({ arch, compiler, directory, mode, part, sourc
             /#define OBFH_P_FINISH\(style\)[\s\S]*?(?=\r?\n#define)/,
             '#define OBFH_P_FINISH(style) ({ unsigned int __obfh_exit_before_state=__obfh_flow_state, __obfh_exit_before_tag=__obfh_flow_tag; OBFH_P_EXIT_SELECT_0(style); obfh_test_flow_exit((style)&7u,__obfh_exit_before_state,__obfh_exit_before_tag,__obfh_flow_result); })\n'
         );
-    assert(source.includes('#define OBFH_P_TRACE'), 'local flow trace hooks missing');
+    assert(source.includes('#define OBFH_C_FIELDS('), 'compositional flow core missing');
     assert(traced !== source, 'flow trace injection missing');
     const header = path.join(traceRoot, 'include', 'obfus.h');
     fs.writeFileSync(header, traced);
@@ -139,12 +135,14 @@ async function checkFlowTransport({ arch, compiler, directory, mode, part, sourc
             'discarded condition transport was not detected'
         );
     }
-    const proxyEmit = traced.match(/#define OBFH_SF_FLOW_EMIT\(guard,\s*layout,\s*\.\.\.\)[\s\S]*?(?=\r?\n#define)/)?.[0];
+    const proxyEmit = traced.match(/#define OBFH_SF_FLOW_START\(guard\)[\s\S]*?(?=\r?\n#define)/)?.[0];
     assert(proxyEmit, 'linked proxy guard mutation target missing');
-    const strippedProxy = proxyEmit.replace(/__obfh_asm__\([\s\S]*?: "edx", "ecx", "cc", "memory"\);/, '(void)0;');
+    // Preserve operands and the finishing/commit operations; bypass only the
+    // guard's computation. The untraced oracle must detect its lost dependency.
+    const strippedProxy = proxyEmit.replace(' guard ', ' "jmp 9f;" ');
     assert(strippedProxy !== proxyEmit, 'native guard removal target missing');
     if (part === 'proxy') {
-        fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_EMIT\n' + strippedProxy + '\n');
+        fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_START\n' + strippedProxy + '\n');
         const proxyResult = await run(
             await compile(compiler, directory, `${arch}-cflow-${mode}-proxy-bypass.exe`, file, flags),
             []
@@ -157,7 +155,7 @@ async function checkFlowTransport({ arch, compiler, directory, mode, part, sourc
     // The oracle uses ordinary C keywords and no instrumentation callbacks.
     const oracleProxy = strippedProxy.replace('obfh_test_flow_proxy(__obfh_live_expected, __obfh_live_actual); ', '');
     if (part === 'oracle') {
-        fs.writeFileSync(header, source + '\n#undef OBFH_SF_FLOW_EMIT\n' + oracleProxy + '\n');
+        fs.writeFileSync(header, source + '\n#undef OBFH_SF_FLOW_START\n' + oracleProxy + '\n');
         const proxyOracle = path.join(traceRoot, 'tests', 'cflow_proxy.c');
         fs.copyFileSync(path.join(__dirname, 'cflow_proxy.c'), proxyOracle);
         const proxyOracleResult = await run(

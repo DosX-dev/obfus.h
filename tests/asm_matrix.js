@@ -11,9 +11,10 @@ const sections = [
 // or process lifetime contract. Share helpers, but isolate carrier names/types.
 exports.fixture = function ({ arch, source, assert }) {
     const start = source.indexOf('#define OBFH_SF_BYTES');
-    const end = source.indexOf('// BEGIN COMPACT ASM CACHE', start);
+    const end = source.indexOf('#define OBFH_SF_ASM_BITS', start);
     assert(start >= 0 && end > start, 'proxy fragment boundaries missing');
-    let text = '#include <stdint.h>\n#include <stdio.h>\n' + source.slice(start, end) + '\n';
+    let text = '#include <stdint.h>\n#include <stdio.h>\n' + source.slice(start, end) +
+        require('./stack_frames').aliases(source, assert) + '\n';
     for (const [prefix, module] of [['frames', './stack_frames'], ['encodings', './short_encodings'], ['jumps', './short_jumps']]) {
         const fixture = require(module).fixture({ arch, source, assert, sharedHelpers: true });
         text += fixture.replace(/\b(Entry|Result|CARRIER|ADDRESS|SP|main|entry_\d+(?:_\d+)?|probe_\d+_\d+)\b/g,

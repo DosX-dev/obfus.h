@@ -20,7 +20,7 @@ const trace = String.raw`
         : "=&a"(__obfh_flow_result) : "0"(__obfh_flow_state), \
           [expected] "i"(OBFH_C_POINT(OBFH_C_NEXT(s))),[finish] "i"((style)&7u), \
           [zero_form] "i"((__obfh_flow_hash>>11)%3u) : "edx","ecx","cc"); \
-    OBFH_P_TERMINAL_TRACE(style); \
+    obfh_test_flow_exit((style)&7u,__obfh_flow_state,__obfh_flow_tag,__obfh_flow_result); \
 })
 #endif
 `;

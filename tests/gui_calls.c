@@ -750,7 +750,7 @@ int main(int argc, char **argv) {
         CHECK(test_gui_slots[64].ready);
     }
 #endif
-    // Exercise all four decode layouts across independently selected call sites.
+    // Exercise all six decode layouts across independently selected call sites.
     DWORD expected = native_color(COLOR_WINDOW);
     CHECK(GetSysColor(COLOR_WINDOW) == expected);
     CHECK(GetSysColor(COLOR_WINDOW) == expected);

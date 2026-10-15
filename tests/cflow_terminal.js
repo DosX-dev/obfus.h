@@ -4,7 +4,7 @@ const path = require('node:path');
 
 function fixture(header) {
     const start = header.indexOf('#define OBFH_P_TERMINAL_TEXT');
-    const end = header.indexOf('#ifdef OBFH_TEST_FLOW_TRACE', start);
+    const end = header.indexOf('// The last-stage flag', start);
     if (start < 0 || end < start) throw new Error('Terminal emission missing');
     let code = '#include <stdio.h>\n' + header.slice(start, end);
     const probes = [];

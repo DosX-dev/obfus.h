@@ -1977,16 +1977,19 @@ OBFH_PD_DEFINE(127);
 /*
  * A proxy insertion has four steps:
  * 1. CAPTURE draws the local constants once (including unused draws).
- * 2. SPEC chooses a guard, a body layout and the required ASM operands.
- * 3. EMIT writes that combination; the live guard skips the fake body.
- * 4. SELECT uses a balanced compile-time tree to pick one of 128 specs.
+ * 2. SPEC describes one of 128 guard/layout/body combinations.
+ * 3. SELECT captures that recipe as a compile-time value.
+ * 4. The guard, layout and bodies are selected independently, avoiding expansion
+ *    of the entire body combination for each possible recipe.
  *
- * Edit the readable fragments below, then regenerate the compact cache.
+ * Edit these source definitions directly; there is no generated cache.
  * Do not remove captured draws: their order affects later random choices.
  */
 // Self-contained fake functions: live guards skip all calls and stack edits.
-// Frames and calling conventions follow Windows TCC x86/x64. Numeric labels
-// stay inside each ASM expansion; no insertion refers to another call site.
+// Frames and calling conventions follow Windows TCC x86/x64. Bodies stay at
+// their original physical positions; the selectors add no runtime transfers.
+// Skeleton labels include the layout number, so discarded choices cannot
+// capture another layout's branches. Repeated numeric labels support nested macros.
 #define OBFH_SF_CAPTURE \
     enum { \
         __obfh_sf_mask = OBFH_JUNK_WORD, \
@@ -2029,9 +2032,8 @@ OBFH_PD_DEFINE(127);
     OBFH_INPUT_EAX(__si, __obfh_sf_salt); \
     enum { __s0 = __si_0a, \
            __s1 = __si_0b }
-#define OBFH_SF_INPUTS \
+#define OBFH_SF_NATIVE_INPUTS \
     [phantom] "i"(__obfh_sf_phantom), \
-        [il] "i"(__si_n), \
         [rotate] "i"(__obfh_sf_rotate), \
         [frame_a] "i"(__obfh_sf_frame_a), \
         [frame_b] "i"(__obfh_sf_frame_b), \
@@ -2055,35 +2057,24 @@ OBFH_PD_DEFINE(127);
         [leaf_slot] "i"(__obfh_sf_leaf_slot), \
         [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), \
         [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), \
-        [leaf_shift] "i"(__obfh_sf_leaf_shift), \
-        [i0] "i"(__s0), [i1] "i"(__s1)
+        [leaf_shift] "i"(__obfh_sf_leaf_shift)
+#define OBFH_SF_INPUTS \
+    [il] "i"(__si_n), [i0] "i"(__s0), [i1] "i"(__s1), OBFH_SF_NATIVE_INPUTS
 
 // All choices below assemble only inside skipped native functions. No new
 // RND draws or live-path instructions; existing captured entropy selects forms.
 #define OBFH_SF_BYTES(bit, flip, size, value) \
-    ".fill (((" \
-    "%c[phantom]" \
-    " >> " bit ") & 1) ^ " flip "), " size ", " value ";"
+    ".fill (((.Lsp >> " bit ") & 1) ^ " flip ")," size "," value ";"
+#define OBFH_SF_BIT_BYTES(bit, flip, size, value) \
+    ".fill (.Lsp" bit " ^ " flip ")," size "," value ";"
 #define OBFH_SF_WORD(bit, flip, value) OBFH_SF_BYTES(bit, flip, "4", value)
 // Optional edges exist only in skipped bodies. x64 call sequence is 23 bytes;
 // x86 uses explicit imm32 pushes so its sequence is always 18 bytes.
 #define OBFH_SF_LINK_BYTES(channel, size, value) \
-    ".fill (((" \
-    "%c[phantom]" \
-    " ^ " \
-    "%c[key_a]" \
-    ") >> (12 + 3 * " channel ")) & 1), " size ", " value ";"
+    ".fill .Lsle" channel "," size "," value ";"
 #define OBFH_SF_LINK_GATE(span, channel) \
-    OBFH_SF_LINK_BYTES(channel, "2", "0xc085 ^ ((((" \
-                                     "%c[phantom]" \
-                                     " ^ " \
-                                     "%c[key_a]" \
-                                     ") >> (14 + 3 * " channel ")) & 1) << 12)") \
-    OBFH_SF_LINK_BYTES(channel, "1", "0x74 | (((" \
-                                     "%c[phantom]" \
-                                     " ^ " \
-                                     "%c[key_a]" \
-                                     ") >> (13 + 3 * " channel ")) & 1)") \
+    OBFH_SF_LINK_BYTES(channel, "2", "0xc085 ^ (.Lsln" channel " << 12)") \
+    OBFH_SF_LINK_BYTES(channel, "1", "0x74 | .Lslz" channel) \
     OBFH_SF_LINK_BYTES(channel, "1", span)
 // Frame sizes are 32..192 bytes. Bit 7 selects imm8/disp8 or imm32/disp32;
 // SUB/LEA selection, frame sizes, native boundaries and links stay unchanged.
@@ -2101,25 +2092,25 @@ OBFH_PD_DEFINE(127);
     "pushq %%rbp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "3", "0xec8348 - ((%c[" size "] >> 7) * 0x200)") OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "(1 + 3 * (%c[" size "] >> 7))", "%c[" size "]") \
         OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "4", "0x24648d48 + ((%c[" size "] >> 7) * 0x400000)") OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "(1 + 3 * (%c[" size "] >> 7))", "-%c[" size "]") "leaq %c[" size "](%%rsp), %%rbp;"
 #define OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_BYTES("7", "0", "3", "0xec8948") \
-    OBFH_SF_BYTES("7", "1", "4", "0x00658d48") \
+    OBFH_SF_BIT_BYTES("7", "0", "3", "0xec8948") \
+    OBFH_SF_BIT_BYTES("7", "1", "4", "0x00658d48") \
     "popq %%rbp; ret;"
 #define OBFH_SF_EPILOGUE \
-    OBFH_SF_BYTES("6", "0", "1", "0xc9") \
-    OBFH_SF_BYTES("6", "1", "4", "0x5dec8948") \
+    OBFH_SF_BIT_BYTES("6", "0", "1", "0xc9") \
+    OBFH_SF_BIT_BYTES("6", "1", "4", "0x5dec8948") \
     "ret;"
 #define OBFH_SF_ARGS \
-    OBFH_SF_BYTES("9", "0", "2", "0xc889") \
-    OBFH_SF_BYTES("9", "1", "3", "0x00418d")
+    OBFH_SF_BIT_BYTES("9", "0", "2", "0xc889") \
+    OBFH_SF_BIT_BYTES("9", "1", "3", "0x00418d")
 #define OBFH_SF_CALL_ARGS \
-    OBFH_SF_BYTES("10", "0", "1", "0xb9") \
-    OBFH_SF_WORD("10", "0", "%c[arg_a]") \
-    OBFH_SF_BYTES("10", "0", "1", "0xba") \
-    OBFH_SF_WORD("10", "0", "%c[arg_b]") \
-    OBFH_SF_BYTES("10", "1", "1", "0xba") \
-    OBFH_SF_WORD("10", "1", "%c[arg_b]") \
-    OBFH_SF_BYTES("10", "1", "1", "0xb9") \
-    OBFH_SF_WORD("10", "1", "%c[arg_a]")
+    OBFH_SF_BIT_BYTES("10", "0", "1", "0xb9") \
+    OBFH_SF_BIT_BYTES("10", "0", "4", "%c[arg_a]") \
+    OBFH_SF_BIT_BYTES("10", "0", "1", "0xba") \
+    OBFH_SF_BIT_BYTES("10", "0", "4", "%c[arg_b]") \
+    OBFH_SF_BIT_BYTES("10", "1", "1", "0xba") \
+    OBFH_SF_BIT_BYTES("10", "1", "4", "%c[arg_b]") \
+    OBFH_SF_BIT_BYTES("10", "1", "1", "0xb9") \
+    OBFH_SF_BIT_BYTES("10", "1", "4", "%c[arg_a]")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
@@ -2135,18 +2126,18 @@ OBFH_PD_DEFINE(127);
     "pushl %%ebp;" OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "2", "0xec83 - ((%c[" size "] >> 7) * 2)") OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "0", "(1 + 3 * (%c[" size "] >> 7))", "%c[" size "]") \
         OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "3", "0x24648d + ((%c[" size "] >> 7) * 0x4000)") OBFH_SF_BYTES("(4 + ((%c[" size "] >> 4) & 3))", "1", "(1 + 3 * (%c[" size "] >> 7))", "-%c[" size "]") "leal %c[" size "](%%esp), %%ebp;"
 #define OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_BYTES("7", "0", "2", "0xec89") \
-    OBFH_SF_BYTES("7", "1", "3", "0x00658d") \
+    OBFH_SF_BIT_BYTES("7", "0", "2", "0xec89") \
+    OBFH_SF_BIT_BYTES("7", "1", "3", "0x00658d") \
     "popl %%ebp; ret;"
 #define OBFH_SF_EPILOGUE \
-    OBFH_SF_BYTES("6", "0", "1", "0xc9") \
-    OBFH_SF_BYTES("6", "1", "3", "0x5dec89") \
+    OBFH_SF_BIT_BYTES("6", "0", "1", "0xc9") \
+    OBFH_SF_BIT_BYTES("6", "1", "3", "0x5dec89") \
     "ret;"
 #define OBFH_SF_ARGS \
-    OBFH_SF_BYTES("9", "0", "3", "0x0c558b") \
-    OBFH_SF_BYTES("9", "0", "3", "0x08458b") \
-    OBFH_SF_BYTES("9", "1", "3", "0x08458b") \
-    OBFH_SF_BYTES("9", "1", "3", "0x0c558b")
+    OBFH_SF_BIT_BYTES("9", "0", "3", "0x0c558b") \
+    OBFH_SF_BIT_BYTES("9", "0", "3", "0x08458b") \
+    OBFH_SF_BIT_BYTES("9", "1", "3", "0x08458b") \
+    OBFH_SF_BIT_BYTES("9", "1", "3", "0x0c558b")
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("18", channel) ".byte 0x68; .long " \
                                                                           "%c[arg_b]" \
                                                                           "; .byte 0x68; .long " \
@@ -2155,18 +2146,18 @@ OBFH_PD_DEFINE(127);
 #endif
 // The same 32-bit local stores are used in x86 and x64 frames.
 #define OBFH_SF_LOCAL \
-    OBFH_SF_BYTES("8", "0", "2", "0x4589") \
-    OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[local_a]") \
-    OBFH_SF_BYTES("8", "0", "2", "0x5589") \
-    OBFH_SF_BYTES("8", "0", "1", "-" \
-                                 "%c[local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x5589") \
-    OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[local_b]") \
-    OBFH_SF_BYTES("8", "1", "2", "0x4589") \
-    OBFH_SF_BYTES("8", "1", "1", "-" \
-                                 "%c[local_a]")
+    OBFH_SF_BIT_BYTES("8", "0", "2", "0x4589") \
+    OBFH_SF_BIT_BYTES("8", "0", "1", "-" \
+                                     "%c[local_a]") \
+    OBFH_SF_BIT_BYTES("8", "0", "2", "0x5589") \
+    OBFH_SF_BIT_BYTES("8", "0", "1", "-" \
+                                     "%c[local_b]") \
+    OBFH_SF_BIT_BYTES("8", "1", "2", "0x5589") \
+    OBFH_SF_BIT_BYTES("8", "1", "1", "-" \
+                                     "%c[local_b]") \
+    OBFH_SF_BIT_BYTES("8", "1", "2", "0x4589") \
+    OBFH_SF_BIT_BYTES("8", "1", "1", "-" \
+                                     "%c[local_a]")
 #define OBFH_SF_CALL(target) OBFH_SF_CALL_AT(target, "0")
 #define OBFH_SF_PADDING ".fill " \
                         "%c[pad]" \
@@ -2300,7 +2291,7 @@ OBFH_PD_DEFINE(127);
 #if ((OBFH_SEED >> 16) & 7u) % 6u == 5u
 #define OBFH_SF_GUARD_8_ORDER "xorl $%c[key_a],%%edx;xorl $%c[key_a],%%eax;notl %%edx;"
 #endif
-#define OBFH_SF_GUARD_8 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") OBFH_SF_GUARD_8_ORDER "xorl %%edx,%%eax;cmpl $-1,%%eax;je 9f;"
+#define OBFH_SF_GUARD_8 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") OBFH_SF_GUARD_8_ORDER "notl %%edx;cmpl %%edx,%%eax;je 9f;"
 #define OBFH_SF_GUARD_9 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "xorl $" \
                                                                                            "%c[mask]" \
                                                                                            ", %%eax; andl $" \
@@ -2308,7 +2299,7 @@ OBFH_PD_DEFINE(127);
                                                                                            ", %%edx; leal (%%eax, %%edx, 2), %%eax; addl $" \
                                                                                            "%c[mask]" \
                                                                                            ", %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[phantom]", "16") "je 9f;"
-#define OBFH_SF_GUARD_10 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; andl %%edx, %%eax; testl %%eax, %%eax; jz 9f;"
+#define OBFH_SF_GUARD_10 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "negl %%edx; andl %%edx, %%eax; leal -1(%%eax), %%edx; testl %%edx, %%eax; jz 9f;"
 #define OBFH_SF_GUARD_11 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") OBFH_ASM_MOV32("1", "0", "%c[phantom]", "15") "andl $" \
                                                                                                                      "%c[mask]" \
                                                                                                                      ", %%eax; andl $" \
@@ -2331,13 +2322,8 @@ OBFH_PD_DEFINE(127);
                                                                        ", %%ecx; imull $" \
                                                                        "%c[factor]" \
                                                                        ", %%ecx; addl %%edx, %%ecx; " OBFH_ASM_EQ32("0", "1", "%c[phantom]", "16") "je 9f;"
-#define OBFH_SF_GUARD_13 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "addl $" \
-                                                                                            "%c[key_a]" \
-                                                                                            ", %%eax; imull %%eax, %%eax; imull %%ecx, %%ecx; subl %%ecx, %%eax; imull $" \
-                                                                                            "%c[key_a]" \
-                                                                                            ", %%edx; addl %%edx, %%edx; subl %%edx, %%eax; movl $" \
-                                                                                            "%c[key_a]" \
-                                                                                            ", %%edx; imull %%edx, %%edx; " OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") "je 9f;"
+#define OBFH_SF_GUARD_13 "movl %%eax, %%ecx;" OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "addl $%c[key_a], %%eax; imull %%eax, %%eax; imull %%ecx, %%ecx; subl %%ecx, %%eax;" \
+                                                                                            "imull $%c[key_a], %%edx; addl %%edx, %%edx; .byte 0x81,0xc2; .long (((%c[key_a]*%c[key_a])&0xffffffff)^0x80000000)-0x80000000;" OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") "je 9f;"
 #define OBFH_SF_GUARD_14 OBFH_ASM_MOV32("2", "0", "%c[phantom]", "15") "roll $16, %%eax; roll $16, %%eax; " OBFH_ASM_EQ32("0", "2", "%c[phantom]", "16") "je 9f;"
 
 #define OBFH_SF_ENTRY_ALT(label, frame, body) label ": " OBFH_SF_FRAME_ALT(frame) body ".fill ((" \
@@ -2346,330 +2332,198 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_ENTRY(label, frame, body) label ": " OBFH_SF_FRAME(frame) body ".fill ((" \
                                                                                "%c[phantom]" \
                                                                                " >> " label ") & 1), 1, 0x90;"
+// One source per layout: skeleton fragments alternate with native body roles.
+// Callbacks select a physical slot without expanding the other slots' bodies.
+#define OBFH_SF_ENTRY_PADDING(label) ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
+#define OBFH_SF_SLOT_DROP(context, text, role)
+#define OBFH_SF_SLOT_TEXT(context, text, role) text
+#define OBFH_SF_SLOT_ROLE(context, text, role) +role
+#define OBFH_SF_REFERENCE_0(a, b, c, d, e)
+#define OBFH_SF_REFERENCE_1(a, b, c, d, e) a
+#define OBFH_SF_REFERENCE_2(a, b, c, d, e) b
+#define OBFH_SF_REFERENCE_3(a, b, c, d, e) c
+#define OBFH_SF_REFERENCE_4(a, b, c, d, e) d
+#define OBFH_SF_REFERENCE_5(a, b, c, d, e) e
+#define OBFH_SF_SLOT_REFERENCE(context, text, role) text OBFH_SF_REFERENCE_##role context
+#define OBFH_SF_SLOT_0(layout, emit, context) layout(emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_1(layout, emit, context) layout(OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_2(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_3(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_4(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_5(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_6(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_7(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, OBFH_SF_SLOT_DROP, context)
+#define OBFH_SF_SLOT_8(layout, emit, context) layout(OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, OBFH_SF_SLOT_DROP, emit, context)
+
 // Physical order, finite link graphs, and shared/tail continuations vary.
-#define OBFH_SF_LAYOUT_0(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1") \
-    OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_1(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    "leave; jmp 2f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY("2", "frame_b", b) \
-            OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_2(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1") \
-    OBFH_SF_CALL_AT("3b", "2") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "3") \
-    OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_3(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    "leave; jmp 3f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3b", "2") "5:" OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_4(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3f", "1") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "2") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_5(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1") \
-    OBFH_SF_CALL_AT("3b", "2") \
-    OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_6(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1") \
-    "leave; jmp 3f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("2", "frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
-            OBFH_SF_ENTRY("3", "frame_c", c) \
-                OBFH_SF_EPILOGUE
-#define OBFH_SF_LAYOUT_7(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "2") \
-    OBFH_SF_CALL_AT("3b", "3") \
-    OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_8(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_CALL_AT("2f", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("3b", "2") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "3") \
-    OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_9(a, b, c) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("3b", "1") "4:" OBFH_SF_EPILOGUE_ALT \
-        OBFH_SF_GAP \
-            OBFH_SF_ENTRY("1", "frame_a", a) "leave; jmp 2b;"
+#define OBFH_SF_LAYOUT_SOURCE_0(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("301f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "302:;" OBFH_SF_FRAME("frame_b"), 2) \
+    B(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_EPILOGUE OBFH_SF_GAP "200:;" \
+                                                                       "301:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("302b", "1") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_0(a, b, c) OBFH_SF_LAYOUT_SOURCE_0(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_1(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("311f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "210:;" \
+                                                                         "311:;" OBFH_SF_FRAME_ALT("frame_a"), \
+      1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") "leave; jmp 312f;" OBFH_SF_GAP "312:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_1(a, b, c) OBFH_SF_LAYOUT_SOURCE_1(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_2(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("321f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "323:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "220:;" \
+                                                                       "321:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("322f", "1") OBFH_SF_CALL_AT("323b", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "322:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("323b", "3") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_2(a, b, c) OBFH_SF_LAYOUT_SOURCE_2(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_3(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("331f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "332:;" OBFH_SF_FRAME("frame_b"), 2) \
+    B(context, OBFH_SF_ENTRY_PADDING("2") "leave; jmp 333f;" OBFH_SF_GAP "333:;" OBFH_SF_FRAME("frame_c"), 3) \
+    C(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "230:;" \
+                                                                       "331:;" OBFH_SF_FRAME_ALT("frame_a"), \
+      1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") "testl %%eax, %%eax; jz 334f;" OBFH_SF_CALL_AT("332b", "1") "jmp 335f; 334:" OBFH_SF_CALL_AT("333b", "2") "335:" OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_3(a, b, c) OBFH_SF_LAYOUT_SOURCE_3(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_4(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("341f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "342:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    B(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("343f", "1") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "240:;" \
+                                                                                                        "341:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("342b", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "343:;" OBFH_SF_FRAME("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_4(a, b, c) OBFH_SF_LAYOUT_SOURCE_4(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_5(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("351f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "353:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "352:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_EPILOGUE OBFH_SF_GAP "250:;" \
+                                                                       "351:;" OBFH_SF_FRAME_ALT("frame_a"), \
+      1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("352b", "1") OBFH_SF_CALL_AT("353b", "2") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_5(a, b, c) OBFH_SF_LAYOUT_SOURCE_5(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_6(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("361f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "260:;" \
+                                                                         "361:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("362f", "1") "leave; jmp 363f;" OBFH_SF_GAP "362:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") "leave; jmp 363f;" OBFH_SF_GAP "363:;" OBFH_SF_FRAME("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_6(a, b, c) OBFH_SF_LAYOUT_SOURCE_6(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_7(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("371f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "373:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "372:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("373b", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "270:;" \
+                                                                                                    "371:;" OBFH_SF_FRAME_ALT("frame_a"), \
+      1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("372b", "2") OBFH_SF_CALL_AT("373b", "3") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_7(a, b, c) OBFH_SF_LAYOUT_SOURCE_7(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_8(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("381f", "0") OBFH_SF_CALL_AT("382f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "383:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "280:;" \
+                                                                       "381:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("383b", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "382:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("383b", "3") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_8(a, b, c) OBFH_SF_LAYOUT_SOURCE_8(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
+#define OBFH_SF_LAYOUT_SOURCE_9(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("391f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "393:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "392:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") "testl %%eax, %%eax; jz 394f;" OBFH_SF_CALL_AT("393b", "1") "394:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "290:;" \
+                                                                                                      "391:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") "leave; jmp 392b;", 0)
+#define OBFH_SF_LAYOUT_9(a, b, c) OBFH_SF_LAYOUT_SOURCE_9(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, "", ""))
 
-#define OBFH_SF_LAYOUT_10(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "1") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "2") \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_10(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3101f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3103:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "3102:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3103b", "1") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3101:;" OBFH_SF_FRAME("frame_a"), 1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3102b", "2") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_10(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_10(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_11(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3f", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "2") \
-    OBFH_SF_CALL_AT("3f", "3") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_11(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3111f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3112:;" OBFH_SF_FRAME("frame_b"), 2) \
+    B(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3113f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3111:;" OBFH_SF_FRAME_ALT("frame_a"), 1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3112b", "2") OBFH_SF_CALL_AT("3113f", "3") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3113:;" OBFH_SF_FRAME("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_11(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_11(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_12(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1") \
-    OBFH_SF_CALL_AT("8f", "2") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3f", "3") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("8", "frame_d", d) \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_12(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3121f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3121:;" OBFH_SF_FRAME("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3122f", "1") OBFH_SF_CALL_AT("3128f", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "3122:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3123f", "3") OBFH_SF_EPILOGUE OBFH_SF_GAP "3123:;" OBFH_SF_FRAME_ALT("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3128:;" OBFH_SF_FRAME("frame_d"), 4) \
+    E(context, OBFH_SF_ENTRY_PADDING("8") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_12(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_12(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_13(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3f", "2") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    "leave; jmp 8f;" OBFH_SF_GAP \
-        OBFH_SF_ENTRY("8", "frame_d", d) \
-            OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_13(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3131f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3131:;" OBFH_SF_FRAME("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3132f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3132:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3133f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3133:;" OBFH_SF_FRAME("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") "leave; jmp 3138f;" OBFH_SF_GAP "3138:;" OBFH_SF_FRAME("frame_d"), 4) \
+    E(context, OBFH_SF_ENTRY_PADDING("8") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_13(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_13(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_14(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("8", "frame_d", d) \
-    OBFH_SF_CALL_AT("1f", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "2") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("3b", "3") \
-    OBFH_SF_CALL_AT("8b", "4") \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_14(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3141f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3148:;" OBFH_SF_FRAME("frame_d"), 4) \
+    B(context, OBFH_SF_ENTRY_PADDING("8") OBFH_SF_CALL_AT("3141f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3143:;" OBFH_SF_FRAME_ALT("frame_c"), 3) \
+    C(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3141:;" OBFH_SF_FRAME("frame_a"), 1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3142f", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "3142:;" OBFH_SF_FRAME("frame_b"), 2) \
+    E(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3143b", "3") OBFH_SF_CALL_AT("3148b", "4") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_14(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_14(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_15(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    "testb $1, %%al; jz 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("8f", "2") "5:" OBFH_SF_EPILOGUE_ALT \
-        OBFH_SF_GAP \
-            OBFH_SF_ENTRY("2", "frame_b", b) \
-                OBFH_SF_CALL_AT("3f", "3") \
-                    OBFH_SF_EPILOGUE \
-                        OBFH_SF_GAP \
-                            OBFH_SF_ENTRY("8", "frame_d", d) \
-                                OBFH_SF_CALL_AT("3f", "4") \
-                                    OBFH_SF_EPILOGUE \
-                                        OBFH_SF_GAP \
-                                            OBFH_SF_ENTRY("3", "frame_c", c) \
-                                                OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_15(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3151f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3151:;" OBFH_SF_FRAME_ALT("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") "testb $1, %%al; jz 3154f;" OBFH_SF_CALL_AT("3152f", "1") "jmp 3155f; 3154:" OBFH_SF_CALL_AT("3158f", "2") "3155:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3152:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3153f", "3") OBFH_SF_EPILOGUE OBFH_SF_GAP "3158:;" OBFH_SF_FRAME("frame_d"), 4) \
+    D(context, OBFH_SF_ENTRY_PADDING("8") OBFH_SF_CALL_AT("3153f", "4") OBFH_SF_EPILOGUE OBFH_SF_GAP "3153:;" OBFH_SF_FRAME("frame_c"), 3) \
+    E(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_15(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_15(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_16(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    "testl %%edx, %%edx; jz 4f;" OBFH_SF_CALL_AT("2b", "2") "4:" OBFH_SF_CALL_AT("3f", "3") \
-        OBFH_SF_EPILOGUE \
-            OBFH_SF_GAP \
-                OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
-                    OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_SOURCE_16(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3161f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3161:;" OBFH_SF_FRAME("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3162f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3162:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") "testl %%edx, %%edx; jz 3164f;" OBFH_SF_CALL_AT("3162b", "2") "3164:" OBFH_SF_CALL_AT("3163f", "3") OBFH_SF_EPILOGUE OBFH_SF_GAP "3163:;" OBFH_SF_FRAME_ALT("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_16(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_16(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_17(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    "cmpl %%edx, %%eax; jb 4f;" OBFH_SF_CALL_AT("2f", "1") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "2") "5:" OBFH_SF_EPILOGUE \
-        OBFH_SF_GAP \
-            OBFH_SF_ENTRY("2", "frame_b", b) "leave; jmp 3f;" OBFH_SF_GAP \
-                OBFH_SF_ENTRY_ALT("3", "frame_c", c) \
-                    OBFH_SF_CALL_AT("1b", "3") \
-                        OBFH_SF_EPILOGUE_ALT
+#define OBFH_SF_LAYOUT_SOURCE_17(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3171f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3171:;" OBFH_SF_FRAME("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") "cmpl %%edx, %%eax; jb 3174f;" OBFH_SF_CALL_AT("3172f", "1") "jmp 3175f; 3174:" OBFH_SF_CALL_AT("3173f", "2") "3175:" OBFH_SF_EPILOGUE OBFH_SF_GAP "3172:;" OBFH_SF_FRAME("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") "leave; jmp 3173f;" OBFH_SF_GAP "3173:;" OBFH_SF_FRAME_ALT("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_CALL_AT("3171b", "3") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_17(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_17(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_18(a, b, c, d) \
-    OBFH_SF_CALL_AT("3f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("1b", "1") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_CALL_AT("2b", "2") \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_18(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3183f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3181:;" OBFH_SF_FRAME("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3182:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3181b", "1") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3183:;" OBFH_SF_FRAME("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_CALL_AT("3182b", "2") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_18(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_18(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_19(a, b, c, d) \
-    "testb $1, %%al; jz 4f;" OBFH_SF_CALL_AT("1f", "0") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "1") "5:" OBFH_SF_EPILOGUE \
-        OBFH_SF_GAP \
-            OBFH_SF_ENTRY("1", "frame_a", a) \
-                OBFH_SF_CALL_AT("2f", "2") \
-                    OBFH_SF_EPILOGUE \
-                        OBFH_SF_GAP \
-                            OBFH_SF_ENTRY_ALT("2", "frame_b", b) \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_CALL_AT("2b", "3") \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_19(A, B, C, D, E, F, G, H, I, context) \
+    A(context, "testb $1, %%al; jz 3194f;" OBFH_SF_CALL_AT("3191f", "0") "jmp 3195f; 3194:" OBFH_SF_CALL_AT("3193f", "1") "3195:" OBFH_SF_EPILOGUE OBFH_SF_GAP "3191:;" OBFH_SF_FRAME("frame_a"), 1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3192f", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "3192:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    C(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3193:;" OBFH_SF_FRAME("frame_c"), 3) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_CALL_AT("3192b", "3") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_19(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_19(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_20(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("8f", "1") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("8", "frame_d", d) \
-    OBFH_SF_CALL_AT("3f", "2") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    "testb $1, %%al; jz 4f;" OBFH_SF_CALL_AT("2b", "3") "jmp 5f; 4:" OBFH_SF_CALL_AT("3f", "4") "5:" OBFH_SF_EPILOGUE \
-        OBFH_SF_GAP \
-            OBFH_SF_ENTRY("3", "frame_c", c) \
-                OBFH_SF_CALL_AT("1b", "5") \
-                    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_20(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3201f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3202:;" OBFH_SF_FRAME("frame_b"), 2) \
+    B(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3208f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3208:;" OBFH_SF_FRAME_ALT("frame_d"), 4) \
+    C(context, OBFH_SF_ENTRY_PADDING("8") OBFH_SF_CALL_AT("3203f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3201:;" OBFH_SF_FRAME("frame_a"), 1) \
+    D(context, OBFH_SF_ENTRY_PADDING("1") "testb $1, %%al; jz 3204f;" OBFH_SF_CALL_AT("3202b", "3") "jmp 3205f; 3204:" OBFH_SF_CALL_AT("3203f", "4") "3205:" OBFH_SF_EPILOGUE OBFH_SF_GAP "3203:;" OBFH_SF_FRAME("frame_c"), 3) \
+    E(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_CALL_AT("3201b", "5") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_20(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_20(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_21(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("3", "frame_c", c) \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("8", "frame_d", d) \
-    OBFH_SF_CALL_AT("3b", "1") \
-    OBFH_SF_EPILOGUE_ALT \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("8b", "2") \
-    OBFH_SF_EPILOGUE \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "3") \
-    OBFH_SF_CALL_AT("3b", "4") \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_21(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3211f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3213:;" OBFH_SF_FRAME("frame_c"), 3) \
+    B(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_EPILOGUE OBFH_SF_GAP "3218:;" OBFH_SF_FRAME_ALT("frame_d"), 4) \
+    C(context, OBFH_SF_ENTRY_PADDING("8") OBFH_SF_CALL_AT("3213b", "1") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3212:;" OBFH_SF_FRAME("frame_b"), 2) \
+    D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3218b", "2") OBFH_SF_EPILOGUE OBFH_SF_GAP "3211:;" OBFH_SF_FRAME("frame_a"), 1) \
+    E(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3212b", "3") OBFH_SF_CALL_AT("3213b", "4") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_21(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_21(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
 // Skipped native helpers: register-only and scratch-stack forms share no RBP frame.
 // Their arithmetic/opcodes vary per expansion; all stack edits follow the live guard.
@@ -2756,2209 +2610,441 @@ OBFH_PD_DEFINE(127);
                                          ", %%ecx; xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_L OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_ALU_A ".byte 0xeb,8; 6:" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
-#define OBFH_SF_LAYOUT_22(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("2", c) \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1") \
-    OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_23(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("1", c) \
-    OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("2", d)
-#define OBFH_SF_LAYOUT_24(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("1", "frame_a", a) OBFH_SF_CALL_AT("3f", "1") OBFH_SF_CALL_AT("2f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-            OBFH_SF_LEAF_ENTRY("2", c) \
-    OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d)
-#define OBFH_SF_LAYOUT_25(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("3", d) \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2f", "1") \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("2", "frame_b", b) OBFH_SF_CALL_AT("3b", "2") OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_LAYOUT_26(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("2", c) \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY_ALT("1", "frame_a", a) \
-    "testl %%eax, %%eax; jz 4f;" OBFH_SF_CALL_AT("2b", "1") "4:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("3", d)
-#define OBFH_SF_LAYOUT_27(a, b, c, d) \
-    OBFH_SF_CALL_AT("2f", "0") \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("1", c) \
-    OBFH_SF_GAP OBFH_SF_LEAF_ENTRY("3", d) \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("2", "frame_b", b) \
-    OBFH_SF_CALL_AT("1b", "1") \
-    OBFH_SF_CALL_AT("3b", "2") \
-    OBFH_SF_EPILOGUE
+#define OBFH_SF_LAYOUT_SOURCE_22(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3221f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3222:;", 3) \
+    B(context, OBFH_SF_GAP "2220:;" \
+                           "3221:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3222b", "1") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_22(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_22(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
+#define OBFH_SF_LAYOUT_SOURCE_23(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3231f", "0") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "2230:;" \
+                                                                              "3231:;", \
+      3) \
+    B(context, OBFH_SF_GAP "3232:;", 4) \
+    C(context, "", 0)
+#define OBFH_SF_LAYOUT_23(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_23(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
+#define OBFH_SF_LAYOUT_SOURCE_24(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3241f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "2240:;" \
+                                                                          "3241:;" OBFH_SF_FRAME_ALT("frame_a"), \
+      1) \
+    B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3243f", "1") OBFH_SF_CALL_AT("3242f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3242:;", 3) \
+    C(context, OBFH_SF_GAP "3243:;", 4) \
+    D(context, "", 0)
+#define OBFH_SF_LAYOUT_24(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_24(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
+#define OBFH_SF_LAYOUT_SOURCE_25(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3251f", "0") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3253:;", 4) \
+    B(context, OBFH_SF_GAP "2250:;" \
+                           "3251:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3252f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3252:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3253b", "2") OBFH_SF_EPILOGUE_ALT, 0)
+#define OBFH_SF_LAYOUT_25(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_25(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
+#define OBFH_SF_LAYOUT_SOURCE_26(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3261f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3262:;", 3) \
+    B(context, OBFH_SF_GAP "2260:;" \
+                           "3261:;" OBFH_SF_FRAME_ALT("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") "testl %%eax, %%eax; jz 3264f;" OBFH_SF_CALL_AT("3262b", "1") "3264:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3263:;", 4) \
+    D(context, "", 0)
+#define OBFH_SF_LAYOUT_26(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_26(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
+#define OBFH_SF_LAYOUT_SOURCE_27(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3272f", "0") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3271:;", 3) \
+    B(context, OBFH_SF_GAP "3273:;", 4) \
+    C(context, OBFH_SF_GAP "3272:;" OBFH_SF_FRAME("frame_b"), 2) \
+    D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3271b", "1") OBFH_SF_CALL_AT("3273b", "2") OBFH_SF_EPILOGUE, 0)
+#define OBFH_SF_LAYOUT_27(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_27(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 
-#define OBFH_SF_LAYOUT_28(a, b, c, d) \
-    OBFH_SF_CALL_AT("1f", "0") \
-    OBFH_SF_EPILOGUE OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("2", c) \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("1", "frame_a", a) \
-    OBFH_SF_CALL_AT("2b", "1") \
-    OBFH_SF_CALL_AT("3f", "2") \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_ENTRY_ALT("3", "frame_b", b) \
-            OBFH_SF_CALL_AT("8f", "3") \
-                OBFH_SF_CALL_AT("10f", "4") \
-                    OBFH_SF_CALL_AT("11f", "5") \
-                        OBFH_SF_EPILOGUE OBFH_SF_GAP \
-                            OBFH_SF_LEAF_ENTRY("8", d) \
-    OBFH_SF_GAP \
-    OBFH_SF_LEAF_ENTRY("10", c) \
-    OBFH_SF_GAP \
-    OBFH_SF_ENTRY("11", "frame_d", a) \
-    OBFH_SF_CALL_AT("13f", "1") \
-    OBFH_SF_CALL_AT("12f", "2") \
-    OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP \
-        OBFH_SF_LEAF_ENTRY("12", d) \
-    OBFH_SF_GAP \
-    OBFH_SF_LEAF_ENTRY("13", c)
+#define OBFH_SF_LAYOUT_SOURCE_28(A, B, C, D, E, F, G, H, I, context) \
+    A(context, OBFH_SF_CALL_AT("3281f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3282:;", 3) \
+    B(context, OBFH_SF_GAP "2280:;" \
+                           "3281:;" OBFH_SF_FRAME("frame_a"), \
+      1) \
+    C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3282b", "1") OBFH_SF_CALL_AT("3283f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3283:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
+    D(context, OBFH_SF_ENTRY_PADDING("3") OBFH_SF_CALL_AT("3288f", "3") OBFH_SF_CALL_AT("32810f", "4") OBFH_SF_CALL_AT("32811f", "5") OBFH_SF_EPILOGUE OBFH_SF_GAP "3288:;", 4) \
+    E(context, OBFH_SF_GAP "32810:;", 3) \
+    F(context, OBFH_SF_GAP "32811:;" OBFH_SF_FRAME("frame_d"), 5) \
+    G(context, OBFH_SF_ENTRY_PADDING("11") OBFH_SF_CALL_AT("32813f", "1") OBFH_SF_CALL_AT("32812f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "32812:;", 4) \
+    H(context, OBFH_SF_GAP "32813:;", 3) \
+    I(context, "", 0)
+#define OBFH_SF_LAYOUT_28(a, b, c, d, repeated_a) OBFH_SF_LAYOUT_SOURCE_28(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, repeated_a))
 
-// #region Generated ASM cache (edit the readable templates, not this block)
-// Expanded copies of the templates in sections 06 and 07 reduce compiler work.
-// They preserve local random operands; they do not choose the user's variants.
-// Update: node tests/compact_asm.js --write --tcc-dir=<compiler-directory>
-// Check:  node tests/compact_asm.js --tcc-dir=<compiler-directory>
-// BEGIN COMPACT ASM CACHE
-#if defined(__x86_64__)
-#undef OBFH_SF_BYTES
-#define OBFH_SF_BYTES(bit, flip, size, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip ")," size "," value ";"
-#undef OBFH_SF_WORD
-#define OBFH_SF_WORD(bit, flip, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip "),4," value ";"
-#undef OBFH_SF_LINK_BYTES
-#define OBFH_SF_LINK_BYTES(channel, size, value) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1)," size "," value ";"
-#undef OBFH_SF_LINK_GATE
-#define OBFH_SF_LINK_GATE(span, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1," span ";"
-#undef OBFH_SF_INPUT
-#define OBFH_SF_INPUT "movl %%esp,%%eax;"
-#undef OBFH_SF_FRAME_HEAD
-#define OBFH_SF_FRAME_HEAD(size) "pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;"
-#undef OBFH_SF_FRAME
-#define OBFH_SF_FRAME(size) "pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8348 - ((%c[" size "] >> 7) * 0x200);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" size "] >> 7)),%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24648d48 + ((%c[" size "] >> 7) * 0x400000);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" size "] >> 7)),-%c[" size "];"
-#undef OBFH_SF_FRAME_ALT
-#define OBFH_SF_FRAME_ALT(size) "pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),3,0xec8348 - ((%c[" size "] >> 7) * 0x200);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" size "] >> 7)),%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),4,0x24648d48 + ((%c[" size "] >> 7) * 0x400000);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" size "] >> 7)),-%c[" size "];leaq %c[" size "](%%rsp),%%rbp;"
-#undef OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_EPILOGUE_ALT ".fill (((%c[phantom] >> 7) & 1) ^ 0),3,0xec8948;.fill (((%c[phantom] >> 7) & 1) ^ 1),4,0x00658d48;popq %%rbp;ret;"
-#undef OBFH_SF_EPILOGUE
-#define OBFH_SF_EPILOGUE ".fill (((%c[phantom] >> 6) & 1) ^ 0),1,0xc9;.fill (((%c[phantom] >> 6) & 1) ^ 1),4,0x5dec8948;ret;"
-#undef OBFH_SF_ARGS
-#define OBFH_SF_ARGS ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;"
-#undef OBFH_SF_CALL_ARGS
-#define OBFH_SF_CALL_ARGS ".fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_a];.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_a];"
-#undef OBFH_SF_CALL_AT
-#define OBFH_SF_CALL_AT(target, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,23;subq $32,%%rsp;.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_a];.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_a];call " target ";addq $32,%%rsp;"
-#undef OBFH_SF_LOCAL
-#define OBFH_SF_LOCAL ".fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_CALL
-#define OBFH_SF_CALL(target) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * 0)) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * 0)) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,23;subq $32,%%rsp;.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_a];.fill (((%c[phantom] >> 10) & 1) ^ 0),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 0),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xba;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_b];.fill (((%c[phantom] >> 10) & 1) ^ 1),1,0xb9;.fill (((%c[phantom] >> 10) & 1) ^ 1),4,%c[arg_a];call " target ";addq $32,%%rsp;"
-#undef OBFH_SF_PADDING
-#define OBFH_SF_PADDING ".fill %c[pad],1,0x90;"
-#undef OBFH_SF_GAP
-#define OBFH_SF_GAP ".fill %c[pad_b],1,0x90;.byte %c[noise_a],%c[noise_b];"
-#undef OBFH_SF_BODY_A
-#define OBFH_SF_BODY_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;xorl $%c[key_a],%%eax;imull $%c[factor],%%eax;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_B
-#define OBFH_SF_BODY_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;addl $%c[key_b],%%eax;roll $%c[rotate],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_C
-#define OBFH_SF_BODY_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;leal (%%eax,%%eax,2),%%eax;xorl %%eax,%%edx;addl $%c[key_a],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_D
-#define OBFH_SF_BODY_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;notl %%eax;addl %%edx,%%eax;imull $%c[factor],%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_E
-#define OBFH_SF_BODY_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;bswap %%eax;xorl %%edx,%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_F
-#define OBFH_SF_BODY_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[loops],%%ecx;6:addl %%edx,%%eax;imull $%c[factor],%%eax;xorl $%c[key_b],%%eax;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_G
-#define OBFH_SF_BODY_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movzbl %%al,%%ecx;shrl $8,%%eax;xorl %%edx,%%ecx;leal (%%eax,%%ecx,4),%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_H
-#define OBFH_SF_BODY_H ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;imull %%eax,%%edx;xorl $%c[key_b],%%edx;subl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_I
-#define OBFH_SF_BODY_I ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;orl $%c[mask],%%eax;andl $%c[mask],%%ecx;subl %%ecx,%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_J
-#define OBFH_SF_BODY_J ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;xorl $%c[key_a],%%eax;movl %%edx,%%ecx;shll $%c[rotate],%%ecx;shrl $%c[rotate],%%eax;orl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_K
-#define OBFH_SF_BODY_K ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;testl %%edx,%%edx;js 6f;addl $%c[key_a],%%eax;.byte 0xeb,4;6:negl %%eax;xorl %%edx,%%eax;7:roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_L
-#define OBFH_SF_BODY_L ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;movl %%edx,%%eax;addl %%ecx,%%eax;imull $%c[factor],%%eax;notl %%edx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_M
-#define OBFH_SF_BODY_M ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;shrl $16,%%ecx;xorl %%ecx,%%eax;imull $%c[factor],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_N
-#define OBFH_SF_BODY_N ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;addl $%c[key_a],%%eax;adcl $%c[key_b],%%edx;xorl %%edx,%%eax;rorl $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_O
-#define OBFH_SF_BODY_O ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;xchgl %%eax,%%edx;subl $%c[key_a],%%eax;bswap %%edx;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_P
-#define OBFH_SF_BODY_P ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_Q
-#define OBFH_SF_BODY_Q ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movzbl %%al,%%ecx;movzbl %%dl,%%edx;imull %%edx,%%ecx;shrl $8,%%eax;addl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_R
-#define OBFH_SF_BODY_R ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl $%c[loops],%%ecx;6:xorl %%edx,%%eax;roll $%c[rotate],%%eax;addl $%c[key_a],%%edx;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_S
-#define OBFH_SF_BODY_S ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;shldl $%c[rotate],%%edx,%%eax;subl $%c[key_b],%%eax;xorl $%c[mask],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_T
-#define OBFH_SF_BODY_T ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;movl %%eax,%%ecx;shrl $16,%%eax;shll $16,%%ecx;orl %%ecx,%%eax;xorl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_GUARD_0
-#define OBFH_SF_GUARD_0 "imull %%eax,%%eax;testb $2,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_1
-#define OBFH_SF_GUARD_1 "leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_2
-#define OBFH_SF_GUARD_2 ".short 49801+((%c[phantom]>>15)&1)*3586;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_3
-#define OBFH_SF_GUARD_3 ".short 49801+((%c[phantom]>>15)&1)*3586;notl %%edx;addl %%eax,%%edx;cmpl $-1,%%edx;je 9f;"
-#undef OBFH_SF_GUARD_4
-#define OBFH_SF_GUARD_4 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;orl $%c[mask],%%eax;andl $%c[mask],%%edx;addl %%edx,%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_5
-#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_GUARD_6
-#define OBFH_SF_GUARD_6 ".short 49801+((%c[phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_GUARD_7
-#define OBFH_SF_GUARD_7 "leal -1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_9
-#define OBFH_SF_GUARD_9 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;xorl $%c[mask],%%eax;andl $%c[mask],%%edx;leal (%%eax,%%edx,2),%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_10
-#define OBFH_SF_GUARD_10 ".short 49801+((%c[phantom]>>15)&1)*3586;negl %%edx;andl %%edx,%%eax;leal -1(%%eax),%%edx;andl %%edx,%%eax;testl %%eax,%%eax;jz 9f;"
-#undef OBFH_SF_GUARD_11
-#define OBFH_SF_GUARD_11 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;andl $%c[mask],%%eax;andl $%c[not_mask],%%edx;imull $%c[factor],%%eax;imull $%c[factor],%%edx;addl %%edx,%%eax;imull $%c[factor],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_12
-#define OBFH_SF_GUARD_12 ".short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull $%c[factor],%%eax;imull $%c[factor],%%edx;movl $%c[key_a],%%ecx;imull $%c[factor],%%ecx;addl %%edx,%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_13
-#define OBFH_SF_GUARD_13 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull %%eax,%%eax;imull %%ecx,%%ecx;subl %%ecx,%%eax;imull $%c[key_a],%%edx;addl %%edx,%%edx;subl %%edx,%%eax;movl $%c[key_a],%%edx;imull %%edx,%%edx;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_GUARD_14
-#define OBFH_SF_GUARD_14 ".short 49801+((%c[phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_ENTRY_ALT
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8348 - ((%c[" frame "] >> 7) * 0x200);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" frame "] >> 7)),%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24648d48 + ((%c[" frame "] >> 7) * 0x400000);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" frame "] >> 7)),-%c[" frame "];leaq %c[" frame "](%%rsp),%%rbp;" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
-#undef OBFH_SF_ENTRY
-#define OBFH_SF_ENTRY(label, frame, body) label ":pushq %%rbp;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xe58948;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x242c8d48;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),3,0xec8348 - ((%c[" frame "] >> 7) * 0x200);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" frame "] >> 7)),%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),4,0x24648d48 + ((%c[" frame "] >> 7) * 0x400000);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" frame "] >> 7)),-%c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
-#undef OBFH_SF_LEAF_ARGS
-#define OBFH_SF_LEAF_ARGS ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;"
-#undef OBFH_SF_LEAF_ENTER
-#define OBFH_SF_LEAF_ENTER "subq $%c[leaf_frame],%%rsp;"
-#undef OBFH_SF_LEAF_STORE
-#define OBFH_SF_LEAF_STORE "movl %%eax,%c[leaf_slot](%%rsp);"
-#undef OBFH_SF_LEAF_LOAD
-#define OBFH_SF_LEAF_LOAD "movl %c[leaf_slot](%%rsp),%%ecx;"
-#undef OBFH_SF_LEAF_EXIT
-#define OBFH_SF_LEAF_EXIT "addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_ALU_A
-#define OBFH_SF_LEAF_ALU_A ".byte %c[leaf_alu_a];.long %c[key_a];"
-#undef OBFH_SF_LEAF_ALU_B
-#define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[leaf_alu_b];.long %c[key_b];"
-#undef OBFH_SF_LEAF_SHIFT
-#define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];"
-#undef OBFH_SF_LEAF_COMPARE
-#define OBFH_SF_LEAF_COMPARE(reg, cc, reversed, bit, skip) ".short 0x39+256*(0xc0+8*" reg "+0)+((%c[phantom]>>" bit ")&1)*1792*(0-" reg ");.byte " cc "+((%c[phantom]>>" bit ")&1)*(" reversed "-" cc ");.byte " skip ";"
-#undef OBFH_SF_LEAF_REVERSE_SUB
-#define OBFH_SF_LEAF_REVERSE_SUB ".long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);"
-#undef OBFH_SF_LEAF_A
-#define OBFH_SF_LEAF_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jbe 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];leal (%%eax,%%edx,2),%%eax;ret;"
-#undef OBFH_SF_LEAF_B
-#define OBFH_SF_LEAF_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_C
-#define OBFH_SF_LEAF_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;.short 51257+((%c[phantom]>>11)&1)*-1792;.byte 0x7d+((%c[phantom]>>11)&1)*(0x7e-0x7d);.byte 9;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;.byte 0xeb,(4 + ((%c[rotate] != 1) & 1));6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_D
-#define OBFH_SF_LEAF_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movl $%c[loops],%%ecx;6:.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];.byte 0x81,%c[leaf_alu_b];.long %c[key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
-#undef OBFH_SF_LEAF_E
-#define OBFH_SF_LEAF_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;cmpl $%c[key_a],%%eax;jb 6f;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];ret;"
-#undef OBFH_SF_LEAF_F
-#define OBFH_SF_LEAF_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_G
-#define OBFH_SF_LEAF_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];testl $%c[mask],%%ecx;jnz 6f;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:imull $%c[factor],%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;ret;"
-#undef OBFH_SF_LEAF_H
-#define OBFH_SF_LEAF_H ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);movl $%c[loops],%%ecx;6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;decl %%ecx;jnz 6b;movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_I
-#define OBFH_SF_LEAF_I ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jne 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];ret;6:imull $%c[factor],%%eax;subl %%edx,%%eax;ret;"
-#undef OBFH_SF_LEAF_J
-#define OBFH_SF_LEAF_J ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.byte 0x81,%c[leaf_alu_b];.long %c[key_b];testl %%edx,%%edx;js 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];.byte 0xeb,2;6:negl %%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;addl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_K
-#define OBFH_SF_LEAF_K ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movzbl %%al,%%ecx;shrl $8,%%eax;imull $%c[factor],%%ecx;xorl %%ecx,%%eax;.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;ret;"
-#undef OBFH_SF_LEAF_L
-#define OBFH_SF_LEAF_L ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);cmpl %%edx,%%eax;jbe 6f;.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xeb,8;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
-#undef OBFH_SF_LEAF_ENTRY
-#define OBFH_SF_LEAF_ENTRY(label, body) label ":" body
-#define OBFH_SF_INPUTS_0 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_1 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_2 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_3 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_4 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_5 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_6 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_7 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_8 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_9 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_10 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_11 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_12 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_13 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_14 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_15 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_16 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_17 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_18 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_19 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_20 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_21 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_22 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_23 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_24 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_25 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_26 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_27 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_28 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_29 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_30 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_31 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_32 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_33 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_34 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_35 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_36 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_37 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_38 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_39 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_40 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_41 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_42 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_43 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_44 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_45 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_46 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_47 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_48 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_49 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_50 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_51 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_52 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_53 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_54 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_55 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_56 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_57 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_58 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_59 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_60 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_61 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_62 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_63 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_64 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_65 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_66 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_67 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_68 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_69 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_70 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_71 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_72 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_73 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_74 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_75 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_76 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_77 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_78 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_79 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_80 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_81 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_82 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_83 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_84 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_85 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_86 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_87 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_88 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_89 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_90 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_91 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_92 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_93 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_94 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_95 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_96 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_97 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_98 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_99 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_100 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_101 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_102 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_103 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_104 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_105 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_106 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_107 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_108 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_109 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_110 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_111 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_112 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_113 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_114 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_115 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_116 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_117 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_118 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_119 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_120 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_121 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_122 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_123 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_124 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_125 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_126 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_127 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#undef OBFH_CFLOW_TEMPLATE_0
-#define OBFH_CFLOW_TEMPLATE_0 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_1
-#define OBFH_CFLOW_TEMPLATE_1 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_2
-#define OBFH_CFLOW_TEMPLATE_2 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_3
-#define OBFH_CFLOW_TEMPLATE_3 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_4
-#define OBFH_CFLOW_TEMPLATE_4 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_5
-#define OBFH_CFLOW_TEMPLATE_5 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_6
-#define OBFH_CFLOW_TEMPLATE_6 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_7
-#define OBFH_CFLOW_TEMPLATE_7 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_8
-#define OBFH_CFLOW_TEMPLATE_8 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_9
-#define OBFH_CFLOW_TEMPLATE_9 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_10
-#define OBFH_CFLOW_TEMPLATE_10 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_11
-#define OBFH_CFLOW_TEMPLATE_11 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_12
-#define OBFH_CFLOW_TEMPLATE_12 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_13
-#define OBFH_CFLOW_TEMPLATE_13 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_14
-#define OBFH_CFLOW_TEMPLATE_14 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_15
-#define OBFH_CFLOW_TEMPLATE_15 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_16
-#define OBFH_CFLOW_TEMPLATE_16 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_17
-#define OBFH_CFLOW_TEMPLATE_17 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_18
-#define OBFH_CFLOW_TEMPLATE_18 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_19
-#define OBFH_CFLOW_TEMPLATE_19 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_20
-#define OBFH_CFLOW_TEMPLATE_20 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_21
-#define OBFH_CFLOW_TEMPLATE_21 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_22
-#define OBFH_CFLOW_TEMPLATE_22 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jnz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_23
-#define OBFH_CFLOW_TEMPLATE_23 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jnz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_24
-#define OBFH_CFLOW_TEMPLATE_24 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_25
-#define OBFH_CFLOW_TEMPLATE_25 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_26
-#define OBFH_CFLOW_TEMPLATE_26 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_27
-#define OBFH_CFLOW_TEMPLATE_27 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_28
-#define OBFH_CFLOW_TEMPLATE_28 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_29
-#define OBFH_CFLOW_TEMPLATE_29 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_30
-#define OBFH_CFLOW_TEMPLATE_30 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_31
-#define OBFH_CFLOW_TEMPLATE_31 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_32
-#define OBFH_CFLOW_TEMPLATE_32 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_33
-#define OBFH_CFLOW_TEMPLATE_33 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $2,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_34
-#define OBFH_CFLOW_TEMPLATE_34 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_35
-#define OBFH_CFLOW_TEMPLATE_35 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jnz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_36
-#define OBFH_CFLOW_TEMPLATE_36 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_37
-#define OBFH_CFLOW_TEMPLATE_37 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_38
-#define OBFH_CFLOW_TEMPLATE_38 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $7,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_39
-#define OBFH_CFLOW_TEMPLATE_39 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $3,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_40
-#define OBFH_CFLOW_TEMPLATE_40 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $14,%%cl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_41
-#define OBFH_CFLOW_TEMPLATE_41 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%cl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_42
-#define OBFH_CFLOW_TEMPLATE_42 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%cl;jnz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_43
-#define OBFH_CFLOW_TEMPLATE_43 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%cl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_44
-#define OBFH_CFLOW_TEMPLATE_44 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_45
-#define OBFH_CFLOW_TEMPLATE_45 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_46
-#define OBFH_CFLOW_TEMPLATE_46 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_47
-#define OBFH_CFLOW_TEMPLATE_47 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $2,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_48
-#define OBFH_CFLOW_TEMPLATE_48 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_49
-#define OBFH_CFLOW_TEMPLATE_49 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $2,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_50
-#define OBFH_CFLOW_TEMPLATE_50 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_51
-#define OBFH_CFLOW_TEMPLATE_51 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jnz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_52
-#define OBFH_CFLOW_TEMPLATE_52 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_53
-#define OBFH_CFLOW_TEMPLATE_53 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_54
-#define OBFH_CFLOW_TEMPLATE_54 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $7,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_55
-#define OBFH_CFLOW_TEMPLATE_55 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $3,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_56
-#define OBFH_CFLOW_TEMPLATE_56 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $14,%%cl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_57
-#define OBFH_CFLOW_TEMPLATE_57 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%cl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_58
-#define OBFH_CFLOW_TEMPLATE_58 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%cl;jnz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_59
-#define OBFH_CFLOW_TEMPLATE_59 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%cl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_60
-#define OBFH_CFLOW_TEMPLATE_60 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_61
-#define OBFH_CFLOW_TEMPLATE_61 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_62
-#define OBFH_CFLOW_TEMPLATE_62 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_63
-#define OBFH_CFLOW_TEMPLATE_63 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $2,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_64
-#define OBFH_CFLOW_TEMPLATE_64 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_65
-#define OBFH_CFLOW_TEMPLATE_65 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_66
-#define OBFH_CFLOW_TEMPLATE_66 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_67
-#define OBFH_CFLOW_TEMPLATE_67 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_68
-#define OBFH_CFLOW_TEMPLATE_68 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_69
-#define OBFH_CFLOW_TEMPLATE_69 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_70
-#define OBFH_CFLOW_TEMPLATE_70 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_71
-#define OBFH_CFLOW_TEMPLATE_71 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_72
-#define OBFH_CFLOW_TEMPLATE_72 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_73
-#define OBFH_CFLOW_TEMPLATE_73 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_74
-#define OBFH_CFLOW_TEMPLATE_74 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_75
-#define OBFH_CFLOW_TEMPLATE_75 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_76
-#define OBFH_CFLOW_TEMPLATE_76 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_77
-#define OBFH_CFLOW_TEMPLATE_77 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_78
-#define OBFH_CFLOW_TEMPLATE_78 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_79
-#define OBFH_CFLOW_TEMPLATE_79 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_80
-#define OBFH_CFLOW_TEMPLATE_80 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_81
-#define OBFH_CFLOW_TEMPLATE_81 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_82
-#define OBFH_CFLOW_TEMPLATE_82 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_83
-#define OBFH_CFLOW_TEMPLATE_83 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_84
-#define OBFH_CFLOW_TEMPLATE_84 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_85
-#define OBFH_CFLOW_TEMPLATE_85 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_86
-#define OBFH_CFLOW_TEMPLATE_86 __obfh_asm__("xorl %%eax,%%eax;jz 1f;.byte 0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%eax;roll $%c0,%%eax;xorl %%eax,%%edx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_87
-#define OBFH_CFLOW_TEMPLATE_87 ({ enum { __obfh_break_salt = RND(1, 32767), __obfh_break_gap = RND(1, 255) }; __obfh_asm__("movzbl %7,%%eax;xorl %8,%%eax;cmpl %9,%%eax;jne 1f;.byte 0x00,0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:" : : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_gap) : "eax", "ebx", "ecx", "edx", "cc", "memory"); })
-#undef OBFH_CFLOW_TEMPLATE_88
-#define OBFH_CFLOW_TEMPLATE_88 ({ enum { __obfh_break_salt = RND(1, 32767), __obfh_break_case1 = RND(129, 191), __obfh_break_case2 = RND(257, 319) }; __obfh_asm__("movzbl %7,%%eax;addl %8,%%eax;cmpl %9,%%eax;jne 1f;.byte 0x00,0x00;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:cmpl %10,%%eax;jne 2f;.byte 0xFF,0x25;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;2:" : : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_case1), "i"(__obfh_break_salt + __obfh_break_case2) : "eax", "ebx", "ecx", "edx", "cc", "memory"); })
-#undef OBFH_CFLOW_TEMPLATE_89
-#define OBFH_CFLOW_TEMPLATE_89 __obfh_asm__("xorl %%ebx,%%ebx;xorl %%edx,%%edx;xorl %%ebx,%%edx;jz 1f;mov $4,%%eax;.byte 0x00;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:leal %c6(%%ebx),%%ecx;rorl $%c0,%%ecx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_90
-#define OBFH_CFLOW_TEMPLATE_90 __obfh_asm__("xorl %%ebx,%%ebx;xorl %%eax,%%eax;mov %%eax,%%ebx;mov %%edx,%%ebx;xorl %%ebx,%%edx;jz 1f;.byte 0x20;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%edx;bswap %%edx;xorl %%edx,%%eax;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_91
-#define OBFH_CFLOW_TEMPLATE_91 __obfh_asm__("xorl %%edx,%%edx;xorl %%eax,%%eax;mov %%eax,%%edx;jz 1f;.byte 0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%ecx;negl %%ecx;roll $%c0,%%ecx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_92
-#define OBFH_CFLOW_TEMPLATE_92 __obfh_asm__("xorl %%edx,%%edx;jz 1f;.byte 0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%eax;notl %%eax;leal (%%eax,%%eax,2),%%edx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_93
-#define OBFH_CFLOW_TEMPLATE_93 __obfh_asm__("xorl %%eax,%%eax;jz 1f;.byte 0x50;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%ecx;rorl $%c0,%%ecx;xorl %%ecx,%%eax;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_94
-#define OBFH_CFLOW_TEMPLATE_94 __obfh_asm__("xorl %%edx,%%edx;jz 1f;.byte 0x00,0x00;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%edx;roll $%c0,%%edx;leal (%%edx,%%edx,4),%%eax;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_95
-#define OBFH_CFLOW_TEMPLATE_95 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_96
-#define OBFH_CFLOW_TEMPLATE_96 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;testb $2,%%dl;jz 1f;.byte 0xFF,0x25;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_97
-#define OBFH_CFLOW_TEMPLATE_97 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0x0F,0x0B,0xE8;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_98
-#define OBFH_CFLOW_TEMPLATE_98 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte 0xC3,0xE8;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_99
-#define OBFH_CFLOW_TEMPLATE_99 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>19)&1)*2;.short 53249+((%c[junk_key]>>20)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>21)&1)*-3582;je 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;roll %[junk_rotate],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;roll %[junk_rotate],%%edx;movl %[junk_key],%%ecx;roll %[junk_rotate],%%ecx;.short 51761+((%c[junk_key]>>28)&1)*1794;.short 53305+((%c[junk_key]>>29)&1)*-3582;je 2f;.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_100
-#define OBFH_CFLOW_TEMPLATE_100 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53249+((%c[junk_key]>>22)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>23)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>16)&1)*-3584;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_101
-#define OBFH_CFLOW_TEMPLATE_101 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;notl %%edx;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>24)&1)*2;.short 53289+((%c[junk_key]>>25)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;subl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;movl %[junk_key],%%ecx;bswap %%ecx;.short 51761+((%c[junk_key]>>18)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 2f;jmp 3f;2:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_102
-#define OBFH_CFLOW_TEMPLATE_102 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;orl %[junk_key],%%eax;notl %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%edx;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>27)&1)*1794;.short 53305+((%c[junk_key]>>28)&1)*-3582;je 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl $65535,%%eax;andl $-65536,%%edx;.short 53257+((%c[junk_key]>>19)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>20)&1)*-3582;jne 1b;jmp 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_103
-#define OBFH_CFLOW_TEMPLATE_103 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51721+((%c[junk_key]>>29)&1)*1794;.short 53281+((%c[junk_key]>>18)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>19)&1)*-3582;je 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movzbl %%al,%%edx;imull %%eax,%%eax;.short 53249+((%c[junk_key]>>21)&1)*-3582;testb $1,%%al;je 2f;.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_104
-#define OBFH_CFLOW_TEMPLATE_104 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>20)&1)*1794;.short 53257+((%c[junk_key]>>21)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>22)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolb %[junk_rotate],%%al;rorb %[junk_rotate],%%al;cmpb %%dl,%%al;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_105
-#define OBFH_CFLOW_TEMPLATE_105 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;.short 53297+((%c[junk_key]>>23)&1)*-3582;cmpl %[junk_key],%%eax;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolw %[junk_rotate],%%ax;rorw %[junk_rotate],%%ax;cmpw %%dx,%%ax;jne 2f;jmp 3f;2:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_106
-#define OBFH_CFLOW_TEMPLATE_106 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>24)&1)*-3582;jnc 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl $1,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 1b;jmp 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_107
-#define OBFH_CFLOW_TEMPLATE_107 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>25)&1)*-3582;addl $1,%%eax;jc 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%eax;imull %[junk_salt],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %[junk_salt],%%edx;movl %[junk_key],%%ecx;imull %[junk_salt],%%ecx;.short 51713+((%c[junk_key]>>22)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;je 2f;.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_108
-#define OBFH_CFLOW_TEMPLATE_108 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>26)&1)*-3582;jc 1f;jmp 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;imull %%edx,%%edx;movl %%eax,%%ecx;imull %[junk_key],%%ecx;.short 51457+((%c[junk_key]>>23)&1)*2;addl %[junk_key],%%eax;imull %%eax,%%eax;.short 53289+((%c[junk_key]>>24)&1)*-3582;.short 51241+((%c[junk_key]>>25)&1)*-1790;movl %[junk_key],%%edx;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_109
-#define OBFH_CFLOW_TEMPLATE_109 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;.short 53305+((%c[junk_key]>>27)&1)*-3582;setae %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%eax;imull %%eax,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>27)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_110
-#define OBFH_CFLOW_TEMPLATE_110 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;roll %[junk_rotate],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;roll %[junk_rotate],%%edx;movl %[junk_key],%%ecx;roll %[junk_rotate],%%ecx;.short 51761+((%c[junk_key]>>28)&1)*1794;.short 53305+((%c[junk_key]>>29)&1)*-3582;je 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;notl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 1b;jmp 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_111
-#define OBFH_CFLOW_TEMPLATE_111 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>16)&1)*-3584;je 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>28)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>29)&1)*1794;.short 53305+((%c[junk_key]>>18)&1)*-3582;je 2f;.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_112
-#define OBFH_CFLOW_TEMPLATE_112 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;movl %[junk_key],%%ecx;bswap %%ecx;.short 51761+((%c[junk_key]>>18)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 1f;jmp 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;orl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>19)&1)*-3582;setbe %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_113
-#define OBFH_CFLOW_TEMPLATE_113 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl $65535,%%eax;andl $-65536,%%edx;.short 53257+((%c[junk_key]>>19)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>20)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl %[junk_key],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;addl %[junk_key],%%edx;subl $1,%%edx;.short 53305+((%c[junk_key]>>20)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_114
-#define OBFH_CFLOW_TEMPLATE_114 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movzbl %%al,%%edx;imull %%eax,%%eax;.short 53249+((%c[junk_key]>>21)&1)*-3582;testb $1,%%al;je 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;andl $7,%%eax;leal -1(%%eax),%%edx;leal -4(%%eax),%%ecx;imull %%edx,%%eax;imull %%ecx,%%eax;testl %%eax,%%eax;jne 1b;jmp 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_115
-#define OBFH_CFLOW_TEMPLATE_115 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolb %[junk_rotate],%%al;rorb %[junk_rotate],%%al;cmpb %%dl,%%al;je 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;imull %%eax,%%eax;andl $15,%%eax;leal -1(%%eax),%%edx;imull %%edx,%%eax;testl %%eax,%%eax;je 2f;.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_116
-#define OBFH_CFLOW_TEMPLATE_116 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolw %[junk_rotate],%%ax;rorw %[junk_rotate],%%ax;cmpw %%dx,%%ax;jne 1f;jmp 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;negl %%edx;.short 53281+((%c[junk_key]>>21)&1)*-3582;leal -1(%%eax),%%edx;.short 53281+((%c[junk_key]>>22)&1)*-3582;testl %%eax,%%eax;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_117
-#define OBFH_CFLOW_TEMPLATE_117 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl $1,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>19)&1)*2;.short 53249+((%c[junk_key]>>20)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>21)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_118
-#define OBFH_CFLOW_TEMPLATE_118 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%eax;imull %[junk_salt],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %[junk_salt],%%edx;movl %[junk_key],%%ecx;imull %[junk_salt],%%ecx;.short 51713+((%c[junk_key]>>22)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;je 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53249+((%c[junk_key]>>22)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>23)&1)*-3582;jne 1b;jmp 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_119
-#define OBFH_CFLOW_TEMPLATE_119 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;imull %%edx,%%edx;movl %%eax,%%ecx;imull %[junk_key],%%ecx;.short 51457+((%c[junk_key]>>23)&1)*2;addl %[junk_key],%%eax;imull %%eax,%%eax;.short 53289+((%c[junk_key]>>24)&1)*-3582;.short 51241+((%c[junk_key]>>25)&1)*-1790;movl %[junk_key],%%edx;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;je 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;notl %%edx;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>24)&1)*2;.short 53289+((%c[junk_key]>>25)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;subl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;je 2f;.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_120
-#define OBFH_CFLOW_TEMPLATE_120 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%eax;imull %%eax,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>27)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;orl %[junk_key],%%eax;notl %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%edx;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>27)&1)*1794;.short 53305+((%c[junk_key]>>28)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_121
-#define OBFH_CFLOW_TEMPLATE_121 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;notl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51721+((%c[junk_key]>>29)&1)*1794;.short 53281+((%c[junk_key]>>18)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>19)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_122
-#define OBFH_CFLOW_TEMPLATE_122 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>28)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>29)&1)*1794;.short 53305+((%c[junk_key]>>18)&1)*-3582;je 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>20)&1)*1794;.short 53257+((%c[junk_key]>>21)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>22)&1)*-3582;jne 1b;jmp 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_123
-#define OBFH_CFLOW_TEMPLATE_123 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;orl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>19)&1)*-3582;jbe 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;.short 53297+((%c[junk_key]>>23)&1)*-3582;cmpl %[junk_key],%%eax;je 2f;.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_124
-#define OBFH_CFLOW_TEMPLATE_124 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl %[junk_key],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;addl %[junk_key],%%edx;subl $1,%%edx;.short 53305+((%c[junk_key]>>20)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>24)&1)*-3582;setnc %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_125
-#define OBFH_CFLOW_TEMPLATE_125 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;andl $7,%%eax;leal -1(%%eax),%%edx;leal -4(%%eax),%%ecx;imull %%edx,%%eax;imull %%ecx,%%eax;testl %%eax,%%eax;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>25)&1)*-3582;addl $1,%%eax;jnc 2f;jmp 3f;2:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_126
-#define OBFH_CFLOW_TEMPLATE_126 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;imull %%eax,%%eax;andl $15,%%eax;leal -1(%%eax),%%edx;imull %%edx,%%eax;testl %%eax,%%eax;je 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>26)&1)*-3582;jc 1b;jmp 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_127
-#define OBFH_CFLOW_TEMPLATE_127 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;negl %%edx;.short 53281+((%c[junk_key]>>21)&1)*-3582;leal -1(%%eax),%%edx;.short 53281+((%c[junk_key]>>22)&1)*-3582;testl %%eax,%%eax;je 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;.short 53305+((%c[junk_key]>>27)&1)*-3582;jae 2f;.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-
-#else
-#undef OBFH_SF_BYTES
-#define OBFH_SF_BYTES(bit, flip, size, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip ")," size "," value ";"
-#undef OBFH_SF_WORD
-#define OBFH_SF_WORD(bit, flip, value) ".fill (((%c[phantom] >> " bit ") & 1) ^ " flip "),4," value ";"
-#undef OBFH_SF_LINK_BYTES
-#define OBFH_SF_LINK_BYTES(channel, size, value) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1)," size "," value ";"
-#undef OBFH_SF_LINK_GATE
-#define OBFH_SF_LINK_GATE(span, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1," span ";"
-#undef OBFH_SF_INPUT
-#define OBFH_SF_INPUT "movl %%esp,%%eax;"
-#undef OBFH_SF_FRAME_HEAD
-#define OBFH_SF_FRAME_HEAD(size) "pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;"
-#undef OBFH_SF_FRAME
-#define OBFH_SF_FRAME(size) "pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec83 - ((%c[" size "] >> 7) * 2);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" size "] >> 7)),%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24648d + ((%c[" size "] >> 7) * 0x4000);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" size "] >> 7)),-%c[" size "];"
-#undef OBFH_SF_FRAME_ALT
-#define OBFH_SF_FRAME_ALT(size) "pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),2,0xec83 - ((%c[" size "] >> 7) * 2);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" size "] >> 7)),%c[" size "];.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),3,0x24648d + ((%c[" size "] >> 7) * 0x4000);.fill (((%c[phantom] >> (4 + ((%c[" size "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" size "] >> 7)),-%c[" size "];leal %c[" size "](%%esp),%%ebp;"
-#undef OBFH_SF_EPILOGUE_ALT
-#define OBFH_SF_EPILOGUE_ALT ".fill (((%c[phantom] >> 7) & 1) ^ 0),2,0xec89;.fill (((%c[phantom] >> 7) & 1) ^ 1),3,0x00658d;popl %%ebp;ret;"
-#undef OBFH_SF_EPILOGUE
-#define OBFH_SF_EPILOGUE ".fill (((%c[phantom] >> 6) & 1) ^ 0),1,0xc9;.fill (((%c[phantom] >> 6) & 1) ^ 1),3,0x5dec89;ret;"
-#undef OBFH_SF_ARGS
-#define OBFH_SF_ARGS ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;"
-#undef OBFH_SF_CALL_AT
-#define OBFH_SF_CALL_AT(target, channel) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * " channel ")) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * " channel ")) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * " channel ")) & 1),1,18;.byte 0x68;.long %c[arg_b];.byte 0x68;.long %c[arg_a];call " target ";addl $8,%%esp;"
-#undef OBFH_SF_LOCAL
-#define OBFH_SF_LOCAL ".fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_CALL
-#define OBFH_SF_CALL(target) ".fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),2,0xc085 ^ ((((%c[phantom] ^ %c[key_a]) >> (14 + 3 * 0)) & 1) << 12);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,0x74 | (((%c[phantom] ^ %c[key_a]) >> (13 + 3 * 0)) & 1);.fill (((%c[phantom] ^ %c[key_a]) >> (12 + 3 * 0)) & 1),1,18;.byte 0x68;.long %c[arg_b];.byte 0x68;.long %c[arg_a];call " target ";addl $8,%%esp;"
-#undef OBFH_SF_PADDING
-#define OBFH_SF_PADDING ".fill %c[pad],1,0x90;"
-#undef OBFH_SF_GAP
-#define OBFH_SF_GAP ".fill %c[pad_b],1,0x90;.byte %c[noise_a],%c[noise_b];"
-#undef OBFH_SF_BODY_A
-#define OBFH_SF_BODY_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;xorl $%c[key_a],%%eax;imull $%c[factor],%%eax;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_B
-#define OBFH_SF_BODY_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;addl $%c[key_b],%%eax;roll $%c[rotate],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_C
-#define OBFH_SF_BODY_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;leal (%%eax,%%eax,2),%%eax;xorl %%eax,%%edx;addl $%c[key_a],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_D
-#define OBFH_SF_BODY_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;notl %%eax;addl %%edx,%%eax;imull $%c[factor],%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_E
-#define OBFH_SF_BODY_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;bswap %%eax;xorl %%edx,%%eax;roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_F
-#define OBFH_SF_BODY_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[loops],%%ecx;6:addl %%edx,%%eax;imull $%c[factor],%%eax;xorl $%c[key_b],%%eax;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_G
-#define OBFH_SF_BODY_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movzbl %%al,%%ecx;shrl $8,%%eax;xorl %%edx,%%ecx;leal (%%eax,%%ecx,4),%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_H
-#define OBFH_SF_BODY_H ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;imull %%eax,%%edx;xorl $%c[key_b],%%edx;subl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_I
-#define OBFH_SF_BODY_I ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;orl $%c[mask],%%eax;andl $%c[mask],%%ecx;subl %%ecx,%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_J
-#define OBFH_SF_BODY_J ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;xorl $%c[key_a],%%eax;movl %%edx,%%ecx;shll $%c[rotate],%%ecx;shrl $%c[rotate],%%eax;orl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_K
-#define OBFH_SF_BODY_K ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;testl %%edx,%%edx;js 6f;addl $%c[key_a],%%eax;.byte 0xeb,4;6:negl %%eax;xorl %%edx,%%eax;7:roll $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_L
-#define OBFH_SF_BODY_L ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;movl %%edx,%%eax;addl %%ecx,%%eax;imull $%c[factor],%%eax;notl %%edx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_M
-#define OBFH_SF_BODY_M ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;shrl $16,%%ecx;xorl %%ecx,%%eax;imull $%c[factor],%%eax;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_N
-#define OBFH_SF_BODY_N ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;addl $%c[key_a],%%eax;adcl $%c[key_b],%%edx;xorl %%edx,%%eax;rorl $%c[rotate],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_O
-#define OBFH_SF_BODY_O ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;xchgl %%eax,%%edx;subl $%c[key_a],%%eax;bswap %%edx;addl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_P
-#define OBFH_SF_BODY_P ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_Q
-#define OBFH_SF_BODY_Q ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movzbl %%al,%%ecx;movzbl %%dl,%%edx;imull %%edx,%%ecx;shrl $8,%%eax;addl %%ecx,%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_R
-#define OBFH_SF_BODY_R ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl $%c[loops],%%ecx;6:xorl %%edx,%%eax;roll $%c[rotate],%%eax;addl $%c[key_a],%%edx;decl %%ecx;jnz 6b;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_S
-#define OBFH_SF_BODY_S ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;shldl $%c[rotate],%%edx,%%eax;subl $%c[key_b],%%eax;xorl $%c[mask],%%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_BODY_T
-#define OBFH_SF_BODY_T ".fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x0c558b;.fill (((%c[phantom] >> 9) & 1) ^ 0),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x08458b;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x0c558b;movl %%eax,%%ecx;shrl $16,%%eax;shll $16,%%ecx;orl %%ecx,%%eax;xorl %%edx,%%eax;negl %%eax;.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_a];.fill (((%c[phantom] >> 8) & 1) ^ 0),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 0),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x5589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_b];.fill (((%c[phantom] >> 8) & 1) ^ 1),2,0x4589;.fill (((%c[phantom] >> 8) & 1) ^ 1),1,-%c[local_a];"
-#undef OBFH_SF_GUARD_0
-#define OBFH_SF_GUARD_0 "imull %%eax,%%eax;testb $2,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_1
-#define OBFH_SF_GUARD_1 "leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_2
-#define OBFH_SF_GUARD_2 ".short 49801+((%c[phantom]>>15)&1)*3586;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_3
-#define OBFH_SF_GUARD_3 ".short 49801+((%c[phantom]>>15)&1)*3586;notl %%edx;addl %%eax,%%edx;cmpl $-1,%%edx;je 9f;"
-#undef OBFH_SF_GUARD_4
-#define OBFH_SF_GUARD_4 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;orl $%c[mask],%%eax;andl $%c[mask],%%edx;addl %%edx,%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_5
-#define OBFH_SF_GUARD_5 ".short 49801+((%c[phantom]>>15)&1)*3586;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^0))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[phantom]>>14)&1)^1))+65536*%c[rotate])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_GUARD_6
-#define OBFH_SF_GUARD_6 ".short 49801+((%c[phantom]>>15)&1)*3586;bswap %%eax;bswap %%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_GUARD_7
-#define OBFH_SF_GUARD_7 "leal -1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 9f;"
-#undef OBFH_SF_GUARD_9
-#define OBFH_SF_GUARD_9 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;xorl $%c[mask],%%eax;andl $%c[mask],%%edx;leal (%%eax,%%edx,2),%%eax;addl $%c[mask],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_10
-#define OBFH_SF_GUARD_10 ".short 49801+((%c[phantom]>>15)&1)*3586;negl %%edx;andl %%edx,%%eax;leal -1(%%eax),%%edx;andl %%edx,%%eax;testl %%eax,%%eax;jz 9f;"
-#undef OBFH_SF_GUARD_11
-#define OBFH_SF_GUARD_11 ".short 49801+((%c[phantom]>>15)&1)*3586;.short 49545+((%c[phantom]>>15)&1)*1794;andl $%c[mask],%%eax;andl $%c[not_mask],%%edx;imull $%c[factor],%%eax;imull $%c[factor],%%edx;addl %%edx,%%eax;imull $%c[factor],%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_12
-#define OBFH_SF_GUARD_12 ".short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull $%c[factor],%%eax;imull $%c[factor],%%edx;movl $%c[key_a],%%ecx;imull $%c[factor],%%ecx;addl %%edx,%%ecx;.short 51257+((%c[phantom]>>16)&1)*-1792;je 9f;"
-#undef OBFH_SF_GUARD_13
-#define OBFH_SF_GUARD_13 "movl %%eax,%%ecx;.short 49801+((%c[phantom]>>15)&1)*3586;addl $%c[key_a],%%eax;imull %%eax,%%eax;imull %%ecx,%%ecx;subl %%ecx,%%eax;imull $%c[key_a],%%edx;addl %%edx,%%edx;subl %%edx,%%eax;movl $%c[key_a],%%edx;imull %%edx,%%edx;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_GUARD_14
-#define OBFH_SF_GUARD_14 ".short 49801+((%c[phantom]>>15)&1)*3586;roll $16,%%eax;roll $16,%%eax;.short 53305+((%c[phantom]>>16)&1)*-3584;je 9f;"
-#undef OBFH_SF_ENTRY_ALT
-#define OBFH_SF_ENTRY_ALT(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec83 - ((%c[" frame "] >> 7) * 2);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" frame "] >> 7)),%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24648d + ((%c[" frame "] >> 7) * 0x4000);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" frame "] >> 7)),-%c[" frame "];leal %c[" frame "](%%esp),%%ebp;" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
-#undef OBFH_SF_ENTRY
-#define OBFH_SF_ENTRY(label, frame, body) label ":pushl %%ebp;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xe589;.fill (((%c[phantom] >> (1 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x242c8d;.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),2,0xec83 - ((%c[" frame "] >> 7) * 2);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 0),(1 + 3 * (%c[" frame "] >> 7)),%c[" frame "];.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),3,0x24648d + ((%c[" frame "] >> 7) * 0x4000);.fill (((%c[phantom] >> (4 + ((%c[" frame "] >> 4) & 3))) & 1) ^ 1),(1 + 3 * (%c[" frame "] >> 7)),-%c[" frame "];" body ".fill ((%c[phantom] >> " label ") & 1),1,0x90;"
-#undef OBFH_SF_LEAF_ARGS
-#define OBFH_SF_LEAF_ARGS "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;"
-#undef OBFH_SF_LEAF_ENTER
-#define OBFH_SF_LEAF_ENTER "subl $%c[leaf_frame],%%esp;"
-#undef OBFH_SF_LEAF_STORE
-#define OBFH_SF_LEAF_STORE "movl %%eax,%c[leaf_slot](%%esp);"
-#undef OBFH_SF_LEAF_LOAD
-#define OBFH_SF_LEAF_LOAD "movl %c[leaf_slot](%%esp),%%ecx;"
-#undef OBFH_SF_LEAF_EXIT
-#define OBFH_SF_LEAF_EXIT "addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_ALU_A
-#define OBFH_SF_LEAF_ALU_A ".byte %c[leaf_alu_a];.long %c[key_a];"
-#undef OBFH_SF_LEAF_ALU_B
-#define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[leaf_alu_b];.long %c[key_b];"
-#undef OBFH_SF_LEAF_SHIFT
-#define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];"
-#undef OBFH_SF_LEAF_COMPARE
-#define OBFH_SF_LEAF_COMPARE(reg, cc, reversed, bit, skip) ".short 0x39+256*(0xc0+8*" reg "+0)+((%c[phantom]>>" bit ")&1)*1792*(0-" reg ");.byte " cc "+((%c[phantom]>>" bit ")&1)*(" reversed "-" cc ");.byte " skip ";"
-#undef OBFH_SF_LEAF_REVERSE_SUB
-#define OBFH_SF_LEAF_REVERSE_SUB ".long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);"
-#undef OBFH_SF_LEAF_A
-#define OBFH_SF_LEAF_A "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jbe 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];leal (%%eax,%%edx,2),%%eax;ret;"
-#undef OBFH_SF_LEAF_B
-#define OBFH_SF_LEAF_B "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_C
-#define OBFH_SF_LEAF_C "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;.short 51257+((%c[phantom]>>11)&1)*-1792;.byte 0x7d+((%c[phantom]>>11)&1)*(0x7e-0x7d);.byte 9;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;.byte 0xeb,(4 + ((%c[rotate] != 1) & 1));6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_D
-#define OBFH_SF_LEAF_D "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movl $%c[loops],%%ecx;6:.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];.byte 0x81,%c[leaf_alu_b];.long %c[key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
-#undef OBFH_SF_LEAF_E
-#define OBFH_SF_LEAF_E "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;cmpl $%c[key_a],%%eax;jb 6f;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];ret;"
-#undef OBFH_SF_LEAF_F
-#define OBFH_SF_LEAF_F "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_G
-#define OBFH_SF_LEAF_G "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];testl $%c[mask],%%ecx;jnz 6f;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:imull $%c[factor],%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;ret;"
-#undef OBFH_SF_LEAF_H
-#define OBFH_SF_LEAF_H "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);movl $%c[loops],%%ecx;6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;decl %%ecx;jnz 6b;movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_I
-#define OBFH_SF_LEAF_I "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jne 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];ret;6:imull $%c[factor],%%eax;subl %%edx,%%eax;ret;"
-#undef OBFH_SF_LEAF_J
-#define OBFH_SF_LEAF_J "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.byte 0x81,%c[leaf_alu_b];.long %c[key_b];testl %%edx,%%edx;js 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];.byte 0xeb,2;6:negl %%eax;7:movl %c[leaf_slot](%%esp),%%ecx;addl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_K
-#define OBFH_SF_LEAF_K "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movzbl %%al,%%ecx;shrl $8,%%eax;imull $%c[factor],%%ecx;xorl %%ecx,%%eax;.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;ret;"
-#undef OBFH_SF_LEAF_L
-#define OBFH_SF_LEAF_L "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);cmpl %%edx,%%eax;jbe 6f;.byte %c[leaf_alu_a];.long %c[key_a];.byte 0xeb,8;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;7:movl %c[leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
-#undef OBFH_SF_LEAF_ENTRY
-#define OBFH_SF_LEAF_ENTRY(label, body) label ":" body
-#define OBFH_SF_INPUTS_0 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_1 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_2 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_3 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_4 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_5 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_6 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_7 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_8 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_9 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_10 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_11 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_12 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_13 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_14 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_15 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_16 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_17 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_18 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_19 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_20 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_21 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_22 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_23 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_24 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_25 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_26 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_27 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_28 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_29 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_30 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_31 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_32 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_33 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_34 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_35 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_36 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_37 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_38 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_39 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_40 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_41 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_42 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_43 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_44 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_45 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_46 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_47 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_48 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_49 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_50 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_51 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_52 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_53 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_54 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_55 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_56 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_57 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_58 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_59 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_60 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_61 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_62 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_63 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_64 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_65 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_66 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_67 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_68 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_69 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_70 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_71 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_72 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_73 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_74 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_75 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_76 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_77 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_78 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_79 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_80 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_81 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_82 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_83 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_84 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_85 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_86 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_87 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_88 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_89 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_90 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_91 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_92 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_93 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_94 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_95 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_96 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_97 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_98 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_99 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_100 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_101 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_102 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_103 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_104 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_105 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_106 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_107 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_108 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_109 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_110 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_111 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_112 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_113 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_114 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_115 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_116 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_117 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [not_mask] "i"(__obfh_sf_not_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_118 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_119 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_120 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_121 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_122 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_123 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [mask] "i"(__obfh_sf_mask), [frame_d] "i"(__obfh_sf_frame_d), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_124 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_125 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [loops] "i"(__obfh_sf_loops), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_126 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#define OBFH_SF_INPUTS_127 [phantom] "i"(__obfh_sf_phantom), [il] "i"(__si_n), [rotate] "i"(__obfh_sf_rotate), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [factor] "i"(__obfh_sf_factor), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b), [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_shift] "i"(__obfh_sf_leaf_shift), [i0] "i"(__s0), [i1] "i"(__s1)
-#undef OBFH_CFLOW_TEMPLATE_0
-#define OBFH_CFLOW_TEMPLATE_0 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_1
-#define OBFH_CFLOW_TEMPLATE_1 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_2
-#define OBFH_CFLOW_TEMPLATE_2 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_3
-#define OBFH_CFLOW_TEMPLATE_3 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_4
-#define OBFH_CFLOW_TEMPLATE_4 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_5
-#define OBFH_CFLOW_TEMPLATE_5 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_6
-#define OBFH_CFLOW_TEMPLATE_6 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_7
-#define OBFH_CFLOW_TEMPLATE_7 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_8
-#define OBFH_CFLOW_TEMPLATE_8 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_9
-#define OBFH_CFLOW_TEMPLATE_9 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                           : \
-                                           : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                           : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_10
-#define OBFH_CFLOW_TEMPLATE_10 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_11
-#define OBFH_CFLOW_TEMPLATE_11 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_12
-#define OBFH_CFLOW_TEMPLATE_12 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_13
-#define OBFH_CFLOW_TEMPLATE_13 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_14
-#define OBFH_CFLOW_TEMPLATE_14 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_15
-#define OBFH_CFLOW_TEMPLATE_15 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_16
-#define OBFH_CFLOW_TEMPLATE_16 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_17
-#define OBFH_CFLOW_TEMPLATE_17 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_18
-#define OBFH_CFLOW_TEMPLATE_18 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_19
-#define OBFH_CFLOW_TEMPLATE_19 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_20
-#define OBFH_CFLOW_TEMPLATE_20 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_21
-#define OBFH_CFLOW_TEMPLATE_21 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_22
-#define OBFH_CFLOW_TEMPLATE_22 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jnz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_23
-#define OBFH_CFLOW_TEMPLATE_23 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jnz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_24
-#define OBFH_CFLOW_TEMPLATE_24 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_25
-#define OBFH_CFLOW_TEMPLATE_25 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_26
-#define OBFH_CFLOW_TEMPLATE_26 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_27
-#define OBFH_CFLOW_TEMPLATE_27 __obfh_asm__("movl %%esp,%%ecx;xorl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_28
-#define OBFH_CFLOW_TEMPLATE_28 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_29
-#define OBFH_CFLOW_TEMPLATE_29 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_30
-#define OBFH_CFLOW_TEMPLATE_30 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_31
-#define OBFH_CFLOW_TEMPLATE_31 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_32
-#define OBFH_CFLOW_TEMPLATE_32 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_33
-#define OBFH_CFLOW_TEMPLATE_33 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $2,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_34
-#define OBFH_CFLOW_TEMPLATE_34 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_35
-#define OBFH_CFLOW_TEMPLATE_35 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jnz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_36
-#define OBFH_CFLOW_TEMPLATE_36 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_37
-#define OBFH_CFLOW_TEMPLATE_37 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_38
-#define OBFH_CFLOW_TEMPLATE_38 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $7,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_39
-#define OBFH_CFLOW_TEMPLATE_39 __obfh_asm__("movl %%esp,%%edx;subl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $3,%%dl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_40
-#define OBFH_CFLOW_TEMPLATE_40 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $14,%%cl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_41
-#define OBFH_CFLOW_TEMPLATE_41 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%cl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_42
-#define OBFH_CFLOW_TEMPLATE_42 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%cl;jnz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_43
-#define OBFH_CFLOW_TEMPLATE_43 __obfh_asm__("movl %%esp,%%ecx;subl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%cl;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_44
-#define OBFH_CFLOW_TEMPLATE_44 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 1f;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_45
-#define OBFH_CFLOW_TEMPLATE_45 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_46
-#define OBFH_CFLOW_TEMPLATE_46 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $1,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_47
-#define OBFH_CFLOW_TEMPLATE_47 __obfh_asm__("movl %%esp,%%eax;subl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 1f;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:testb $2,%%al;jz 2f;.byte 0x0F,0x0B,0xE8;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_48
-#define OBFH_CFLOW_TEMPLATE_48 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_49
-#define OBFH_CFLOW_TEMPLATE_49 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $2,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_50
-#define OBFH_CFLOW_TEMPLATE_50 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_51
-#define OBFH_CFLOW_TEMPLATE_51 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jnz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_52
-#define OBFH_CFLOW_TEMPLATE_52 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_53
-#define OBFH_CFLOW_TEMPLATE_53 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_54
-#define OBFH_CFLOW_TEMPLATE_54 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $7,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_55
-#define OBFH_CFLOW_TEMPLATE_55 __obfh_asm__("movl %%esp,%%edx;roll $7,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $3,%%dl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_56
-#define OBFH_CFLOW_TEMPLATE_56 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $14,%%cl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_57
-#define OBFH_CFLOW_TEMPLATE_57 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%cl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_58
-#define OBFH_CFLOW_TEMPLATE_58 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%cl;jnz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_59
-#define OBFH_CFLOW_TEMPLATE_59 __obfh_asm__("movl %%esp,%%ecx;roll $7,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%cl;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_60
-#define OBFH_CFLOW_TEMPLATE_60 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xE8 + (%c3 & 1));.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_61
-#define OBFH_CFLOW_TEMPLATE_61 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte 0xFF,(0x15 + ((%c3 >> 4) & 1) * 16);.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_62
-#define OBFH_CFLOW_TEMPLATE_62 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.fill ((%c3 >> 8) & 1),1,0x66;.byte (0xB8 + ((%c3 >> 9) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $1,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_63
-#define OBFH_CFLOW_TEMPLATE_63 __obfh_asm__("movl %%esp,%%eax;roll $7,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xC3;.byte (0xB8 + ((%c3 >> 12) & 7));.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:testb $2,%%al;jz 3f;.byte 0xFF,0x25;.long %c3;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_64
-#define OBFH_CFLOW_TEMPLATE_64 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_65
-#define OBFH_CFLOW_TEMPLATE_65 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_66
-#define OBFH_CFLOW_TEMPLATE_66 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_67
-#define OBFH_CFLOW_TEMPLATE_67 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_68
-#define OBFH_CFLOW_TEMPLATE_68 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_69
-#define OBFH_CFLOW_TEMPLATE_69 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_70
-#define OBFH_CFLOW_TEMPLATE_70 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_71
-#define OBFH_CFLOW_TEMPLATE_71 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_72
-#define OBFH_CFLOW_TEMPLATE_72 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_73
-#define OBFH_CFLOW_TEMPLATE_73 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_74
-#define OBFH_CFLOW_TEMPLATE_74 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_75
-#define OBFH_CFLOW_TEMPLATE_75 __obfh_asm__("movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_76
-#define OBFH_CFLOW_TEMPLATE_76 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_77
-#define OBFH_CFLOW_TEMPLATE_77 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_78
-#define OBFH_CFLOW_TEMPLATE_78 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%ecx;imull %%eax,%%eax;imull %%ecx,%%eax;addl %%ecx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_79
-#define OBFH_CFLOW_TEMPLATE_79 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;imull %%eax,%%eax;orl $1,%%eax;testb $2,%%al;jz 1f;.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:movl %%esp,%%edx;addl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%edx,%%ecx;addl $3,%%edx;imull %%eax,%%ecx;imull %%ecx,%%edx;testb $7,%%dl;jz 2f;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;2:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_80
-#define OBFH_CFLOW_TEMPLATE_80 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;leal -1(%%edx),%%ecx;imull %%ecx,%%edx;testb $3,%%dl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_81
-#define OBFH_CFLOW_TEMPLATE_81 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;imull %%eax,%%eax;testb $2,%%al;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;imull %%ecx,%%ecx;imull %%ecx,%%ecx;testb $14,%%cl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_82
-#define OBFH_CFLOW_TEMPLATE_82 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;movl %%ecx,%%eax;imull %%ecx,%%ecx;imull %%ecx,%%ecx;imull %%eax,%%ecx;subl %%eax,%%ecx;testb $1,%%cl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_83
-#define OBFH_CFLOW_TEMPLATE_83 __obfh_asm__("movl %%esp,%%eax;xorl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;orl %%eax,%%ecx;testb $1,%%cl;jnz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_84
-#define OBFH_CFLOW_TEMPLATE_84 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;movl %%edx,%%ecx;imull %%edx,%%edx;imull %%ecx,%%edx;subl %%ecx,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%ecx;addl %0,%%ecx;leal 1(%%ecx),%%eax;andl %%eax,%%ecx;testb $1,%%cl;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_85
-#define OBFH_CFLOW_TEMPLATE_85 __obfh_asm__("movl %%esp,%%edx;xorl %0,%%edx;leal 1(%%edx),%%ecx;leal 2(%%edx),%%eax;imull %%ecx,%%edx;imull %%eax,%%edx;testb $1,%%dl;jnz 1f;jmp 2f;1:.byte 0xE8,%c2;.long %c3;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:movl %%esp,%%eax;addl %0,%%eax;leal -1(%%eax),%%ecx;imull %%ecx,%%eax;testb $1,%%al;jz 3f;.byte 0x0F,0x0B;.byte 0xFF,0x25;.long %c3;.byte %c2,0xE9;3:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_key) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_86
-#define OBFH_CFLOW_TEMPLATE_86 __obfh_asm__("xorl %%eax,%%eax;jz 1f;.byte 0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%eax;roll $%c0,%%eax;xorl %%eax,%%edx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_87
-#define OBFH_CFLOW_TEMPLATE_87 ({ enum { __obfh_break_salt = RND(1, 32767), __obfh_break_gap = RND(1, 255) }; __obfh_asm__("movzbl %7,%%eax;xorl %8,%%eax;cmpl %9,%%eax;jne 1f;.byte 0x00,0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:" : : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_gap) : "eax", "ebx", "ecx", "edx", "cc", "memory"); })
-#undef OBFH_CFLOW_TEMPLATE_88
-#define OBFH_CFLOW_TEMPLATE_88 ({ enum { __obfh_break_salt = RND(1, 32767), __obfh_break_case1 = RND(129, 191), __obfh_break_case2 = RND(257, 319) }; __obfh_asm__("movzbl %7,%%eax;addl %8,%%eax;cmpl %9,%%eax;jne 1f;.byte 0x00,0x00;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:cmpl %10,%%eax;jne 2f;.byte 0xFF,0x25;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;2:" : : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_case1), "i"(__obfh_break_salt + __obfh_break_case2) : "eax", "ebx", "ecx", "edx", "cc", "memory"); })
-#undef OBFH_CFLOW_TEMPLATE_89
-#define OBFH_CFLOW_TEMPLATE_89 __obfh_asm__("xorl %%ebx,%%ebx;xorl %%edx,%%edx;xorl %%ebx,%%edx;jz 1f;mov $4,%%eax;.byte 0x00;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:leal %c6(%%ebx),%%ecx;rorl $%c0,%%ecx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_90
-#define OBFH_CFLOW_TEMPLATE_90 __obfh_asm__("xorl %%ebx,%%ebx;xorl %%eax,%%eax;mov %%eax,%%ebx;mov %%edx,%%ebx;xorl %%ebx,%%edx;jz 1f;.byte 0x20;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%edx;bswap %%edx;xorl %%edx,%%eax;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_91
-#define OBFH_CFLOW_TEMPLATE_91 __obfh_asm__("xorl %%edx,%%edx;xorl %%eax,%%eax;mov %%eax,%%edx;jz 1f;.byte 0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%ecx;negl %%ecx;roll $%c0,%%ecx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_92
-#define OBFH_CFLOW_TEMPLATE_92 __obfh_asm__("xorl %%edx,%%edx;jz 1f;.byte 0xE8;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%eax;notl %%eax;leal (%%eax,%%eax,2),%%edx;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_93
-#define OBFH_CFLOW_TEMPLATE_93 __obfh_asm__("xorl %%eax,%%eax;jz 1f;.byte 0x50;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%ecx;rorl $%c0,%%ecx;xorl %%ecx,%%eax;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_94
-#define OBFH_CFLOW_TEMPLATE_94 __obfh_asm__("xorl %%edx,%%edx;jz 1f;.byte 0x00,0x00;.byte %c2,%c3,%c4,%c5;.long %c6;.fill %c0,1,((( %c1)&0xffffffff)^0x80000000)-0x80000000;1:movl $%c6,%%edx;roll $%c0,%%edx;leal (%%edx,%%edx,4),%%eax;" \
-                                            : \
-                                            : "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "ebx", "ecx", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_95
-#define OBFH_CFLOW_TEMPLATE_95 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0xE8;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_96
-#define OBFH_CFLOW_TEMPLATE_96 __obfh_asm__("movl %%esp,%%edx;addl %0,%%edx;imull %%edx,%%edx;testb $2,%%dl;jz 1f;.byte 0xFF,0x25;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_97
-#define OBFH_CFLOW_TEMPLATE_97 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;movl %%eax,%%edx;imull %%eax,%%eax;xorl %%edx,%%eax;testb $1,%%al;jz 1f;.byte 0x0F,0x0B,0xE8;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_98
-#define OBFH_CFLOW_TEMPLATE_98 __obfh_asm__("movl %%esp,%%eax;addl %0,%%eax;leal 1(%%eax),%%edx;imull %%edx,%%eax;addl $1,%%eax;testb $1,%%al;jnz 1f;.byte 0xC3,0xE8;.byte %c3,%c4,%c5,%c6;.long %c7;.fill %c1,1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:" \
-                                            : \
-                                            : "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload) \
-                                            : "eax", "edx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_99
-#define OBFH_CFLOW_TEMPLATE_99 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>19)&1)*2;.short 53249+((%c[junk_key]>>20)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>21)&1)*-3582;je 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;roll %[junk_rotate],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;roll %[junk_rotate],%%edx;movl %[junk_key],%%ecx;roll %[junk_rotate],%%ecx;.short 51761+((%c[junk_key]>>28)&1)*1794;.short 53305+((%c[junk_key]>>29)&1)*-3582;je 2f;.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                            : \
-                                            : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                            : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_100
-#define OBFH_CFLOW_TEMPLATE_100 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53249+((%c[junk_key]>>22)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>23)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>16)&1)*-3584;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_101
-#define OBFH_CFLOW_TEMPLATE_101 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;notl %%edx;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>24)&1)*2;.short 53289+((%c[junk_key]>>25)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;subl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;movl %[junk_key],%%ecx;bswap %%ecx;.short 51761+((%c[junk_key]>>18)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 2f;jmp 3f;2:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_102
-#define OBFH_CFLOW_TEMPLATE_102 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;orl %[junk_key],%%eax;notl %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%edx;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>27)&1)*1794;.short 53305+((%c[junk_key]>>28)&1)*-3582;je 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl $65535,%%eax;andl $-65536,%%edx;.short 53257+((%c[junk_key]>>19)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>20)&1)*-3582;jne 1b;jmp 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_103
-#define OBFH_CFLOW_TEMPLATE_103 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51721+((%c[junk_key]>>29)&1)*1794;.short 53281+((%c[junk_key]>>18)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>19)&1)*-3582;je 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movzbl %%al,%%edx;imull %%eax,%%eax;.short 53249+((%c[junk_key]>>21)&1)*-3582;testb $1,%%al;je 2f;.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_104
-#define OBFH_CFLOW_TEMPLATE_104 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>20)&1)*1794;.short 53257+((%c[junk_key]>>21)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>22)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolb %[junk_rotate],%%al;rorb %[junk_rotate],%%al;cmpb %%dl,%%al;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_105
-#define OBFH_CFLOW_TEMPLATE_105 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;.short 53297+((%c[junk_key]>>23)&1)*-3582;cmpl %[junk_key],%%eax;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolw %[junk_rotate],%%ax;rorw %[junk_rotate],%%ax;cmpw %%dx,%%ax;jne 2f;jmp 3f;2:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_106
-#define OBFH_CFLOW_TEMPLATE_106 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>24)&1)*-3582;jnc 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl $1,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 1b;jmp 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_107
-#define OBFH_CFLOW_TEMPLATE_107 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>25)&1)*-3582;addl $1,%%eax;jc 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%eax;imull %[junk_salt],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %[junk_salt],%%edx;movl %[junk_key],%%ecx;imull %[junk_salt],%%ecx;.short 51713+((%c[junk_key]>>22)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;je 2f;.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_108
-#define OBFH_CFLOW_TEMPLATE_108 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>26)&1)*-3582;jc 1f;jmp 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;imull %%edx,%%edx;movl %%eax,%%ecx;imull %[junk_key],%%ecx;.short 51457+((%c[junk_key]>>23)&1)*2;addl %[junk_key],%%eax;imull %%eax,%%eax;.short 53289+((%c[junk_key]>>24)&1)*-3582;.short 51241+((%c[junk_key]>>25)&1)*-1790;movl %[junk_key],%%edx;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_109
-#define OBFH_CFLOW_TEMPLATE_109 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;.short 53305+((%c[junk_key]>>27)&1)*-3582;setae %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%eax;imull %%eax,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>27)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_110
-#define OBFH_CFLOW_TEMPLATE_110 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;roll %[junk_rotate],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;roll %[junk_rotate],%%edx;movl %[junk_key],%%ecx;roll %[junk_rotate],%%ecx;.short 51761+((%c[junk_key]>>28)&1)*1794;.short 53305+((%c[junk_key]>>29)&1)*-3582;je 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;notl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 1b;jmp 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_111
-#define OBFH_CFLOW_TEMPLATE_111 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^0))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]==1)&1),2,(((0xd1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1)))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[junk_rotate]!=1)&1),3,(((0xc1+256*(0xc0+0+8*(((%c[junk_key]>>14)&1)^1))+65536*%c[junk_rotate])&0xffffffff)^0x80000000)-0x80000000;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>16)&1)*-3584;je 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>28)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>29)&1)*1794;.short 53305+((%c[junk_key]>>18)&1)*-3582;je 2f;.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_112
-#define OBFH_CFLOW_TEMPLATE_112 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;xorl %[junk_key],%%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;movl %[junk_key],%%ecx;bswap %%ecx;.short 51761+((%c[junk_key]>>18)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;jne 1f;jmp 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;orl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>19)&1)*-3582;setbe %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_113
-#define OBFH_CFLOW_TEMPLATE_113 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl $65535,%%eax;andl $-65536,%%edx;.short 53257+((%c[junk_key]>>19)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>20)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl %[junk_key],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;addl %[junk_key],%%edx;subl $1,%%edx;.short 53305+((%c[junk_key]>>20)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_114
-#define OBFH_CFLOW_TEMPLATE_114 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movzbl %%al,%%edx;imull %%eax,%%eax;.short 53249+((%c[junk_key]>>21)&1)*-3582;testb $1,%%al;je 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;andl $7,%%eax;leal -1(%%eax),%%edx;leal -4(%%eax),%%ecx;imull %%edx,%%eax;imull %%ecx,%%eax;testl %%eax,%%eax;jne 1b;jmp 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_115
-#define OBFH_CFLOW_TEMPLATE_115 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolb %[junk_rotate],%%al;rorb %[junk_rotate],%%al;cmpb %%dl,%%al;je 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;imull %%eax,%%eax;andl $15,%%eax;leal -1(%%eax),%%edx;imull %%edx,%%eax;testl %%eax,%%eax;je 2f;.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_116
-#define OBFH_CFLOW_TEMPLATE_116 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;rolw %[junk_rotate],%%ax;rorw %[junk_rotate],%%ax;cmpw %%dx,%%ax;jne 1f;jmp 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;negl %%edx;.short 53281+((%c[junk_key]>>21)&1)*-3582;leal -1(%%eax),%%edx;.short 53281+((%c[junk_key]>>22)&1)*-3582;testl %%eax,%%eax;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [junk_rotate] "i"(__obfh_cf_rotate), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_117
-#define OBFH_CFLOW_TEMPLATE_117 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl $1,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>19)&1)*2;.short 53249+((%c[junk_key]>>20)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>21)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_118
-#define OBFH_CFLOW_TEMPLATE_118 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%eax;imull %[junk_salt],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %[junk_salt],%%edx;movl %[junk_key],%%ecx;imull %[junk_salt],%%ecx;.short 51713+((%c[junk_key]>>22)&1)*1794;.short 53305+((%c[junk_key]>>16)&1)*-3584;je 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;andl %[junk_key],%%edx;.short 53249+((%c[junk_key]>>22)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;addl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>23)&1)*-3582;jne 1b;jmp 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_119
-#define OBFH_CFLOW_TEMPLATE_119 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;imull %%edx,%%edx;movl %%eax,%%ecx;imull %[junk_key],%%ecx;.short 51457+((%c[junk_key]>>23)&1)*2;addl %[junk_key],%%eax;imull %%eax,%%eax;.short 53289+((%c[junk_key]>>24)&1)*-3582;.short 51241+((%c[junk_key]>>25)&1)*-1790;movl %[junk_key],%%edx;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;je 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;notl %%edx;andl %[junk_key],%%edx;.short 53761+((%c[junk_key]>>24)&1)*2;.short 53289+((%c[junk_key]>>25)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;subl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>26)&1)*-3582;je 2f;.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_120
-#define OBFH_CFLOW_TEMPLATE_120 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%eax;imull %%eax,%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%edx,%%edx;.short 53305+((%c[junk_key]>>27)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;orl %[junk_key],%%eax;notl %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%edx;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>27)&1)*1794;.short 53305+((%c[junk_key]>>28)&1)*-3582;sete %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_121
-#define OBFH_CFLOW_TEMPLATE_121 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;bswap %%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;bswap %%edx;notl %%edx;.short 53305+((%c[junk_key]>>16)&1)*-3584;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51721+((%c[junk_key]>>29)&1)*1794;.short 53281+((%c[junk_key]>>18)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>19)&1)*-3582;jne 2f;jmp 3f;2:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_122
-#define OBFH_CFLOW_TEMPLATE_122 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>28)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>29)&1)*1794;.short 53305+((%c[junk_key]>>18)&1)*-3582;je 2f;1:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;movl %[junk_key],%%ecx;notl %%ecx;.short 51745+((%c[junk_key]>>20)&1)*1794;.short 53257+((%c[junk_key]>>21)&1)*-3582;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;.short 53305+((%c[junk_key]>>22)&1)*-3582;jne 1b;jmp 3f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_123
-#define OBFH_CFLOW_TEMPLATE_123 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%eax;orl %[junk_key],%%edx;.short 53305+((%c[junk_key]>>19)&1)*-3582;jbe 1f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;xorl %[junk_key],%%eax;.short 53297+((%c[junk_key]>>23)&1)*-3582;cmpl %[junk_key],%%eax;je 2f;.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_124
-#define OBFH_CFLOW_TEMPLATE_124 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;notl %%eax;addl %[junk_key],%%eax;.short 0xe089+256*2+((%c[junk_key]>>5)&1)*(1792*2-7166);.long %c[i2a];.fill 1,4-((2==0)&1)*(8-%c[il]),(((%c[i2b])&0xffffffff)^0x80000000)-0x80000000;.fill ((2!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;negl %%edx;addl %[junk_key],%%edx;subl $1,%%edx;.short 53305+((%c[junk_key]>>20)&1)*-3582;jne 1f;jmp 2f;1:.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>24)&1)*-3582;setnc %%cl;movzbl %%cl,%%ecx;testl %%ecx,%%ecx;jnz 3f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [i2a] "i"(__ci_2a), [i2b] "i"(__ci_2b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_125
-#define OBFH_CFLOW_TEMPLATE_125 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;andl $7,%%eax;leal -1(%%eax),%%edx;leal -4(%%eax),%%ecx;imull %%edx,%%eax;imull %%ecx,%%eax;testl %%eax,%%eax;sete %%cl;movzbl %%cl,%%ecx;negl %%ecx;testl %%ecx,%%ecx;js 1f;.byte 0xC8,%c4,%c5,%c6,0xC9,0xC3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;notl %%edx;.short 53249+((%c[junk_key]>>25)&1)*-3582;addl $1,%%eax;jnc 2f;jmp 3f;2:.byte 0xC2,%c4,%c5,0xE8;.long %c8;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_126
-#define OBFH_CFLOW_TEMPLATE_126 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;imull %%eax,%%eax;imull %%eax,%%eax;andl $15,%%eax;leal -1(%%eax),%%edx;imull %%edx,%%eax;testl %%eax,%%eax;je 2f;1:.byte 0xFF,0x15;.long %c8;.byte 0xE9;.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;andl %[junk_key],%%edx;.short 53289+((%c[junk_key]>>26)&1)*-3582;jc 1b;jmp 3f;.byte (0xE8 + ((%c3 >> 15) & 1));.long %c3;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;3:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-#undef OBFH_CFLOW_TEMPLATE_127
-#define OBFH_CFLOW_TEMPLATE_127 __obfh_asm__(".short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;negl %%edx;.short 53281+((%c[junk_key]>>21)&1)*-3582;leal -1(%%eax),%%edx;.short 53281+((%c[junk_key]>>22)&1)*-3582;testl %%eax,%%eax;je 1f;.byte 0x0F,0x0B,0x8F,0x04,0x24;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;1:.short 0xe089+256*0+((%c[junk_key]>>5)&1)*(1792*0-7166);.long %c[i0a];.fill 1,4-((0==0)&1)*(8-%c[il]),(((%c[i0b])&0xffffffff)^0x80000000)-0x80000000;.fill ((0!=0)&1)*(%c[il]-7),1,(((%c[it])&0xffffffff)^0x80000000)-0x80000000;movl %%eax,%%edx;orl %[junk_key],%%eax;.short 53305+((%c[junk_key]>>27)&1)*-3582;jae 2f;.byte 0xBC;.long %c8;.byte 0xFF,0xE4;.byte %c4,%c5,%c6,%c7;.long %c8;.fill (%c1 >> 2),4,((( %c3)&0xffffffff)^0x80000000)-0x80000000;.fill (%c1 & 3),1,((( %c2)&0xffffffff)^0x80000000)-0x80000000;2:" \
-                                             : \
-                                             : [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), [junk_key] "i"(__obfh_cf_word), "i"(__obfh_cf_byte0), "i"(__obfh_cf_byte1), "i"(__obfh_cf_byte2), "i"(__obfh_cf_byte3), "i"(__obfh_cf_payload), [i0a] "i"(__ci_0a), [i0b] "i"(__ci_0b), [it] "i"(__ct), [il] "i"(__ci_n) \
-                                             : "eax", "edx", "ecx", "cc", "memory")
-
-#endif
-// END COMPACT ASM CACHE
-// #endregion
-
-// EMIT accepts the operand list prepared for this particular variant.
-// The "9:" label is the common exit reached by the live guard.
-// Shared source parameters stay local to each insertion; all guards/layouts remain.
-#define OBFH_SF_EMIT(guard, layout, ...) \
-    __obfh_asm__(OBFH_SF_INPUT ".long %c[i0];.fill 1,%c[il]-4,(((%c[i1])&0xffffffff)^0x80000000)-0x80000000;" guard layout "9:" \
-                 : \
-                 : __VA_ARGS__ \
-                 : "eax", "edx", "ecx", "cc", "memory")
-#define OBFH_SF_ASM(guard, layout, ...) ({ OBFH_SF_CAPTURE; OBFH_SF_EMIT(guard, layout, __VA_ARGS__); })
+// Compiler-only constants shorten repeated selector arithmetic in ASM strings.
+// Each insertion defines them before its fragments; no bytes or runtime state.
+// .LspN is phantom bit N; .Lsl[e/z/n]N selects link enable/condition/register.
+#define OBFH_SF_ASM_BITS \
+    ".set .Lsp,%c[phantom];" \
+    ".set .Lsp0,(.Lsp>>0)&1;" \
+    ".set .Lsp6,(.Lsp>>6)&1;" \
+    ".set .Lsp7,(.Lsp>>7)&1;" \
+    ".set .Lsp8,(.Lsp>>8)&1;" \
+    ".set .Lsp9,(.Lsp>>9)&1;" \
+    ".set .Lsp10,(.Lsp>>10)&1;" \
+    ".set .Lsp11,(.Lsp>>11)&1;" \
+    ".set .Lsp13,(.Lsp>>13)&1;" \
+    ".set .Lsp14,(.Lsp>>14)&1;" \
+    ".set .Lsp15,(.Lsp>>15)&1;" \
+    ".set .Lsp16,(.Lsp>>16)&1;"
+#define OBFH_SF_ASM_CONSTANTS \
+    OBFH_SF_ASM_BITS ".set .Lsa,%c[key_a];" \
+                     ".set .Lsle0,((.Lsp^.Lsa)>>12)&1;.set .Lslz0,((.Lsp^.Lsa)>>13)&1;.set .Lsln0,((.Lsp^.Lsa)>>14)&1;" \
+                     ".set .Lsle1,((.Lsp^.Lsa)>>15)&1;.set .Lslz1,((.Lsp^.Lsa)>>16)&1;.set .Lsln1,((.Lsp^.Lsa)>>17)&1;" \
+                     ".set .Lsle2,((.Lsp^.Lsa)>>18)&1;.set .Lslz2,((.Lsp^.Lsa)>>19)&1;.set .Lsln2,((.Lsp^.Lsa)>>20)&1;" \
+                     ".set .Lsle3,((.Lsp^.Lsa)>>21)&1;.set .Lslz3,((.Lsp^.Lsa)>>22)&1;.set .Lsln3,((.Lsp^.Lsa)>>23)&1;" \
+                     ".set .Lsle4,((.Lsp^.Lsa)>>24)&1;.set .Lslz4,((.Lsp^.Lsa)>>25)&1;.set .Lsln4,((.Lsp^.Lsa)>>26)&1;" \
+                     ".set .Lsle5,((.Lsp^.Lsa)>>27)&1;.set .Lslz5,((.Lsp^.Lsa)>>28)&1;.set .Lsln5,((.Lsp^.Lsa)>>29)&1;"
+// Select a compact compile-time recipe before expanding native assembly.
+// The recipe is source metadata only: all native families remain independent.
+#define OBFH_SF_ID_BODY_A 0u
+#define OBFH_SF_ID_BODY_B 1u
+#define OBFH_SF_ID_BODY_C 2u
+#define OBFH_SF_ID_BODY_D 3u
+#define OBFH_SF_ID_BODY_E 4u
+#define OBFH_SF_ID_BODY_F 5u
+#define OBFH_SF_ID_BODY_G 6u
+#define OBFH_SF_ID_BODY_H 7u
+#define OBFH_SF_ID_BODY_I 8u
+#define OBFH_SF_ID_BODY_J 9u
+#define OBFH_SF_ID_BODY_K 10u
+#define OBFH_SF_ID_BODY_L 11u
+#define OBFH_SF_ID_BODY_M 12u
+#define OBFH_SF_ID_BODY_N 13u
+#define OBFH_SF_ID_BODY_O 14u
+#define OBFH_SF_ID_BODY_P 15u
+#define OBFH_SF_ID_BODY_Q 16u
+#define OBFH_SF_ID_BODY_R 17u
+#define OBFH_SF_ID_BODY_S 18u
+#define OBFH_SF_ID_BODY_T 19u
+#define OBFH_SF_ID_LEAF_A 20u
+#define OBFH_SF_ID_LEAF_B 21u
+#define OBFH_SF_ID_LEAF_C 22u
+#define OBFH_SF_ID_LEAF_D 23u
+#define OBFH_SF_ID_LEAF_E 24u
+#define OBFH_SF_ID_LEAF_F 25u
+#define OBFH_SF_ID_LEAF_G 26u
+#define OBFH_SF_ID_LEAF_H 27u
+#define OBFH_SF_ID_LEAF_I 28u
+#define OBFH_SF_ID_LEAF_J 29u
+#define OBFH_SF_ID_LEAF_K 30u
+#define OBFH_SF_ID_LEAF_L 31u
+#define OBFH_SF_RECIPE(g, l, a, b, c, d) ((g) | ((l) << 4) | (OBFH_SF_ID_##a << 9) | (OBFH_SF_ID_##b << 14) | (OBFH_SF_ID_##c << 19) | (OBFH_SF_ID_##d << 24))
+#define OBFH_SF_SPEC_0(emit) emit(0u, 0u, BODY_A, BODY_B, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_0 OBFH_SF_SELECT(0u)
+#define OBFH_SF_SPEC_1(emit) emit(0u, 1u, BODY_B, BODY_C, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_1 OBFH_SF_SELECT(1u)
+#define OBFH_SF_SPEC_2(emit) emit(0u, 2u, BODY_C, BODY_D, BODY_A, BODY_A)
+#define OBFH_SF_VARIANT_2 OBFH_SF_SELECT(2u)
+#define OBFH_SF_SPEC_3(emit) emit(0u, 3u, BODY_D, BODY_A, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_3 OBFH_SF_SELECT(3u)
+#define OBFH_SF_SPEC_4(emit) emit(1u, 0u, BODY_A, BODY_B, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_4 OBFH_SF_SELECT(4u)
+#define OBFH_SF_SPEC_5(emit) emit(1u, 1u, BODY_B, BODY_C, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_5 OBFH_SF_SELECT(5u)
+#define OBFH_SF_SPEC_6(emit) emit(1u, 2u, BODY_C, BODY_D, BODY_A, BODY_A)
+#define OBFH_SF_VARIANT_6 OBFH_SF_SELECT(6u)
+#define OBFH_SF_SPEC_7(emit) emit(1u, 3u, BODY_D, BODY_A, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_7 OBFH_SF_SELECT(7u)
+#define OBFH_SF_SPEC_8(emit) emit(2u, 0u, BODY_A, BODY_B, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_8 OBFH_SF_SELECT(8u)
+#define OBFH_SF_SPEC_9(emit) emit(2u, 1u, BODY_B, BODY_C, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_9 OBFH_SF_SELECT(9u)
+#define OBFH_SF_SPEC_10(emit) emit(2u, 2u, BODY_C, BODY_D, BODY_A, BODY_A)
+#define OBFH_SF_VARIANT_10 OBFH_SF_SELECT(10u)
+#define OBFH_SF_SPEC_11(emit) emit(2u, 3u, BODY_D, BODY_A, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_11 OBFH_SF_SELECT(11u)
+#define OBFH_SF_SPEC_12(emit) emit(3u, 0u, BODY_A, BODY_B, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_12 OBFH_SF_SELECT(12u)
+#define OBFH_SF_SPEC_13(emit) emit(3u, 1u, BODY_B, BODY_C, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_13 OBFH_SF_SELECT(13u)
+#define OBFH_SF_SPEC_14(emit) emit(3u, 2u, BODY_C, BODY_D, BODY_A, BODY_A)
+#define OBFH_SF_VARIANT_14 OBFH_SF_SELECT(14u)
+#define OBFH_SF_SPEC_15(emit) emit(3u, 3u, BODY_D, BODY_A, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_15 OBFH_SF_SELECT(15u)
+#define OBFH_SF_SPEC_16(emit) emit(4u, 4u, BODY_E, BODY_J, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_16 OBFH_SF_SELECT(16u)
+#define OBFH_SF_SPEC_17(emit) emit(4u, 5u, BODY_F, BODY_K, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_17 OBFH_SF_SELECT(17u)
+#define OBFH_SF_SPEC_18(emit) emit(4u, 6u, BODY_G, BODY_L, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_18 OBFH_SF_SELECT(18u)
+#define OBFH_SF_SPEC_19(emit) emit(4u, 7u, BODY_H, BODY_A, BODY_E, BODY_A)
+#define OBFH_SF_VARIANT_19 OBFH_SF_SELECT(19u)
+#define OBFH_SF_SPEC_20(emit) emit(4u, 8u, BODY_I, BODY_B, BODY_F, BODY_A)
+#define OBFH_SF_VARIANT_20 OBFH_SF_SELECT(20u)
+#define OBFH_SF_SPEC_21(emit) emit(4u, 9u, BODY_J, BODY_C, BODY_G, BODY_A)
+#define OBFH_SF_VARIANT_21 OBFH_SF_SELECT(21u)
+#define OBFH_SF_SPEC_22(emit) emit(5u, 4u, BODY_K, BODY_D, BODY_H, BODY_A)
+#define OBFH_SF_VARIANT_22 OBFH_SF_SELECT(22u)
+#define OBFH_SF_SPEC_23(emit) emit(5u, 5u, BODY_L, BODY_E, BODY_I, BODY_A)
+#define OBFH_SF_VARIANT_23 OBFH_SF_SELECT(23u)
+#define OBFH_SF_SPEC_24(emit) emit(5u, 6u, BODY_A, BODY_F, BODY_J, BODY_A)
+#define OBFH_SF_VARIANT_24 OBFH_SF_SELECT(24u)
+#define OBFH_SF_SPEC_25(emit) emit(5u, 7u, BODY_B, BODY_G, BODY_K, BODY_A)
+#define OBFH_SF_VARIANT_25 OBFH_SF_SELECT(25u)
+#define OBFH_SF_SPEC_26(emit) emit(5u, 8u, BODY_C, BODY_H, BODY_L, BODY_A)
+#define OBFH_SF_VARIANT_26 OBFH_SF_SELECT(26u)
+#define OBFH_SF_SPEC_27(emit) emit(5u, 9u, BODY_D, BODY_I, BODY_A, BODY_A)
+#define OBFH_SF_VARIANT_27 OBFH_SF_SELECT(27u)
+#define OBFH_SF_SPEC_28(emit) emit(6u, 4u, BODY_E, BODY_J, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_28 OBFH_SF_SELECT(28u)
+#define OBFH_SF_SPEC_29(emit) emit(6u, 5u, BODY_F, BODY_K, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_29 OBFH_SF_SELECT(29u)
+#define OBFH_SF_SPEC_30(emit) emit(6u, 6u, BODY_G, BODY_L, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_30 OBFH_SF_SELECT(30u)
+#define OBFH_SF_SPEC_31(emit) emit(6u, 7u, BODY_H, BODY_A, BODY_E, BODY_A)
+#define OBFH_SF_VARIANT_31 OBFH_SF_SELECT(31u)
+#define OBFH_SF_SPEC_32(emit) emit(6u, 8u, BODY_I, BODY_B, BODY_F, BODY_A)
+#define OBFH_SF_VARIANT_32 OBFH_SF_SELECT(32u)
+#define OBFH_SF_SPEC_33(emit) emit(6u, 9u, BODY_J, BODY_C, BODY_G, BODY_A)
+#define OBFH_SF_VARIANT_33 OBFH_SF_SELECT(33u)
+#define OBFH_SF_SPEC_34(emit) emit(7u, 4u, BODY_K, BODY_D, BODY_H, BODY_A)
+#define OBFH_SF_VARIANT_34 OBFH_SF_SELECT(34u)
+#define OBFH_SF_SPEC_35(emit) emit(7u, 5u, BODY_L, BODY_E, BODY_I, BODY_A)
+#define OBFH_SF_VARIANT_35 OBFH_SF_SELECT(35u)
+#define OBFH_SF_SPEC_36(emit) emit(7u, 6u, BODY_A, BODY_F, BODY_J, BODY_A)
+#define OBFH_SF_VARIANT_36 OBFH_SF_SELECT(36u)
+#define OBFH_SF_SPEC_37(emit) emit(7u, 7u, BODY_B, BODY_G, BODY_K, BODY_A)
+#define OBFH_SF_VARIANT_37 OBFH_SF_SELECT(37u)
+#define OBFH_SF_SPEC_38(emit) emit(7u, 8u, BODY_C, BODY_H, BODY_L, BODY_A)
+#define OBFH_SF_VARIANT_38 OBFH_SF_SELECT(38u)
+#define OBFH_SF_SPEC_39(emit) emit(7u, 9u, BODY_D, BODY_I, BODY_A, BODY_A)
+#define OBFH_SF_VARIANT_39 OBFH_SF_SELECT(39u)
+#define OBFH_SF_SPEC_40(emit) emit(8u, 4u, BODY_E, BODY_J, BODY_B, BODY_A)
+#define OBFH_SF_VARIANT_40 OBFH_SF_SELECT(40u)
+#define OBFH_SF_SPEC_41(emit) emit(8u, 5u, BODY_F, BODY_K, BODY_C, BODY_A)
+#define OBFH_SF_VARIANT_41 OBFH_SF_SELECT(41u)
+#define OBFH_SF_SPEC_42(emit) emit(8u, 6u, BODY_G, BODY_L, BODY_D, BODY_A)
+#define OBFH_SF_VARIANT_42 OBFH_SF_SELECT(42u)
+#define OBFH_SF_SPEC_43(emit) emit(8u, 7u, BODY_H, BODY_A, BODY_E, BODY_A)
+#define OBFH_SF_VARIANT_43 OBFH_SF_SELECT(43u)
+#define OBFH_SF_SPEC_44(emit) emit(8u, 8u, BODY_I, BODY_B, BODY_F, BODY_A)
+#define OBFH_SF_VARIANT_44 OBFH_SF_SELECT(44u)
+#define OBFH_SF_SPEC_45(emit) emit(8u, 9u, BODY_J, BODY_C, BODY_G, BODY_A)
+#define OBFH_SF_VARIANT_45 OBFH_SF_SELECT(45u)
+#define OBFH_SF_SPEC_46(emit) emit(0u, 22u, BODY_A, BODY_H, LEAF_A, LEAF_E)
+#define OBFH_SF_VARIANT_46 OBFH_SF_SELECT(46u)
+#define OBFH_SF_SPEC_47(emit) emit(0u, 23u, BODY_D, BODY_K, LEAF_F, LEAF_L)
+#define OBFH_SF_VARIANT_47 OBFH_SF_SELECT(47u)
+#define OBFH_SF_SPEC_48(emit) emit(0u, 24u, BODY_G, BODY_N, LEAF_K, LEAF_G)
+#define OBFH_SF_VARIANT_48 OBFH_SF_SELECT(48u)
+#define OBFH_SF_SPEC_49(emit) emit(0u, 25u, BODY_J, BODY_Q, LEAF_D, LEAF_C)
+#define OBFH_SF_VARIANT_49 OBFH_SF_SELECT(49u)
+#define OBFH_SF_SPEC_50(emit) emit(0u, 26u, BODY_M, BODY_T, LEAF_I, LEAF_J)
+#define OBFH_SF_VARIANT_50 OBFH_SF_SELECT(50u)
+#define OBFH_SF_SPEC_51(emit) emit(0u, 28u, BODY_P, BODY_C, LEAF_B, LEAF_E)
+#define OBFH_SF_VARIANT_51 OBFH_SF_SELECT(51u)
+#define OBFH_SF_SPEC_52(emit) emit(1u, 22u, BODY_S, BODY_F, LEAF_H, LEAF_A)
+#define OBFH_SF_VARIANT_52 OBFH_SF_SELECT(52u)
+#define OBFH_SF_SPEC_53(emit) emit(1u, 23u, BODY_B, BODY_I, LEAF_A, LEAF_H)
+#define OBFH_SF_VARIANT_53 OBFH_SF_SELECT(53u)
+#define OBFH_SF_SPEC_54(emit) emit(1u, 24u, BODY_E, BODY_L, LEAF_F, LEAF_C)
+#define OBFH_SF_VARIANT_54 OBFH_SF_SELECT(54u)
+#define OBFH_SF_SPEC_55(emit) emit(1u, 25u, BODY_H, BODY_O, LEAF_K, LEAF_K)
+#define OBFH_SF_VARIANT_55 OBFH_SF_SELECT(55u)
+#define OBFH_SF_SPEC_56(emit) emit(1u, 26u, BODY_K, BODY_R, LEAF_D, LEAF_F)
+#define OBFH_SF_VARIANT_56 OBFH_SF_SELECT(56u)
+#define OBFH_SF_SPEC_57(emit) emit(1u, 28u, BODY_N, BODY_A, LEAF_I, LEAF_A)
+#define OBFH_SF_VARIANT_57 OBFH_SF_SELECT(57u)
+#define OBFH_SF_SPEC_58(emit) emit(2u, 22u, BODY_Q, BODY_D, LEAF_C, LEAF_I)
+#define OBFH_SF_VARIANT_58 OBFH_SF_SELECT(58u)
+#define OBFH_SF_SPEC_59(emit) emit(2u, 23u, BODY_T, BODY_G, LEAF_H, LEAF_D)
+#define OBFH_SF_VARIANT_59 OBFH_SF_SELECT(59u)
+#define OBFH_SF_SPEC_60(emit) emit(2u, 24u, BODY_C, BODY_J, LEAF_A, LEAF_K)
+#define OBFH_SF_VARIANT_60 OBFH_SF_SELECT(60u)
+#define OBFH_SF_SPEC_61(emit) emit(2u, 25u, BODY_F, BODY_M, LEAF_F, LEAF_G)
+#define OBFH_SF_VARIANT_61 OBFH_SF_SELECT(61u)
+#define OBFH_SF_SPEC_62(emit) emit(2u, 26u, BODY_I, BODY_P, LEAF_K, LEAF_B)
+#define OBFH_SF_VARIANT_62 OBFH_SF_SELECT(62u)
+#define OBFH_SF_SPEC_63(emit) emit(2u, 28u, BODY_L, BODY_S, LEAF_D, LEAF_I)
+#define OBFH_SF_VARIANT_63 OBFH_SF_SELECT(63u)
+#define OBFH_SF_SPEC_64(emit) emit(3u, 22u, BODY_O, BODY_B, LEAF_J, LEAF_E)
+#define OBFH_SF_VARIANT_64 OBFH_SF_SELECT(64u)
+#define OBFH_SF_SPEC_65(emit) emit(3u, 23u, BODY_R, BODY_E, LEAF_C, LEAF_L)
+#define OBFH_SF_VARIANT_65 OBFH_SF_SELECT(65u)
+#define OBFH_SF_SPEC_66(emit) emit(3u, 24u, BODY_A, BODY_H, LEAF_H, LEAF_G)
+#define OBFH_SF_VARIANT_66 OBFH_SF_SELECT(66u)
+#define OBFH_SF_SPEC_67(emit) emit(3u, 25u, BODY_D, BODY_K, LEAF_A, LEAF_C)
+#define OBFH_SF_VARIANT_67 OBFH_SF_SELECT(67u)
+#define OBFH_SF_SPEC_68(emit) emit(3u, 26u, BODY_G, BODY_N, LEAF_F, LEAF_J)
+#define OBFH_SF_VARIANT_68 OBFH_SF_SELECT(68u)
+#define OBFH_SF_SPEC_69(emit) emit(3u, 28u, BODY_J, BODY_Q, LEAF_K, LEAF_E)
+#define OBFH_SF_VARIANT_69 OBFH_SF_SELECT(69u)
+#define OBFH_SF_SPEC_70(emit) emit(4u, 22u, BODY_M, BODY_T, LEAF_E, LEAF_A)
+#define OBFH_SF_VARIANT_70 OBFH_SF_SELECT(70u)
+#define OBFH_SF_SPEC_71(emit) emit(4u, 23u, BODY_P, BODY_C, LEAF_J, LEAF_H)
+#define OBFH_SF_VARIANT_71 OBFH_SF_SELECT(71u)
+#define OBFH_SF_SPEC_72(emit) emit(4u, 24u, BODY_S, BODY_F, LEAF_C, LEAF_C)
+#define OBFH_SF_VARIANT_72 OBFH_SF_SELECT(72u)
+#define OBFH_SF_SPEC_73(emit) emit(4u, 25u, BODY_B, BODY_I, LEAF_H, LEAF_K)
+#define OBFH_SF_VARIANT_73 OBFH_SF_SELECT(73u)
+#define OBFH_SF_SPEC_74(emit) emit(4u, 26u, BODY_E, BODY_L, LEAF_A, LEAF_F)
+#define OBFH_SF_VARIANT_74 OBFH_SF_SELECT(74u)
+#define OBFH_SF_SPEC_75(emit) emit(4u, 28u, BODY_H, BODY_O, LEAF_F, LEAF_A)
+#define OBFH_SF_VARIANT_75 OBFH_SF_SELECT(75u)
+#define OBFH_SF_SPEC_76(emit) emit(5u, 22u, BODY_K, BODY_R, LEAF_L, LEAF_I)
+#define OBFH_SF_VARIANT_76 OBFH_SF_SELECT(76u)
+#define OBFH_SF_SPEC_77(emit) emit(5u, 23u, BODY_N, BODY_A, LEAF_E, LEAF_D)
+#define OBFH_SF_VARIANT_77 OBFH_SF_SELECT(77u)
+#define OBFH_SF_SPEC_78(emit) emit(5u, 24u, BODY_Q, BODY_D, LEAF_J, LEAF_K)
+#define OBFH_SF_VARIANT_78 OBFH_SF_SELECT(78u)
+#define OBFH_SF_SPEC_79(emit) emit(5u, 25u, BODY_T, BODY_G, LEAF_C, LEAF_G)
+#define OBFH_SF_VARIANT_79 OBFH_SF_SELECT(79u)
+#define OBFH_SF_SPEC_80(emit) emit(5u, 26u, BODY_C, BODY_J, LEAF_H, LEAF_B)
+#define OBFH_SF_VARIANT_80 OBFH_SF_SELECT(80u)
+#define OBFH_SF_SPEC_81(emit) emit(5u, 28u, BODY_F, BODY_M, LEAF_A, LEAF_I)
+#define OBFH_SF_VARIANT_81 OBFH_SF_SELECT(81u)
+#define OBFH_SF_SPEC_82(emit) emit(6u, 22u, BODY_I, BODY_P, LEAF_G, LEAF_E)
+#define OBFH_SF_VARIANT_82 OBFH_SF_SELECT(82u)
+#define OBFH_SF_SPEC_83(emit) emit(6u, 23u, BODY_L, BODY_S, LEAF_L, LEAF_L)
+#define OBFH_SF_VARIANT_83 OBFH_SF_SELECT(83u)
+#define OBFH_SF_SPEC_84(emit) emit(6u, 24u, BODY_O, BODY_B, LEAF_E, LEAF_G)
+#define OBFH_SF_VARIANT_84 OBFH_SF_SELECT(84u)
+#define OBFH_SF_SPEC_85(emit) emit(6u, 25u, BODY_R, BODY_E, LEAF_J, LEAF_C)
+#define OBFH_SF_VARIANT_85 OBFH_SF_SELECT(85u)
+#define OBFH_SF_SPEC_86(emit) emit(6u, 26u, BODY_A, BODY_H, LEAF_C, LEAF_J)
+#define OBFH_SF_VARIANT_86 OBFH_SF_SELECT(86u)
+#define OBFH_SF_SPEC_87(emit) emit(6u, 28u, BODY_D, BODY_K, LEAF_H, LEAF_E)
+#define OBFH_SF_VARIANT_87 OBFH_SF_SELECT(87u)
+#define OBFH_SF_SPEC_88(emit) emit(7u, 22u, BODY_G, BODY_N, LEAF_B, LEAF_A)
+#define OBFH_SF_VARIANT_88 OBFH_SF_SELECT(88u)
+#define OBFH_SF_SPEC_89(emit) emit(7u, 23u, BODY_J, BODY_Q, LEAF_G, LEAF_H)
+#define OBFH_SF_VARIANT_89 OBFH_SF_SELECT(89u)
+#define OBFH_SF_SPEC_90(emit) emit(7u, 24u, BODY_M, BODY_T, LEAF_L, LEAF_C)
+#define OBFH_SF_VARIANT_90 OBFH_SF_SELECT(90u)
+#define OBFH_SF_SPEC_91(emit) emit(7u, 25u, BODY_P, BODY_C, LEAF_E, LEAF_K)
+#define OBFH_SF_VARIANT_91 OBFH_SF_SELECT(91u)
+#define OBFH_SF_SPEC_92(emit) emit(7u, 26u, BODY_S, BODY_F, LEAF_J, LEAF_F)
+#define OBFH_SF_VARIANT_92 OBFH_SF_SELECT(92u)
+#define OBFH_SF_SPEC_93(emit) emit(7u, 28u, BODY_B, BODY_I, LEAF_C, LEAF_A)
+#define OBFH_SF_VARIANT_93 OBFH_SF_SELECT(93u)
+#define OBFH_SF_SPEC_94(emit) emit(8u, 22u, BODY_E, BODY_L, LEAF_I, LEAF_I)
+#define OBFH_SF_VARIANT_94 OBFH_SF_SELECT(94u)
+#define OBFH_SF_SPEC_95(emit) emit(8u, 23u, BODY_H, BODY_O, LEAF_B, LEAF_D)
+#define OBFH_SF_VARIANT_95 OBFH_SF_SELECT(95u)
+#define OBFH_SF_SPEC_96(emit) emit(8u, 24u, BODY_K, BODY_R, LEAF_G, LEAF_K)
+#define OBFH_SF_VARIANT_96 OBFH_SF_SELECT(96u)
+#define OBFH_SF_SPEC_97(emit) emit(8u, 25u, BODY_N, BODY_A, LEAF_L, LEAF_G)
+#define OBFH_SF_VARIANT_97 OBFH_SF_SELECT(97u)
+#define OBFH_SF_SPEC_98(emit) emit(8u, 26u, BODY_Q, BODY_D, LEAF_E, LEAF_B)
+#define OBFH_SF_VARIANT_98 OBFH_SF_SELECT(98u)
+#define OBFH_SF_SPEC_99(emit) emit(8u, 28u, BODY_T, BODY_G, LEAF_J, LEAF_I)
+#define OBFH_SF_VARIANT_99 OBFH_SF_SELECT(99u)
+#define OBFH_SF_SPEC_100(emit) emit(9u, 22u, BODY_C, BODY_J, LEAF_D, LEAF_E)
+#define OBFH_SF_VARIANT_100 OBFH_SF_SELECT(100u)
+#define OBFH_SF_SPEC_101(emit) emit(9u, 23u, BODY_F, BODY_M, LEAF_I, LEAF_L)
+#define OBFH_SF_VARIANT_101 OBFH_SF_SELECT(101u)
+#define OBFH_SF_SPEC_102(emit) emit(9u, 24u, BODY_I, BODY_P, LEAF_B, LEAF_G)
+#define OBFH_SF_VARIANT_102 OBFH_SF_SELECT(102u)
+#define OBFH_SF_SPEC_103(emit) emit(9u, 25u, BODY_L, BODY_S, LEAF_G, LEAF_C)
+#define OBFH_SF_VARIANT_103 OBFH_SF_SELECT(103u)
+#define OBFH_SF_SPEC_104(emit) emit(9u, 26u, BODY_O, BODY_B, LEAF_L, LEAF_J)
+#define OBFH_SF_VARIANT_104 OBFH_SF_SELECT(104u)
+#define OBFH_SF_SPEC_105(emit) emit(9u, 28u, BODY_R, BODY_E, LEAF_E, LEAF_E)
+#define OBFH_SF_VARIANT_105 OBFH_SF_SELECT(105u)
+#define OBFH_SF_SPEC_106(emit) emit(10u, 22u, BODY_A, BODY_H, LEAF_K, LEAF_A)
+#define OBFH_SF_VARIANT_106 OBFH_SF_SELECT(106u)
+#define OBFH_SF_SPEC_107(emit) emit(10u, 23u, BODY_D, BODY_K, LEAF_D, LEAF_H)
+#define OBFH_SF_VARIANT_107 OBFH_SF_SELECT(107u)
+#define OBFH_SF_SPEC_108(emit) emit(10u, 24u, BODY_G, BODY_N, LEAF_I, LEAF_C)
+#define OBFH_SF_VARIANT_108 OBFH_SF_SELECT(108u)
+#define OBFH_SF_SPEC_109(emit) emit(10u, 25u, BODY_J, BODY_Q, LEAF_B, LEAF_K)
+#define OBFH_SF_VARIANT_109 OBFH_SF_SELECT(109u)
+#define OBFH_SF_SPEC_110(emit) emit(10u, 26u, BODY_M, BODY_T, LEAF_G, LEAF_F)
+#define OBFH_SF_VARIANT_110 OBFH_SF_SELECT(110u)
+#define OBFH_SF_SPEC_111(emit) emit(10u, 28u, BODY_P, BODY_C, LEAF_L, LEAF_A)
+#define OBFH_SF_VARIANT_111 OBFH_SF_SELECT(111u)
+#define OBFH_SF_SPEC_112(emit) emit(11u, 22u, BODY_S, BODY_F, LEAF_F, LEAF_I)
+#define OBFH_SF_VARIANT_112 OBFH_SF_SELECT(112u)
+#define OBFH_SF_SPEC_113(emit) emit(11u, 23u, BODY_B, BODY_I, LEAF_K, LEAF_D)
+#define OBFH_SF_VARIANT_113 OBFH_SF_SELECT(113u)
+#define OBFH_SF_SPEC_114(emit) emit(11u, 24u, BODY_E, BODY_L, LEAF_D, LEAF_K)
+#define OBFH_SF_VARIANT_114 OBFH_SF_SELECT(114u)
+#define OBFH_SF_SPEC_115(emit) emit(11u, 25u, BODY_H, BODY_O, LEAF_I, LEAF_G)
+#define OBFH_SF_VARIANT_115 OBFH_SF_SELECT(115u)
+#define OBFH_SF_SPEC_116(emit) emit(11u, 26u, BODY_K, BODY_R, LEAF_B, LEAF_B)
+#define OBFH_SF_VARIANT_116 OBFH_SF_SELECT(116u)
+#define OBFH_SF_SPEC_117(emit) emit(11u, 28u, BODY_N, BODY_A, LEAF_G, LEAF_I)
+#define OBFH_SF_VARIANT_117 OBFH_SF_SELECT(117u)
+#define OBFH_SF_SPEC_118(emit) emit(12u, 22u, BODY_Q, BODY_D, LEAF_A, LEAF_E)
+#define OBFH_SF_VARIANT_118 OBFH_SF_SELECT(118u)
+#define OBFH_SF_SPEC_119(emit) emit(12u, 23u, BODY_T, BODY_G, LEAF_F, LEAF_L)
+#define OBFH_SF_VARIANT_119 OBFH_SF_SELECT(119u)
+#define OBFH_SF_SPEC_120(emit) emit(12u, 24u, BODY_C, BODY_J, LEAF_K, LEAF_G)
+#define OBFH_SF_VARIANT_120 OBFH_SF_SELECT(120u)
+#define OBFH_SF_SPEC_121(emit) emit(12u, 25u, BODY_F, BODY_M, LEAF_D, LEAF_C)
+#define OBFH_SF_VARIANT_121 OBFH_SF_SELECT(121u)
+#define OBFH_SF_SPEC_122(emit) emit(12u, 26u, BODY_I, BODY_P, LEAF_I, LEAF_J)
+#define OBFH_SF_VARIANT_122 OBFH_SF_SELECT(122u)
+#define OBFH_SF_SPEC_123(emit) emit(12u, 28u, BODY_L, BODY_S, LEAF_B, LEAF_E)
+#define OBFH_SF_VARIANT_123 OBFH_SF_SELECT(123u)
+#define OBFH_SF_SPEC_124(emit) emit(13u, 22u, BODY_O, BODY_B, LEAF_H, LEAF_A)
+#define OBFH_SF_VARIANT_124 OBFH_SF_SELECT(124u)
+#define OBFH_SF_SPEC_125(emit) emit(13u, 23u, BODY_R, BODY_E, LEAF_A, LEAF_H)
+#define OBFH_SF_VARIANT_125 OBFH_SF_SELECT(125u)
+#define OBFH_SF_SPEC_126(emit) emit(13u, 24u, BODY_A, BODY_H, LEAF_F, LEAF_C)
+#define OBFH_SF_VARIANT_126 OBFH_SF_SELECT(126u)
+#define OBFH_SF_SPEC_127(emit) emit(13u, 25u, BODY_D, BODY_K, LEAF_K, LEAF_K)
+#define OBFH_SF_VARIANT_127 OBFH_SF_SELECT(127u)
+#define OBFH_SF_RECIPE_GROUP_0(index) __builtin_choose_expr((index) <= 3u, __builtin_choose_expr((index) <= 1u, __builtin_choose_expr((index) <= 0u, OBFH_SF_SPEC_0(OBFH_SF_RECIPE), OBFH_SF_SPEC_1(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 2u, OBFH_SF_SPEC_2(OBFH_SF_RECIPE), OBFH_SF_SPEC_3(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 5u, __builtin_choose_expr((index) <= 4u, OBFH_SF_SPEC_4(OBFH_SF_RECIPE), OBFH_SF_SPEC_5(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 6u, OBFH_SF_SPEC_6(OBFH_SF_RECIPE), OBFH_SF_SPEC_7(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_1(index) __builtin_choose_expr((index) <= 11u, __builtin_choose_expr((index) <= 9u, __builtin_choose_expr((index) <= 8u, OBFH_SF_SPEC_8(OBFH_SF_RECIPE), OBFH_SF_SPEC_9(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 10u, OBFH_SF_SPEC_10(OBFH_SF_RECIPE), OBFH_SF_SPEC_11(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 13u, __builtin_choose_expr((index) <= 12u, OBFH_SF_SPEC_12(OBFH_SF_RECIPE), OBFH_SF_SPEC_13(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 14u, OBFH_SF_SPEC_14(OBFH_SF_RECIPE), OBFH_SF_SPEC_15(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_2(index) __builtin_choose_expr((index) <= 19u, __builtin_choose_expr((index) <= 17u, __builtin_choose_expr((index) <= 16u, OBFH_SF_SPEC_16(OBFH_SF_RECIPE), OBFH_SF_SPEC_17(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 18u, OBFH_SF_SPEC_18(OBFH_SF_RECIPE), OBFH_SF_SPEC_19(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 21u, __builtin_choose_expr((index) <= 20u, OBFH_SF_SPEC_20(OBFH_SF_RECIPE), OBFH_SF_SPEC_21(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 22u, OBFH_SF_SPEC_22(OBFH_SF_RECIPE), OBFH_SF_SPEC_23(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_3(index) __builtin_choose_expr((index) <= 27u, __builtin_choose_expr((index) <= 25u, __builtin_choose_expr((index) <= 24u, OBFH_SF_SPEC_24(OBFH_SF_RECIPE), OBFH_SF_SPEC_25(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 26u, OBFH_SF_SPEC_26(OBFH_SF_RECIPE), OBFH_SF_SPEC_27(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 29u, __builtin_choose_expr((index) <= 28u, OBFH_SF_SPEC_28(OBFH_SF_RECIPE), OBFH_SF_SPEC_29(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 30u, OBFH_SF_SPEC_30(OBFH_SF_RECIPE), OBFH_SF_SPEC_31(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_4(index) __builtin_choose_expr((index) <= 35u, __builtin_choose_expr((index) <= 33u, __builtin_choose_expr((index) <= 32u, OBFH_SF_SPEC_32(OBFH_SF_RECIPE), OBFH_SF_SPEC_33(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 34u, OBFH_SF_SPEC_34(OBFH_SF_RECIPE), OBFH_SF_SPEC_35(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 37u, __builtin_choose_expr((index) <= 36u, OBFH_SF_SPEC_36(OBFH_SF_RECIPE), OBFH_SF_SPEC_37(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 38u, OBFH_SF_SPEC_38(OBFH_SF_RECIPE), OBFH_SF_SPEC_39(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_5(index) __builtin_choose_expr((index) <= 43u, __builtin_choose_expr((index) <= 41u, __builtin_choose_expr((index) <= 40u, OBFH_SF_SPEC_40(OBFH_SF_RECIPE), OBFH_SF_SPEC_41(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 42u, OBFH_SF_SPEC_42(OBFH_SF_RECIPE), OBFH_SF_SPEC_43(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 45u, __builtin_choose_expr((index) <= 44u, OBFH_SF_SPEC_44(OBFH_SF_RECIPE), OBFH_SF_SPEC_45(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 46u, OBFH_SF_SPEC_46(OBFH_SF_RECIPE), OBFH_SF_SPEC_47(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_6(index) __builtin_choose_expr((index) <= 51u, __builtin_choose_expr((index) <= 49u, __builtin_choose_expr((index) <= 48u, OBFH_SF_SPEC_48(OBFH_SF_RECIPE), OBFH_SF_SPEC_49(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 50u, OBFH_SF_SPEC_50(OBFH_SF_RECIPE), OBFH_SF_SPEC_51(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 53u, __builtin_choose_expr((index) <= 52u, OBFH_SF_SPEC_52(OBFH_SF_RECIPE), OBFH_SF_SPEC_53(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 54u, OBFH_SF_SPEC_54(OBFH_SF_RECIPE), OBFH_SF_SPEC_55(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_7(index) __builtin_choose_expr((index) <= 59u, __builtin_choose_expr((index) <= 57u, __builtin_choose_expr((index) <= 56u, OBFH_SF_SPEC_56(OBFH_SF_RECIPE), OBFH_SF_SPEC_57(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 58u, OBFH_SF_SPEC_58(OBFH_SF_RECIPE), OBFH_SF_SPEC_59(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 61u, __builtin_choose_expr((index) <= 60u, OBFH_SF_SPEC_60(OBFH_SF_RECIPE), OBFH_SF_SPEC_61(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 62u, OBFH_SF_SPEC_62(OBFH_SF_RECIPE), OBFH_SF_SPEC_63(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_8(index) __builtin_choose_expr((index) <= 67u, __builtin_choose_expr((index) <= 65u, __builtin_choose_expr((index) <= 64u, OBFH_SF_SPEC_64(OBFH_SF_RECIPE), OBFH_SF_SPEC_65(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 66u, OBFH_SF_SPEC_66(OBFH_SF_RECIPE), OBFH_SF_SPEC_67(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 69u, __builtin_choose_expr((index) <= 68u, OBFH_SF_SPEC_68(OBFH_SF_RECIPE), OBFH_SF_SPEC_69(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 70u, OBFH_SF_SPEC_70(OBFH_SF_RECIPE), OBFH_SF_SPEC_71(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_9(index) __builtin_choose_expr((index) <= 75u, __builtin_choose_expr((index) <= 73u, __builtin_choose_expr((index) <= 72u, OBFH_SF_SPEC_72(OBFH_SF_RECIPE), OBFH_SF_SPEC_73(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 74u, OBFH_SF_SPEC_74(OBFH_SF_RECIPE), OBFH_SF_SPEC_75(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 77u, __builtin_choose_expr((index) <= 76u, OBFH_SF_SPEC_76(OBFH_SF_RECIPE), OBFH_SF_SPEC_77(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 78u, OBFH_SF_SPEC_78(OBFH_SF_RECIPE), OBFH_SF_SPEC_79(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_10(index) __builtin_choose_expr((index) <= 83u, __builtin_choose_expr((index) <= 81u, __builtin_choose_expr((index) <= 80u, OBFH_SF_SPEC_80(OBFH_SF_RECIPE), OBFH_SF_SPEC_81(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 82u, OBFH_SF_SPEC_82(OBFH_SF_RECIPE), OBFH_SF_SPEC_83(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 85u, __builtin_choose_expr((index) <= 84u, OBFH_SF_SPEC_84(OBFH_SF_RECIPE), OBFH_SF_SPEC_85(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 86u, OBFH_SF_SPEC_86(OBFH_SF_RECIPE), OBFH_SF_SPEC_87(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_11(index) __builtin_choose_expr((index) <= 91u, __builtin_choose_expr((index) <= 89u, __builtin_choose_expr((index) <= 88u, OBFH_SF_SPEC_88(OBFH_SF_RECIPE), OBFH_SF_SPEC_89(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 90u, OBFH_SF_SPEC_90(OBFH_SF_RECIPE), OBFH_SF_SPEC_91(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 93u, __builtin_choose_expr((index) <= 92u, OBFH_SF_SPEC_92(OBFH_SF_RECIPE), OBFH_SF_SPEC_93(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 94u, OBFH_SF_SPEC_94(OBFH_SF_RECIPE), OBFH_SF_SPEC_95(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_12(index) __builtin_choose_expr((index) <= 99u, __builtin_choose_expr((index) <= 97u, __builtin_choose_expr((index) <= 96u, OBFH_SF_SPEC_96(OBFH_SF_RECIPE), OBFH_SF_SPEC_97(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 98u, OBFH_SF_SPEC_98(OBFH_SF_RECIPE), OBFH_SF_SPEC_99(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 101u, __builtin_choose_expr((index) <= 100u, OBFH_SF_SPEC_100(OBFH_SF_RECIPE), OBFH_SF_SPEC_101(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 102u, OBFH_SF_SPEC_102(OBFH_SF_RECIPE), OBFH_SF_SPEC_103(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_13(index) __builtin_choose_expr((index) <= 107u, __builtin_choose_expr((index) <= 105u, __builtin_choose_expr((index) <= 104u, OBFH_SF_SPEC_104(OBFH_SF_RECIPE), OBFH_SF_SPEC_105(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 106u, OBFH_SF_SPEC_106(OBFH_SF_RECIPE), OBFH_SF_SPEC_107(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 109u, __builtin_choose_expr((index) <= 108u, OBFH_SF_SPEC_108(OBFH_SF_RECIPE), OBFH_SF_SPEC_109(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 110u, OBFH_SF_SPEC_110(OBFH_SF_RECIPE), OBFH_SF_SPEC_111(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_14(index) __builtin_choose_expr((index) <= 115u, __builtin_choose_expr((index) <= 113u, __builtin_choose_expr((index) <= 112u, OBFH_SF_SPEC_112(OBFH_SF_RECIPE), OBFH_SF_SPEC_113(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 114u, OBFH_SF_SPEC_114(OBFH_SF_RECIPE), OBFH_SF_SPEC_115(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 117u, __builtin_choose_expr((index) <= 116u, OBFH_SF_SPEC_116(OBFH_SF_RECIPE), OBFH_SF_SPEC_117(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 118u, OBFH_SF_SPEC_118(OBFH_SF_RECIPE), OBFH_SF_SPEC_119(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_GROUP_15(index) __builtin_choose_expr((index) <= 123u, __builtin_choose_expr((index) <= 121u, __builtin_choose_expr((index) <= 120u, OBFH_SF_SPEC_120(OBFH_SF_RECIPE), OBFH_SF_SPEC_121(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 122u, OBFH_SF_SPEC_122(OBFH_SF_RECIPE), OBFH_SF_SPEC_123(OBFH_SF_RECIPE))), __builtin_choose_expr((index) <= 125u, __builtin_choose_expr((index) <= 124u, OBFH_SF_SPEC_124(OBFH_SF_RECIPE), OBFH_SF_SPEC_125(OBFH_SF_RECIPE)), __builtin_choose_expr((index) <= 126u, OBFH_SF_SPEC_126(OBFH_SF_RECIPE), OBFH_SF_SPEC_127(OBFH_SF_RECIPE))))
+#define OBFH_SF_RECIPE_SELECT(index) __builtin_choose_expr((index) <= 63u, __builtin_choose_expr((index) <= 31u, __builtin_choose_expr((index) <= 15u, __builtin_choose_expr((index) <= 7u, OBFH_SF_RECIPE_GROUP_0(index), OBFH_SF_RECIPE_GROUP_1(index)), __builtin_choose_expr((index) <= 23u, OBFH_SF_RECIPE_GROUP_2(index), OBFH_SF_RECIPE_GROUP_3(index))), __builtin_choose_expr((index) <= 47u, __builtin_choose_expr((index) <= 39u, OBFH_SF_RECIPE_GROUP_4(index), OBFH_SF_RECIPE_GROUP_5(index)), __builtin_choose_expr((index) <= 55u, OBFH_SF_RECIPE_GROUP_6(index), OBFH_SF_RECIPE_GROUP_7(index)))), __builtin_choose_expr((index) <= 95u, __builtin_choose_expr((index) <= 79u, __builtin_choose_expr((index) <= 71u, OBFH_SF_RECIPE_GROUP_8(index), OBFH_SF_RECIPE_GROUP_9(index)), __builtin_choose_expr((index) <= 87u, OBFH_SF_RECIPE_GROUP_10(index), OBFH_SF_RECIPE_GROUP_11(index))), __builtin_choose_expr((index) <= 111u, __builtin_choose_expr((index) <= 103u, OBFH_SF_RECIPE_GROUP_12(index), OBFH_SF_RECIPE_GROUP_13(index)), __builtin_choose_expr((index) <= 119u, OBFH_SF_RECIPE_GROUP_14(index), OBFH_SF_RECIPE_GROUP_15(index)))))
+#define OBFH_SF_POOL_INPUTS [pool_id] "i"(__obfh_pool_id), [pool_layout] "i"(__obfh_pool_layout), OBFH_SF_NATIVE_INPUTS
+#define OBFH_SF_POOL_ASM(text) __obfh_asm__(text \
+                                            : \
+                                            : OBFH_SF_POOL_INPUTS)
+#define OBFH_SF_START(guard) __obfh_asm__(OBFH_SF_ASM_CONSTANTS OBFH_SF_INPUT ".long %c[i0];.fill 1,%c[il]-4,(((%c[i1])&0xffffffff)^0x80000000)-0x80000000;" guard \
+                                          : \
+                                          : OBFH_SF_INPUTS \
+                                          : "eax", "edx", "ecx", "cc", "memory")
+#define OBFH_SF_END __obfh_asm__("9:")
+#define OBFH_SF_POOL_GUARDS(start) __builtin_choose_expr((__obfh_pool_guard) <= 6u, __builtin_choose_expr((__obfh_pool_guard) <= 2u, __builtin_choose_expr((__obfh_pool_guard) <= 0u, ({ start(OBFH_SF_GUARD_0); }), __builtin_choose_expr((__obfh_pool_guard) <= 1u, ({ start(OBFH_SF_GUARD_1); }), ({ start(OBFH_SF_GUARD_2); }))), __builtin_choose_expr((__obfh_pool_guard) <= 4u, __builtin_choose_expr((__obfh_pool_guard) <= 3u, ({ start(OBFH_SF_GUARD_3); }), ({ start(OBFH_SF_GUARD_4); })), __builtin_choose_expr((__obfh_pool_guard) <= 5u, ({ start(OBFH_SF_GUARD_5); }), ({ start(OBFH_SF_GUARD_6); })))), __builtin_choose_expr((__obfh_pool_guard) <= 9u, __builtin_choose_expr((__obfh_pool_guard) <= 7u, ({ start(OBFH_SF_GUARD_7); }), __builtin_choose_expr((__obfh_pool_guard) <= 8u, ({ start(OBFH_SF_GUARD_8); }), ({ start(OBFH_SF_GUARD_9); }))), __builtin_choose_expr((__obfh_pool_guard) <= 11u, __builtin_choose_expr((__obfh_pool_guard) <= 10u, ({ start(OBFH_SF_GUARD_10); }), ({ start(OBFH_SF_GUARD_11); })), __builtin_choose_expr((__obfh_pool_guard) <= 12u, ({ start(OBFH_SF_GUARD_12); }), ({ start(OBFH_SF_GUARD_13); })))))
+// Pass each body only the immediate operands it actually references.
+#define OBFH_SF_OPERAND(name) , [name] "i"(__obfh_sf_##name)
+#define OBFH_SF_FRAME_ASM(text, inputs) __obfh_asm__(text \
+                                                     : \
+                                                     : [local_a] "i"(__obfh_sf_local_a), [local_b] "i"(__obfh_sf_local_b), [phantom] "i"(__obfh_sf_phantom)inputs)
+#define OBFH_SF_LEAF_ASM(text, inputs) __obfh_asm__(text \
+                                                    : \
+                                                    : [phantom] "i"(__obfh_sf_phantom)inputs)
+#define OBFH_SF_SKELETON_ASM(text) __obfh_asm__(text \
+                                                : \
+                                                : [phantom] "i"(__obfh_sf_phantom), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [frame_d] "i"(__obfh_sf_frame_d), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [key_a] "i"(__obfh_sf_key_a), [pad] "i"(__obfh_sf_pad), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b))
+// The first three positions may contain framed or leaf bodies. Later positions
+// belong only to layout28: leaf, leaf, framed, leaf, leaf, then its final suffix.
+// Emit each physical skeleton/body slot in order. All operands are immediate;
+// the compiler emits no transfer code between the assembly fragments.
+#define OBFH_SF_SLOT_ASM(slot) __builtin_choose_expr((__obfh_pool_layout) <= 7u, __builtin_choose_expr((__obfh_pool_layout) <= 3u, __builtin_choose_expr((__obfh_pool_layout) <= 1u, __builtin_choose_expr((__obfh_pool_layout) <= 0u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_0, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_1, OBFH_SF_SLOT_TEXT, unused)); })), __builtin_choose_expr((__obfh_pool_layout) <= 2u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_2, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_3, OBFH_SF_SLOT_TEXT, unused)); }))), __builtin_choose_expr((__obfh_pool_layout) <= 5u, __builtin_choose_expr((__obfh_pool_layout) <= 4u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_4, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_5, OBFH_SF_SLOT_TEXT, unused)); })), __builtin_choose_expr((__obfh_pool_layout) <= 6u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_6, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_7, OBFH_SF_SLOT_TEXT, unused)); })))), __builtin_choose_expr((__obfh_pool_layout) <= 23u, __builtin_choose_expr((__obfh_pool_layout) <= 9u, __builtin_choose_expr((__obfh_pool_layout) <= 8u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_8, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_9, OBFH_SF_SLOT_TEXT, unused)); })), __builtin_choose_expr((__obfh_pool_layout) <= 22u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_22, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_23, OBFH_SF_SLOT_TEXT, unused)); }))), __builtin_choose_expr((__obfh_pool_layout) <= 25u, __builtin_choose_expr((__obfh_pool_layout) <= 24u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_24, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_25, OBFH_SF_SLOT_TEXT, unused)); })), __builtin_choose_expr((__obfh_pool_layout) <= 26u, ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_26, OBFH_SF_SLOT_TEXT, unused)); }), ({ OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28, OBFH_SF_SLOT_TEXT, unused)); })))))
+#define OBFH_SF_SLOT_FRAMED(body) __builtin_choose_expr((body) <= 9u, __builtin_choose_expr((body) <= 4u, __builtin_choose_expr((body) <= 1u, __builtin_choose_expr((body) <= 0u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_A, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(key_a)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_B, OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(rotate)); })), __builtin_choose_expr((body) <= 2u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_C, OBFH_SF_OPERAND(key_a)); }), __builtin_choose_expr((body) <= 3u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_D, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_E, OBFH_SF_OPERAND(rotate)); })))), __builtin_choose_expr((body) <= 6u, __builtin_choose_expr((body) <= 5u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_F, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(loops)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_G, ); })), __builtin_choose_expr((body) <= 7u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_H, OBFH_SF_OPERAND(key_b)); }), __builtin_choose_expr((body) <= 8u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_I, OBFH_SF_OPERAND(mask)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_J, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(rotate)); }))))), __builtin_choose_expr((body) <= 14u, __builtin_choose_expr((body) <= 11u, __builtin_choose_expr((body) <= 10u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_K, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_L, OBFH_SF_OPERAND(factor)); })), __builtin_choose_expr((body) <= 12u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_M, OBFH_SF_OPERAND(factor)); }), __builtin_choose_expr((body) <= 13u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_N, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_O, OBFH_SF_OPERAND(key_a)); })))), __builtin_choose_expr((body) <= 16u, __builtin_choose_expr((body) <= 15u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_P, OBFH_SF_OPERAND(factor)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_Q, ); })), __builtin_choose_expr((body) <= 17u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_R, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(loops) OBFH_SF_OPERAND(rotate)); }), __builtin_choose_expr((body) <= 18u, ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_S, OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(mask) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_FRAME_ASM(OBFH_SF_BODY_T, ); }))))))
+#define OBFH_SF_SLOT_LEAF(body) __builtin_choose_expr((body) <= 25u, __builtin_choose_expr((body) <= 22u, __builtin_choose_expr((body) <= 20u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_A, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_alu_b) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(rotate)); }), __builtin_choose_expr((body) <= 21u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_B, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_frame) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(leaf_slot) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_C, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_frame) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(leaf_slot) OBFH_SF_OPERAND(rotate)); }))), __builtin_choose_expr((body) <= 23u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_D, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_alu_b) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(loops) OBFH_SF_OPERAND(rotate)); }), __builtin_choose_expr((body) <= 24u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_E, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_F, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_alu_b) OBFH_SF_OPERAND(leaf_frame) OBFH_SF_OPERAND(leaf_slot)); })))), __builtin_choose_expr((body) <= 28u, __builtin_choose_expr((body) <= 26u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_G, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_alu_b) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(mask) OBFH_SF_OPERAND(rotate)); }), __builtin_choose_expr((body) <= 27u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_H, OBFH_SF_OPERAND(leaf_frame) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(leaf_slot) OBFH_SF_OPERAND(loops) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_I, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(rotate)); }))), __builtin_choose_expr((body) <= 29u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_J, OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(leaf_alu_b) OBFH_SF_OPERAND(leaf_frame) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(leaf_slot) OBFH_SF_OPERAND(rotate)); }), __builtin_choose_expr((body) <= 30u, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_K, OBFH_SF_OPERAND(factor) OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_shift) OBFH_SF_OPERAND(rotate)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_L, OBFH_SF_OPERAND(key_a) OBFH_SF_OPERAND(key_b) OBFH_SF_OPERAND(leaf_alu_a) OBFH_SF_OPERAND(leaf_alu_b) OBFH_SF_OPERAND(leaf_frame) OBFH_SF_OPERAND(leaf_slot)); })))))
+#define OBFH_SF_SLOT_BODY(body) __builtin_choose_expr((body) < 20u, OBFH_SF_SLOT_FRAMED(body), OBFH_SF_SLOT_LEAF(body))
+#define OBFH_SF_SLOT_BODY_0(body) OBFH_SF_SLOT_BODY(body)
+#define OBFH_SF_SLOT_BODY_1(body) OBFH_SF_SLOT_BODY(body)
+#define OBFH_SF_SLOT_BODY_2(body) OBFH_SF_SLOT_BODY(body)
+#define OBFH_SF_SLOT_BODY_3(body) OBFH_SF_SLOT_LEAF(body)
+#define OBFH_SF_SLOT_BODY_4(body) OBFH_SF_SLOT_LEAF(body)
+#define OBFH_SF_SLOT_BODY_5(body) OBFH_SF_SLOT_FRAMED(body)
+#define OBFH_SF_SLOT_BODY_6(body) OBFH_SF_SLOT_LEAF(body)
+#define OBFH_SF_SLOT_BODY_7(body) OBFH_SF_SLOT_LEAF(body)
+#define OBFH_SF_SLOT_BODY_8(body) ((void)0)
+#define OBFH_SF_SLOT_ROLE_SELECT(slot) __builtin_choose_expr((__obfh_pool_layout) <= 7u, __builtin_choose_expr((__obfh_pool_layout) <= 3u, __builtin_choose_expr((__obfh_pool_layout) <= 1u, __builtin_choose_expr((__obfh_pool_layout) <= 0u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_0, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_1, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 2u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_2, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_3, OBFH_SF_SLOT_ROLE, unused)))), __builtin_choose_expr((__obfh_pool_layout) <= 5u, __builtin_choose_expr((__obfh_pool_layout) <= 4u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_4, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_5, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 6u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_6, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_7, OBFH_SF_SLOT_ROLE, unused))))), __builtin_choose_expr((__obfh_pool_layout) <= 23u, __builtin_choose_expr((__obfh_pool_layout) <= 9u, __builtin_choose_expr((__obfh_pool_layout) <= 8u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_8, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_9, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 22u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_22, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_23, OBFH_SF_SLOT_ROLE, unused)))), __builtin_choose_expr((__obfh_pool_layout) <= 25u, __builtin_choose_expr((__obfh_pool_layout) <= 24u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_24, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_25, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 26u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_26, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28, OBFH_SF_SLOT_ROLE, unused))))))
+#define OBFH_SF_SLOT_RUN(slot) ({ enum { __obfh_slot_role=OBFH_SF_SLOT_ROLE_SELECT(slot), __obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3 }; OBFH_SF_SLOT_ASM(slot); __builtin_choose_expr(__obfh_slot_role!=0,OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body),((void)0)); })
+#define OBFH_SF_SLOT_LATE(slot) __builtin_choose_expr(__obfh_pool_layout == 28, ({enum {__obfh_slot_role=(0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_ROLE,unused)),__obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3}; OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_TEXT,unused)); OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body); }), ((void)0))
+#define OBFH_SF_POOL_RUN(recipe, start, end) ({ enum { __obfh_pool_id=__COUNTER__,__obfh_pool_recipe=(recipe),__obfh_pool_guard=__obfh_pool_recipe&15u,__obfh_pool_layout=(__obfh_pool_recipe>>4)&31u,__obfh_pool_body_0=(__obfh_pool_recipe>>9)&31u,__obfh_pool_body_1=(__obfh_pool_recipe>>14)&31u,__obfh_pool_body_2=(__obfh_pool_recipe>>19)&31u,__obfh_pool_body_3=(__obfh_pool_recipe>>24)&31u }; OBFH_SF_POOL_GUARDS(start);OBFH_SF_SLOT_RUN(0);OBFH_SF_SLOT_RUN(1);OBFH_SF_SLOT_RUN(2);OBFH_SF_SLOT_RUN(3);OBFH_SF_SLOT_LATE(4);OBFH_SF_SLOT_LATE(5);OBFH_SF_SLOT_LATE(6);OBFH_SF_SLOT_LATE(7);OBFH_SF_SLOT_LATE(8);end;(void)0; })
+#define OBFH_SF_SELECT(index) ({OBFH_SF_CAPTURE;OBFH_SF_POOL_RUN(OBFH_SF_RECIPE_SELECT(index),OBFH_SF_START,OBFH_SF_END); })
 #define OBFH_SF_VARIANT_COUNT 128u
-// Each GROUP covers eight specs; SELECT combines the sixteen groups.
-// These are compile-time choices, not a runtime chain of 128 tests.
-#define OBFH_SF_GROUP_0(index, emit) __builtin_choose_expr((index) <= 3u, __builtin_choose_expr((index) <= 1u, __builtin_choose_expr((index) <= 0u, ({ OBFH_SF_SPEC_0(emit); }), ({ OBFH_SF_SPEC_1(emit); })), __builtin_choose_expr((index) <= 2u, ({ OBFH_SF_SPEC_2(emit); }), ({ OBFH_SF_SPEC_3(emit); }))), __builtin_choose_expr((index) <= 5u, __builtin_choose_expr((index) <= 4u, ({ OBFH_SF_SPEC_4(emit); }), ({ OBFH_SF_SPEC_5(emit); })), __builtin_choose_expr((index) <= 6u, ({ OBFH_SF_SPEC_6(emit); }), ({ OBFH_SF_SPEC_7(emit); }))))
-#define OBFH_SF_GROUP_1(index, emit) __builtin_choose_expr((index) <= 11u, __builtin_choose_expr((index) <= 9u, __builtin_choose_expr((index) <= 8u, ({ OBFH_SF_SPEC_8(emit); }), ({ OBFH_SF_SPEC_9(emit); })), __builtin_choose_expr((index) <= 10u, ({ OBFH_SF_SPEC_10(emit); }), ({ OBFH_SF_SPEC_11(emit); }))), __builtin_choose_expr((index) <= 13u, __builtin_choose_expr((index) <= 12u, ({ OBFH_SF_SPEC_12(emit); }), ({ OBFH_SF_SPEC_13(emit); })), __builtin_choose_expr((index) <= 14u, ({ OBFH_SF_SPEC_14(emit); }), ({ OBFH_SF_SPEC_15(emit); }))))
-#define OBFH_SF_GROUP_2(index, emit) __builtin_choose_expr((index) <= 19u, __builtin_choose_expr((index) <= 17u, __builtin_choose_expr((index) <= 16u, ({ OBFH_SF_SPEC_16(emit); }), ({ OBFH_SF_SPEC_17(emit); })), __builtin_choose_expr((index) <= 18u, ({ OBFH_SF_SPEC_18(emit); }), ({ OBFH_SF_SPEC_19(emit); }))), __builtin_choose_expr((index) <= 21u, __builtin_choose_expr((index) <= 20u, ({ OBFH_SF_SPEC_20(emit); }), ({ OBFH_SF_SPEC_21(emit); })), __builtin_choose_expr((index) <= 22u, ({ OBFH_SF_SPEC_22(emit); }), ({ OBFH_SF_SPEC_23(emit); }))))
-#define OBFH_SF_GROUP_3(index, emit) __builtin_choose_expr((index) <= 27u, __builtin_choose_expr((index) <= 25u, __builtin_choose_expr((index) <= 24u, ({ OBFH_SF_SPEC_24(emit); }), ({ OBFH_SF_SPEC_25(emit); })), __builtin_choose_expr((index) <= 26u, ({ OBFH_SF_SPEC_26(emit); }), ({ OBFH_SF_SPEC_27(emit); }))), __builtin_choose_expr((index) <= 29u, __builtin_choose_expr((index) <= 28u, ({ OBFH_SF_SPEC_28(emit); }), ({ OBFH_SF_SPEC_29(emit); })), __builtin_choose_expr((index) <= 30u, ({ OBFH_SF_SPEC_30(emit); }), ({ OBFH_SF_SPEC_31(emit); }))))
-#define OBFH_SF_GROUP_4(index, emit) __builtin_choose_expr((index) <= 35u, __builtin_choose_expr((index) <= 33u, __builtin_choose_expr((index) <= 32u, ({ OBFH_SF_SPEC_32(emit); }), ({ OBFH_SF_SPEC_33(emit); })), __builtin_choose_expr((index) <= 34u, ({ OBFH_SF_SPEC_34(emit); }), ({ OBFH_SF_SPEC_35(emit); }))), __builtin_choose_expr((index) <= 37u, __builtin_choose_expr((index) <= 36u, ({ OBFH_SF_SPEC_36(emit); }), ({ OBFH_SF_SPEC_37(emit); })), __builtin_choose_expr((index) <= 38u, ({ OBFH_SF_SPEC_38(emit); }), ({ OBFH_SF_SPEC_39(emit); }))))
-#define OBFH_SF_GROUP_5(index, emit) __builtin_choose_expr((index) <= 43u, __builtin_choose_expr((index) <= 41u, __builtin_choose_expr((index) <= 40u, ({ OBFH_SF_SPEC_40(emit); }), ({ OBFH_SF_SPEC_41(emit); })), __builtin_choose_expr((index) <= 42u, ({ OBFH_SF_SPEC_42(emit); }), ({ OBFH_SF_SPEC_43(emit); }))), __builtin_choose_expr((index) <= 45u, __builtin_choose_expr((index) <= 44u, ({ OBFH_SF_SPEC_44(emit); }), ({ OBFH_SF_SPEC_45(emit); })), __builtin_choose_expr((index) <= 46u, ({ OBFH_SF_SPEC_46(emit); }), ({ OBFH_SF_SPEC_47(emit); }))))
-#define OBFH_SF_GROUP_6(index, emit) __builtin_choose_expr((index) <= 51u, __builtin_choose_expr((index) <= 49u, __builtin_choose_expr((index) <= 48u, ({ OBFH_SF_SPEC_48(emit); }), ({ OBFH_SF_SPEC_49(emit); })), __builtin_choose_expr((index) <= 50u, ({ OBFH_SF_SPEC_50(emit); }), ({ OBFH_SF_SPEC_51(emit); }))), __builtin_choose_expr((index) <= 53u, __builtin_choose_expr((index) <= 52u, ({ OBFH_SF_SPEC_52(emit); }), ({ OBFH_SF_SPEC_53(emit); })), __builtin_choose_expr((index) <= 54u, ({ OBFH_SF_SPEC_54(emit); }), ({ OBFH_SF_SPEC_55(emit); }))))
-#define OBFH_SF_GROUP_7(index, emit) __builtin_choose_expr((index) <= 59u, __builtin_choose_expr((index) <= 57u, __builtin_choose_expr((index) <= 56u, ({ OBFH_SF_SPEC_56(emit); }), ({ OBFH_SF_SPEC_57(emit); })), __builtin_choose_expr((index) <= 58u, ({ OBFH_SF_SPEC_58(emit); }), ({ OBFH_SF_SPEC_59(emit); }))), __builtin_choose_expr((index) <= 61u, __builtin_choose_expr((index) <= 60u, ({ OBFH_SF_SPEC_60(emit); }), ({ OBFH_SF_SPEC_61(emit); })), __builtin_choose_expr((index) <= 62u, ({ OBFH_SF_SPEC_62(emit); }), ({ OBFH_SF_SPEC_63(emit); }))))
-#define OBFH_SF_GROUP_8(index, emit) __builtin_choose_expr((index) <= 67u, __builtin_choose_expr((index) <= 65u, __builtin_choose_expr((index) <= 64u, ({ OBFH_SF_SPEC_64(emit); }), ({ OBFH_SF_SPEC_65(emit); })), __builtin_choose_expr((index) <= 66u, ({ OBFH_SF_SPEC_66(emit); }), ({ OBFH_SF_SPEC_67(emit); }))), __builtin_choose_expr((index) <= 69u, __builtin_choose_expr((index) <= 68u, ({ OBFH_SF_SPEC_68(emit); }), ({ OBFH_SF_SPEC_69(emit); })), __builtin_choose_expr((index) <= 70u, ({ OBFH_SF_SPEC_70(emit); }), ({ OBFH_SF_SPEC_71(emit); }))))
-#define OBFH_SF_GROUP_9(index, emit) __builtin_choose_expr((index) <= 75u, __builtin_choose_expr((index) <= 73u, __builtin_choose_expr((index) <= 72u, ({ OBFH_SF_SPEC_72(emit); }), ({ OBFH_SF_SPEC_73(emit); })), __builtin_choose_expr((index) <= 74u, ({ OBFH_SF_SPEC_74(emit); }), ({ OBFH_SF_SPEC_75(emit); }))), __builtin_choose_expr((index) <= 77u, __builtin_choose_expr((index) <= 76u, ({ OBFH_SF_SPEC_76(emit); }), ({ OBFH_SF_SPEC_77(emit); })), __builtin_choose_expr((index) <= 78u, ({ OBFH_SF_SPEC_78(emit); }), ({ OBFH_SF_SPEC_79(emit); }))))
-#define OBFH_SF_GROUP_10(index, emit) __builtin_choose_expr((index) <= 83u, __builtin_choose_expr((index) <= 81u, __builtin_choose_expr((index) <= 80u, ({ OBFH_SF_SPEC_80(emit); }), ({ OBFH_SF_SPEC_81(emit); })), __builtin_choose_expr((index) <= 82u, ({ OBFH_SF_SPEC_82(emit); }), ({ OBFH_SF_SPEC_83(emit); }))), __builtin_choose_expr((index) <= 85u, __builtin_choose_expr((index) <= 84u, ({ OBFH_SF_SPEC_84(emit); }), ({ OBFH_SF_SPEC_85(emit); })), __builtin_choose_expr((index) <= 86u, ({ OBFH_SF_SPEC_86(emit); }), ({ OBFH_SF_SPEC_87(emit); }))))
-#define OBFH_SF_GROUP_11(index, emit) __builtin_choose_expr((index) <= 91u, __builtin_choose_expr((index) <= 89u, __builtin_choose_expr((index) <= 88u, ({ OBFH_SF_SPEC_88(emit); }), ({ OBFH_SF_SPEC_89(emit); })), __builtin_choose_expr((index) <= 90u, ({ OBFH_SF_SPEC_90(emit); }), ({ OBFH_SF_SPEC_91(emit); }))), __builtin_choose_expr((index) <= 93u, __builtin_choose_expr((index) <= 92u, ({ OBFH_SF_SPEC_92(emit); }), ({ OBFH_SF_SPEC_93(emit); })), __builtin_choose_expr((index) <= 94u, ({ OBFH_SF_SPEC_94(emit); }), ({ OBFH_SF_SPEC_95(emit); }))))
-#define OBFH_SF_GROUP_12(index, emit) __builtin_choose_expr((index) <= 99u, __builtin_choose_expr((index) <= 97u, __builtin_choose_expr((index) <= 96u, ({ OBFH_SF_SPEC_96(emit); }), ({ OBFH_SF_SPEC_97(emit); })), __builtin_choose_expr((index) <= 98u, ({ OBFH_SF_SPEC_98(emit); }), ({ OBFH_SF_SPEC_99(emit); }))), __builtin_choose_expr((index) <= 101u, __builtin_choose_expr((index) <= 100u, ({ OBFH_SF_SPEC_100(emit); }), ({ OBFH_SF_SPEC_101(emit); })), __builtin_choose_expr((index) <= 102u, ({ OBFH_SF_SPEC_102(emit); }), ({ OBFH_SF_SPEC_103(emit); }))))
-#define OBFH_SF_GROUP_13(index, emit) __builtin_choose_expr((index) <= 107u, __builtin_choose_expr((index) <= 105u, __builtin_choose_expr((index) <= 104u, ({ OBFH_SF_SPEC_104(emit); }), ({ OBFH_SF_SPEC_105(emit); })), __builtin_choose_expr((index) <= 106u, ({ OBFH_SF_SPEC_106(emit); }), ({ OBFH_SF_SPEC_107(emit); }))), __builtin_choose_expr((index) <= 109u, __builtin_choose_expr((index) <= 108u, ({ OBFH_SF_SPEC_108(emit); }), ({ OBFH_SF_SPEC_109(emit); })), __builtin_choose_expr((index) <= 110u, ({ OBFH_SF_SPEC_110(emit); }), ({ OBFH_SF_SPEC_111(emit); }))))
-#define OBFH_SF_GROUP_14(index, emit) __builtin_choose_expr((index) <= 115u, __builtin_choose_expr((index) <= 113u, __builtin_choose_expr((index) <= 112u, ({ OBFH_SF_SPEC_112(emit); }), ({ OBFH_SF_SPEC_113(emit); })), __builtin_choose_expr((index) <= 114u, ({ OBFH_SF_SPEC_114(emit); }), ({ OBFH_SF_SPEC_115(emit); }))), __builtin_choose_expr((index) <= 117u, __builtin_choose_expr((index) <= 116u, ({ OBFH_SF_SPEC_116(emit); }), ({ OBFH_SF_SPEC_117(emit); })), __builtin_choose_expr((index) <= 118u, ({ OBFH_SF_SPEC_118(emit); }), ({ OBFH_SF_SPEC_119(emit); }))))
-#define OBFH_SF_GROUP_15(index, emit) __builtin_choose_expr((index) <= 123u, __builtin_choose_expr((index) <= 121u, __builtin_choose_expr((index) <= 120u, ({ OBFH_SF_SPEC_120(emit); }), ({ OBFH_SF_SPEC_121(emit); })), __builtin_choose_expr((index) <= 122u, ({ OBFH_SF_SPEC_122(emit); }), ({ OBFH_SF_SPEC_123(emit); }))), __builtin_choose_expr((index) <= 125u, __builtin_choose_expr((index) <= 124u, ({ OBFH_SF_SPEC_124(emit); }), ({ OBFH_SF_SPEC_125(emit); })), __builtin_choose_expr((index) <= 126u, ({ OBFH_SF_SPEC_126(emit); }), ({ OBFH_SF_SPEC_127(emit); }))))
-#define OBFH_SF_SELECT_PREPARED(index, emit, prepare) ({ OBFH_SF_CAPTURE; prepare; __builtin_choose_expr((index) <= 63u, __builtin_choose_expr((index) <= 31u, __builtin_choose_expr((index) <= 15u, __builtin_choose_expr((index) <= 7u, OBFH_SF_GROUP_0(index, emit), OBFH_SF_GROUP_1(index, emit)), __builtin_choose_expr((index) <= 23u, OBFH_SF_GROUP_2(index, emit), OBFH_SF_GROUP_3(index, emit))), __builtin_choose_expr((index) <= 47u, __builtin_choose_expr((index) <= 39u, OBFH_SF_GROUP_4(index, emit), OBFH_SF_GROUP_5(index, emit)), __builtin_choose_expr((index) <= 55u, OBFH_SF_GROUP_6(index, emit), OBFH_SF_GROUP_7(index, emit)))), __builtin_choose_expr((index) <= 95u, __builtin_choose_expr((index) <= 79u, __builtin_choose_expr((index) <= 71u, OBFH_SF_GROUP_8(index, emit), OBFH_SF_GROUP_9(index, emit)), __builtin_choose_expr((index) <= 87u, OBFH_SF_GROUP_10(index, emit), OBFH_SF_GROUP_11(index, emit))), __builtin_choose_expr((index) <= 111u, __builtin_choose_expr((index) <= 103u, OBFH_SF_GROUP_12(index, emit), OBFH_SF_GROUP_13(index, emit)), __builtin_choose_expr((index) <= 119u, OBFH_SF_GROUP_14(index, emit), OBFH_SF_GROUP_15(index, emit))))); (void)0; })
-
-#define OBFH_SF_SELECT_EMIT(index, emit) OBFH_SF_SELECT_PREPARED(index, emit, ((void)0))
-#define OBFH_SF_SELECT(index) OBFH_SF_SELECT_EMIT(index, OBFH_SF_EMIT)
-
-// Fixed variant pool: selection changes the emitted layout, not the pool size.
-#define OBFH_SF_SPEC_0(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C), OBFH_SF_INPUTS_0)
-#define OBFH_SF_VARIANT_0 OBFH_SF_SPEC_0(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_1(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D), OBFH_SF_INPUTS_1)
-#define OBFH_SF_VARIANT_1 OBFH_SF_SPEC_1(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_2(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A), OBFH_SF_INPUTS_2)
-#define OBFH_SF_VARIANT_2 OBFH_SF_SPEC_2(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_3(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B), OBFH_SF_INPUTS_3)
-#define OBFH_SF_VARIANT_3 OBFH_SF_SPEC_3(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_4(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C), OBFH_SF_INPUTS_4)
-#define OBFH_SF_VARIANT_4 OBFH_SF_SPEC_4(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_5(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D), OBFH_SF_INPUTS_5)
-#define OBFH_SF_VARIANT_5 OBFH_SF_SPEC_5(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_6(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A), OBFH_SF_INPUTS_6)
-#define OBFH_SF_VARIANT_6 OBFH_SF_SPEC_6(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_7(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B), OBFH_SF_INPUTS_7)
-#define OBFH_SF_VARIANT_7 OBFH_SF_SPEC_7(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_8(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C), OBFH_SF_INPUTS_8)
-#define OBFH_SF_VARIANT_8 OBFH_SF_SPEC_8(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_9(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D), OBFH_SF_INPUTS_9)
-#define OBFH_SF_VARIANT_9 OBFH_SF_SPEC_9(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_10(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A), OBFH_SF_INPUTS_10)
-#define OBFH_SF_VARIANT_10 OBFH_SF_SPEC_10(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_11(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B), OBFH_SF_INPUTS_11)
-#define OBFH_SF_VARIANT_11 OBFH_SF_SPEC_11(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_12(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_0(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_BODY_C), OBFH_SF_INPUTS_12)
-#define OBFH_SF_VARIANT_12 OBFH_SF_SPEC_12(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_13(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_1(OBFH_SF_BODY_B, OBFH_SF_BODY_C, OBFH_SF_BODY_D), OBFH_SF_INPUTS_13)
-#define OBFH_SF_VARIANT_13 OBFH_SF_SPEC_13(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_14(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_2(OBFH_SF_BODY_C, OBFH_SF_BODY_D, OBFH_SF_BODY_A), OBFH_SF_INPUTS_14)
-#define OBFH_SF_VARIANT_14 OBFH_SF_SPEC_14(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_15(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_3(OBFH_SF_BODY_D, OBFH_SF_BODY_A, OBFH_SF_BODY_B), OBFH_SF_INPUTS_15)
-#define OBFH_SF_VARIANT_15 OBFH_SF_SPEC_15(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_16(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_E, OBFH_SF_BODY_J, OBFH_SF_BODY_B), OBFH_SF_INPUTS_16)
-#define OBFH_SF_VARIANT_16 OBFH_SF_SPEC_16(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_17(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_F, OBFH_SF_BODY_K, OBFH_SF_BODY_C), OBFH_SF_INPUTS_17)
-#define OBFH_SF_VARIANT_17 OBFH_SF_SPEC_17(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_18(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_G, OBFH_SF_BODY_L, OBFH_SF_BODY_D), OBFH_SF_INPUTS_18)
-#define OBFH_SF_VARIANT_18 OBFH_SF_SPEC_18(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_19(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E), OBFH_SF_INPUTS_19)
-#define OBFH_SF_VARIANT_19 OBFH_SF_SPEC_19(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_20(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F), OBFH_SF_INPUTS_20)
-#define OBFH_SF_VARIANT_20 OBFH_SF_SPEC_20(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_21(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G), OBFH_SF_INPUTS_21)
-#define OBFH_SF_VARIANT_21 OBFH_SF_SPEC_21(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_22(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_K, OBFH_SF_BODY_D, OBFH_SF_BODY_H), OBFH_SF_INPUTS_22)
-#define OBFH_SF_VARIANT_22 OBFH_SF_SPEC_22(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_23(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_L, OBFH_SF_BODY_E, OBFH_SF_BODY_I), OBFH_SF_INPUTS_23)
-#define OBFH_SF_VARIANT_23 OBFH_SF_SPEC_23(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_24(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_A, OBFH_SF_BODY_F, OBFH_SF_BODY_J), OBFH_SF_INPUTS_24)
-#define OBFH_SF_VARIANT_24 OBFH_SF_SPEC_24(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_25(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_B, OBFH_SF_BODY_G, OBFH_SF_BODY_K), OBFH_SF_INPUTS_25)
-#define OBFH_SF_VARIANT_25 OBFH_SF_SPEC_25(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_26(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_C, OBFH_SF_BODY_H, OBFH_SF_BODY_L), OBFH_SF_INPUTS_26)
-#define OBFH_SF_VARIANT_26 OBFH_SF_SPEC_26(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_27(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_D, OBFH_SF_BODY_I, OBFH_SF_BODY_A), OBFH_SF_INPUTS_27)
-#define OBFH_SF_VARIANT_27 OBFH_SF_SPEC_27(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_28(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_E, OBFH_SF_BODY_J, OBFH_SF_BODY_B), OBFH_SF_INPUTS_28)
-#define OBFH_SF_VARIANT_28 OBFH_SF_SPEC_28(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_29(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_F, OBFH_SF_BODY_K, OBFH_SF_BODY_C), OBFH_SF_INPUTS_29)
-#define OBFH_SF_VARIANT_29 OBFH_SF_SPEC_29(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_30(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_G, OBFH_SF_BODY_L, OBFH_SF_BODY_D), OBFH_SF_INPUTS_30)
-#define OBFH_SF_VARIANT_30 OBFH_SF_SPEC_30(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_31(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E), OBFH_SF_INPUTS_31)
-#define OBFH_SF_VARIANT_31 OBFH_SF_SPEC_31(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_32(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F), OBFH_SF_INPUTS_32)
-#define OBFH_SF_VARIANT_32 OBFH_SF_SPEC_32(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_33(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G), OBFH_SF_INPUTS_33)
-#define OBFH_SF_VARIANT_33 OBFH_SF_SPEC_33(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_34(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_K, OBFH_SF_BODY_D, OBFH_SF_BODY_H), OBFH_SF_INPUTS_34)
-#define OBFH_SF_VARIANT_34 OBFH_SF_SPEC_34(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_35(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_L, OBFH_SF_BODY_E, OBFH_SF_BODY_I), OBFH_SF_INPUTS_35)
-#define OBFH_SF_VARIANT_35 OBFH_SF_SPEC_35(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_36(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_A, OBFH_SF_BODY_F, OBFH_SF_BODY_J), OBFH_SF_INPUTS_36)
-#define OBFH_SF_VARIANT_36 OBFH_SF_SPEC_36(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_37(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_B, OBFH_SF_BODY_G, OBFH_SF_BODY_K), OBFH_SF_INPUTS_37)
-#define OBFH_SF_VARIANT_37 OBFH_SF_SPEC_37(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_38(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_C, OBFH_SF_BODY_H, OBFH_SF_BODY_L), OBFH_SF_INPUTS_38)
-#define OBFH_SF_VARIANT_38 OBFH_SF_SPEC_38(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_39(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_D, OBFH_SF_BODY_I, OBFH_SF_BODY_A), OBFH_SF_INPUTS_39)
-#define OBFH_SF_VARIANT_39 OBFH_SF_SPEC_39(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_40(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_4(OBFH_SF_BODY_E, OBFH_SF_BODY_J, OBFH_SF_BODY_B), OBFH_SF_INPUTS_40)
-#define OBFH_SF_VARIANT_40 OBFH_SF_SPEC_40(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_41(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_5(OBFH_SF_BODY_F, OBFH_SF_BODY_K, OBFH_SF_BODY_C), OBFH_SF_INPUTS_41)
-#define OBFH_SF_VARIANT_41 OBFH_SF_SPEC_41(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_42(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_6(OBFH_SF_BODY_G, OBFH_SF_BODY_L, OBFH_SF_BODY_D), OBFH_SF_INPUTS_42)
-#define OBFH_SF_VARIANT_42 OBFH_SF_SPEC_42(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_43(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_7(OBFH_SF_BODY_H, OBFH_SF_BODY_A, OBFH_SF_BODY_E), OBFH_SF_INPUTS_43)
-#define OBFH_SF_VARIANT_43 OBFH_SF_SPEC_43(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_44(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_8(OBFH_SF_BODY_I, OBFH_SF_BODY_B, OBFH_SF_BODY_F), OBFH_SF_INPUTS_44)
-#define OBFH_SF_VARIANT_44 OBFH_SF_SPEC_44(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_45(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_9(OBFH_SF_BODY_J, OBFH_SF_BODY_C, OBFH_SF_BODY_G), OBFH_SF_INPUTS_45)
-#define OBFH_SF_VARIANT_45 OBFH_SF_SPEC_45(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_46(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_A, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_46)
-#define OBFH_SF_VARIANT_46 OBFH_SF_SPEC_46(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_47(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_F, OBFH_SF_LEAF_L), OBFH_SF_INPUTS_47)
-#define OBFH_SF_VARIANT_47 OBFH_SF_SPEC_47(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_48(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_K, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_48)
-#define OBFH_SF_VARIANT_48 OBFH_SF_SPEC_48(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_49(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_D, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_49)
-#define OBFH_SF_VARIANT_49 OBFH_SF_SPEC_49(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_50(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_I, OBFH_SF_LEAF_J), OBFH_SF_INPUTS_50)
-#define OBFH_SF_VARIANT_50 OBFH_SF_SPEC_50(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_51(emit) emit(OBFH_SF_GUARD_0, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_51)
-#define OBFH_SF_VARIANT_51 OBFH_SF_SPEC_51(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_52(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_H, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_52)
-#define OBFH_SF_VARIANT_52 OBFH_SF_SPEC_52(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_53(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_A, OBFH_SF_LEAF_H), OBFH_SF_INPUTS_53)
-#define OBFH_SF_VARIANT_53 OBFH_SF_SPEC_53(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_54(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_54)
-#define OBFH_SF_VARIANT_54 OBFH_SF_SPEC_54(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_55(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_K, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_55)
-#define OBFH_SF_VARIANT_55 OBFH_SF_SPEC_55(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_56(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_D, OBFH_SF_LEAF_F), OBFH_SF_INPUTS_56)
-#define OBFH_SF_VARIANT_56 OBFH_SF_SPEC_56(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_57(emit) emit(OBFH_SF_GUARD_1, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_I, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_57)
-#define OBFH_SF_VARIANT_57 OBFH_SF_SPEC_57(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_58(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_C, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_58)
-#define OBFH_SF_VARIANT_58 OBFH_SF_SPEC_58(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_59(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_H, OBFH_SF_LEAF_D), OBFH_SF_INPUTS_59)
-#define OBFH_SF_VARIANT_59 OBFH_SF_SPEC_59(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_60(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_A, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_60)
-#define OBFH_SF_VARIANT_60 OBFH_SF_SPEC_60(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_61(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_F, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_61)
-#define OBFH_SF_VARIANT_61 OBFH_SF_SPEC_61(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_62(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_K, OBFH_SF_LEAF_B), OBFH_SF_INPUTS_62)
-#define OBFH_SF_VARIANT_62 OBFH_SF_SPEC_62(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_63(emit) emit(OBFH_SF_GUARD_2, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_D, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_63)
-#define OBFH_SF_VARIANT_63 OBFH_SF_SPEC_63(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_64(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_J, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_64)
-#define OBFH_SF_VARIANT_64 OBFH_SF_SPEC_64(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_65(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_C, OBFH_SF_LEAF_L), OBFH_SF_INPUTS_65)
-#define OBFH_SF_VARIANT_65 OBFH_SF_SPEC_65(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_66(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_H, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_66)
-#define OBFH_SF_VARIANT_66 OBFH_SF_SPEC_66(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_67(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_A, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_67)
-#define OBFH_SF_VARIANT_67 OBFH_SF_SPEC_67(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_68(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_F, OBFH_SF_LEAF_J), OBFH_SF_INPUTS_68)
-#define OBFH_SF_VARIANT_68 OBFH_SF_SPEC_68(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_69(emit) emit(OBFH_SF_GUARD_3, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_K, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_69)
-#define OBFH_SF_VARIANT_69 OBFH_SF_SPEC_69(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_70(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_E, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_70)
-#define OBFH_SF_VARIANT_70 OBFH_SF_SPEC_70(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_71(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_J, OBFH_SF_LEAF_H), OBFH_SF_INPUTS_71)
-#define OBFH_SF_VARIANT_71 OBFH_SF_SPEC_71(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_72(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_C, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_72)
-#define OBFH_SF_VARIANT_72 OBFH_SF_SPEC_72(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_73(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_H, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_73)
-#define OBFH_SF_VARIANT_73 OBFH_SF_SPEC_73(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_74(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_A, OBFH_SF_LEAF_F), OBFH_SF_INPUTS_74)
-#define OBFH_SF_VARIANT_74 OBFH_SF_SPEC_74(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_75(emit) emit(OBFH_SF_GUARD_4, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_F, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_75)
-#define OBFH_SF_VARIANT_75 OBFH_SF_SPEC_75(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_76(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_L, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_76)
-#define OBFH_SF_VARIANT_76 OBFH_SF_SPEC_76(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_77(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_E, OBFH_SF_LEAF_D), OBFH_SF_INPUTS_77)
-#define OBFH_SF_VARIANT_77 OBFH_SF_SPEC_77(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_78(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_J, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_78)
-#define OBFH_SF_VARIANT_78 OBFH_SF_SPEC_78(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_79(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_C, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_79)
-#define OBFH_SF_VARIANT_79 OBFH_SF_SPEC_79(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_80(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_H, OBFH_SF_LEAF_B), OBFH_SF_INPUTS_80)
-#define OBFH_SF_VARIANT_80 OBFH_SF_SPEC_80(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_81(emit) emit(OBFH_SF_GUARD_5, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_A, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_81)
-#define OBFH_SF_VARIANT_81 OBFH_SF_SPEC_81(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_82(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_G, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_82)
-#define OBFH_SF_VARIANT_82 OBFH_SF_SPEC_82(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_83(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_L, OBFH_SF_LEAF_L), OBFH_SF_INPUTS_83)
-#define OBFH_SF_VARIANT_83 OBFH_SF_SPEC_83(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_84(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_E, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_84)
-#define OBFH_SF_VARIANT_84 OBFH_SF_SPEC_84(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_85(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_J, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_85)
-#define OBFH_SF_VARIANT_85 OBFH_SF_SPEC_85(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_86(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_C, OBFH_SF_LEAF_J), OBFH_SF_INPUTS_86)
-#define OBFH_SF_VARIANT_86 OBFH_SF_SPEC_86(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_87(emit) emit(OBFH_SF_GUARD_6, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_H, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_87)
-#define OBFH_SF_VARIANT_87 OBFH_SF_SPEC_87(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_88(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_B, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_88)
-#define OBFH_SF_VARIANT_88 OBFH_SF_SPEC_88(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_89(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_G, OBFH_SF_LEAF_H), OBFH_SF_INPUTS_89)
-#define OBFH_SF_VARIANT_89 OBFH_SF_SPEC_89(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_90(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_L, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_90)
-#define OBFH_SF_VARIANT_90 OBFH_SF_SPEC_90(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_91(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_E, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_91)
-#define OBFH_SF_VARIANT_91 OBFH_SF_SPEC_91(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_92(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_J, OBFH_SF_LEAF_F), OBFH_SF_INPUTS_92)
-#define OBFH_SF_VARIANT_92 OBFH_SF_SPEC_92(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_93(emit) emit(OBFH_SF_GUARD_7, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_C, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_93)
-#define OBFH_SF_VARIANT_93 OBFH_SF_SPEC_93(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_94(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_I, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_94)
-#define OBFH_SF_VARIANT_94 OBFH_SF_SPEC_94(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_95(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_B, OBFH_SF_LEAF_D), OBFH_SF_INPUTS_95)
-#define OBFH_SF_VARIANT_95 OBFH_SF_SPEC_95(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_96(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_G, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_96)
-#define OBFH_SF_VARIANT_96 OBFH_SF_SPEC_96(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_97(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_L, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_97)
-#define OBFH_SF_VARIANT_97 OBFH_SF_SPEC_97(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_98(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_E, OBFH_SF_LEAF_B), OBFH_SF_INPUTS_98)
-#define OBFH_SF_VARIANT_98 OBFH_SF_SPEC_98(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_99(emit) emit(OBFH_SF_GUARD_8, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_J, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_99)
-#define OBFH_SF_VARIANT_99 OBFH_SF_SPEC_99(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_100(emit) emit(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_D, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_100)
-#define OBFH_SF_VARIANT_100 OBFH_SF_SPEC_100(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_101(emit) emit(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_I, OBFH_SF_LEAF_L), OBFH_SF_INPUTS_101)
-#define OBFH_SF_VARIANT_101 OBFH_SF_SPEC_101(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_102(emit) emit(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_B, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_102)
-#define OBFH_SF_VARIANT_102 OBFH_SF_SPEC_102(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_103(emit) emit(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_G, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_103)
-#define OBFH_SF_VARIANT_103 OBFH_SF_SPEC_103(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_104(emit) emit(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_L, OBFH_SF_LEAF_J), OBFH_SF_INPUTS_104)
-#define OBFH_SF_VARIANT_104 OBFH_SF_SPEC_104(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_105(emit) emit(OBFH_SF_GUARD_9, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_E, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_105)
-#define OBFH_SF_VARIANT_105 OBFH_SF_SPEC_105(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_106(emit) emit(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_K, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_106)
-#define OBFH_SF_VARIANT_106 OBFH_SF_SPEC_106(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_107(emit) emit(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_D, OBFH_SF_LEAF_H), OBFH_SF_INPUTS_107)
-#define OBFH_SF_VARIANT_107 OBFH_SF_SPEC_107(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_108(emit) emit(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_G, OBFH_SF_BODY_N, OBFH_SF_LEAF_I, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_108)
-#define OBFH_SF_VARIANT_108 OBFH_SF_SPEC_108(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_109(emit) emit(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_J, OBFH_SF_BODY_Q, OBFH_SF_LEAF_B, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_109)
-#define OBFH_SF_VARIANT_109 OBFH_SF_SPEC_109(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_110(emit) emit(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_M, OBFH_SF_BODY_T, OBFH_SF_LEAF_G, OBFH_SF_LEAF_F), OBFH_SF_INPUTS_110)
-#define OBFH_SF_VARIANT_110 OBFH_SF_SPEC_110(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_111(emit) emit(OBFH_SF_GUARD_10, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_P, OBFH_SF_BODY_C, OBFH_SF_LEAF_L, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_111)
-#define OBFH_SF_VARIANT_111 OBFH_SF_SPEC_111(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_112(emit) emit(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_S, OBFH_SF_BODY_F, OBFH_SF_LEAF_F, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_112)
-#define OBFH_SF_VARIANT_112 OBFH_SF_SPEC_112(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_113(emit) emit(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_B, OBFH_SF_BODY_I, OBFH_SF_LEAF_K, OBFH_SF_LEAF_D), OBFH_SF_INPUTS_113)
-#define OBFH_SF_VARIANT_113 OBFH_SF_SPEC_113(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_114(emit) emit(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_E, OBFH_SF_BODY_L, OBFH_SF_LEAF_D, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_114)
-#define OBFH_SF_VARIANT_114 OBFH_SF_SPEC_114(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_115(emit) emit(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_H, OBFH_SF_BODY_O, OBFH_SF_LEAF_I, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_115)
-#define OBFH_SF_VARIANT_115 OBFH_SF_SPEC_115(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_116(emit) emit(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_K, OBFH_SF_BODY_R, OBFH_SF_LEAF_B, OBFH_SF_LEAF_B), OBFH_SF_INPUTS_116)
-#define OBFH_SF_VARIANT_116 OBFH_SF_SPEC_116(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_117(emit) emit(OBFH_SF_GUARD_11, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_N, OBFH_SF_BODY_A, OBFH_SF_LEAF_G, OBFH_SF_LEAF_I), OBFH_SF_INPUTS_117)
-#define OBFH_SF_VARIANT_117 OBFH_SF_SPEC_117(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_118(emit) emit(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_Q, OBFH_SF_BODY_D, OBFH_SF_LEAF_A, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_118)
-#define OBFH_SF_VARIANT_118 OBFH_SF_SPEC_118(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_119(emit) emit(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_T, OBFH_SF_BODY_G, OBFH_SF_LEAF_F, OBFH_SF_LEAF_L), OBFH_SF_INPUTS_119)
-#define OBFH_SF_VARIANT_119 OBFH_SF_SPEC_119(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_120(emit) emit(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_C, OBFH_SF_BODY_J, OBFH_SF_LEAF_K, OBFH_SF_LEAF_G), OBFH_SF_INPUTS_120)
-#define OBFH_SF_VARIANT_120 OBFH_SF_SPEC_120(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_121(emit) emit(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_F, OBFH_SF_BODY_M, OBFH_SF_LEAF_D, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_121)
-#define OBFH_SF_VARIANT_121 OBFH_SF_SPEC_121(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_122(emit) emit(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_26(OBFH_SF_BODY_I, OBFH_SF_BODY_P, OBFH_SF_LEAF_I, OBFH_SF_LEAF_J), OBFH_SF_INPUTS_122)
-#define OBFH_SF_VARIANT_122 OBFH_SF_SPEC_122(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_123(emit) emit(OBFH_SF_GUARD_12, OBFH_SF_LAYOUT_28(OBFH_SF_BODY_L, OBFH_SF_BODY_S, OBFH_SF_LEAF_B, OBFH_SF_LEAF_E), OBFH_SF_INPUTS_123)
-#define OBFH_SF_VARIANT_123 OBFH_SF_SPEC_123(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_124(emit) emit(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_22(OBFH_SF_BODY_O, OBFH_SF_BODY_B, OBFH_SF_LEAF_H, OBFH_SF_LEAF_A), OBFH_SF_INPUTS_124)
-#define OBFH_SF_VARIANT_124 OBFH_SF_SPEC_124(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_125(emit) emit(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_23(OBFH_SF_BODY_R, OBFH_SF_BODY_E, OBFH_SF_LEAF_A, OBFH_SF_LEAF_H), OBFH_SF_INPUTS_125)
-#define OBFH_SF_VARIANT_125 OBFH_SF_SPEC_125(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_126(emit) emit(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_24(OBFH_SF_BODY_A, OBFH_SF_BODY_H, OBFH_SF_LEAF_F, OBFH_SF_LEAF_C), OBFH_SF_INPUTS_126)
-#define OBFH_SF_VARIANT_126 OBFH_SF_SPEC_126(OBFH_SF_ASM)
-#define OBFH_SF_SPEC_127(emit) emit(OBFH_SF_GUARD_13, OBFH_SF_LAYOUT_25(OBFH_SF_BODY_D, OBFH_SF_BODY_K, OBFH_SF_LEAF_K, OBFH_SF_LEAF_K), OBFH_SF_INPUTS_127)
-#define OBFH_SF_VARIANT_127 OBFH_SF_SPEC_127(OBFH_SF_ASM)
 
 #define STACK_PROXY_FUNCTIONS ({ \
     enum { __obfh_sf_id = __COUNTER__, \
@@ -5423,12 +3509,12 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_SF_GUARD_5_VALUE(x) (x)
 #define OBFH_SF_GUARD_6_VALUE(x) (x)
 #define OBFH_SF_GUARD_7_VALUE(x) ((x) * ((x)-1u))
-#define OBFH_SF_GUARD_8_VALUE(x) (~0u)
+#define OBFH_SF_GUARD_8_VALUE(x) ((x) ^ (unsigned int)__obfh_sf_key_a)
 #define OBFH_SF_GUARD_9_VALUE(x) ((x) + __obfh_sf_mask)
-#define OBFH_SF_GUARD_10_VALUE(x) (0u)
+#define OBFH_SF_GUARD_10_VALUE(x) ((x) & (0u - (x)))
 #define OBFH_SF_GUARD_11_VALUE(x) ((x)*__obfh_sf_factor)
 #define OBFH_SF_GUARD_12_VALUE(x) (((x) + __obfh_sf_key_a) * __obfh_sf_factor)
-#define OBFH_SF_GUARD_13_VALUE(x) ((unsigned int)__obfh_sf_key_a * (unsigned int)__obfh_sf_key_a)
+#define OBFH_SF_GUARD_13_VALUE(x) ((x) * (2u * (unsigned int)__obfh_sf_key_a) + (unsigned int)__obfh_sf_key_a * (unsigned int)__obfh_sf_key_a)
 #define OBFH_SF_GUARD_14_VALUE(x) (x)
 // Prepare once per insertion, outside the 128-way emission choice.
 #define OBFH_SF_FLOW_PREPARE \
@@ -5476,12 +3562,15 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     __builtin_choose_expr((__obfh_flow_hash >> 18) & 1u, \
                           ({ OBFH_SF_FLOW_COMMIT_ASM(OBFH_SF_FLOW_COMMIT_ALT_TEXT); }), \
                           ({ OBFH_SF_FLOW_COMMIT_ASM(OBFH_SF_FLOW_COMMIT_TEXT); }))
-#define OBFH_SF_FLOW_EMIT(guard, layout, ...) ({ \
-    __obfh_asm__(".long %c[i0];.fill 1,%c[il]-4,(((%c[i1])&0xffffffff)^0x80000000)-0x80000000;" guard layout "9: xorl %[li], %%eax;" \
-                 : "+a"(__obfh_live_actual) \
-                 : [li] "m"(__obfh_live_input), __VA_ARGS__ \
-                 : "edx", "ecx", "cc", "memory"); \
-})
+#define OBFH_SF_FLOW_START(guard) __obfh_asm__(OBFH_SF_ASM_CONSTANTS ".long %c[i0];.fill 1,%c[il]-4,(((%c[i1])&0xffffffff)^0x80000000)-0x80000000;" guard \
+                                               : \
+                                               : "a"(__obfh_live_actual), OBFH_SF_INPUTS \
+                                               : "edx", "ecx", "cc", "memory")
+#define OBFH_SF_FLOW_END __obfh_asm__("9:xorl %[li],%%eax;" \
+                                      : "=a"(__obfh_live_actual) \
+                                      : [li] "m"(__obfh_live_input) \
+                                      : "cc", "memory")
+#define OBFH_SF_FLOW_EMIT(g, l, a, b, c, d) OBFH_SF_POOL_RUN(OBFH_SF_RECIPE(g, l, a, b, c, d), OBFH_SF_FLOW_START, OBFH_SF_FLOW_END)
 #define OBFH_P_PROXY ({ \
     unsigned int __obfh_live_actual, __obfh_live_expected, __obfh_live_input; \
     enum { __obfh_sf_id = __COUNTER__, \
@@ -5489,27 +3578,13 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
            __obfh_sf_mixed = OBFH_MIX_A(__obfh_sf_seed), \
            __obfh_sf_variant = OBFH_MIX_B(__obfh_sf_mixed) % OBFH_SF_VARIANT_COUNT }; \
     __builtin_choose_expr((__obfh_sf_variant & 3u) == 0u, OBFH_P_CHAIN(__obfh_true_tag), ((void)0)); \
-    OBFH_SF_SELECT_PREPARED(__obfh_sf_variant, OBFH_SF_FLOW_EMIT, OBFH_SF_FLOW_PREPARE); \
+    OBFH_SF_CAPTURE; \
+    OBFH_SF_FLOW_PREPARE; \
+    OBFH_SF_POOL_RUN(OBFH_SF_RECIPE_SELECT(__obfh_sf_variant), OBFH_SF_FLOW_START, OBFH_SF_FLOW_END); \
     OBFH_SF_FLOW_COMMIT; \
 })
 
-// Local condition transport: disjoint input tags and path-specific permutations.
-#ifdef OBFH_TEST_FLOW_TRACE
-#define OBFH_P_BEFORE unsigned int __obfh_before_state = __obfh_flow_state, __obfh_before_tag = __obfh_flow_tag;
-#define OBFH_P_TRACE(s, p) \
-    obfh_test_flow_stage(__obfh_flow_layout, s, p, __obfh_before_state, __obfh_before_tag, __obfh_flow_state, \
-                         __obfh_flow_tag, __obfh_k##s##p, __obfh_m##s##p, __obfh_a##s##p, __obfh_r##s##p, \
-                         __obfh_style##s##p, _X##s##p, _H##s##p, _E##s##p, _A##s##p, _Y##s##p); \
-    __builtin_choose_expr((s) == 0, ({ \
-                              obfh_test_flow_visit(); \
-                              obfh_test_flow_route(__obfh_flow_first); \
-                              obfh_test_transport_visit(__obfh_flow_layout, __obfh_flow_exit, __obfh_flow_hash & 1u); \
-                          }), \
-                          ((void)0))
-#else
-#define OBFH_P_BEFORE
-#define OBFH_P_TRACE(s, p) ((void)0)
-#endif
+// Local condition transport and encoded selector targets.
 #if defined(__x86_64__)
 #define OBFH_P_ADDRESS_NOT_WIDTH 3
 #define OBFH_P_ADDRESS_NOT_A 0xd0f748
@@ -5605,32 +3680,32 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         : "cc")
 #define OBFH_P_STRINGIFY_INNER(value) #value
 #define OBFH_P_STRINGIFY(value) OBFH_P_STRINGIFY_INNER(value)
-#define OBFH_P_MASK_TEXT \
+#define OBFH_P_MASK_TEXT(mask_register) \
     "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD \
     " %[one], %[target]; " \
-    "and" OBFH_P_WORD " " OBFH_P_CX ", %[target]; .byte " OBFH_P_CMOV_PREFIX "0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1))" \
+    "and" OBFH_P_WORD " " mask_register ", %[target]; .byte " OBFH_P_CMOV_PREFIX "0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1))" \
     "; " \
-    "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " OBFH_P_CX \
+    "xor" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD " %[one], " mask_register \
     "; " \
     "cmpl %[tag], %%eax; " \
     ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH ",(((" OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; " \
     ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH ")&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch]," OBFH_P_COPY_WIDTH ",(((" OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
 // Arithmetic blending produces the same ordered candidate pair modulo pointer width.
 // Consume the mask before reusing its register for the complementary candidate.
-#define OBFH_P_MASK_ARITH_TEXT \
+#define OBFH_P_MASK_ARITH_TEXT(mask_register) \
     "mov" OBFH_P_WORD " %[one], %[target]; " \
-    "sub" OBFH_P_WORD " %[zero], %[target]; and" OBFH_P_WORD " " OBFH_P_CX ", %[target]; " \
-    "mov" OBFH_P_WORD " %[one], " OBFH_P_CX "; " \
-    "sub" OBFH_P_WORD " %[target], " OBFH_P_CX "; add" OBFH_P_WORD " %[zero], %[target]; " \
+    "sub" OBFH_P_WORD " %[zero], %[target]; and" OBFH_P_WORD " " mask_register ", %[target]; " \
+    "mov" OBFH_P_WORD " %[one], " mask_register "; " \
+    "sub" OBFH_P_WORD " %[target], " mask_register "; add" OBFH_P_WORD " %[zero], %[target]; " \
     "cmpl %%eax, %[tag]; " \
     ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH ",(((" OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; " \
     ".fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*" OBFH_P_COPY_WIDTH ")&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch]," OBFH_P_COPY_WIDTH ",(((" OBFH_P_COPY_VALUE "+" OBFH_P_COPY_REG_SHIFT "*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_TEXT \
+#define OBFH_P_MASK_ALT_TEXT(mask_register) \
     "mov" OBFH_P_WORD " %[zero], %[target]; xor" OBFH_P_WORD \
     " %[one], %[target]; " \
-    "and" OBFH_P_WORD " " OBFH_P_CX ", %[target]; .byte " OBFH_P_CMOV_PREFIX "0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1))" \
+    "and" OBFH_P_WORD " " mask_register ", %[target]; .byte " OBFH_P_CMOV_PREFIX "0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1))" \
     "; " \
-    "xor" OBFH_P_WORD " %[one], " OBFH_P_CX "; xor" OBFH_P_WORD " %[zero], %[target]" \
+    "xor" OBFH_P_WORD " %[one], " mask_register "; xor" OBFH_P_WORD " %[zero], %[target]" \
     "; " \
     "cmpl %%eax, %[tag]; " \
     ".fill (%c[branch]^1)," OBFH_P_CMOV_WIDTH ",(((" OBFH_P_CMOV_VALUE "+256*%c[cmov]" OBFH_P_CMOV_SHIFT "+" OBFH_P_CMOV_REG_SHIFT "*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; " \
@@ -5653,31 +3728,16 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; " \
     "cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,(((0xca31)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],2,(((0xca01)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],3,(((0x01e283)&0xffffffff)^0x80000000)-0x80000000; " \
     "lea" OBFH_P_WORD " %[table], " OBFH_P_CX "; mov" OBFH_P_WORD " (" OBFH_P_CX ", " OBFH_P_DX ", " OBFH_P_SCALE "), %[target]; " OBFH_P_DECODE_PREFIX ".short %c[decode]; .long %c[key];"
-// BEGIN GENERATED CFLOW SELECTORS
-// clang-format off
-#if defined(__x86_64__)
-#define OBFH_P_MASK_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rcx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[zero], %[target]; xorq %[one], %%rcx; cmpl %[tag], %%eax; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rdx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[zero], %[target]; xorq %[one], %%rdx; cmpl %[tag], %%eax; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rcx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[one], %%rcx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movq %[zero], %[target]; xorq %[one], %[target]; andq %%rdx, %[target]; .byte 0x48,0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorq %[one], %%rdx; xorq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_INSTRUCTIONS "movq %[one], %[target]; subq %[zero], %[target]; andq %%rcx, %[target]; movq %[one], %%rcx; subq %[target], %%rcx; addq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS "movq %[one], %[target]; subq %[zero], %[target]; andq %%rdx, %[target]; movq %[one], %%rdx; subq %[target], %%rdx; addq %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),4,(((0x0f48+256*%c[cmov]*256+16777216*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*3)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],3,(((0x8948+65536*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],2,0xc1ff; .fill (%c[parity]^1),3,(((0x01e183)&0xffffffff)^0x80000000)-0x80000000; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INDEX_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,(((0xca31)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],2,(((0xca01)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],3,(((0x01e283)&0xffffffff)^0x80000000)-0x80000000; leaq %[table], %%rcx; movq (%%rcx, %%rdx, 8), %[target]; .byte 0x48;.short %c[decode]; .long %c[key];"
-#else
-#define OBFH_P_MASK_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%ecx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[zero], %[target]; xorl %[one], %%ecx; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%edx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[zero], %[target]; xorl %[one], %%edx; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%ecx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[one], %%ecx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS "movl %[zero], %[target]; xorl %[one], %[target]; andl %%edx, %[target]; .byte 0x89+2*((%c[copy]>>15)&1),%c[cmovreg]+((%c[copy]>>15)&1)*(7-14*((%c[cmovreg]==0xd1)&1)); xorl %[one], %%edx; xorl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_INSTRUCTIONS "movl %[one], %[target]; subl %[zero], %[target]; andl %%ecx, %[target]; movl %[one], %%ecx; subl %[target], %%ecx; addl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
-#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS "movl %[one], %[target]; subl %[zero], %[target]; andl %%edx, %[target]; movl %[one], %%edx; subl %[target], %%edx; addl %[zero], %[target]; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*%c[cmovreg])&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*(%c[cmovreg]+7-14*((%c[cmovreg]==0xd1)&1)))&0xffffffff)^0x80000000)-0x80000000; .short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; .byte 0xf7,%c[index_op]; .fill %c[parity],1,0x41; .fill (%c[parity]^1),3,(((0x01e183)&0xffffffff)^0x80000000)-0x80000000; cmpl %[tag], %%eax; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_ALT_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; movl %%ecx, %%edx; xorl $1, %%ecx; cmpl %%eax, %[tag]; .fill (%c[branch]^1),3,(((0x0f+256*%c[cmov]+65536*0xd1)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,((((0x75-(%c[cmov]&1))+256*2)&0xffffffff)^0x80000000)-0x80000000; .fill %c[branch],2,(((0x89+256*0xca)&0xffffffff)^0x80000000)-0x80000000; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
-#define OBFH_P_TABLE_INDEX_INSTRUCTIONS "movl %[cookie], %%ecx; .fill 1,(3 - (((%c[bitcode] & 255) == 0xd1) & 1)),(((%c[bitcode])&0xffffffff)^0x80000000)-0x80000000; andl $1, %%ecx; cmpl %%eax, %[tag]; .byte 0x0f,%c[cmov]+0x50,0xc2; movzbl %%dl, %%edx; .fill (%c[parity]^1),2,(((0xca31)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],2,(((0xca01)&0xffffffff)^0x80000000)-0x80000000; .fill %c[parity],3,(((0x01e283)&0xffffffff)^0x80000000)-0x80000000; leal %[table], %%ecx; movl (%%ecx, %%edx, 4), %[target]; .short %c[decode]; .long %c[key];"
-#endif
-// clang-format on
-// END GENERATED CFLOW SELECTORS
+// Selector text is assembled directly from readable architecture fragments.
+#define OBFH_P_MASK_INSTRUCTIONS OBFH_P_MASK_TEXT(OBFH_P_CX)
+#define OBFH_P_MASK_SWAPPED_INSTRUCTIONS OBFH_P_MASK_TEXT(OBFH_P_DX)
+#define OBFH_P_MASK_ALT_INSTRUCTIONS OBFH_P_MASK_ALT_TEXT(OBFH_P_CX)
+#define OBFH_P_MASK_ALT_SWAPPED_INSTRUCTIONS OBFH_P_MASK_ALT_TEXT(OBFH_P_DX)
+#define OBFH_P_MASK_ARITH_INSTRUCTIONS OBFH_P_MASK_ARITH_TEXT(OBFH_P_CX)
+#define OBFH_P_MASK_ARITH_SWAPPED_INSTRUCTIONS OBFH_P_MASK_ARITH_TEXT(OBFH_P_DX)
+#define OBFH_P_TABLE_INSTRUCTIONS OBFH_P_TABLE_TEXT
+#define OBFH_P_TABLE_ALT_INSTRUCTIONS OBFH_P_TABLE_ALT_TEXT
+#define OBFH_P_TABLE_INDEX_INSTRUCTIONS OBFH_P_TABLE_INDEX_TEXT
 #define OBFH_P_MASK_ASM(shift, instructions, output, scratch, swapped) \
     __obfh_asm__(OBFH_P_MASK_CAPTURE_##swapped instructions \
                  : [target] output(__obfh_target) \
@@ -5714,111 +3774,23 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                               ({ OBFH_P_TABLE_ASM(shift, OBFH_P_TABLE_INSTRUCTIONS); })); \
         goto *(void *)__obfh_target; \
     })
-// Pair transport: every component is bijective and preserves equality in both directions.
-// Reflections y <- 2*x-y bind the coordinates; neither is an independent tag pipeline.
-// Select physical roles at compile time; no exchange instruction is needed.
-#define OBFH_P_SLOT(id, n, prior, key, mul, add, rot) \
-    enum { _C##id##n = ((n & 1) ? ((_Q##id >> (2 * ((n - 1) / 2))) & 3u) : (_C##id##prior)), \
-           _O##id##n = ((n & 1) ? ((n <= 2) ? (_N##id) : (_C##id##n < 2 ? (_C##id##n ? _G##id : _F##id) : _C##id##n + 2u)) : (_O##id##prior)), \
-           _B##id##n = (_O##id##n < 4 ? (((_K##id >> ((n - 1) / 2)) ^ (n - 1)) & 1u) \
-                                      : ((_O##id##n == 4) ^ !!(_T##id & 32u))) ^ \
-                       !!(_T##id & 16u), \
-           _D##id##n = _O##id##n == 0   ? (_B##id##n ? _f##id : _c##id) \
-                       : _O##id##n == 1 ? (_B##id##n ? _h##id : _e##id) \
-                       : _O##id##n == 2 ? (_B##id##n ? _u##id : _i##id) \
-                       : _O##id##n == 3 ? (_B##id##n ? _w##id : _l##id) \
-                       : (_K##id & (1u << (16 + _O##id##n))) \
-                           ? ((n & 1) ? (_B##id##n ? 0x0342148du : 0x0350048du) \
-                                      : (_B##id##n ? 0x0340048du : 0x0352148du)) \
-                           : ((n & 1) ? (_B##id##n ? 0x0200daf7u : 0x0200d8f7u) \
-                                      : (_B##id##n ? 0x0342148du : 0x0350048du)), \
-           _V##id##n = _O##id##n == 0 ? (key) : _O##id##n == 1 ? (mul) \
-                                            : _O##id##n == 2   ? ((_T##id & (_B##id##n ? 2u : 1u)) ? 0u - (add) : (add)) \
-                                            : _O##id##n == 3   ? ((_T##id & (_B##id##n ? 8u : 4u)) ? 32u - (rot) : (rot)) \
-                                                               : 0u }
-// Opcode [0..23], opcode width [24..25], immediate width [26..28].
-// Emit separately: TCC .fill values are limited to 32 bits.
-#define OBFH_P_INSTRUCTIONS \
-    ".fill 1, ((%c[d1] >> 24) & 3),((( %c[d1])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d1] >> 26) & 7),((( %c[v1])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d2] >> 24) & 3),((( %c[d2])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d2] >> 26) & 7),((( %c[v2])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d3] >> 24) & 3),((( %c[d3])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d3] >> 26) & 7),((( %c[v3])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d4] >> 24) & 3),((( %c[d4])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d4] >> 26) & 7),((( %c[v4])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d5] >> 24) & 3),((( %c[d5])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d5] >> 26) & 7),((( %c[v5])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d6] >> 24) & 3),((( %c[d6])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d6] >> 26) & 7),((( %c[v6])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d7] >> 24) & 3),((( %c[d7])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d7] >> 26) & 7),((( %c[v7])&0xffffffff)^0x80000000)-0x80000000;\
-     .fill 1, ((%c[d8] >> 24) & 3),((( %c[d8])&0xffffffff)^0x80000000)-0x80000000; .fill 1, ((%c[d8] >> 26) & 7),((( %c[v8])&0xffffffff)^0x80000000)-0x80000000;"
-#define OBFH_P_INPUT(id, n) [d##n] "i"(_D##id##n), [v##n] "i"(_V##id##n)
-#define OBFH_P_ROLE(s, p, reverse) \
-    __builtin_choose_expr(!!(_T##s##p & 16u) ^ (reverse), __obfh_flow_tag, __obfh_flow_state)
-#define OBFH_P_ARGUMENTS(s, p) \
-    OBFH_P_INPUT(s##p, 1), OBFH_P_INPUT(s##p, 2), OBFH_P_INPUT(s##p, 3), OBFH_P_INPUT(s##p, 4), \
-        OBFH_P_INPUT(s##p, 5), OBFH_P_INPUT(s##p, 6), OBFH_P_INPUT(s##p, 7), OBFH_P_INPUT(s##p, 8)
-#define OBFH_P_PERMUTE(s, p, instructions) \
-    ({ __obfh_asm__(instructions \
-                    : "+a"(OBFH_P_ROLE(s, p, 0)), "+d"(OBFH_P_ROLE(s, p, 1)) \
-                    : OBFH_P_ARGS_##s##p \
-                    : "cc", "memory"); })
-#define OBFH_P_PREPARE(s, p) OBFH_P_CACHE_##s##p
-#define OBFH_P_POOL(id, style, key, mul, add, rot, branch, donor, donorstyle, donormul, donoradd, donorrot) \
-    enum { _S##id = style, \
-           _K##id = key, \
-           _M##id = mul, \
-           _Z##id = add, \
-           _R##id = rot, \
-           _X##id = donor, \
-           _T##id = _K##id >> 14, \
-           _C##id##0 = 0, \
-           _O##id##0 = 0, \
-           _H##id = donorstyle, \
-           _E##id = donormul, \
-           _A##id = donoradd, \
-           _Y##id = donorrot, \
-           _N##id = (0xb16cu >> (4 * _H##id + 2 * ((_X##id >> 8) % 12u / 6u))) & 3u, \
-           _F##id = _S##id == 0 ? 0 : _S##id == 1 ? 2 \
-                                  : _S##id == 2   ? 1 \
-                                                  : 3, \
-           _G##id = _S##id == 0 ? 3 : _S##id == 1 ? 1 \
-                                  : _S##id == 2   ? 0 \
-                                                  : 2, \
-           _J##id = (_K##id >> 8) % 12u, \
-           _Q##id = ((_J##id < 8 ? 0xb1e16c9c78d8b4e4ull : 0x2d8d39c9ull) >> (8 * (_J##id & 7u))) & 255u }; \
-    enum { _c##id = 0x11000035u, \
-           _f##id = 0x1200f281u, \
-           _e##id = 0x1200c069u, \
-           _h##id = 0x1200d269u, \
-           _i##id = _T##id & 1u ? 0x1100002du : 0x11000005u, \
-           _u##id = _T##id & 2u ? 0x1200ea81u : 0x1200c281u, \
-           _l##id = _T##id & 4u ? 0x0600c8c1u : 0x0600c0c1u, \
-           _w##id = _T##id & 8u ? 0x0600cac1u : 0x0600c2c1u }; \
-    OBFH_P_SLOT(id, 1, 0, _X##id, _E##id, _A##id, _Y##id); \
-    OBFH_P_SLOT(id, 2, 1, _X##id, _E##id, _A##id, _Y##id); \
-    OBFH_P_SLOT(id, 3, 2, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 4, 3, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 5, 4, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 6, 5, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 7, 6, _K##id, _M##id, _Z##id, _R##id); \
-    OBFH_P_SLOT(id, 8, 7, _K##id, _M##id, _Z##id, _R##id);
-// Generated constant pools: regenerate from the readable macros with tests/cflow_weave_cache.js.
-// clang-format off
-#define OBFH_P_CACHE_00 enum{_S00=__obfh_style00,_K00=__obfh_k00,_M00=__obfh_m00,_Z00=__obfh_a00,_R00=__obfh_r00,_X00=__obfh_k10,_T00=_K00>>14,_H00=__obfh_style10,_E00=__obfh_m10,_A00=__obfh_a10,_Y00=__obfh_r10,_N00=(0xb16cu>>(4*_H00+2*((_X00>>8)%12u/6u)))&3u,_F00=_S00==0?0:_S00==1?2:_S00==2?1:3,_G00=_S00==0?3:_S00==1?1:_S00==2?0:2,_J00=(_K00>>8)%12u,_Q00=((_J00<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J00&7u)))&255u};enum{_c00=0x11000035u,_f00=0x1200f281u,_e00=0x1200c069u,_h00=0x1200d269u,_i00=_T00&1u?0x1100002du:0x11000005u,_u00=_T00&2u?0x1200ea81u:0x1200c281u,_l00=_T00&4u?0x0600c8c1u:0x0600c0c1u,_w00=_T00&8u?0x0600cac1u:0x0600c2c1u};enum{_B001=(_N00<4?(((_K00>>0)^0)&1u):((_N00==4)^!!(_T00&32u)))^!!(_T00&16u),_D001=_N00==0?(_B001?_f00:_c00):_N00==1?(_B001?_h00:_e00):_N00==2?(_B001?_u00:_i00):_N00==3?(_B001?_w00:_l00):(_K00&(1u<<(16+_N00)))?(_B001?0x0342148du:0x0350048du):(_B001?0x0200daf7u:0x0200d8f7u),_V001=_N00==0?(_X00):_N00==1?(_E00):_N00==2?((_T00&(_B001?2u:1u))?0u-(_A00):(_A00)):_N00==3?((_T00&(_B001?8u:4u))?32u-(_Y00):(_Y00)):0u};enum{_B002=(_N00<4?(((_K00>>0)^1)&1u):((_N00==4)^!!(_T00&32u)))^!!(_T00&16u),_D002=_N00==0?(_B002?_f00:_c00):_N00==1?(_B002?_h00:_e00):_N00==2?(_B002?_u00:_i00):_N00==3?(_B002?_w00:_l00):(_K00&(1u<<(16+_N00)))?(_B002?0x0340048du:0x0352148du):(_B002?0x0342148du:0x0350048du),_V002=_N00==0?(_X00):_N00==1?(_E00):_N00==2?((_T00&(_B002?2u:1u))?0u-(_A00):(_A00)):_N00==3?((_T00&(_B002?8u:4u))?32u-(_Y00):(_Y00)):0u};enum{_C003=((_Q00>>(2*1))&3u),_O003=(_C003<2?(_C003?_G00:_F00):_C003+2u),_B003=(_O003<4?(((_K00>>1)^2)&1u):((_O003==4)^!!(_T00&32u)))^!!(_T00&16u),_D003=_O003==0?(_B003?_f00:_c00):_O003==1?(_B003?_h00:_e00):_O003==2?(_B003?_u00:_i00):_O003==3?(_B003?_w00:_l00):(_K00&(1u<<(16+_O003)))?(_B003?0x0342148du:0x0350048du):(_B003?0x0200daf7u:0x0200d8f7u),_V003=_O003==0?(_K00):_O003==1?(_M00):_O003==2?((_T00&(_B003?2u:1u))?0u-(_Z00):(_Z00)):_O003==3?((_T00&(_B003?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B004=(_O003<4?(((_K00>>1)^3)&1u):((_O003==4)^!!(_T00&32u)))^!!(_T00&16u),_D004=_O003==0?(_B004?_f00:_c00):_O003==1?(_B004?_h00:_e00):_O003==2?(_B004?_u00:_i00):_O003==3?(_B004?_w00:_l00):(_K00&(1u<<(16+_O003)))?(_B004?0x0340048du:0x0352148du):(_B004?0x0342148du:0x0350048du),_V004=_O003==0?(_K00):_O003==1?(_M00):_O003==2?((_T00&(_B004?2u:1u))?0u-(_Z00):(_Z00)):_O003==3?((_T00&(_B004?8u:4u))?32u-(_R00):(_R00)):0u};enum{_C005=((_Q00>>(2*2))&3u),_O005=(_C005<2?(_C005?_G00:_F00):_C005+2u),_B005=(_O005<4?(((_K00>>2)^4)&1u):((_O005==4)^!!(_T00&32u)))^!!(_T00&16u),_D005=_O005==0?(_B005?_f00:_c00):_O005==1?(_B005?_h00:_e00):_O005==2?(_B005?_u00:_i00):_O005==3?(_B005?_w00:_l00):(_K00&(1u<<(16+_O005)))?(_B005?0x0342148du:0x0350048du):(_B005?0x0200daf7u:0x0200d8f7u),_V005=_O005==0?(_K00):_O005==1?(_M00):_O005==2?((_T00&(_B005?2u:1u))?0u-(_Z00):(_Z00)):_O005==3?((_T00&(_B005?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B006=(_O005<4?(((_K00>>2)^5)&1u):((_O005==4)^!!(_T00&32u)))^!!(_T00&16u),_D006=_O005==0?(_B006?_f00:_c00):_O005==1?(_B006?_h00:_e00):_O005==2?(_B006?_u00:_i00):_O005==3?(_B006?_w00:_l00):(_K00&(1u<<(16+_O005)))?(_B006?0x0340048du:0x0352148du):(_B006?0x0342148du:0x0350048du),_V006=_O005==0?(_K00):_O005==1?(_M00):_O005==2?((_T00&(_B006?2u:1u))?0u-(_Z00):(_Z00)):_O005==3?((_T00&(_B006?8u:4u))?32u-(_R00):(_R00)):0u};enum{_C007=((_Q00>>(2*3))&3u),_O007=(_C007<2?(_C007?_G00:_F00):_C007+2u),_B007=(_O007<4?(((_K00>>3)^6)&1u):((_O007==4)^!!(_T00&32u)))^!!(_T00&16u),_D007=_O007==0?(_B007?_f00:_c00):_O007==1?(_B007?_h00:_e00):_O007==2?(_B007?_u00:_i00):_O007==3?(_B007?_w00:_l00):(_K00&(1u<<(16+_O007)))?(_B007?0x0342148du:0x0350048du):(_B007?0x0200daf7u:0x0200d8f7u),_V007=_O007==0?(_K00):_O007==1?(_M00):_O007==2?((_T00&(_B007?2u:1u))?0u-(_Z00):(_Z00)):_O007==3?((_T00&(_B007?8u:4u))?32u-(_R00):(_R00)):0u};enum{_B008=(_O007<4?(((_K00>>3)^7)&1u):((_O007==4)^!!(_T00&32u)))^!!(_T00&16u),_D008=_O007==0?(_B008?_f00:_c00):_O007==1?(_B008?_h00:_e00):_O007==2?(_B008?_u00:_i00):_O007==3?(_B008?_w00:_l00):(_K00&(1u<<(16+_O007)))?(_B008?0x0340048du:0x0352148du):(_B008?0x0342148du:0x0350048du),_V008=_O007==0?(_K00):_O007==1?(_M00):_O007==2?((_T00&(_B008?2u:1u))?0u-(_Z00):(_Z00)):_O007==3?((_T00&(_B008?8u:4u))?32u-(_R00):(_R00)):0u};
-#define OBFH_P_ARGS_00 [d1] "i"(_D001), [v1] "i"(_V001), [d2] "i"(_D002), [v2] "i"(_V002), [d3] "i"(_D003), [v3] "i"(_V003), [d4] "i"(_D004), [v4] "i"(_V004), [d5] "i"(_D005), [v5] "i"(_V005), [d6] "i"(_D006), [v6] "i"(_V006), [d7] "i"(_D007), [v7] "i"(_V007), [d8] "i"(_D008), [v8] "i"(_V008)
-#define OBFH_P_CACHE_01 enum{_S01=__obfh_style01,_K01=__obfh_k01,_M01=__obfh_m01,_Z01=__obfh_a01,_R01=__obfh_r01,_X01=__obfh_k10,_T01=_K01>>14,_H01=__obfh_style10,_E01=__obfh_m10,_A01=__obfh_a10,_Y01=__obfh_r10,_N01=(0xb16cu>>(4*_H01+2*((_X01>>8)%12u/6u)))&3u,_F01=_S01==0?0:_S01==1?2:_S01==2?1:3,_G01=_S01==0?3:_S01==1?1:_S01==2?0:2,_J01=(_K01>>8)%12u,_Q01=((_J01<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J01&7u)))&255u};enum{_c01=0x11000035u,_f01=0x1200f281u,_e01=0x1200c069u,_h01=0x1200d269u,_i01=_T01&1u?0x1100002du:0x11000005u,_u01=_T01&2u?0x1200ea81u:0x1200c281u,_l01=_T01&4u?0x0600c8c1u:0x0600c0c1u,_w01=_T01&8u?0x0600cac1u:0x0600c2c1u};enum{_B011=(_N01<4?(((_K01>>0)^0)&1u):((_N01==4)^!!(_T01&32u)))^!!(_T01&16u),_D011=_N01==0?(_B011?_f01:_c01):_N01==1?(_B011?_h01:_e01):_N01==2?(_B011?_u01:_i01):_N01==3?(_B011?_w01:_l01):(_K01&(1u<<(16+_N01)))?(_B011?0x0342148du:0x0350048du):(_B011?0x0200daf7u:0x0200d8f7u),_V011=_N01==0?(_X01):_N01==1?(_E01):_N01==2?((_T01&(_B011?2u:1u))?0u-(_A01):(_A01)):_N01==3?((_T01&(_B011?8u:4u))?32u-(_Y01):(_Y01)):0u};enum{_B012=(_N01<4?(((_K01>>0)^1)&1u):((_N01==4)^!!(_T01&32u)))^!!(_T01&16u),_D012=_N01==0?(_B012?_f01:_c01):_N01==1?(_B012?_h01:_e01):_N01==2?(_B012?_u01:_i01):_N01==3?(_B012?_w01:_l01):(_K01&(1u<<(16+_N01)))?(_B012?0x0340048du:0x0352148du):(_B012?0x0342148du:0x0350048du),_V012=_N01==0?(_X01):_N01==1?(_E01):_N01==2?((_T01&(_B012?2u:1u))?0u-(_A01):(_A01)):_N01==3?((_T01&(_B012?8u:4u))?32u-(_Y01):(_Y01)):0u};enum{_C013=((_Q01>>(2*1))&3u),_O013=(_C013<2?(_C013?_G01:_F01):_C013+2u),_B013=(_O013<4?(((_K01>>1)^2)&1u):((_O013==4)^!!(_T01&32u)))^!!(_T01&16u),_D013=_O013==0?(_B013?_f01:_c01):_O013==1?(_B013?_h01:_e01):_O013==2?(_B013?_u01:_i01):_O013==3?(_B013?_w01:_l01):(_K01&(1u<<(16+_O013)))?(_B013?0x0342148du:0x0350048du):(_B013?0x0200daf7u:0x0200d8f7u),_V013=_O013==0?(_K01):_O013==1?(_M01):_O013==2?((_T01&(_B013?2u:1u))?0u-(_Z01):(_Z01)):_O013==3?((_T01&(_B013?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B014=(_O013<4?(((_K01>>1)^3)&1u):((_O013==4)^!!(_T01&32u)))^!!(_T01&16u),_D014=_O013==0?(_B014?_f01:_c01):_O013==1?(_B014?_h01:_e01):_O013==2?(_B014?_u01:_i01):_O013==3?(_B014?_w01:_l01):(_K01&(1u<<(16+_O013)))?(_B014?0x0340048du:0x0352148du):(_B014?0x0342148du:0x0350048du),_V014=_O013==0?(_K01):_O013==1?(_M01):_O013==2?((_T01&(_B014?2u:1u))?0u-(_Z01):(_Z01)):_O013==3?((_T01&(_B014?8u:4u))?32u-(_R01):(_R01)):0u};enum{_C015=((_Q01>>(2*2))&3u),_O015=(_C015<2?(_C015?_G01:_F01):_C015+2u),_B015=(_O015<4?(((_K01>>2)^4)&1u):((_O015==4)^!!(_T01&32u)))^!!(_T01&16u),_D015=_O015==0?(_B015?_f01:_c01):_O015==1?(_B015?_h01:_e01):_O015==2?(_B015?_u01:_i01):_O015==3?(_B015?_w01:_l01):(_K01&(1u<<(16+_O015)))?(_B015?0x0342148du:0x0350048du):(_B015?0x0200daf7u:0x0200d8f7u),_V015=_O015==0?(_K01):_O015==1?(_M01):_O015==2?((_T01&(_B015?2u:1u))?0u-(_Z01):(_Z01)):_O015==3?((_T01&(_B015?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B016=(_O015<4?(((_K01>>2)^5)&1u):((_O015==4)^!!(_T01&32u)))^!!(_T01&16u),_D016=_O015==0?(_B016?_f01:_c01):_O015==1?(_B016?_h01:_e01):_O015==2?(_B016?_u01:_i01):_O015==3?(_B016?_w01:_l01):(_K01&(1u<<(16+_O015)))?(_B016?0x0340048du:0x0352148du):(_B016?0x0342148du:0x0350048du),_V016=_O015==0?(_K01):_O015==1?(_M01):_O015==2?((_T01&(_B016?2u:1u))?0u-(_Z01):(_Z01)):_O015==3?((_T01&(_B016?8u:4u))?32u-(_R01):(_R01)):0u};enum{_C017=((_Q01>>(2*3))&3u),_O017=(_C017<2?(_C017?_G01:_F01):_C017+2u),_B017=(_O017<4?(((_K01>>3)^6)&1u):((_O017==4)^!!(_T01&32u)))^!!(_T01&16u),_D017=_O017==0?(_B017?_f01:_c01):_O017==1?(_B017?_h01:_e01):_O017==2?(_B017?_u01:_i01):_O017==3?(_B017?_w01:_l01):(_K01&(1u<<(16+_O017)))?(_B017?0x0342148du:0x0350048du):(_B017?0x0200daf7u:0x0200d8f7u),_V017=_O017==0?(_K01):_O017==1?(_M01):_O017==2?((_T01&(_B017?2u:1u))?0u-(_Z01):(_Z01)):_O017==3?((_T01&(_B017?8u:4u))?32u-(_R01):(_R01)):0u};enum{_B018=(_O017<4?(((_K01>>3)^7)&1u):((_O017==4)^!!(_T01&32u)))^!!(_T01&16u),_D018=_O017==0?(_B018?_f01:_c01):_O017==1?(_B018?_h01:_e01):_O017==2?(_B018?_u01:_i01):_O017==3?(_B018?_w01:_l01):(_K01&(1u<<(16+_O017)))?(_B018?0x0340048du:0x0352148du):(_B018?0x0342148du:0x0350048du),_V018=_O017==0?(_K01):_O017==1?(_M01):_O017==2?((_T01&(_B018?2u:1u))?0u-(_Z01):(_Z01)):_O017==3?((_T01&(_B018?8u:4u))?32u-(_R01):(_R01)):0u};
-#define OBFH_P_ARGS_01 [d1] "i"(_D011), [v1] "i"(_V011), [d2] "i"(_D012), [v2] "i"(_V012), [d3] "i"(_D013), [v3] "i"(_V013), [d4] "i"(_D014), [v4] "i"(_V014), [d5] "i"(_D015), [v5] "i"(_V015), [d6] "i"(_D016), [v6] "i"(_V016), [d7] "i"(_D017), [v7] "i"(_V017), [d8] "i"(_D018), [v8] "i"(_V018)
-#define OBFH_P_CACHE_10 enum{_S10=__obfh_style10,_K10=__obfh_k10,_M10=__obfh_m10,_Z10=__obfh_a10,_R10=__obfh_r10,_X10=__obfh_k00,_T10=_K10>>14,_H10=__obfh_style00,_E10=__obfh_m00,_A10=__obfh_a00,_Y10=__obfh_r00,_N10=(0xb16cu>>(4*_H10+2*((_X10>>8)%12u/6u)))&3u,_F10=_S10==0?0:_S10==1?2:_S10==2?1:3,_G10=_S10==0?3:_S10==1?1:_S10==2?0:2,_J10=(_K10>>8)%12u,_Q10=((_J10<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J10&7u)))&255u};enum{_c10=0x11000035u,_f10=0x1200f281u,_e10=0x1200c069u,_h10=0x1200d269u,_i10=_T10&1u?0x1100002du:0x11000005u,_u10=_T10&2u?0x1200ea81u:0x1200c281u,_l10=_T10&4u?0x0600c8c1u:0x0600c0c1u,_w10=_T10&8u?0x0600cac1u:0x0600c2c1u};enum{_B101=(_N10<4?(((_K10>>0)^0)&1u):((_N10==4)^!!(_T10&32u)))^!!(_T10&16u),_D101=_N10==0?(_B101?_f10:_c10):_N10==1?(_B101?_h10:_e10):_N10==2?(_B101?_u10:_i10):_N10==3?(_B101?_w10:_l10):(_K10&(1u<<(16+_N10)))?(_B101?0x0342148du:0x0350048du):(_B101?0x0200daf7u:0x0200d8f7u),_V101=_N10==0?(_X10):_N10==1?(_E10):_N10==2?((_T10&(_B101?2u:1u))?0u-(_A10):(_A10)):_N10==3?((_T10&(_B101?8u:4u))?32u-(_Y10):(_Y10)):0u};enum{_B102=(_N10<4?(((_K10>>0)^1)&1u):((_N10==4)^!!(_T10&32u)))^!!(_T10&16u),_D102=_N10==0?(_B102?_f10:_c10):_N10==1?(_B102?_h10:_e10):_N10==2?(_B102?_u10:_i10):_N10==3?(_B102?_w10:_l10):(_K10&(1u<<(16+_N10)))?(_B102?0x0340048du:0x0352148du):(_B102?0x0342148du:0x0350048du),_V102=_N10==0?(_X10):_N10==1?(_E10):_N10==2?((_T10&(_B102?2u:1u))?0u-(_A10):(_A10)):_N10==3?((_T10&(_B102?8u:4u))?32u-(_Y10):(_Y10)):0u};enum{_C103=((_Q10>>(2*1))&3u),_O103=(_C103<2?(_C103?_G10:_F10):_C103+2u),_B103=(_O103<4?(((_K10>>1)^2)&1u):((_O103==4)^!!(_T10&32u)))^!!(_T10&16u),_D103=_O103==0?(_B103?_f10:_c10):_O103==1?(_B103?_h10:_e10):_O103==2?(_B103?_u10:_i10):_O103==3?(_B103?_w10:_l10):(_K10&(1u<<(16+_O103)))?(_B103?0x0342148du:0x0350048du):(_B103?0x0200daf7u:0x0200d8f7u),_V103=_O103==0?(_K10):_O103==1?(_M10):_O103==2?((_T10&(_B103?2u:1u))?0u-(_Z10):(_Z10)):_O103==3?((_T10&(_B103?8u:4u))?32u-(_R10):(_R10)):0u};enum{_B104=(_O103<4?(((_K10>>1)^3)&1u):((_O103==4)^!!(_T10&32u)))^!!(_T10&16u),_D104=_O103==0?(_B104?_f10:_c10):_O103==1?(_B104?_h10:_e10):_O103==2?(_B104?_u10:_i10):_O103==3?(_B104?_w10:_l10):(_K10&(1u<<(16+_O103)))?(_B104?0x0340048du:0x0352148du):(_B104?0x0342148du:0x0350048du),_V104=_O103==0?(_K10):_O103==1?(_M10):_O103==2?((_T10&(_B104?2u:1u))?0u-(_Z10):(_Z10)):_O103==3?((_T10&(_B104?8u:4u))?32u-(_R10):(_R10)):0u};enum{_C105=((_Q10>>(2*2))&3u),_O105=(_C105<2?(_C105?_G10:_F10):_C105+2u),_B105=(_O105<4?(((_K10>>2)^4)&1u):((_O105==4)^!!(_T10&32u)))^!!(_T10&16u),_D105=_O105==0?(_B105?_f10:_c10):_O105==1?(_B105?_h10:_e10):_O105==2?(_B105?_u10:_i10):_O105==3?(_B105?_w10:_l10):(_K10&(1u<<(16+_O105)))?(_B105?0x0342148du:0x0350048du):(_B105?0x0200daf7u:0x0200d8f7u),_V105=_O105==0?(_K10):_O105==1?(_M10):_O105==2?((_T10&(_B105?2u:1u))?0u-(_Z10):(_Z10)):_O105==3?((_T10&(_B105?8u:4u))?32u-(_R10):(_R10)):0u};enum{_B106=(_O105<4?(((_K10>>2)^5)&1u):((_O105==4)^!!(_T10&32u)))^!!(_T10&16u),_D106=_O105==0?(_B106?_f10:_c10):_O105==1?(_B106?_h10:_e10):_O105==2?(_B106?_u10:_i10):_O105==3?(_B106?_w10:_l10):(_K10&(1u<<(16+_O105)))?(_B106?0x0340048du:0x0352148du):(_B106?0x0342148du:0x0350048du),_V106=_O105==0?(_K10):_O105==1?(_M10):_O105==2?((_T10&(_B106?2u:1u))?0u-(_Z10):(_Z10)):_O105==3?((_T10&(_B106?8u:4u))?32u-(_R10):(_R10)):0u};enum{_C107=((_Q10>>(2*3))&3u),_O107=(_C107<2?(_C107?_G10:_F10):_C107+2u),_B107=(_O107<4?(((_K10>>3)^6)&1u):((_O107==4)^!!(_T10&32u)))^!!(_T10&16u),_D107=_O107==0?(_B107?_f10:_c10):_O107==1?(_B107?_h10:_e10):_O107==2?(_B107?_u10:_i10):_O107==3?(_B107?_w10:_l10):(_K10&(1u<<(16+_O107)))?(_B107?0x0342148du:0x0350048du):(_B107?0x0200daf7u:0x0200d8f7u),_V107=_O107==0?(_K10):_O107==1?(_M10):_O107==2?((_T10&(_B107?2u:1u))?0u-(_Z10):(_Z10)):_O107==3?((_T10&(_B107?8u:4u))?32u-(_R10):(_R10)):0u};enum{_B108=(_O107<4?(((_K10>>3)^7)&1u):((_O107==4)^!!(_T10&32u)))^!!(_T10&16u),_D108=_O107==0?(_B108?_f10:_c10):_O107==1?(_B108?_h10:_e10):_O107==2?(_B108?_u10:_i10):_O107==3?(_B108?_w10:_l10):(_K10&(1u<<(16+_O107)))?(_B108?0x0340048du:0x0352148du):(_B108?0x0342148du:0x0350048du),_V108=_O107==0?(_K10):_O107==1?(_M10):_O107==2?((_T10&(_B108?2u:1u))?0u-(_Z10):(_Z10)):_O107==3?((_T10&(_B108?8u:4u))?32u-(_R10):(_R10)):0u};
-#define OBFH_P_ARGS_10 [d1] "i"(_D101), [v1] "i"(_V101), [d2] "i"(_D102), [v2] "i"(_V102), [d3] "i"(_D103), [v3] "i"(_V103), [d4] "i"(_D104), [v4] "i"(_V104), [d5] "i"(_D105), [v5] "i"(_V105), [d6] "i"(_D106), [v6] "i"(_V106), [d7] "i"(_D107), [v7] "i"(_V107), [d8] "i"(_D108), [v8] "i"(_V108)
-#define OBFH_P_CACHE_11 enum{_S11=__obfh_style11,_K11=__obfh_k11,_M11=__obfh_m11,_Z11=__obfh_a11,_R11=__obfh_r11,_X11=__obfh_k00,_T11=_K11>>14,_H11=__obfh_style00,_E11=__obfh_m00,_A11=__obfh_a00,_Y11=__obfh_r00,_N11=(0xb16cu>>(4*_H11+2*((_X11>>8)%12u/6u)))&3u,_F11=_S11==0?0:_S11==1?2:_S11==2?1:3,_G11=_S11==0?3:_S11==1?1:_S11==2?0:2,_J11=(_K11>>8)%12u,_Q11=((_J11<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J11&7u)))&255u};enum{_c11=0x11000035u,_f11=0x1200f281u,_e11=0x1200c069u,_h11=0x1200d269u,_i11=_T11&1u?0x1100002du:0x11000005u,_u11=_T11&2u?0x1200ea81u:0x1200c281u,_l11=_T11&4u?0x0600c8c1u:0x0600c0c1u,_w11=_T11&8u?0x0600cac1u:0x0600c2c1u};enum{_B111=(_N11<4?(((_K11>>0)^0)&1u):((_N11==4)^!!(_T11&32u)))^!!(_T11&16u),_D111=_N11==0?(_B111?_f11:_c11):_N11==1?(_B111?_h11:_e11):_N11==2?(_B111?_u11:_i11):_N11==3?(_B111?_w11:_l11):(_K11&(1u<<(16+_N11)))?(_B111?0x0342148du:0x0350048du):(_B111?0x0200daf7u:0x0200d8f7u),_V111=_N11==0?(_X11):_N11==1?(_E11):_N11==2?((_T11&(_B111?2u:1u))?0u-(_A11):(_A11)):_N11==3?((_T11&(_B111?8u:4u))?32u-(_Y11):(_Y11)):0u};enum{_B112=(_N11<4?(((_K11>>0)^1)&1u):((_N11==4)^!!(_T11&32u)))^!!(_T11&16u),_D112=_N11==0?(_B112?_f11:_c11):_N11==1?(_B112?_h11:_e11):_N11==2?(_B112?_u11:_i11):_N11==3?(_B112?_w11:_l11):(_K11&(1u<<(16+_N11)))?(_B112?0x0340048du:0x0352148du):(_B112?0x0342148du:0x0350048du),_V112=_N11==0?(_X11):_N11==1?(_E11):_N11==2?((_T11&(_B112?2u:1u))?0u-(_A11):(_A11)):_N11==3?((_T11&(_B112?8u:4u))?32u-(_Y11):(_Y11)):0u};enum{_C113=((_Q11>>(2*1))&3u),_O113=(_C113<2?(_C113?_G11:_F11):_C113+2u),_B113=(_O113<4?(((_K11>>1)^2)&1u):((_O113==4)^!!(_T11&32u)))^!!(_T11&16u),_D113=_O113==0?(_B113?_f11:_c11):_O113==1?(_B113?_h11:_e11):_O113==2?(_B113?_u11:_i11):_O113==3?(_B113?_w11:_l11):(_K11&(1u<<(16+_O113)))?(_B113?0x0342148du:0x0350048du):(_B113?0x0200daf7u:0x0200d8f7u),_V113=_O113==0?(_K11):_O113==1?(_M11):_O113==2?((_T11&(_B113?2u:1u))?0u-(_Z11):(_Z11)):_O113==3?((_T11&(_B113?8u:4u))?32u-(_R11):(_R11)):0u};enum{_B114=(_O113<4?(((_K11>>1)^3)&1u):((_O113==4)^!!(_T11&32u)))^!!(_T11&16u),_D114=_O113==0?(_B114?_f11:_c11):_O113==1?(_B114?_h11:_e11):_O113==2?(_B114?_u11:_i11):_O113==3?(_B114?_w11:_l11):(_K11&(1u<<(16+_O113)))?(_B114?0x0340048du:0x0352148du):(_B114?0x0342148du:0x0350048du),_V114=_O113==0?(_K11):_O113==1?(_M11):_O113==2?((_T11&(_B114?2u:1u))?0u-(_Z11):(_Z11)):_O113==3?((_T11&(_B114?8u:4u))?32u-(_R11):(_R11)):0u};enum{_C115=((_Q11>>(2*2))&3u),_O115=(_C115<2?(_C115?_G11:_F11):_C115+2u),_B115=(_O115<4?(((_K11>>2)^4)&1u):((_O115==4)^!!(_T11&32u)))^!!(_T11&16u),_D115=_O115==0?(_B115?_f11:_c11):_O115==1?(_B115?_h11:_e11):_O115==2?(_B115?_u11:_i11):_O115==3?(_B115?_w11:_l11):(_K11&(1u<<(16+_O115)))?(_B115?0x0342148du:0x0350048du):(_B115?0x0200daf7u:0x0200d8f7u),_V115=_O115==0?(_K11):_O115==1?(_M11):_O115==2?((_T11&(_B115?2u:1u))?0u-(_Z11):(_Z11)):_O115==3?((_T11&(_B115?8u:4u))?32u-(_R11):(_R11)):0u};enum{_B116=(_O115<4?(((_K11>>2)^5)&1u):((_O115==4)^!!(_T11&32u)))^!!(_T11&16u),_D116=_O115==0?(_B116?_f11:_c11):_O115==1?(_B116?_h11:_e11):_O115==2?(_B116?_u11:_i11):_O115==3?(_B116?_w11:_l11):(_K11&(1u<<(16+_O115)))?(_B116?0x0340048du:0x0352148du):(_B116?0x0342148du:0x0350048du),_V116=_O115==0?(_K11):_O115==1?(_M11):_O115==2?((_T11&(_B116?2u:1u))?0u-(_Z11):(_Z11)):_O115==3?((_T11&(_B116?8u:4u))?32u-(_R11):(_R11)):0u};enum{_C117=((_Q11>>(2*3))&3u),_O117=(_C117<2?(_C117?_G11:_F11):_C117+2u),_B117=(_O117<4?(((_K11>>3)^6)&1u):((_O117==4)^!!(_T11&32u)))^!!(_T11&16u),_D117=_O117==0?(_B117?_f11:_c11):_O117==1?(_B117?_h11:_e11):_O117==2?(_B117?_u11:_i11):_O117==3?(_B117?_w11:_l11):(_K11&(1u<<(16+_O117)))?(_B117?0x0342148du:0x0350048du):(_B117?0x0200daf7u:0x0200d8f7u),_V117=_O117==0?(_K11):_O117==1?(_M11):_O117==2?((_T11&(_B117?2u:1u))?0u-(_Z11):(_Z11)):_O117==3?((_T11&(_B117?8u:4u))?32u-(_R11):(_R11)):0u};enum{_B118=(_O117<4?(((_K11>>3)^7)&1u):((_O117==4)^!!(_T11&32u)))^!!(_T11&16u),_D118=_O117==0?(_B118?_f11:_c11):_O117==1?(_B118?_h11:_e11):_O117==2?(_B118?_u11:_i11):_O117==3?(_B118?_w11:_l11):(_K11&(1u<<(16+_O117)))?(_B118?0x0340048du:0x0352148du):(_B118?0x0342148du:0x0350048du),_V118=_O117==0?(_K11):_O117==1?(_M11):_O117==2?((_T11&(_B118?2u:1u))?0u-(_Z11):(_Z11)):_O117==3?((_T11&(_B118?8u:4u))?32u-(_R11):(_R11)):0u};
-#define OBFH_P_ARGS_11 [d1] "i"(_D111), [v1] "i"(_V111), [d2] "i"(_D112), [v2] "i"(_V112), [d3] "i"(_D113), [v3] "i"(_V113), [d4] "i"(_D114), [v4] "i"(_V114), [d5] "i"(_D115), [v5] "i"(_V115), [d6] "i"(_D116), [v6] "i"(_V116), [d7] "i"(_D117), [v7] "i"(_V117), [d8] "i"(_D118), [v8] "i"(_V118)
-#define OBFH_P_CACHE_20 enum{_S20=__obfh_style20,_K20=__obfh_k20,_M20=__obfh_m20,_Z20=__obfh_a20,_R20=__obfh_r20,_X20=__obfh_k30,_T20=_K20>>14,_H20=__obfh_style30,_E20=__obfh_m30,_A20=__obfh_a30,_Y20=__obfh_r30,_N20=(0xb16cu>>(4*_H20+2*((_X20>>8)%12u/6u)))&3u,_F20=_S20==0?0:_S20==1?2:_S20==2?1:3,_G20=_S20==0?3:_S20==1?1:_S20==2?0:2,_J20=(_K20>>8)%12u,_Q20=((_J20<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J20&7u)))&255u};enum{_c20=0x11000035u,_f20=0x1200f281u,_e20=0x1200c069u,_h20=0x1200d269u,_i20=_T20&1u?0x1100002du:0x11000005u,_u20=_T20&2u?0x1200ea81u:0x1200c281u,_l20=_T20&4u?0x0600c8c1u:0x0600c0c1u,_w20=_T20&8u?0x0600cac1u:0x0600c2c1u};enum{_B201=(_N20<4?(((_K20>>0)^0)&1u):((_N20==4)^!!(_T20&32u)))^!!(_T20&16u),_D201=_N20==0?(_B201?_f20:_c20):_N20==1?(_B201?_h20:_e20):_N20==2?(_B201?_u20:_i20):_N20==3?(_B201?_w20:_l20):(_K20&(1u<<(16+_N20)))?(_B201?0x0342148du:0x0350048du):(_B201?0x0200daf7u:0x0200d8f7u),_V201=_N20==0?(_X20):_N20==1?(_E20):_N20==2?((_T20&(_B201?2u:1u))?0u-(_A20):(_A20)):_N20==3?((_T20&(_B201?8u:4u))?32u-(_Y20):(_Y20)):0u};enum{_B202=(_N20<4?(((_K20>>0)^1)&1u):((_N20==4)^!!(_T20&32u)))^!!(_T20&16u),_D202=_N20==0?(_B202?_f20:_c20):_N20==1?(_B202?_h20:_e20):_N20==2?(_B202?_u20:_i20):_N20==3?(_B202?_w20:_l20):(_K20&(1u<<(16+_N20)))?(_B202?0x0340048du:0x0352148du):(_B202?0x0342148du:0x0350048du),_V202=_N20==0?(_X20):_N20==1?(_E20):_N20==2?((_T20&(_B202?2u:1u))?0u-(_A20):(_A20)):_N20==3?((_T20&(_B202?8u:4u))?32u-(_Y20):(_Y20)):0u};enum{_C203=((_Q20>>(2*1))&3u),_O203=(_C203<2?(_C203?_G20:_F20):_C203+2u),_B203=(_O203<4?(((_K20>>1)^2)&1u):((_O203==4)^!!(_T20&32u)))^!!(_T20&16u),_D203=_O203==0?(_B203?_f20:_c20):_O203==1?(_B203?_h20:_e20):_O203==2?(_B203?_u20:_i20):_O203==3?(_B203?_w20:_l20):(_K20&(1u<<(16+_O203)))?(_B203?0x0342148du:0x0350048du):(_B203?0x0200daf7u:0x0200d8f7u),_V203=_O203==0?(_K20):_O203==1?(_M20):_O203==2?((_T20&(_B203?2u:1u))?0u-(_Z20):(_Z20)):_O203==3?((_T20&(_B203?8u:4u))?32u-(_R20):(_R20)):0u};enum{_B204=(_O203<4?(((_K20>>1)^3)&1u):((_O203==4)^!!(_T20&32u)))^!!(_T20&16u),_D204=_O203==0?(_B204?_f20:_c20):_O203==1?(_B204?_h20:_e20):_O203==2?(_B204?_u20:_i20):_O203==3?(_B204?_w20:_l20):(_K20&(1u<<(16+_O203)))?(_B204?0x0340048du:0x0352148du):(_B204?0x0342148du:0x0350048du),_V204=_O203==0?(_K20):_O203==1?(_M20):_O203==2?((_T20&(_B204?2u:1u))?0u-(_Z20):(_Z20)):_O203==3?((_T20&(_B204?8u:4u))?32u-(_R20):(_R20)):0u};enum{_C205=((_Q20>>(2*2))&3u),_O205=(_C205<2?(_C205?_G20:_F20):_C205+2u),_B205=(_O205<4?(((_K20>>2)^4)&1u):((_O205==4)^!!(_T20&32u)))^!!(_T20&16u),_D205=_O205==0?(_B205?_f20:_c20):_O205==1?(_B205?_h20:_e20):_O205==2?(_B205?_u20:_i20):_O205==3?(_B205?_w20:_l20):(_K20&(1u<<(16+_O205)))?(_B205?0x0342148du:0x0350048du):(_B205?0x0200daf7u:0x0200d8f7u),_V205=_O205==0?(_K20):_O205==1?(_M20):_O205==2?((_T20&(_B205?2u:1u))?0u-(_Z20):(_Z20)):_O205==3?((_T20&(_B205?8u:4u))?32u-(_R20):(_R20)):0u};enum{_B206=(_O205<4?(((_K20>>2)^5)&1u):((_O205==4)^!!(_T20&32u)))^!!(_T20&16u),_D206=_O205==0?(_B206?_f20:_c20):_O205==1?(_B206?_h20:_e20):_O205==2?(_B206?_u20:_i20):_O205==3?(_B206?_w20:_l20):(_K20&(1u<<(16+_O205)))?(_B206?0x0340048du:0x0352148du):(_B206?0x0342148du:0x0350048du),_V206=_O205==0?(_K20):_O205==1?(_M20):_O205==2?((_T20&(_B206?2u:1u))?0u-(_Z20):(_Z20)):_O205==3?((_T20&(_B206?8u:4u))?32u-(_R20):(_R20)):0u};enum{_C207=((_Q20>>(2*3))&3u),_O207=(_C207<2?(_C207?_G20:_F20):_C207+2u),_B207=(_O207<4?(((_K20>>3)^6)&1u):((_O207==4)^!!(_T20&32u)))^!!(_T20&16u),_D207=_O207==0?(_B207?_f20:_c20):_O207==1?(_B207?_h20:_e20):_O207==2?(_B207?_u20:_i20):_O207==3?(_B207?_w20:_l20):(_K20&(1u<<(16+_O207)))?(_B207?0x0342148du:0x0350048du):(_B207?0x0200daf7u:0x0200d8f7u),_V207=_O207==0?(_K20):_O207==1?(_M20):_O207==2?((_T20&(_B207?2u:1u))?0u-(_Z20):(_Z20)):_O207==3?((_T20&(_B207?8u:4u))?32u-(_R20):(_R20)):0u};enum{_B208=(_O207<4?(((_K20>>3)^7)&1u):((_O207==4)^!!(_T20&32u)))^!!(_T20&16u),_D208=_O207==0?(_B208?_f20:_c20):_O207==1?(_B208?_h20:_e20):_O207==2?(_B208?_u20:_i20):_O207==3?(_B208?_w20:_l20):(_K20&(1u<<(16+_O207)))?(_B208?0x0340048du:0x0352148du):(_B208?0x0342148du:0x0350048du),_V208=_O207==0?(_K20):_O207==1?(_M20):_O207==2?((_T20&(_B208?2u:1u))?0u-(_Z20):(_Z20)):_O207==3?((_T20&(_B208?8u:4u))?32u-(_R20):(_R20)):0u};
-#define OBFH_P_ARGS_20 [d1] "i"(_D201), [v1] "i"(_V201), [d2] "i"(_D202), [v2] "i"(_V202), [d3] "i"(_D203), [v3] "i"(_V203), [d4] "i"(_D204), [v4] "i"(_V204), [d5] "i"(_D205), [v5] "i"(_V205), [d6] "i"(_D206), [v6] "i"(_V206), [d7] "i"(_D207), [v7] "i"(_V207), [d8] "i"(_D208), [v8] "i"(_V208)
-#define OBFH_P_CACHE_21 enum{_S21=__obfh_style21,_K21=__obfh_k21,_M21=__obfh_m21,_Z21=__obfh_a21,_R21=__obfh_r21,_X21=__obfh_k30,_T21=_K21>>14,_H21=__obfh_style30,_E21=__obfh_m30,_A21=__obfh_a30,_Y21=__obfh_r30,_N21=(0xb16cu>>(4*_H21+2*((_X21>>8)%12u/6u)))&3u,_F21=_S21==0?0:_S21==1?2:_S21==2?1:3,_G21=_S21==0?3:_S21==1?1:_S21==2?0:2,_J21=(_K21>>8)%12u,_Q21=((_J21<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J21&7u)))&255u};enum{_c21=0x11000035u,_f21=0x1200f281u,_e21=0x1200c069u,_h21=0x1200d269u,_i21=_T21&1u?0x1100002du:0x11000005u,_u21=_T21&2u?0x1200ea81u:0x1200c281u,_l21=_T21&4u?0x0600c8c1u:0x0600c0c1u,_w21=_T21&8u?0x0600cac1u:0x0600c2c1u};enum{_B211=(_N21<4?(((_K21>>0)^0)&1u):((_N21==4)^!!(_T21&32u)))^!!(_T21&16u),_D211=_N21==0?(_B211?_f21:_c21):_N21==1?(_B211?_h21:_e21):_N21==2?(_B211?_u21:_i21):_N21==3?(_B211?_w21:_l21):(_K21&(1u<<(16+_N21)))?(_B211?0x0342148du:0x0350048du):(_B211?0x0200daf7u:0x0200d8f7u),_V211=_N21==0?(_X21):_N21==1?(_E21):_N21==2?((_T21&(_B211?2u:1u))?0u-(_A21):(_A21)):_N21==3?((_T21&(_B211?8u:4u))?32u-(_Y21):(_Y21)):0u};enum{_B212=(_N21<4?(((_K21>>0)^1)&1u):((_N21==4)^!!(_T21&32u)))^!!(_T21&16u),_D212=_N21==0?(_B212?_f21:_c21):_N21==1?(_B212?_h21:_e21):_N21==2?(_B212?_u21:_i21):_N21==3?(_B212?_w21:_l21):(_K21&(1u<<(16+_N21)))?(_B212?0x0340048du:0x0352148du):(_B212?0x0342148du:0x0350048du),_V212=_N21==0?(_X21):_N21==1?(_E21):_N21==2?((_T21&(_B212?2u:1u))?0u-(_A21):(_A21)):_N21==3?((_T21&(_B212?8u:4u))?32u-(_Y21):(_Y21)):0u};enum{_C213=((_Q21>>(2*1))&3u),_O213=(_C213<2?(_C213?_G21:_F21):_C213+2u),_B213=(_O213<4?(((_K21>>1)^2)&1u):((_O213==4)^!!(_T21&32u)))^!!(_T21&16u),_D213=_O213==0?(_B213?_f21:_c21):_O213==1?(_B213?_h21:_e21):_O213==2?(_B213?_u21:_i21):_O213==3?(_B213?_w21:_l21):(_K21&(1u<<(16+_O213)))?(_B213?0x0342148du:0x0350048du):(_B213?0x0200daf7u:0x0200d8f7u),_V213=_O213==0?(_K21):_O213==1?(_M21):_O213==2?((_T21&(_B213?2u:1u))?0u-(_Z21):(_Z21)):_O213==3?((_T21&(_B213?8u:4u))?32u-(_R21):(_R21)):0u};enum{_B214=(_O213<4?(((_K21>>1)^3)&1u):((_O213==4)^!!(_T21&32u)))^!!(_T21&16u),_D214=_O213==0?(_B214?_f21:_c21):_O213==1?(_B214?_h21:_e21):_O213==2?(_B214?_u21:_i21):_O213==3?(_B214?_w21:_l21):(_K21&(1u<<(16+_O213)))?(_B214?0x0340048du:0x0352148du):(_B214?0x0342148du:0x0350048du),_V214=_O213==0?(_K21):_O213==1?(_M21):_O213==2?((_T21&(_B214?2u:1u))?0u-(_Z21):(_Z21)):_O213==3?((_T21&(_B214?8u:4u))?32u-(_R21):(_R21)):0u};enum{_C215=((_Q21>>(2*2))&3u),_O215=(_C215<2?(_C215?_G21:_F21):_C215+2u),_B215=(_O215<4?(((_K21>>2)^4)&1u):((_O215==4)^!!(_T21&32u)))^!!(_T21&16u),_D215=_O215==0?(_B215?_f21:_c21):_O215==1?(_B215?_h21:_e21):_O215==2?(_B215?_u21:_i21):_O215==3?(_B215?_w21:_l21):(_K21&(1u<<(16+_O215)))?(_B215?0x0342148du:0x0350048du):(_B215?0x0200daf7u:0x0200d8f7u),_V215=_O215==0?(_K21):_O215==1?(_M21):_O215==2?((_T21&(_B215?2u:1u))?0u-(_Z21):(_Z21)):_O215==3?((_T21&(_B215?8u:4u))?32u-(_R21):(_R21)):0u};enum{_B216=(_O215<4?(((_K21>>2)^5)&1u):((_O215==4)^!!(_T21&32u)))^!!(_T21&16u),_D216=_O215==0?(_B216?_f21:_c21):_O215==1?(_B216?_h21:_e21):_O215==2?(_B216?_u21:_i21):_O215==3?(_B216?_w21:_l21):(_K21&(1u<<(16+_O215)))?(_B216?0x0340048du:0x0352148du):(_B216?0x0342148du:0x0350048du),_V216=_O215==0?(_K21):_O215==1?(_M21):_O215==2?((_T21&(_B216?2u:1u))?0u-(_Z21):(_Z21)):_O215==3?((_T21&(_B216?8u:4u))?32u-(_R21):(_R21)):0u};enum{_C217=((_Q21>>(2*3))&3u),_O217=(_C217<2?(_C217?_G21:_F21):_C217+2u),_B217=(_O217<4?(((_K21>>3)^6)&1u):((_O217==4)^!!(_T21&32u)))^!!(_T21&16u),_D217=_O217==0?(_B217?_f21:_c21):_O217==1?(_B217?_h21:_e21):_O217==2?(_B217?_u21:_i21):_O217==3?(_B217?_w21:_l21):(_K21&(1u<<(16+_O217)))?(_B217?0x0342148du:0x0350048du):(_B217?0x0200daf7u:0x0200d8f7u),_V217=_O217==0?(_K21):_O217==1?(_M21):_O217==2?((_T21&(_B217?2u:1u))?0u-(_Z21):(_Z21)):_O217==3?((_T21&(_B217?8u:4u))?32u-(_R21):(_R21)):0u};enum{_B218=(_O217<4?(((_K21>>3)^7)&1u):((_O217==4)^!!(_T21&32u)))^!!(_T21&16u),_D218=_O217==0?(_B218?_f21:_c21):_O217==1?(_B218?_h21:_e21):_O217==2?(_B218?_u21:_i21):_O217==3?(_B218?_w21:_l21):(_K21&(1u<<(16+_O217)))?(_B218?0x0340048du:0x0352148du):(_B218?0x0342148du:0x0350048du),_V218=_O217==0?(_K21):_O217==1?(_M21):_O217==2?((_T21&(_B218?2u:1u))?0u-(_Z21):(_Z21)):_O217==3?((_T21&(_B218?8u:4u))?32u-(_R21):(_R21)):0u};
-#define OBFH_P_ARGS_21 [d1] "i"(_D211), [v1] "i"(_V211), [d2] "i"(_D212), [v2] "i"(_V212), [d3] "i"(_D213), [v3] "i"(_V213), [d4] "i"(_D214), [v4] "i"(_V214), [d5] "i"(_D215), [v5] "i"(_V215), [d6] "i"(_D216), [v6] "i"(_V216), [d7] "i"(_D217), [v7] "i"(_V217), [d8] "i"(_D218), [v8] "i"(_V218)
-#define OBFH_P_CACHE_30 enum{_S30=__obfh_style30,_K30=__obfh_k30,_M30=__obfh_m30,_Z30=__obfh_a30,_R30=__obfh_r30,_X30=__obfh_k20,_T30=_K30>>14,_H30=__obfh_style20,_E30=__obfh_m20,_A30=__obfh_a20,_Y30=__obfh_r20,_N30=(0xb16cu>>(4*_H30+2*((_X30>>8)%12u/6u)))&3u,_F30=_S30==0?0:_S30==1?2:_S30==2?1:3,_G30=_S30==0?3:_S30==1?1:_S30==2?0:2,_J30=(_K30>>8)%12u,_Q30=((_J30<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J30&7u)))&255u};enum{_c30=0x11000035u,_f30=0x1200f281u,_e30=0x1200c069u,_h30=0x1200d269u,_i30=_T30&1u?0x1100002du:0x11000005u,_u30=_T30&2u?0x1200ea81u:0x1200c281u,_l30=_T30&4u?0x0600c8c1u:0x0600c0c1u,_w30=_T30&8u?0x0600cac1u:0x0600c2c1u};enum{_B301=(_N30<4?(((_K30>>0)^0)&1u):((_N30==4)^!!(_T30&32u)))^!!(_T30&16u),_D301=_N30==0?(_B301?_f30:_c30):_N30==1?(_B301?_h30:_e30):_N30==2?(_B301?_u30:_i30):_N30==3?(_B301?_w30:_l30):(_K30&(1u<<(16+_N30)))?(_B301?0x0342148du:0x0350048du):(_B301?0x0200daf7u:0x0200d8f7u),_V301=_N30==0?(_X30):_N30==1?(_E30):_N30==2?((_T30&(_B301?2u:1u))?0u-(_A30):(_A30)):_N30==3?((_T30&(_B301?8u:4u))?32u-(_Y30):(_Y30)):0u};enum{_B302=(_N30<4?(((_K30>>0)^1)&1u):((_N30==4)^!!(_T30&32u)))^!!(_T30&16u),_D302=_N30==0?(_B302?_f30:_c30):_N30==1?(_B302?_h30:_e30):_N30==2?(_B302?_u30:_i30):_N30==3?(_B302?_w30:_l30):(_K30&(1u<<(16+_N30)))?(_B302?0x0340048du:0x0352148du):(_B302?0x0342148du:0x0350048du),_V302=_N30==0?(_X30):_N30==1?(_E30):_N30==2?((_T30&(_B302?2u:1u))?0u-(_A30):(_A30)):_N30==3?((_T30&(_B302?8u:4u))?32u-(_Y30):(_Y30)):0u};enum{_C303=((_Q30>>(2*1))&3u),_O303=(_C303<2?(_C303?_G30:_F30):_C303+2u),_B303=(_O303<4?(((_K30>>1)^2)&1u):((_O303==4)^!!(_T30&32u)))^!!(_T30&16u),_D303=_O303==0?(_B303?_f30:_c30):_O303==1?(_B303?_h30:_e30):_O303==2?(_B303?_u30:_i30):_O303==3?(_B303?_w30:_l30):(_K30&(1u<<(16+_O303)))?(_B303?0x0342148du:0x0350048du):(_B303?0x0200daf7u:0x0200d8f7u),_V303=_O303==0?(_K30):_O303==1?(_M30):_O303==2?((_T30&(_B303?2u:1u))?0u-(_Z30):(_Z30)):_O303==3?((_T30&(_B303?8u:4u))?32u-(_R30):(_R30)):0u};enum{_B304=(_O303<4?(((_K30>>1)^3)&1u):((_O303==4)^!!(_T30&32u)))^!!(_T30&16u),_D304=_O303==0?(_B304?_f30:_c30):_O303==1?(_B304?_h30:_e30):_O303==2?(_B304?_u30:_i30):_O303==3?(_B304?_w30:_l30):(_K30&(1u<<(16+_O303)))?(_B304?0x0340048du:0x0352148du):(_B304?0x0342148du:0x0350048du),_V304=_O303==0?(_K30):_O303==1?(_M30):_O303==2?((_T30&(_B304?2u:1u))?0u-(_Z30):(_Z30)):_O303==3?((_T30&(_B304?8u:4u))?32u-(_R30):(_R30)):0u};enum{_C305=((_Q30>>(2*2))&3u),_O305=(_C305<2?(_C305?_G30:_F30):_C305+2u),_B305=(_O305<4?(((_K30>>2)^4)&1u):((_O305==4)^!!(_T30&32u)))^!!(_T30&16u),_D305=_O305==0?(_B305?_f30:_c30):_O305==1?(_B305?_h30:_e30):_O305==2?(_B305?_u30:_i30):_O305==3?(_B305?_w30:_l30):(_K30&(1u<<(16+_O305)))?(_B305?0x0342148du:0x0350048du):(_B305?0x0200daf7u:0x0200d8f7u),_V305=_O305==0?(_K30):_O305==1?(_M30):_O305==2?((_T30&(_B305?2u:1u))?0u-(_Z30):(_Z30)):_O305==3?((_T30&(_B305?8u:4u))?32u-(_R30):(_R30)):0u};enum{_B306=(_O305<4?(((_K30>>2)^5)&1u):((_O305==4)^!!(_T30&32u)))^!!(_T30&16u),_D306=_O305==0?(_B306?_f30:_c30):_O305==1?(_B306?_h30:_e30):_O305==2?(_B306?_u30:_i30):_O305==3?(_B306?_w30:_l30):(_K30&(1u<<(16+_O305)))?(_B306?0x0340048du:0x0352148du):(_B306?0x0342148du:0x0350048du),_V306=_O305==0?(_K30):_O305==1?(_M30):_O305==2?((_T30&(_B306?2u:1u))?0u-(_Z30):(_Z30)):_O305==3?((_T30&(_B306?8u:4u))?32u-(_R30):(_R30)):0u};enum{_C307=((_Q30>>(2*3))&3u),_O307=(_C307<2?(_C307?_G30:_F30):_C307+2u),_B307=(_O307<4?(((_K30>>3)^6)&1u):((_O307==4)^!!(_T30&32u)))^!!(_T30&16u),_D307=_O307==0?(_B307?_f30:_c30):_O307==1?(_B307?_h30:_e30):_O307==2?(_B307?_u30:_i30):_O307==3?(_B307?_w30:_l30):(_K30&(1u<<(16+_O307)))?(_B307?0x0342148du:0x0350048du):(_B307?0x0200daf7u:0x0200d8f7u),_V307=_O307==0?(_K30):_O307==1?(_M30):_O307==2?((_T30&(_B307?2u:1u))?0u-(_Z30):(_Z30)):_O307==3?((_T30&(_B307?8u:4u))?32u-(_R30):(_R30)):0u};enum{_B308=(_O307<4?(((_K30>>3)^7)&1u):((_O307==4)^!!(_T30&32u)))^!!(_T30&16u),_D308=_O307==0?(_B308?_f30:_c30):_O307==1?(_B308?_h30:_e30):_O307==2?(_B308?_u30:_i30):_O307==3?(_B308?_w30:_l30):(_K30&(1u<<(16+_O307)))?(_B308?0x0340048du:0x0352148du):(_B308?0x0342148du:0x0350048du),_V308=_O307==0?(_K30):_O307==1?(_M30):_O307==2?((_T30&(_B308?2u:1u))?0u-(_Z30):(_Z30)):_O307==3?((_T30&(_B308?8u:4u))?32u-(_R30):(_R30)):0u};
-#define OBFH_P_ARGS_30 [d1] "i"(_D301), [v1] "i"(_V301), [d2] "i"(_D302), [v2] "i"(_V302), [d3] "i"(_D303), [v3] "i"(_V303), [d4] "i"(_D304), [v4] "i"(_V304), [d5] "i"(_D305), [v5] "i"(_V305), [d6] "i"(_D306), [v6] "i"(_V306), [d7] "i"(_D307), [v7] "i"(_V307), [d8] "i"(_D308), [v8] "i"(_V308)
-#define OBFH_P_CACHE_31 enum{_S31=__obfh_style31,_K31=__obfh_k31,_M31=__obfh_m31,_Z31=__obfh_a31,_R31=__obfh_r31,_X31=__obfh_k20,_T31=_K31>>14,_H31=__obfh_style20,_E31=__obfh_m20,_A31=__obfh_a20,_Y31=__obfh_r20,_N31=(0xb16cu>>(4*_H31+2*((_X31>>8)%12u/6u)))&3u,_F31=_S31==0?0:_S31==1?2:_S31==2?1:3,_G31=_S31==0?3:_S31==1?1:_S31==2?0:2,_J31=(_K31>>8)%12u,_Q31=((_J31<8?0xb1e16c9c78d8b4e4ull:0x2d8d39c9ull)>>(8*(_J31&7u)))&255u};enum{_c31=0x11000035u,_f31=0x1200f281u,_e31=0x1200c069u,_h31=0x1200d269u,_i31=_T31&1u?0x1100002du:0x11000005u,_u31=_T31&2u?0x1200ea81u:0x1200c281u,_l31=_T31&4u?0x0600c8c1u:0x0600c0c1u,_w31=_T31&8u?0x0600cac1u:0x0600c2c1u};enum{_B311=(_N31<4?(((_K31>>0)^0)&1u):((_N31==4)^!!(_T31&32u)))^!!(_T31&16u),_D311=_N31==0?(_B311?_f31:_c31):_N31==1?(_B311?_h31:_e31):_N31==2?(_B311?_u31:_i31):_N31==3?(_B311?_w31:_l31):(_K31&(1u<<(16+_N31)))?(_B311?0x0342148du:0x0350048du):(_B311?0x0200daf7u:0x0200d8f7u),_V311=_N31==0?(_X31):_N31==1?(_E31):_N31==2?((_T31&(_B311?2u:1u))?0u-(_A31):(_A31)):_N31==3?((_T31&(_B311?8u:4u))?32u-(_Y31):(_Y31)):0u};enum{_B312=(_N31<4?(((_K31>>0)^1)&1u):((_N31==4)^!!(_T31&32u)))^!!(_T31&16u),_D312=_N31==0?(_B312?_f31:_c31):_N31==1?(_B312?_h31:_e31):_N31==2?(_B312?_u31:_i31):_N31==3?(_B312?_w31:_l31):(_K31&(1u<<(16+_N31)))?(_B312?0x0340048du:0x0352148du):(_B312?0x0342148du:0x0350048du),_V312=_N31==0?(_X31):_N31==1?(_E31):_N31==2?((_T31&(_B312?2u:1u))?0u-(_A31):(_A31)):_N31==3?((_T31&(_B312?8u:4u))?32u-(_Y31):(_Y31)):0u};enum{_C313=((_Q31>>(2*1))&3u),_O313=(_C313<2?(_C313?_G31:_F31):_C313+2u),_B313=(_O313<4?(((_K31>>1)^2)&1u):((_O313==4)^!!(_T31&32u)))^!!(_T31&16u),_D313=_O313==0?(_B313?_f31:_c31):_O313==1?(_B313?_h31:_e31):_O313==2?(_B313?_u31:_i31):_O313==3?(_B313?_w31:_l31):(_K31&(1u<<(16+_O313)))?(_B313?0x0342148du:0x0350048du):(_B313?0x0200daf7u:0x0200d8f7u),_V313=_O313==0?(_K31):_O313==1?(_M31):_O313==2?((_T31&(_B313?2u:1u))?0u-(_Z31):(_Z31)):_O313==3?((_T31&(_B313?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B314=(_O313<4?(((_K31>>1)^3)&1u):((_O313==4)^!!(_T31&32u)))^!!(_T31&16u),_D314=_O313==0?(_B314?_f31:_c31):_O313==1?(_B314?_h31:_e31):_O313==2?(_B314?_u31:_i31):_O313==3?(_B314?_w31:_l31):(_K31&(1u<<(16+_O313)))?(_B314?0x0340048du:0x0352148du):(_B314?0x0342148du:0x0350048du),_V314=_O313==0?(_K31):_O313==1?(_M31):_O313==2?((_T31&(_B314?2u:1u))?0u-(_Z31):(_Z31)):_O313==3?((_T31&(_B314?8u:4u))?32u-(_R31):(_R31)):0u};enum{_C315=((_Q31>>(2*2))&3u),_O315=(_C315<2?(_C315?_G31:_F31):_C315+2u),_B315=(_O315<4?(((_K31>>2)^4)&1u):((_O315==4)^!!(_T31&32u)))^!!(_T31&16u),_D315=_O315==0?(_B315?_f31:_c31):_O315==1?(_B315?_h31:_e31):_O315==2?(_B315?_u31:_i31):_O315==3?(_B315?_w31:_l31):(_K31&(1u<<(16+_O315)))?(_B315?0x0342148du:0x0350048du):(_B315?0x0200daf7u:0x0200d8f7u),_V315=_O315==0?(_K31):_O315==1?(_M31):_O315==2?((_T31&(_B315?2u:1u))?0u-(_Z31):(_Z31)):_O315==3?((_T31&(_B315?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B316=(_O315<4?(((_K31>>2)^5)&1u):((_O315==4)^!!(_T31&32u)))^!!(_T31&16u),_D316=_O315==0?(_B316?_f31:_c31):_O315==1?(_B316?_h31:_e31):_O315==2?(_B316?_u31:_i31):_O315==3?(_B316?_w31:_l31):(_K31&(1u<<(16+_O315)))?(_B316?0x0340048du:0x0352148du):(_B316?0x0342148du:0x0350048du),_V316=_O315==0?(_K31):_O315==1?(_M31):_O315==2?((_T31&(_B316?2u:1u))?0u-(_Z31):(_Z31)):_O315==3?((_T31&(_B316?8u:4u))?32u-(_R31):(_R31)):0u};enum{_C317=((_Q31>>(2*3))&3u),_O317=(_C317<2?(_C317?_G31:_F31):_C317+2u),_B317=(_O317<4?(((_K31>>3)^6)&1u):((_O317==4)^!!(_T31&32u)))^!!(_T31&16u),_D317=_O317==0?(_B317?_f31:_c31):_O317==1?(_B317?_h31:_e31):_O317==2?(_B317?_u31:_i31):_O317==3?(_B317?_w31:_l31):(_K31&(1u<<(16+_O317)))?(_B317?0x0342148du:0x0350048du):(_B317?0x0200daf7u:0x0200d8f7u),_V317=_O317==0?(_K31):_O317==1?(_M31):_O317==2?((_T31&(_B317?2u:1u))?0u-(_Z31):(_Z31)):_O317==3?((_T31&(_B317?8u:4u))?32u-(_R31):(_R31)):0u};enum{_B318=(_O317<4?(((_K31>>3)^7)&1u):((_O317==4)^!!(_T31&32u)))^!!(_T31&16u),_D318=_O317==0?(_B318?_f31:_c31):_O317==1?(_B318?_h31:_e31):_O317==2?(_B318?_u31:_i31):_O317==3?(_B318?_w31:_l31):(_K31&(1u<<(16+_O317)))?(_B318?0x0340048du:0x0352148du):(_B318?0x0342148du:0x0350048du),_V318=_O317==0?(_K31):_O317==1?(_M31):_O317==2?((_T31&(_B318?2u:1u))?0u-(_Z31):(_Z31)):_O317==3?((_T31&(_B318?8u:4u))?32u-(_R31):(_R31)):0u};
-#define OBFH_P_ARGS_31 [d1] "i"(_D311), [v1] "i"(_V311), [d2] "i"(_D312), [v2] "i"(_V312), [d3] "i"(_D313), [v3] "i"(_V313), [d4] "i"(_D314), [v4] "i"(_V314), [d5] "i"(_D315), [v5] "i"(_V315), [d6] "i"(_D316), [v6] "i"(_V316), [d7] "i"(_D317), [v7] "i"(_V317), [d8] "i"(_D318), [v8] "i"(_V318)
-// clang-format on
 // V1 has one graph: do not instantiate the unused second-stage constants.
 #if OBFH_BETTER_CONTROL_FLOW
+#define OBFH_P_SECOND_CONSTANTS \
+    enum { \
+        __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u), \
+        __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu), \
+        __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u, \
+        __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u), \
+        __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu), \
+        __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u, \
+        __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u), \
+        __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu), \
+        __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u, \
+        __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u), \
+        __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu), \
+        __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u \
+    };
 #define OBFH_P_SECOND_PREPARE \
     OBFH_P_SELECTOR_META(2); \
     OBFH_P_SELECTOR_META(3); \
@@ -5829,6 +3801,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_FIRST_GRAPH OBFH_P_GRAPH(__obfh_flow_first, 0, 1, 0)
 #define OBFH_P_SECOND_GRAPH OBFH_P_GRAPH(__obfh_flow_second, 2, 3, 1)
 #else
+#define OBFH_P_SECOND_CONSTANTS
 #define OBFH_P_SECOND_PREPARE
 #define OBFH_P_FIRST_GRAPH OBFH_P_GRAPH(__obfh_flow_first, 0, 1, 1)
 #define OBFH_P_SECOND_GRAPH ((void)0)
@@ -5840,12 +3813,6 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                  : "i"((OBFH_BETTER_CONTROL_FLOW ? 2 : 4) * (!(split) | (((__obfh_flow_hash >> ((shift) + 24)) & 1u) == (part)))), \
                    "i"(__obfh_flow_hash ^ (0x9e3779b9u * ((shift) + 1u))))
 
-#define OBFH_P_STEP(s, p) \
-    ({ \
-        OBFH_P_BEFORE \
-        OBFH_P_PERMUTE(s, p, OBFH_P_INSTRUCTIONS); \
-        OBFH_P_TRACE(s, p); \
-    })
 #define OBFH_P_FINISH_ASM(instructions) \
     ({ \
         __obfh_flow_result = (__obfh_flow_hash & 2u) ? __obfh_flow_tag : __obfh_flow_state; \
@@ -5882,32 +3849,12 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_EXIT_SELECT_0(style) \
     __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0, OBFH_P_EXIT_SELECT_1(style))
 #define OBFH_P_FINISH(style) OBFH_P_EXIT_SELECT_0(style)
-// Terminal coordinates stay in EAX/EDX through the last permutation and completion.
+// The final encoded state and its expected value stay in EAX/EDX through completion.
 // Each row is an existing exit family, emitted once with assembler-time selection.
 #define OBFH_P_TERMINAL_TEXT \
     ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;" \
     ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub/xor edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor/sub edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub/xor edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor/sub edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* XOR/SUB supplies ZF; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),2,(((0xd031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
 
-#ifdef OBFH_TEST_FLOW_TRACE
-#define OBFH_P_TERMINAL_SAVE "movl %%eax, %[saved_a]; movl %%edx, %[saved_b];"
-#define OBFH_P_TERMINAL_OUTPUTS(s, p) , [saved_a] "=m"(OBFH_P_ROLE(s, p, 0)), [saved_b] "=m"(OBFH_P_ROLE(s, p, 1))
-#else
-#define OBFH_P_TERMINAL_SAVE ""
-#define OBFH_P_TERMINAL_OUTPUTS(s, p)
-#endif
-#define OBFH_P_TERMINAL_TRACE(style) ((void)0)
-#define OBFH_P_TERMINAL(s, p, style) \
-    ({ \
-        OBFH_P_BEFORE \
-        __obfh_asm__("movl %[other], %%edx;" OBFH_P_INSTRUCTIONS OBFH_P_TERMINAL_SAVE OBFH_P_TERMINAL_TEXT \
-                     : "=&a"(__obfh_flow_result)OBFH_P_TERMINAL_OUTPUTS(s, p) \
-                     : "0"(OBFH_P_ROLE(s, p, 0)), [other] "m"(OBFH_P_ROLE(s, p, 1)), \
-                       OBFH_P_ARGS_##s##p, [finish] "i"((style)&7u), \
-                       [zero_form] "i"((__obfh_flow_hash >> 11) % 3u) \
-                     : "edx", "ecx", "cc", "memory"); \
-        OBFH_P_TRACE(s, p); \
-        OBFH_P_TERMINAL_TRACE(style); \
-    })
 // The last-stage flag is a preprocessing literal: never expand an unused terminal.
 #define OBFH_P_LAST_STEP_0(s, p, style) OBFH_P_STEP(s, p)
 #define OBFH_P_LAST_STEP_1(s, p, style) OBFH_P_TERMINAL(s, p, style)
@@ -6096,7 +4043,6 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_C_PREPARE_0(s) OBFH_C_FIELDS(s, 0)
 #define OBFH_C_PREPARE_1(s) OBFH_C_FIELDS(s, 1) OBFH_C_TARGET(s)
 #define OBFH_C_PREPARE_I(s, p) OBFH_C_PREPARE_##p(s)
-#undef OBFH_P_PREPARE
 #define OBFH_P_PREPARE(s, p) OBFH_C_PREPARE_I(s, p)
 #define OBFH_C_SLOT(n) ".fill 1,%c[len" #n "],(((%c[code" #n "])&0xffffffff)^0x80000000)-0x80000000; .fill %c[imm" #n "],4,(((%c[key" #n "])&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_C_TEXT OBFH_C_SLOT(1) OBFH_C_SLOT(2) OBFH_C_SLOT(3) OBFH_C_SLOT(4) ".byte %c[correction_op]; .long %c[correction];"
@@ -6121,19 +4067,37 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                           [correction] "i"(__c_commit##s##p == 0   ? (unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)) - (unsigned)__c_value##s##p##4 \
                                            : __c_commit##s##p == 1 ? (unsigned)__c_value##s##p##4 - (unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)) \
                                                                    : (unsigned)__c_value##s##p##4 ^ (unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)))
-#undef OBFH_P_STEP
 #define OBFH_P_STEP(s, p) \
     ({ __obfh_asm__(OBFH_C_TEXT \
                     : "+a"(__obfh_flow_state) \
                     : OBFH_C_ARGS(s, p) \
                     : "cc"); })
-#undef OBFH_P_TERMINAL
 #define OBFH_P_TERMINAL(s, p, style) \
     ({ __obfh_asm__(OBFH_C_TEXT "movl $%c[expected], %%edx;" OBFH_P_TERMINAL_TEXT \
                     : "=&a"(__obfh_flow_result) \
                     : "0"(__obfh_flow_state), OBFH_C_ARGS(s, p), [expected] "i"(OBFH_C_POINT(OBFH_C_NEXT(s))), \
                       [finish] "i"((style)&7u), [zero_form] "i"((__obfh_flow_hash >> 11) % 3u) \
                     : "edx", "ecx", "cc"); })
+
+// Capture each integer/pointer input once. The unsigned word view shares storage
+// on little-endian x86/x64, preserving high-only values without wide shifts.
+// Scalar assignment deliberately avoids aggregate initialization and its zeroing.
+#define OBFH_FLOW_VALUE_INPUT(condition) \
+    ({ \
+        union { \
+            __typeof__(__builtin_choose_expr(sizeof(__obfh_condition_type) <= 4, 0u, 0ull)) value; \
+            unsigned int words[sizeof(__obfh_condition_type) <= 4 ? 1 : 2]; \
+        } __obfh_input; \
+        __obfh_input.value = (__typeof__(__obfh_input.value))(condition); \
+        __builtin_choose_expr(sizeof(__obfh_condition_type) <= 4, (void)0, (void)(__obfh_input.words[0] |= __obfh_input.words[1])); \
+        __obfh_asm__(".byte %c[op]; .long %c[key];" \
+                     : "+a"(__obfh_input.words[0]) \
+                     : [op] "i"(__obfh_flow_hash % 3u == 0 ? 0x35 : __obfh_flow_hash % 3u == 1 ? 0x05 \
+                                                                                               : 0x2d), \
+                       [key] "i"(__obfh_flow_hash % 3u == 2 ? 0u - __obfh_point0 : __obfh_point0) \
+                     : "cc"); \
+        __obfh_input.words[0]; \
+    })
 
 // Keep integer/pointer values in the transport instead of replacing them with
 // two tags. OR-fold wide values without losing high-only nonzero inputs. Floating
@@ -6165,46 +4129,19 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                                  : __obfh_flow_layout == 2 || __obfh_flow_layout == 6 ? 3 \
                                                                                       : 2, \
             __obfh_k00 = OBFH_MIX_A(__obfh_flow_hash ^ 2654435769u), \
-            __obfh_m00 = ((__obfh_k00 >> 17) & 65535u) | 1u, \
             __obfh_a00 = OBFH_MIX_B(__obfh_k00 ^ 0x85ebca6bu), \
             __obfh_r00 = ((__obfh_k00 >> 27) % 31u) + 1u, \
-            __obfh_style00 = (__obfh_k00 >> 11) & 3u, \
             __obfh_k01 = OBFH_MIX_A(__obfh_flow_hash ^ 3532493122u), \
-            __obfh_m01 = ((__obfh_k01 >> 17) & 65535u) | 1u, \
             __obfh_a01 = OBFH_MIX_B(__obfh_k01 ^ 0x85ebca6bu), \
             __obfh_r01 = ((__obfh_k01 >> 27) % 31u) + 1u, \
-            __obfh_style01 = (__obfh_k01 >> 11) & 3u, \
             __obfh_k10 = OBFH_MIX_A(__obfh_flow_hash ^ 2671344829u), \
-            __obfh_m10 = ((__obfh_k10 >> 17) & 65535u) | 1u, \
             __obfh_a10 = OBFH_MIX_B(__obfh_k10 ^ 0x85ebca6bu), \
             __obfh_r10 = ((__obfh_k10 >> 27) % 31u) + 1u, \
-            __obfh_style10 = (__obfh_k10 >> 11) & 3u, \
             __obfh_k11 = OBFH_MIX_A(__obfh_flow_hash ^ 3549402182u), \
-            __obfh_m11 = ((__obfh_k11 >> 17) & 65535u) | 1u, \
             __obfh_a11 = OBFH_MIX_B(__obfh_k11 ^ 0x85ebca6bu), \
             __obfh_r11 = ((__obfh_k11 >> 27) % 31u) + 1u, \
-            __obfh_style11 = (__obfh_k11 >> 11) & 3u, \
-            __obfh_k20 = OBFH_MIX_A(__obfh_flow_hash ^ 2688253889u), \
-            __obfh_m20 = ((__obfh_k20 >> 17) & 65535u) | 1u, \
-            __obfh_a20 = OBFH_MIX_B(__obfh_k20 ^ 0x85ebca6bu), \
-            __obfh_r20 = ((__obfh_k20 >> 27) % 31u) + 1u, \
-            __obfh_style20 = (__obfh_k20 >> 11) & 3u, \
-            __obfh_k21 = OBFH_MIX_A(__obfh_flow_hash ^ 3566311242u), \
-            __obfh_m21 = ((__obfh_k21 >> 17) & 65535u) | 1u, \
-            __obfh_a21 = OBFH_MIX_B(__obfh_k21 ^ 0x85ebca6bu), \
-            __obfh_r21 = ((__obfh_k21 >> 27) % 31u) + 1u, \
-            __obfh_style21 = (__obfh_k21 >> 11) & 3u, \
-            __obfh_k30 = OBFH_MIX_A(__obfh_flow_hash ^ 2705162949u), \
-            __obfh_m30 = ((__obfh_k30 >> 17) & 65535u) | 1u, \
-            __obfh_a30 = OBFH_MIX_B(__obfh_k30 ^ 0x85ebca6bu), \
-            __obfh_r30 = ((__obfh_k30 >> 27) % 31u) + 1u, \
-            __obfh_style30 = (__obfh_k30 >> 11) & 3u, \
-            __obfh_k31 = OBFH_MIX_A(__obfh_flow_hash ^ 3583220302u), \
-            __obfh_m31 = ((__obfh_k31 >> 17) & 65535u) | 1u, \
-            __obfh_a31 = OBFH_MIX_B(__obfh_k31 ^ 0x85ebca6bu), \
-            __obfh_r31 = ((__obfh_k31 >> 27) % 31u) + 1u, \
-            __obfh_style31 = (__obfh_k31 >> 11) & 3u \
         }; \
+        OBFH_P_SECOND_CONSTANTS \
         OBFH_P_SELECTOR_META(0); \
         OBFH_P_SELECTOR_META(1); \
         enum { __obfh_point0 = __obfh_true_tag }; \
@@ -6215,13 +4152,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         OBFH_P_SECOND_PREPARE \
         /* Zero is the reference point for value inputs; floating inputs retain their original polarity. */ \
         unsigned int __obfh_flow_state = __builtin_choose_expr(__obfh_value_input, \
-                                                               ({ unsigned int __obfh_input = __builtin_choose_expr(sizeof(__obfh_condition_type) <= 4, \
-                   (unsigned int)(condition), ({ unsigned long long __obfh_wide = (unsigned long long)(condition); \
-                                                (unsigned int)__obfh_wide | (unsigned int)(__obfh_wide >> 32); })); \
-               __obfh_asm__(".byte %c[op]; .long %c[key];" : "+a"(__obfh_input) \
-                   : [op] "i"(__obfh_flow_hash % 3u == 0 ? 0x35 : __obfh_flow_hash % 3u == 1 ? 0x05 : 0x2d), \
-                     [key] "i"(__obfh_flow_hash % 3u == 2 ? 0u - __obfh_point0 : __obfh_point0) : "cc"); \
-               __obfh_input; }), \
+                                                               OBFH_FLOW_VALUE_INPUT(condition), \
                                                                (condition) ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag) \
                                                                            : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag)); \
         __builtin_choose_expr(__obfh_value_input || (__obfh_flow_hash & 1u) ^ (__obfh_flow_exit == 3u || __obfh_flow_exit == 5u || __obfh_flow_exit == 7u), (void)0, \
@@ -8949,11 +6880,16 @@ static inline ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slo
     if (!address)
         ExitProcess(0xe0bf4701u);
     ULONG_PTR value = (ULONG_PTR)address, key = OBFH_GUI_KEY(key_id), bias = OBFH_GUI_BIAS(key_id);
-    unsigned int rotate = OBFH_GUI_ROTATE(key_id), form = OBFH_GUI_DRAW(key_id, 0x47554936u) & 3u;
+    unsigned int rotate = OBFH_GUI_ROTATE(key_id), form = OBFH_GUI_DRAW(key_id, 0x47554936u) % 6u;
     // Only the cold resolver branches on the form. Warm calls keep three instructions.
+    // Encode in the reverse order of the selected warm decoder.
+    if (form == 5)
+        value = (value << rotate) | (value >> (sizeof(ULONG_PTR) * 8 - rotate));
     if (form == 0 || form == 3) value ^= key;
-    if (form == 1 || form == 3) value += bias;
-    value = (value << rotate) | (value >> (sizeof(ULONG_PTR) * 8 - rotate));
+    if (form == 1 || form == 3 || form == 4 || form == 5) value += bias;
+    if (form == 4 || form == 5) value ^= key;
+    if (form != 5)
+        value = (value << rotate) | (value >> (sizeof(ULONG_PTR) * 8 - rotate));
     if (form == 1 || form == 2) value ^= key;
     if (form == 0 || form == 2) value += bias;
     // Zero is a valid encoding; ready is published after the atomic pointer write.
@@ -9129,50 +7065,24 @@ static inline ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slo
 // Service branches keep a live, bijective condition dependency without copying
 // the full public condition graph into every cache/name adapter. All choices
 // are compile-time; the original condition is evaluated exactly once.
-#define OBFH_HELPER_MIX_VALUE(x, key, bias, form) \
-    ((form) == 0 ? (((unsigned int)(x) ^ (key)) + (bias)) : (form) == 1 ? (((unsigned int)(x) + (key)) ^ (bias)) \
-                                                        : (form) == 2   ? (((unsigned int)(x) - (key)) ^ (bias)) \
-                                                                        : (((unsigned int)(x) ^ (key)) - (bias)))
 #define OBFH_HELPER_ROTATE_VALUE(x, count, right) \
     ((right) ? (((unsigned int)(x) >> (count)) | ((unsigned int)(x) << (32u - (count)))) : (((unsigned int)(x) << (count)) | ((unsigned int)(x) >> (32u - (count)))))
-#define OBFH_HELPER_ROTATE(state, count, right) \
-    __builtin_choose_expr(right, ({ \
-                              __obfh_asm__("rorl $%c1, %0" \
-                                           : "+r"(state) \
-                                           : "i"(count) \
-                                           : "cc"); \
-                          }), \
-                          ({ \
-                              __obfh_asm__("roll $%c1, %0" \
-                                           : "+r"(state) \
-                                           : "i"(count) \
-                                           : "cc"); \
-                          }))
+// Three instruction slots: rotate before, between, or after the two mixes.
+// EAX's immediate encodings keep each arithmetic slot at five bytes.
 #define OBFH_HELPER_MIX(state, key, bias, form) \
-    __builtin_choose_expr((form) == 0, ({ \
-                              __obfh_asm__("xorl %1, %0; addl %2, %0" \
-                                           : "+r"(state) \
-                                           : "i"(key), "i"(bias) \
-                                           : "cc"); \
-                          }), \
-                          __builtin_choose_expr((form) == 1, ({ \
-                                                    __obfh_asm__("addl %1, %0; xorl %2, %0" \
-                                                                 : "+r"(state) \
-                                                                 : "i"(key), "i"(bias) \
-                                                                 : "cc"); \
-                                                }), \
-                                                __builtin_choose_expr((form) == 2, ({ \
-                                                                          __obfh_asm__("subl %1, %0; xorl %2, %0" \
-                                                                                       : "+r"(state) \
-                                                                                       : "i"(key), "i"(bias) \
-                                                                                       : "cc"); \
-                                                                      }), \
-                                                                      ({ \
-                                                                          __obfh_asm__("xorl %1, %0; subl %2, %0" \
-                                                                                       : "+r"(state) \
-                                                                                       : "i"(key), "i"(bias) \
-                                                                                       : "cc"); \
-                                                                      }))))
+    __obfh_asm__(".fill 1,%c[len0],%c[code0]; .fill %c[imm0],4,%c[key0];" \
+                 ".fill 1,%c[len1],%c[code1]; .fill %c[imm1],4,%c[key1];" \
+                 ".fill 1,%c[len2],%c[code2]; .fill %c[imm2],4,%c[key2];" \
+                 : "+a"(state) \
+                 : [len0] "i"(__obfh_helper_position == 0 ? 3 : 1), [imm0] "i"(__obfh_helper_position != 0), \
+                   [code0] "i"(__obfh_helper_position == 0 ? __obfh_helper_rotation : __obfh_helper_op0), [key0] "i"(key), \
+                   [len1] "i"(__obfh_helper_position == 1 ? 3 : 1), [imm1] "i"(__obfh_helper_position != 1), \
+                   [code1] "i"(__obfh_helper_position == 1 ? __obfh_helper_rotation : __obfh_helper_position == 0 ? __obfh_helper_op0 \
+                                                                                                                  : __obfh_helper_op1), \
+                   [key1] "i"(__obfh_helper_position == 0 ? (key) : (bias)), \
+                   [len2] "i"(__obfh_helper_position == 2 ? 3 : 1), [imm2] "i"(__obfh_helper_position != 2), \
+                   [code2] "i"(__obfh_helper_position == 2 ? __obfh_helper_rotation : __obfh_helper_op1), [key2] "i"(bias) \
+                 : "cc")
 #define OBFH_HELPER_CONDITION_AT(condition, site) \
     ({ \
         enum { OBFH_DATA_FIELDS(__obfh_helper_draw, site), \
@@ -9180,19 +7090,23 @@ static inline ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slo
                __obfh_helper_bias = OBFH_MIX_B(__obfh_helper_draw ^ 0x61E29B47u), \
                __obfh_helper_form = __obfh_helper_draw & 3u, \
                __obfh_helper_right = (__obfh_helper_draw >> 2) & 1u, \
-               __obfh_helper_first = (__obfh_helper_draw >> 3) & 1u, \
+               __obfh_helper_position = (__obfh_helper_draw >> 10) % 3u, \
                __obfh_helper_count = 1u + ((__obfh_helper_draw >> 4) % 31u), \
                __obfh_helper_true = (__obfh_helper_draw & 512u) ? 0u : 1u, \
-               __obfh_helper_expected = __obfh_helper_first ? OBFH_HELPER_MIX_VALUE(OBFH_HELPER_ROTATE_VALUE(__obfh_helper_true, __obfh_helper_count, __obfh_helper_right), __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form) : OBFH_HELPER_ROTATE_VALUE(OBFH_HELPER_MIX_VALUE(__obfh_helper_true, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form), __obfh_helper_count, __obfh_helper_right) }; \
+               __obfh_helper_op0 = __obfh_helper_form == 0 || __obfh_helper_form == 3 ? 0x35 : __obfh_helper_form == 1 ? 0x05 \
+                                                                                                                       : 0x2d, \
+               __obfh_helper_op1 = __obfh_helper_form == 0 ? 0x05 : __obfh_helper_form == 3 ? 0x2d \
+                                                                                            : 0x35, \
+               __obfh_helper_rotation = 0xc1u | ((__obfh_helper_right ? 0xc8u : 0xc0u) << 8) | (__obfh_helper_count << 16), \
+               __obfh_helper_start = __obfh_helper_position == 0 ? OBFH_HELPER_ROTATE_VALUE(__obfh_helper_true, __obfh_helper_count, __obfh_helper_right) : __obfh_helper_true, \
+               __obfh_helper_mid = (unsigned int)(__obfh_helper_op0 == 0x35 ? __obfh_helper_start ^ __obfh_helper_key : __obfh_helper_op0 == 0x05 ? __obfh_helper_start + __obfh_helper_key \
+                                                                                                                                                  : __obfh_helper_start - __obfh_helper_key), \
+               __obfh_helper_rotated = __obfh_helper_position == 1 ? OBFH_HELPER_ROTATE_VALUE(__obfh_helper_mid, __obfh_helper_count, __obfh_helper_right) : __obfh_helper_mid, \
+               __obfh_helper_end = (unsigned int)(__obfh_helper_op1 == 0x35 ? __obfh_helper_rotated ^ __obfh_helper_bias : __obfh_helper_op1 == 0x05 ? __obfh_helper_rotated + __obfh_helper_bias \
+                                                                                                                                                     : __obfh_helper_rotated - __obfh_helper_bias), \
+               __obfh_helper_expected = __obfh_helper_position == 2 ? OBFH_HELPER_ROTATE_VALUE(__obfh_helper_end, __obfh_helper_count, __obfh_helper_right) : __obfh_helper_end }; \
         unsigned int __obfh_helper_state = __builtin_choose_expr(__obfh_helper_true, !!(condition), !(condition)); \
-        __builtin_choose_expr(__obfh_helper_first, ({ \
-                                  OBFH_HELPER_ROTATE(__obfh_helper_state, __obfh_helper_count, __obfh_helper_right); \
-                                  OBFH_HELPER_MIX(__obfh_helper_state, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form); \
-                              }), \
-                              ({ \
-                                  OBFH_HELPER_MIX(__obfh_helper_state, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form); \
-                                  OBFH_HELPER_ROTATE(__obfh_helper_state, __obfh_helper_count, __obfh_helper_right); \
-                              })); \
+        OBFH_HELPER_MIX(__obfh_helper_state, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form); \
         __obfh_helper_state == (unsigned int)__obfh_helper_expected; \
     })
 #define OBFH_HELPER_CONDITION(condition) OBFH_HELPER_CONDITION_AT(condition, __COUNTER__)
@@ -9213,13 +7127,15 @@ static inline ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slo
 #define OBFH_V_INSTRUCTION(op, d, a, b, imm) \
     (OBFH_V_OPCODE_ENCODE(op, __obfh_vkey) | ((unsigned int)(d) << OBFH_VM_FIELD_D) | \
      ((unsigned int)(a) << OBFH_VM_FIELD_A) | ((unsigned int)(b) << OBFH_VM_FIELD_B) | (((unsigned int)(imm)&0x3ffffu) << 14))
-#define OBFH_V_OPERATION_0(d, a, b) \
-    OBFH_V_INSTRUCTION(__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation \
-                                                                                                                                    : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)), \
-                       d, a, b, 0)
-#define OBFH_V_OPERATION_1(d, a) \
-    OBFH_V_INSTRUCTION(((__obfh_voperation >= 5 && __obfh_voperation < 11) || __obfh_voperation == OBFH_VOP_TRUTH) ? OBFH_V_BOOLEAN : OBFH_V_CXOR, d, a, 0, \
-                       __obfh_voperation == OBFH_VOP_TRUTH ? 6 : (__obfh_voperation >= 5 ? __obfh_voperation - 5 : 0))
+#define OBFH_V_OPERATION_OPCODE_0 \
+    (__obfh_voperation >= OBFH_VOP_BAND ? OBFH_V_BAND + __obfh_voperation - OBFH_VOP_BAND : __obfh_voperation < 5 ? OBFH_V_ADD + __obfh_voperation \
+                                                                                                                  : (__obfh_voperation < 11 ? OBFH_V_COMPARE : (__obfh_voperation == OBFH_VOP_ID ? OBFH_V_MOVE : OBFH_V_TEST)))
+#define OBFH_V_OPERATION_OPCODE_1 \
+    (((__obfh_voperation >= 5 && __obfh_voperation < 11) || __obfh_voperation == OBFH_VOP_TRUTH) ? OBFH_V_BOOLEAN : OBFH_V_CXOR)
+#define OBFH_V_OPERATION_IMMEDIATE \
+    (__obfh_voperation == OBFH_VOP_TRUTH ? 6 : (__obfh_voperation >= 5 ? __obfh_voperation - 5 : 0))
+#define OBFH_V_OPERATION_0(d, a, b) OBFH_V_INSTRUCTION(OBFH_V_OPERATION_OPCODE_0, d, a, b, 0)
+#define OBFH_V_OPERATION_1(d, a) OBFH_V_INSTRUCTION(OBFH_V_OPERATION_OPCODE_1, d, a, 0, OBFH_V_OPERATION_IMMEDIATE)
 #define OBFH_V_PACK(w) \
     __builtin_choose_expr(((__obfh_vkey >> 29) & 3u) == 1, \
                           (((w)&255u) << 24) | ((((w) >> 8) & 3u) << 18) | ((((w) >> 10) & 3u) << 20) | ((((w) >> 12) & 3u) << 22) | ((w) >> 14), \
@@ -9230,114 +7146,131 @@ static inline ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slo
 #define OBFH_V_ENCODE_RAW(word, pc) \
     OBFH_V_WORD_ENCODE((((unsigned int)(word) >> ((__obfh_vkey % 31u) + 1u)) | ((unsigned int)(word) << (32u - ((__obfh_vkey % 31u) + 1u)))), __obfh_vkey, pc)
 #define OBFH_V_ENCODE(word, pc) OBFH_V_ENCODE_RAW(OBFH_V_PACK(word), pc)
-// Capture reordered words once instead of expanding their selection inside every packing step.
+// Construct words in their selected packed layout, without repeatedly extracting each field.
+#define OBFH_V_PACKED_FIELD(field) \
+    (__obfh_vlayout == 1 ? (field) + 10u : __obfh_vlayout == 2 ? (field)-8u \
+                                       : __obfh_vlayout == 3   ? ((field) == 8u ? 12u : (field)-2u) \
+                                                               : (field))
+#define OBFH_V_PACKED_INSTRUCTION(op, d, a, b, imm) \
+    ((OBFH_V_OPCODE_ENCODE(op, __obfh_vkey) << __obfh_vopcode_shift) | ((unsigned int)(d) << __obfh_vfield_d) | \
+     ((unsigned int)(a) << __obfh_vfield_a) | ((unsigned int)(b) << __obfh_vfield_b) | (((unsigned int)(imm)&0x3ffffu) << __obfh_vimm_shift))
+#define OBFH_V_PACKED_OPERATION_0(d, a, b) OBFH_V_PACKED_INSTRUCTION(OBFH_V_OPERATION_OPCODE_0, d, a, b, 0)
+#define OBFH_V_PACKED_OPERATION_1(d, a) OBFH_V_PACKED_INSTRUCTION(OBFH_V_OPERATION_OPCODE_1, d, a, 0, OBFH_V_OPERATION_IMMEDIATE)
+// Capture layout positions and reordered loads once per VM expression.
 #define OBFH_V_PROGRAM_SETUP \
     enum { \
-        __obfh_vload0 = OBFH_V_INSTRUCTION((__obfh_vkey & 32u) ? OBFH_V_LOAD_A : OBFH_V_LOAD_B, (__obfh_vkey & 32u) ? __obfh_va : __obfh_vb, 0, 0, 0), \
-        __obfh_vload1 = OBFH_V_INSTRUCTION((__obfh_vkey & 32u) ? OBFH_V_LOAD_B : OBFH_V_LOAD_A, (__obfh_vkey & 32u) ? __obfh_vb : __obfh_va, 0, 0, 0), \
-        __obfh_vprep0 = ((__obfh_vkey & 64u) ? OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7) : OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0)), \
-        __obfh_vprep1 = ((__obfh_vkey & 64u) ? OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0) : OBFH_V_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7)) \
+        __obfh_vlayout = (__obfh_vkey >> 29) & 3u, \
+        __obfh_vopcode_shift = __obfh_vlayout == 1 ? 24u : __obfh_vlayout == 2 ? 6u \
+                                                                               : 0u, \
+        __obfh_vimm_shift = __obfh_vlayout == 1 ? 0u : 14u, \
+        __obfh_vfield_d = OBFH_V_PACKED_FIELD(OBFH_VM_FIELD_D), \
+        __obfh_vfield_a = OBFH_V_PACKED_FIELD(OBFH_VM_FIELD_A), \
+        __obfh_vfield_b = OBFH_V_PACKED_FIELD(OBFH_VM_FIELD_B), \
+        __obfh_vload0 = OBFH_V_PACKED_INSTRUCTION((__obfh_vkey & 32u) ? OBFH_V_LOAD_A : OBFH_V_LOAD_B, (__obfh_vkey & 32u) ? __obfh_va : __obfh_vb, 0, 0, 0), \
+        __obfh_vload1 = OBFH_V_PACKED_INSTRUCTION((__obfh_vkey & 32u) ? OBFH_V_LOAD_B : OBFH_V_LOAD_A, (__obfh_vkey & 32u) ? __obfh_vb : __obfh_va, 0, 0, 0), \
+        __obfh_vprep0 = ((__obfh_vkey & 64u) ? OBFH_V_PACKED_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7) : OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0)), \
+        __obfh_vprep1 = ((__obfh_vkey & 64u) ? OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0) : OBFH_V_PACKED_INSTRUCTION(OBFH_V_CROL, 1, 0, 0, 7)) \
     }
 #define OBFH_V_PROGRAM_0 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_va), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3) \
     }
 #define OBFH_V_PROGRAM_1 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(__obfh_vload0, 0), \
-            OBFH_V_ENCODE(__obfh_vload1, 1), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 2), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 3), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 4), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_COPY_RETURN, __obfh_va, __obfh_vc, 0, 0), 5) \
+        OBFH_V_ENCODE_RAW(__obfh_vload0, 0), \
+            OBFH_V_ENCODE_RAW(__obfh_vload1, 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 3), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_vd), 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_COPY_RETURN, __obfh_va, __obfh_vc, 0, 0), 5) \
     }
 #define OBFH_V_PROGRAM_2 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 4), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 5), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CROL, 0, 0, 0, 3), 6), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 8), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_va), 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 5), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_CROL, 0, 0, 0, 3), 6), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vd, __obfh_va), 8), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10) \
     }
 #define OBFH_V_PROGRAM_3 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 4), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 5), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 0, 0, 0, 5), 6), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_va), 8), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vd, 0, 0), 9) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 3), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_va), 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 5), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_CXOR, 0, 0, 0, 5), 6), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vd, __obfh_va, __obfh_vb), 7), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vd, __obfh_va), 8), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vd, 0, 0), 9) \
     }
 #define OBFH_V_PROGRAM_4 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 4), 0), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_va), 2), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 4), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 5), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 9), 6), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 7), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 8), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 9), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 10), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 11) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 4), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_va, __obfh_vb), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_va), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 3), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 5), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 9), 6), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 7), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 8), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 9), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 10), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 1), 11) \
     }
 #define OBFH_V_PROGRAM_5 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 1), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vb, 0, 0), 2), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 3), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vb, __obfh_va), 4), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vb), 5), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 6), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vd, __obfh_vb, __obfh_va), 7), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vd, __obfh_vb), 8), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_SWAP, 0, __obfh_va, __obfh_vb, 0), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vb, 0, 0), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 7), 3), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_vb, __obfh_va), 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_vb), 5), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 10), 6), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vd, __obfh_vb, __obfh_va), 7), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vd, __obfh_vb), 8), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vc, __obfh_vd, 0, 0), 9), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 10) \
     }
 #define OBFH_V_PROGRAM_6 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 2), 1), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 262143), 2), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 1, 1, 0, 2), 3), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 4), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 5), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 6), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 7) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 2), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_CADD, 0, 0, 0, 262143), 2), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 1, 1, 0, 2), 3), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 5), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_vd), 6), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 7) \
     }
 #define OBFH_V_PROGRAM_7 \
     (const unsigned int[]) { \
-        OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 6), 2), \
-            OBFH_V_ENCODE(__obfh_vprep0, 3), \
-            OBFH_V_ENCODE(__obfh_vprep1, 4), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 8), 5), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 6), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_CXOR, 1, 0, 0, 57), 7), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 8), \
-            OBFH_V_ENCODE(OBFH_V_OPERATION_1(__obfh_vc, __obfh_vd), 9), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vc, 0, 0), 10), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 14), 11), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_MOVE, __obfh_va, __obfh_vc, 0, 0), 12), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_va, 0, 0), 13), \
-            OBFH_V_ENCODE(OBFH_V_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 14) \
+        OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_LOAD_PAIR, __obfh_va, __obfh_vb, 0, 0), 0), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_TEST, 0, __obfh_va, 0, 0), 1), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 6), 2), \
+            OBFH_V_ENCODE_RAW(__obfh_vprep0, 3), \
+            OBFH_V_ENCODE_RAW(__obfh_vprep1, 4), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JUMP, 0, 0, 0, 8), 5), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_vd, __obfh_va, 0, 0), 6), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_CXOR, 1, 0, 0, 57), 7), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_0(__obfh_vc, __obfh_vd, __obfh_vb), 8), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_OPERATION_1(__obfh_vc, __obfh_vd), 9), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_TEST, 0, __obfh_vc, 0, 0), 10), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_JFLAG, 0, 1, 0, 14), 11), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_MOVE, __obfh_va, __obfh_vc, 0, 0), 12), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_va, 0, 0), 13), \
+            OBFH_V_ENCODE_RAW(OBFH_V_PACKED_INSTRUCTION(OBFH_V_RETURN, 0, __obfh_vc, 0, 0), 14) \
     }
 #define OBFH_V_PROGRAM \
     __builtin_choose_expr( \
@@ -10646,7 +8579,7 @@ static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #define GetTempPath OBFH_WINAPI(GetTempPath)
 
 // USER32/GDI32: covered function-like calls use cached indirect targets.
-// Four local decode layouts; arguments appear once in the typed invocation.
+// Six local decode layouts; arguments appear once in the typed invocation.
 #define OBFH_GUI_DECODE(index, key, code) ({ \
     __obfh_asm__(code \
                  : "+&r"(__obfh_gui_value) \
@@ -10661,6 +8594,10 @@ static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
                                                "sub" OBFH_GUI_WIDTH " %2, %0; xor" OBFH_GUI_WIDTH " %1, %0; ror" OBFH_GUI_WIDTH " %3, %0;")
 #define OBFH_GUI_FORM_3(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
                                                "ror" OBFH_GUI_WIDTH " %3, %0; sub" OBFH_GUI_WIDTH " %2, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
+#define OBFH_GUI_FORM_4(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
+                                               "ror" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0; sub" OBFH_GUI_WIDTH " %2, %0;")
+#define OBFH_GUI_FORM_5(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
+                                               "xor" OBFH_GUI_WIDTH " %1, %0; sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0;")
 // Optional internal observer for cache-isolation regression tests.
 #ifdef OBFH_GUI_CACHE_OBSERVER
 #define OBFH_GUI_CACHE_VISIT(slot, site) OBFH_GUI_CACHE_OBSERVER(slot, site)
@@ -10671,7 +8608,7 @@ static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     __label__ __obfh_gui_cached, __obfh_gui_decode; \
     enum { __obfh_gui_site = __COUNTER__, \
            OBFH_GUI_FIELDS(__obfh_gui_form_draw, __obfh_gui_site, 0x47554936u), \
-           __obfh_gui_form = __obfh_gui_form_draw & 3u, \
+           __obfh_gui_form = __obfh_gui_form_draw % 6u, \
            OBFH_GUI_FIELDS(__obfh_gui_gap_draw, __obfh_gui_site, 0x534c4f54u), \
            __obfh_gui_gap = __obfh_gui_gap_draw & 31u, \
            OBFH_GUI_KEY_FIELDS(__obfh_gui_site), \
@@ -10700,7 +8637,9 @@ __obfh_gui_cached: \
 __obfh_gui_decode: \
     __builtin_choose_expr(__obfh_gui_form == 0, OBFH_GUI_FORM_0(__obfh_gui_site), \
                           __builtin_choose_expr(__obfh_gui_form == 1, OBFH_GUI_FORM_1(__obfh_gui_site), \
-                                                __builtin_choose_expr(__obfh_gui_form == 2, OBFH_GUI_FORM_2(__obfh_gui_site), OBFH_GUI_FORM_3(__obfh_gui_site)))); \
+                                                __builtin_choose_expr(__obfh_gui_form == 2, OBFH_GUI_FORM_2(__obfh_gui_site), \
+                                                                      __builtin_choose_expr(__obfh_gui_form == 3, OBFH_GUI_FORM_3(__obfh_gui_site), \
+                                                                                            __builtin_choose_expr(__obfh_gui_form == 4, OBFH_GUI_FORM_4(__obfh_gui_site), OBFH_GUI_FORM_5(__obfh_gui_site)))))); \
     ((type)__obfh_gui_value)(__VA_ARGS__); \
 })
 

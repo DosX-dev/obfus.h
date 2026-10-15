@@ -93,4 +93,21 @@ class ProcessPool {
         }
     }
 }
-module.exports = { CheckPool, ProcessPool, workerCount };
+// Reserve the shared process budget only after the specialized queue admits work.
+// A compiler waiting for RAM must not block an executable that is ready to run.
+function runInPools(queue, processes, action) {
+    return queue.run(() => processes.run(action));
+}
+function workerLimit(args, automatic) {
+    const options = args.filter(arg => arg === '--workers' || arg.startsWith('--workers='));
+    if (options.length > 1) throw new Error('duplicate --workers option');
+    if (options.length) {
+        const value = options[0].slice('--workers='.length);
+        if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(Number(value)))
+            throw new Error('--workers requires a positive safe integer');
+        if (args.includes('--serial')) throw new Error('--workers cannot be combined with --serial');
+        return Number(value);
+    }
+    return args.includes('--serial') ? 1 : automatic;
+}
+module.exports = { CheckPool, ProcessPool, workerCount, runInPools, workerLimit };

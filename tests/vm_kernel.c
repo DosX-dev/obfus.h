@@ -37,6 +37,7 @@ static long double variant_0(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 0;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_0;
     return Obfh_VirtualMachine(p, 4, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -62,6 +63,7 @@ static long double variant_2(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 2;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_2;
     return Obfh_VirtualMachine(p, 11, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -74,6 +76,7 @@ static long double variant_3(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 3;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_3;
     return Obfh_VirtualMachine(p, 10, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -86,6 +89,7 @@ static long double variant_4(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 4;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_4;
     return Obfh_VirtualMachine(p, 12, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -98,6 +102,7 @@ static long double variant_5(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 5;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_5;
     return Obfh_VirtualMachine(p, 11, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }
@@ -110,6 +115,7 @@ static long double variant_6(unsigned int operation, long double a, long double 
         __obfh_vd = (__obfh_va + ((__obfh_vkey & 4u) ? 1u : 3u)) & 3u
     };
     current_variant = 6;
+    OBFH_V_PROGRAM_SETUP;
     const unsigned int *p = OBFH_V_PROGRAM_6;
     return Obfh_VirtualMachine(p, 8, __obfh_vkey, obfh_vm_encode(a, SALT_NUM1, 1), obfh_vm_encode(b, SALT_NUM2, 1));
 }

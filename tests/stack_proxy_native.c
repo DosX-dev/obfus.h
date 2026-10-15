@@ -28,7 +28,7 @@ typedef unsigned (*NativeLeaf)(unsigned, unsigned);
     static NativeLeaf name(void) { \
         OBFH_SF_CAPTURE; \
         NativeLeaf entry; \
-        __asm__ __volatile__(LEAF_ADDRESS body "9:" \
+        __asm__ __volatile__(OBFH_SF_ASM_CONSTANTS LEAF_ADDRESS body "9:" \
                              : "=r"(entry) \
                              : OBFH_SF_INPUTS \
                              : "eax", "ecx", "edx", "cc", "memory"); \
@@ -69,13 +69,13 @@ CARRIER(link_gate,
 
 CARRIER(link_eight,
         OBFH_SF_FRAME("frame_c")
-            OBFH_SF_LAYOUT_28(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_B))
+            OBFH_SF_LAYOUT_28(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_B, OBFH_SF_BODY_A))
 
 /* Reversed ordered comparisons need a reversed branch too: equality-only
    tests cannot detect signed/unsigned direction or overflow mistakes. */
 #define COMPARE_PROBE(name, reg, cc, reverse, bit, flip) \
     static unsigned name(unsigned x, unsigned y) { \
-        __asm__ __volatile__("movl %1, %%edx; movl %%edx, %%ecx;" OBFH_SF_LEAF_COMPARE(#reg, #cc, #reverse, #bit, "10") "movl $0, %%eax; jmp 9f; 6: movl $1, %%eax; 9:" \
+        __asm__ __volatile__(OBFH_SF_ASM_BITS "movl %1, %%edx; movl %%edx, %%ecx;" OBFH_SF_LEAF_COMPARE(#reg, #cc, #reverse, #bit, "10") "movl $0, %%eax; jmp 9f; 6: movl $1, %%eax; 9:" \
                              : "+a"(x) \
                              : "r"(y), [phantom] "i"((flip) << (bit)) \
                              : "ecx", "edx", "cc"); \
@@ -87,7 +87,7 @@ COMPARE_PROBE(signed_forward, 1, 0x7d, 0x7e, 11, 0)
 COMPARE_PROBE(signed_reverse, 1, 0x7d, 0x7e, 11, 1)
 #define SUB_PROBE(name, flip) \
     static unsigned name(unsigned x, unsigned y) { \
-        __asm__ __volatile__(OBFH_SF_LEAF_REVERSE_SUB \
+        __asm__ __volatile__(OBFH_SF_ASM_BITS OBFH_SF_LEAF_REVERSE_SUB \
                              : "+a"(x) \
                              : "d"(y), [phantom] "i"((flip) << 13) \
                              : "cc"); \

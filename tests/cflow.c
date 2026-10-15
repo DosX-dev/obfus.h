@@ -287,6 +287,27 @@ static int wide_branch(unsigned long long n) {
     else
         return 0;
 }
+/* Preserve value widths while sharing the integer transport lane. */
+static int signed_wide_branch(long long n) {
+    if (n) return 1;
+    return 0;
+}
+static int narrow_value_branch(signed char n) {
+    if (n) return 1;
+    return 0;
+}
+static int long_double_branch(long double n) {
+    if (n) return 1;
+    return 0;
+}
+static int short_circuit_condition(int *a, int *b) {
+    if ((*a)++ && (*b)++) return 1;
+    return 0;
+}
+static int nested_value_branch(int n) {
+    if (({ if (n) ++n; n; })) return 1;
+    return 0;
+}
 static int raw_branch(unsigned n) {
     if (n) return 1;
     return 0;
@@ -559,8 +580,19 @@ int main(void) {
     for (unsigned i = 0; i < sizeof(edges) / sizeof(edges[0]); ++i) {
         volatile unsigned long long input = edges[i];
         CHECK(wide_branch(input) == (edges[i] != 0));
+        CHECK(signed_wide_branch((long long)input) == (edges[i] != 0));
         CHECK(wide_effect(&input) == (edges[i] != 0) && input == edges[i] + 1);
     }
+    for (int n = -128; n <= 127; ++n)
+        CHECK(narrow_value_branch((signed char)n) == (n != 0));
+    for (unsigned i = 0; i < sizeof(values) / sizeof(values[0]); ++i)
+        CHECK(long_double_branch((long double)values[i]) == (values[i] != 0));
+    int left = 0, right = 0;
+    CHECK(!short_circuit_condition(&left, &right) && left == 1 && right == 0);
+    left = right = 1;
+    CHECK(short_circuit_condition(&left, &right) && left == 2 && right == 2);
+    for (int n = -10; n <= 10; ++n)
+        CHECK(nested_value_branch(n) == ((n ? n + 1 : n) != 0));
     unsigned raw = 0;
     for (unsigned i = 0; i < 256; ++i) {
         CHECK(raw_branch(raw) == (raw != 0));
