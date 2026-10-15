@@ -122,7 +122,9 @@ static unsigned single_reference(unsigned actual, unsigned truth, unsigned targe
         actual = independent_op(actual, kind, key, add, rot, effective);
         truth = independent_op(truth, kind, key, add, rot, effective);
     }
-    return actual + target - truth;
+    unsigned commit = (key >> 28) % 3u;
+    return commit == 0 ? actual + (target - truth) : commit == 1 ? actual - (truth - target)
+                                                                 : actual ^ (truth ^ target);
 }
 
 void obfh_test_flow_stage(unsigned int layout, unsigned int stage, unsigned int branch,

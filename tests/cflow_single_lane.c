@@ -365,42 +365,42 @@ int main(void) {
     {
         unsigned target;
         unsigned out = probe_0(0u, &target);
-        if (out != (unsigned)(858282924u + target - 858282924u)) return 1;
+        if (out != (unsigned)(858282924u - (858282924u - target))) return 1;
     }
     {
         unsigned target;
         unsigned out = probe_0(4294967295u, &target);
-        if (out != (unsigned)(858282929u + target - 858282924u)) return 1;
+        if (out != (unsigned)(858282929u - (858282924u - target))) return 1;
     }
     {
         unsigned target;
         unsigned out = probe_0(0u, &target);
-        if (out != (unsigned)(858282924u + target - 858282924u)) return 1;
+        if (out != (unsigned)(858282924u - (858282924u - target))) return 1;
     }
     {
         unsigned target;
         unsigned out = probe_0(1172168220u, &target);
-        if (out != (unsigned)(3587376416u + target - 858282924u)) return 1;
+        if (out != (unsigned)(3587376416u - (858282924u - target))) return 1;
     }
     {
         unsigned target;
         unsigned out = probe_1(0u, &target);
-        if (out != (unsigned)(2281606904u + target - 986507453u)) return 2;
+        if (out != (unsigned)(2281606904u - (986507453u - target))) return 2;
     }
     {
         unsigned target;
         unsigned out = probe_1(4294967295u, &target);
-        if (out != (unsigned)(986507453u + target - 986507453u)) return 2;
+        if (out != (unsigned)(986507453u - (986507453u - target))) return 2;
     }
     {
         unsigned target;
         unsigned out = probe_1(4294967295u, &target);
-        if (out != (unsigned)(986507453u + target - 986507453u)) return 2;
+        if (out != (unsigned)(986507453u - (986507453u - target))) return 2;
     }
     {
         unsigned target;
         unsigned out = probe_1(2268975613u, &target);
-        if (out != (unsigned)(2724037575u + target - 986507453u)) return 2;
+        if (out != (unsigned)(2724037575u - (986507453u - target))) return 2;
     }
     {
         unsigned target;
@@ -425,62 +425,62 @@ int main(void) {
     {
         unsigned target;
         unsigned out = probe_3(0u, &target);
-        if (out != (unsigned)(4051025362u + target - 1808715610u)) return 4;
+        if (out != (unsigned)(4051025362u ^ target ^ 1808715610u)) return 4;
     }
     {
         unsigned target;
         unsigned out = probe_3(4294967295u, &target);
-        if (out != (unsigned)(4051025371u + target - 1808715610u)) return 4;
+        if (out != (unsigned)(4051025371u ^ target ^ 1808715610u)) return 4;
     }
     {
         unsigned target;
         unsigned out = probe_3(249145528u, &target);
-        if (out != (unsigned)(1808715610u + target - 1808715610u)) return 4;
+        if (out != (unsigned)(1808715610u ^ target ^ 1808715610u)) return 4;
     }
     {
         unsigned target;
         unsigned out = probe_3(3028795107u, &target);
-        if (out != (unsigned)(2561673175u + target - 1808715610u)) return 4;
+        if (out != (unsigned)(2561673175u ^ target ^ 1808715610u)) return 4;
     }
     {
         unsigned target;
         unsigned out = probe_4(0u, &target);
-        if (out != (unsigned)(1001519968u + target - 1001519968u)) return 5;
+        if (out != (unsigned)(1001519968u - (1001519968u - target))) return 5;
     }
     {
         unsigned target;
         unsigned out = probe_4(4294967295u, &target);
-        if (out != (unsigned)(1001540448u + target - 1001519968u)) return 5;
+        if (out != (unsigned)(1001540448u - (1001519968u - target))) return 5;
     }
     {
         unsigned target;
         unsigned out = probe_4(0u, &target);
-        if (out != (unsigned)(1001519968u + target - 1001519968u)) return 5;
+        if (out != (unsigned)(1001519968u - (1001519968u - target))) return 5;
     }
     {
         unsigned target;
         unsigned out = probe_4(655141877u, &target);
-        if (out != (unsigned)(3413053483u + target - 1001519968u)) return 5;
+        if (out != (unsigned)(3413053483u - (1001519968u - target))) return 5;
     }
     {
         unsigned target;
         unsigned out = probe_5(0u, &target);
-        if (out != (unsigned)(490050819u + target - 490050828u)) return 6;
+        if (out != (unsigned)(490050819u - (490050828u - target))) return 6;
     }
     {
         unsigned target;
         unsigned out = probe_5(4294967295u, &target);
-        if (out != (unsigned)(490050828u + target - 490050828u)) return 6;
+        if (out != (unsigned)(490050828u - (490050828u - target))) return 6;
     }
     {
         unsigned target;
         unsigned out = probe_5(4294967295u, &target);
-        if (out != (unsigned)(490050828u + target - 490050828u)) return 6;
+        if (out != (unsigned)(490050828u - (490050828u - target))) return 6;
     }
     {
         unsigned target;
         unsigned out = probe_5(2253245108u, &target);
-        if (out != (unsigned)(1685681327u + target - 490050828u)) return 6;
+        if (out != (unsigned)(1685681327u - (490050828u - target))) return 6;
     }
     {
         unsigned target;
@@ -505,162 +505,162 @@ int main(void) {
     {
         unsigned target;
         unsigned out = probe_7(0u, &target);
-        if (out != (unsigned)(1841269634u + target - 1960149909u)) return 8;
+        if (out != (unsigned)(1841269634u ^ target ^ 1960149909u)) return 8;
     }
     {
         unsigned target;
         unsigned out = probe_7(4294967295u, &target);
-        if (out != (unsigned)(1841269625u + target - 1960149909u)) return 8;
+        if (out != (unsigned)(1841269625u ^ target ^ 1960149909u)) return 8;
     }
     {
         unsigned target;
         unsigned out = probe_7(836707006u, &target);
-        if (out != (unsigned)(1960149909u + target - 1960149909u)) return 8;
+        if (out != (unsigned)(1960149909u ^ target ^ 1960149909u)) return 8;
     }
     {
         unsigned target;
         unsigned out = probe_7(2520545260u, &target);
-        if (out != (unsigned)(1957278849u + target - 1960149909u)) return 8;
+        if (out != (unsigned)(1957278849u ^ target ^ 1960149909u)) return 8;
     }
     {
         unsigned target;
         unsigned out = probe_8(0u, &target);
-        if (out != (unsigned)(4203222529u + target - 4203222529u)) return 9;
+        if (out != (unsigned)(4203222529u - (4203222529u - target))) return 9;
     }
     {
         unsigned target;
         unsigned out = probe_8(4294967295u, &target);
-        if (out != (unsigned)(2347660852u + target - 4203222529u)) return 9;
+        if (out != (unsigned)(2347660852u - (4203222529u - target))) return 9;
     }
     {
         unsigned target;
         unsigned out = probe_8(0u, &target);
-        if (out != (unsigned)(4203222529u + target - 4203222529u)) return 9;
+        if (out != (unsigned)(4203222529u - (4203222529u - target))) return 9;
     }
     {
         unsigned target;
         unsigned out = probe_8(1280241465u, &target);
-        if (out != (unsigned)(1556475138u + target - 4203222529u)) return 9;
+        if (out != (unsigned)(1556475138u - (4203222529u - target))) return 9;
     }
     {
         unsigned target;
         unsigned out = probe_9(0u, &target);
-        if (out != (unsigned)(2743455048u + target - 2743454899u)) return 10;
+        if (out != (unsigned)(2743455048u ^ target ^ 2743454899u)) return 10;
     }
     {
         unsigned target;
         unsigned out = probe_9(4294967295u, &target);
-        if (out != (unsigned)(2743454899u + target - 2743454899u)) return 10;
+        if (out != (unsigned)(2743454899u ^ target ^ 2743454899u)) return 10;
     }
     {
         unsigned target;
         unsigned out = probe_9(4294967295u, &target);
-        if (out != (unsigned)(2743454899u + target - 2743454899u)) return 10;
+        if (out != (unsigned)(2743454899u ^ target ^ 2743454899u)) return 10;
     }
     {
         unsigned target;
         unsigned out = probe_9(2299172151u, &target);
-        if (out != (unsigned)(3563360187u + target - 2743454899u)) return 10;
+        if (out != (unsigned)(3563360187u ^ target ^ 2743454899u)) return 10;
     }
     {
         unsigned target;
         unsigned out = probe_10(0u, &target);
-        if (out != (unsigned)(920221141u + target - 3067704789u)) return 11;
+        if (out != (unsigned)(920221141u - (3067704789u - target))) return 11;
     }
     {
         unsigned target;
         unsigned out = probe_10(4294967295u, &target);
-        if (out != (unsigned)(920221144u + target - 3067704789u)) return 11;
+        if (out != (unsigned)(920221144u - (3067704789u - target))) return 11;
     }
     {
         unsigned target;
         unsigned out = probe_10(2147483648u, &target);
-        if (out != (unsigned)(3067704789u + target - 3067704789u)) return 11;
+        if (out != (unsigned)(3067704789u - (3067704789u - target))) return 11;
     }
     {
         unsigned target;
         unsigned out = probe_10(3285603088u, &target);
-        if (out != (unsigned)(3948313765u + target - 3067704789u)) return 11;
+        if (out != (unsigned)(3948313765u - (3067704789u - target))) return 11;
     }
     {
         unsigned target;
         unsigned out = probe_11(0u, &target);
-        if (out != (unsigned)(2227234048u + target - 623549349u)) return 12;
+        if (out != (unsigned)(2227234048u ^ target ^ 623549349u)) return 12;
     }
     {
         unsigned target;
         unsigned out = probe_11(4294967295u, &target);
-        if (out != (unsigned)(2227234057u + target - 623549349u)) return 12;
+        if (out != (unsigned)(2227234057u ^ target ^ 623549349u)) return 12;
     }
     {
         unsigned target;
         unsigned out = probe_11(2564280131u, &target);
-        if (out != (unsigned)(623549349u + target - 623549349u)) return 12;
+        if (out != (unsigned)(623549349u ^ target ^ 623549349u)) return 12;
     }
     {
         unsigned target;
         unsigned out = probe_11(1889644860u, &target);
-        if (out != (unsigned)(2400299492u + target - 623549349u)) return 12;
+        if (out != (unsigned)(2400299492u ^ target ^ 623549349u)) return 12;
     }
     {
         unsigned target;
         unsigned out = probe_12(0u, &target);
-        if (out != (unsigned)(1057997989u + target - 1057997989u)) return 13;
+        if (out != (unsigned)(1057997989u ^ target ^ 1057997989u)) return 13;
     }
     {
         unsigned target;
         unsigned out = probe_12(4294967295u, &target);
-        if (out != (unsigned)(3935881934u + target - 1057997989u)) return 13;
+        if (out != (unsigned)(3935881934u ^ target ^ 1057997989u)) return 13;
     }
     {
         unsigned target;
         unsigned out = probe_12(0u, &target);
-        if (out != (unsigned)(1057997989u + target - 1057997989u)) return 13;
+        if (out != (unsigned)(1057997989u ^ target ^ 1057997989u)) return 13;
     }
     {
         unsigned target;
         unsigned out = probe_12(3904453113u, &target);
-        if (out != (unsigned)(3612773580u + target - 1057997989u)) return 13;
+        if (out != (unsigned)(3612773580u ^ target ^ 1057997989u)) return 13;
     }
     {
         unsigned target;
         unsigned out = probe_13(0u, &target);
-        if (out != (unsigned)(3473720456u + target - 3473720451u)) return 14;
+        if (out != (unsigned)(3473720456u ^ target ^ 3473720451u)) return 14;
     }
     {
         unsigned target;
         unsigned out = probe_13(4294967295u, &target);
-        if (out != (unsigned)(3473720451u + target - 3473720451u)) return 14;
+        if (out != (unsigned)(3473720451u ^ target ^ 3473720451u)) return 14;
     }
     {
         unsigned target;
         unsigned out = probe_13(4294967295u, &target);
-        if (out != (unsigned)(3473720451u + target - 3473720451u)) return 14;
+        if (out != (unsigned)(3473720451u ^ target ^ 3473720451u)) return 14;
     }
     {
         unsigned target;
         unsigned out = probe_13(2727126301u, &target);
-        if (out != (unsigned)(474844725u + target - 3473720451u)) return 14;
+        if (out != (unsigned)(474844725u ^ target ^ 3473720451u)) return 14;
     }
     {
         unsigned target;
         unsigned out = probe_14(0u, &target);
-        if (out != (unsigned)(3221376528u + target - 1073892880u)) return 15;
+        if (out != (unsigned)(3221376528u ^ target ^ 1073892880u)) return 15;
     }
     {
         unsigned target;
         unsigned out = probe_14(4294967295u, &target);
-        if (out != (unsigned)(3221376527u + target - 1073892880u)) return 15;
+        if (out != (unsigned)(3221376527u ^ target ^ 1073892880u)) return 15;
     }
     {
         unsigned target;
         unsigned out = probe_14(2147483648u, &target);
-        if (out != (unsigned)(1073892880u + target - 1073892880u)) return 15;
+        if (out != (unsigned)(1073892880u ^ target ^ 1073892880u)) return 15;
     }
     {
         unsigned target;
         unsigned out = probe_14(2359162563u, &target);
-        if (out != (unsigned)(1285571795u + target - 1073892880u)) return 15;
+        if (out != (unsigned)(1285571795u ^ target ^ 1073892880u)) return 15;
     }
     {
         unsigned target;
@@ -685,42 +685,42 @@ int main(void) {
     {
         unsigned target;
         unsigned out = probe_16(0u, &target);
-        if (out != (unsigned)(3315421613u + target - 3315421613u)) return 17;
+        if (out != (unsigned)(3315421613u ^ target ^ 3315421613u)) return 17;
     }
     {
         unsigned target;
         unsigned out = probe_16(4294967295u, &target);
-        if (out != (unsigned)(3315421612u + target - 3315421613u)) return 17;
+        if (out != (unsigned)(3315421612u ^ target ^ 3315421613u)) return 17;
     }
     {
         unsigned target;
         unsigned out = probe_16(0u, &target);
-        if (out != (unsigned)(3315421613u + target - 3315421613u)) return 17;
+        if (out != (unsigned)(3315421613u ^ target ^ 3315421613u)) return 17;
     }
     {
         unsigned target;
         unsigned out = probe_16(3039620518u, &target);
-        if (out != (unsigned)(2060074835u + target - 3315421613u)) return 17;
+        if (out != (unsigned)(2060074835u ^ target ^ 3315421613u)) return 17;
     }
     {
         unsigned target;
         unsigned out = probe_17(0u, &target);
-        if (out != (unsigned)(4040947256u + target - 3169963113u)) return 18;
+        if (out != (unsigned)(4040947256u - (3169963113u - target))) return 18;
     }
     {
         unsigned target;
         unsigned out = probe_17(4294967295u, &target);
-        if (out != (unsigned)(3169963113u + target - 3169963113u)) return 18;
+        if (out != (unsigned)(3169963113u - (3169963113u - target))) return 18;
     }
     {
         unsigned target;
         unsigned out = probe_17(4294967295u, &target);
-        if (out != (unsigned)(3169963113u + target - 3169963113u)) return 18;
+        if (out != (unsigned)(3169963113u - (3169963113u - target))) return 18;
     }
     {
         unsigned target;
         unsigned out = probe_17(3486460362u, &target);
-        if (out != (unsigned)(3124276110u + target - 3169963113u)) return 18;
+        if (out != (unsigned)(3124276110u - (3169963113u - target))) return 18;
     }
     {
         unsigned target;
@@ -785,42 +785,42 @@ int main(void) {
     {
         unsigned target;
         unsigned out = probe_21(0u, &target);
-        if (out != (unsigned)(2020129301u + target - 2018949653u)) return 22;
+        if (out != (unsigned)(2020129301u - (2018949653u - target))) return 22;
     }
     {
         unsigned target;
         unsigned out = probe_21(4294967295u, &target);
-        if (out != (unsigned)(2018949653u + target - 2018949653u)) return 22;
+        if (out != (unsigned)(2018949653u - (2018949653u - target))) return 22;
     }
     {
         unsigned target;
         unsigned out = probe_21(4294967295u, &target);
-        if (out != (unsigned)(2018949653u + target - 2018949653u)) return 22;
+        if (out != (unsigned)(2018949653u - (2018949653u - target))) return 22;
     }
     {
         unsigned target;
         unsigned out = probe_21(2766677422u, &target);
-        if (out != (unsigned)(513692261u + target - 2018949653u)) return 22;
+        if (out != (unsigned)(513692261u - (2018949653u - target))) return 22;
     }
     {
         unsigned target;
         unsigned out = probe_22(0u, &target);
-        if (out != (unsigned)(577295767u + target - 577294743u)) return 23;
+        if (out != (unsigned)(577295767u - (577294743u - target))) return 23;
     }
     {
         unsigned target;
         unsigned out = probe_22(4294967295u, &target);
-        if (out != (unsigned)(577289623u + target - 577294743u)) return 23;
+        if (out != (unsigned)(577289623u - (577294743u - target))) return 23;
     }
     {
         unsigned target;
         unsigned out = probe_22(2147483648u, &target);
-        if (out != (unsigned)(577294743u + target - 577294743u)) return 23;
+        if (out != (unsigned)(577294743u - (577294743u - target))) return 23;
     }
     {
         unsigned target;
         unsigned out = probe_22(886018847u, &target);
-        if (out != (unsigned)(2553526922u + target - 577294743u)) return 23;
+        if (out != (unsigned)(2553526922u - (577294743u - target))) return 23;
     }
     {
         unsigned target;

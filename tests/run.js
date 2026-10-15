@@ -391,11 +391,11 @@ async function main() {
         const registerProbe = source.slice(source.indexOf('#define OBFH_AD_READ_REGISTERS('), source.indexOf('// The worker owns the duplicated handle'));
         assert(registerProbe.includes('ResumeThread(thread)'), 'shared register probe missing');
         const setup = registerProbe + source.slice(
-            source.indexOf('static DWORD WINAPI obfh_ad_register_worker'),
+            source.indexOf('static inline DWORD WINAPI obfh_ad_register_worker'),
             source.indexOf('// Managed callbacks reuse Windows workers;')
         ) + '\n#endif\n';
         assert(setup.includes('DuplicateHandle') && /#endif\s*$/.test(setup), 'failure-test extraction missing');
-        const poolSetup = registerProbe + source.slice(source.indexOf('// Managed callbacks reuse Windows workers;'), source.indexOf('static int obfh_ad_process_probe'));
+        const poolSetup = registerProbe + source.slice(source.indexOf('// Managed callbacks reuse Windows workers;'), source.indexOf('static inline int obfh_ad_process_probe'));
         assert(poolSetup.includes('TrySubmitThreadpoolCallback') && /#endif\s*$/.test(poolSetup), 'pool-test extraction missing');
         const poolFailureFile = path.join(directory, 'antidebug-pool.c');
         fs.writeFileSync(poolFailureFile, fs.readFileSync(path.join(__dirname, 'antidebug_pool.c.in'), 'utf8')
@@ -404,7 +404,7 @@ async function main() {
         const processNames = ['getKernel32Name_proxy', 'getDebuggerName_proxy']
             .map((name) => {
                 const match = source.match(
-                    new RegExp('static char \\*' + name + '\\(char \\*name\\) \\{[\\s\\S]*?\\n\\}')
+                    new RegExp('static inline char \\*' + name + '\\(char \\*name\\) \\{[\\s\\S]*?\\n\\}')
                 );
                 assert(match, 'process probe name builder missing: ' + name);
                 return match[0];
@@ -426,8 +426,8 @@ async function main() {
             processNames +
             '\n' +
             source.slice(
-                source.indexOf('static int obfh_ad_process_probe'),
-                source.indexOf('static int IsDebuggerPresent_proxy(void)')
+                source.indexOf('static inline int obfh_ad_process_probe'),
+                source.indexOf('static inline int IsDebuggerPresent_proxy(void)')
             );
         assert(
             processProbe.includes('gs:0x60') && processProbe.includes('fs:0x30'),
@@ -919,13 +919,13 @@ async function main() {
                     );
                 });
                 await check(`${arch}/anti-debug positive signal dispatch`, async () => {
-                    const start = source.indexOf('static int IsDebuggerPresent_proxy(void)');
+                    const start = source.indexOf('static inline int IsDebuggerPresent_proxy(void)');
                     const end = source.indexOf('// Live paths', start);
                     assert(start >= 0 && end > start, 'detector target missing');
                     fs.writeFileSync(
                         antiHeader,
                         source.slice(0, start) +
-                        'static int IsDebuggerPresent_proxy(void) { return 1; }\n\n' +
+                        'static inline int IsDebuggerPresent_proxy(void) { return 1; }\n\n' +
                         source.slice(end)
                     );
                     const exe = await compile(compiler, directory, `${arch}-antidebug-signal.exe`, antiFile, []);

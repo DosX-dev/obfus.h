@@ -5,7 +5,9 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
     const first = source.indexOf('#define OBFH_SF_BYTES'), last = source.indexOf('// BEGIN COMPACT ASM CACHE', first);
     assert(first >= 0 && last > first, 'proxy fragments missing');
     let helpers = source.slice(first, last);
-    const original = helpers.replace('.byte 0xeb,4; 6: negl', 'jmp 7f; 6: negl')
+    const original = helpers
+        .replace('OBFH_SF_LEAF_COMPARE("1", "0x7d", "0x7e", "11", "9")', '\"cmpl %%ecx, %%eax; jge 6f;\"')
+        .replace('.byte 0xeb,4; 6: negl', 'jmp 7f; 6: negl')
         .replace('.byte 0xeb,(4 + ((%c[rotate] != 1) & 1)); 6:', 'jmp 7f; 6:')
         .replace('.byte 0xeb,2; 6: negl', 'jmp 7f; 6: negl').replace('.byte 0xeb,8; 6:', 'jmp 7f; 6:');
     assert(original !== helpers && !original.includes('.byte 0xeb,'), 'short jump reference boundaries changed');

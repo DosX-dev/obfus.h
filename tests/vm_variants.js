@@ -83,7 +83,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         }
         // Full byte domain and mask domain, plus uint32/pointer wrap boundaries.
         const crtBegin = normalized.indexOf('#if (OBFH_SEED % 3u) == 0u');
-        const crtEnd = normalized.indexOf('static FARPROC obfh_crt_site(', crtBegin);
+        const crtEnd = normalized.indexOf('static inline FARPROC obfh_crt_site(', crtBegin);
         assert(crtBegin >= 0 && crtEnd > crtBegin, 'CRT byte encodings missing');
         const transportSeeds = [0, 256, 512, 1024, 1280, 1536, 4096, 8192, 2097152, 4194304, 6291456];
         for (const seed of transportSeeds) {

@@ -71,7 +71,47 @@ CARRIER(link_eight,
         OBFH_SF_FRAME("frame_c")
             OBFH_SF_LAYOUT_28(OBFH_SF_BODY_A, OBFH_SF_BODY_B, OBFH_SF_LEAF_A, OBFH_SF_LEAF_B))
 
+/* Reversed ordered comparisons need a reversed branch too: equality-only
+   tests cannot detect signed/unsigned direction or overflow mistakes. */
+#define COMPARE_PROBE(name, reg, cc, reverse, bit, flip) \
+    static unsigned name(unsigned x, unsigned y) { \
+        __asm__ __volatile__("movl %1, %%edx; movl %%edx, %%ecx;" OBFH_SF_LEAF_COMPARE(#reg, #cc, #reverse, #bit, "10") "movl $0, %%eax; jmp 9f; 6: movl $1, %%eax; 9:" \
+                             : "+a"(x) \
+                             : "r"(y), [phantom] "i"((flip) << (bit)) \
+                             : "ecx", "edx", "cc"); \
+        return x; \
+    }
+COMPARE_PROBE(unsigned_forward, 2, 0x76, 0x73, 10, 0)
+COMPARE_PROBE(unsigned_reverse, 2, 0x76, 0x73, 10, 1)
+COMPARE_PROBE(signed_forward, 1, 0x7d, 0x7e, 11, 0)
+COMPARE_PROBE(signed_reverse, 1, 0x7d, 0x7e, 11, 1)
+#define SUB_PROBE(name, flip) \
+    static unsigned name(unsigned x, unsigned y) { \
+        __asm__ __volatile__(OBFH_SF_LEAF_REVERSE_SUB \
+                             : "+a"(x) \
+                             : "d"(y), [phantom] "i"((flip) << 13) \
+                             : "cc"); \
+        return x; \
+    }
+SUB_PROBE(sub_forward, 0)
+SUB_PROBE(sub_reverse, 1)
+static int check_leaf_variants(void) {
+    const unsigned edges[] = {0, 1, 0x7fffffff, 0x80000000, 0x80000001, 0xfffffffe, 0xffffffff};
+    unsigned state = 1;
+    for (unsigned i = 0; i < 10000; ++i) {
+        state = state * 1664525u + 1013904223u;
+        unsigned x = i < 49 ? edges[i / 7] : state;
+        state = state * 1664525u + 1013904223u;
+        unsigned y = i < 49 ? edges[i % 7] : state;
+        if (unsigned_forward(x, y) != (x <= y) || unsigned_reverse(x, y) != (x <= y) ||
+            signed_forward(x, y) != ((int32_t)x >= (int32_t)y) || signed_reverse(x, y) != ((int32_t)x >= (int32_t)y) ||
+            sub_forward(x, y) != y - x || sub_reverse(x, y) != y - x) return 0;
+    }
+    return 1;
+}
+
 int main(void) {
+    if (!check_leaf_variants()) return 2;
     NativeLeaf functions[] = {leaf_a(), leaf_b(), leaf_c(), leaf_d(), leaf_e(), leaf_f(),
                               leaf_g(), leaf_h(), leaf_i(), leaf_j(), leaf_k(), leaf_l(),
                               frame_a(), frame_b(), frame_c(), frame_d(),

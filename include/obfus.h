@@ -543,7 +543,7 @@ typedef enum {
     name##_mix = OBFH_MIX_A(value), name = OBFH_MIX_B(name##_mix)
 // Compile-time index forms: 4/6 literal, 1/6 scalar byte, 1/6 protected call.
 // Digits are ready before any name builder; no runtime selection branch.
-static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
+static inline int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
 #define OBFH_NAME_INDEX_PICK(index, draw) \
     __builtin_choose_expr((draw) % 6u < 4u, (index), __builtin_choose_expr((draw) % 6u == 4u, OBFH_NAME_BYTE_##index + ((index) / 10) * 10, obfh_int_proxy(index)))
 #define OBFH_NAME_INDEX(index) OBFH_NAME_INDEX_PICK(index, OBFH_DATA_DRAW(__COUNTER__))
@@ -730,7 +730,7 @@ OBFH_CHAR_CONST(_9, 9, TEXT_SECTION_ATTRIBUTE);
 })
 
 static volatile LONG obfh_alpha_low_state;
-static void obfh_alpha_low_load(void) {
+static inline void obfh_alpha_low_load(void) {
     if (InterlockedCompareExchange(&obfh_alpha_low_state, 1, 0) == 0) {
         OBFH_ALPHA_PAIR(_a, _h);
         OBFH_ALPHA_PAIR(_b, _i);
@@ -748,7 +748,7 @@ static void obfh_alpha_low_load(void) {
 }
 
 static volatile LONG obfh_alpha_high_state;
-static void obfh_alpha_high_load(void) {
+static inline void obfh_alpha_high_load(void) {
     if (InterlockedCompareExchange(&obfh_alpha_high_state, 1, 0) == 0) {
         OBFH_ALPHA_PAIR(_n, _u);
         OBFH_ALPHA_PAIR(_o, _v);
@@ -766,7 +766,7 @@ static void obfh_alpha_high_load(void) {
 }
 
 static volatile LONG obfh_alpha_upper_state;
-static void obfh_alpha_upper_load(void) {
+static inline void obfh_alpha_upper_load(void) {
     if (InterlockedCompareExchange(&obfh_alpha_upper_state, 1, 0) == 0) {
         OBFH_ALPHA_PAIR(_S, _I);
         OBFH_ALPHA_PAIR(_L, _D);
@@ -2719,11 +2719,17 @@ OBFH_PD_DEFINE(127);
                            "%c[key_b]" \
                            ";"
 #define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)), %c[leaf_shift]; .fill ((%c[rotate] != 1) & 1), 1, %c[rotate];"
+// Reverse CMP operands together with its condition. Only these bounded leaf
+// branches use a rel8 displacement and must overwrite flags on both paths.
+// A/L retain their CMP: their ALU_B can consume its carry through ADC/SBB.
+#define OBFH_SF_LEAF_COMPARE(reg, cc, reversed, bit, skip) ".short 0x39+256*(0xc0+8*" reg "+0)+((%c[phantom]>>" bit ")&1)*1792*(0-" reg "); .byte " cc "+((%c[phantom]>>" bit ")&1)*(" reversed "-" cc "); .byte " skip ";"
+// Both pairs compute EDX-EAX modulo 2^32 in four bytes. ALU_A replaces flags.
+#define OBFH_SF_LEAF_REVERSE_SUB ".long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);"
 #define OBFH_SF_LEAF_A OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ALU_A "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_SHIFT "subl %%edx, %%eax; ret; 6:" OBFH_SF_LEAF_ALU_B "leal (%%eax, %%edx, 2), %%eax; ret;"
 #define OBFH_SF_LEAF_B OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax; addl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_C OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl %%edx, %%ecx; roll $" \
                                                                                "%c[rotate]" \
-                                                                               ", %%ecx; cmpl %%ecx, %%eax; jge 6f;" OBFH_SF_LEAF_ALU_A "xorl %%ecx, %%eax; .byte 0xeb,(4 + ((%c[rotate] != 1) & 1)); 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
+                                                                               ", %%ecx;" OBFH_SF_LEAF_COMPARE("1", "0x7d", "0x7e", "11", "9") OBFH_SF_LEAF_ALU_A "xorl %%ecx, %%eax; .byte 0xeb,(4 + ((%c[rotate] != 1) & 1)); 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_D OBFH_SF_LEAF_ARGS "movl $" \
                                          "%c[loops]" \
                                          ", %%ecx; 6:" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_ALU_B "addl %%edx, %%eax; decl %%ecx; jnz 6b; ret;"
@@ -2732,7 +2738,7 @@ OBFH_PD_DEFINE(127);
                                          ", %%eax; jb 6f; bswap %%eax;" OBFH_SF_LEAF_ALU_A "ret; 6: movl $" \
                                          "%c[factor]" \
                                          ", %%ecx; xorl %%edx, %%edx; divl %%ecx; xorl %%edx, %%eax;" OBFH_SF_LEAF_SHIFT "ret;"
-#define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "subl %%edx, %%eax; negl %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_B "adcl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
+#define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_REVERSE_SUB OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_B "adcl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_G OBFH_SF_LEAF_ARGS "movl %%eax, %%ecx;" OBFH_SF_LEAF_SHIFT "testl $" \
                                          "%c[mask]" \
                                          ", %%ecx; jnz 6f;" OBFH_SF_LEAF_ALU_A "ret; 6: imull $" \
@@ -2952,18 +2958,22 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[leaf_alu_b];.long %c[key_b];"
 #undef OBFH_SF_LEAF_SHIFT
 #define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];"
+#undef OBFH_SF_LEAF_COMPARE
+#define OBFH_SF_LEAF_COMPARE(reg, cc, reversed, bit, skip) ".short 0x39+256*(0xc0+8*" reg "+0)+((%c[phantom]>>" bit ")&1)*1792*(0-" reg ");.byte " cc "+((%c[phantom]>>" bit ")&1)*(" reversed "-" cc ");.byte " skip ";"
+#undef OBFH_SF_LEAF_REVERSE_SUB
+#define OBFH_SF_LEAF_REVERSE_SUB ".long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);"
 #undef OBFH_SF_LEAF_A
 #define OBFH_SF_LEAF_A ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jbe 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];leal (%%eax,%%edx,2),%%eax;ret;"
 #undef OBFH_SF_LEAF_B
 #define OBFH_SF_LEAF_B ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_C
-#define OBFH_SF_LEAF_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;cmpl %%ecx,%%eax;jge 6f;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;.byte 0xeb,(4 + ((%c[rotate] != 1) & 1));6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_C ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;.short 51257+((%c[phantom]>>11)&1)*-1792;.byte 0x7d+((%c[phantom]>>11)&1)*(0x7e-0x7d);.byte 9;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;.byte 0xeb,(4 + ((%c[rotate] != 1) & 1));6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%rsp),%%ecx;subl %%ecx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_D
 #define OBFH_SF_LEAF_D ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movl $%c[loops],%%ecx;6:.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];.byte 0x81,%c[leaf_alu_b];.long %c[key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
 #undef OBFH_SF_LEAF_E
 #define OBFH_SF_LEAF_E ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;cmpl $%c[key_a],%%eax;jb 6f;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];ret;"
 #undef OBFH_SF_LEAF_F
-#define OBFH_SF_LEAF_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);subl %%edx,%%eax;negl %%eax;.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
+#define OBFH_SF_LEAF_F ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;subq $%c[leaf_frame],%%rsp;movl %%eax,%c[leaf_slot](%%rsp);.long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%rsp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addq $%c[leaf_frame],%%rsp;ret;"
 #undef OBFH_SF_LEAF_G
 #define OBFH_SF_LEAF_G ".fill (((%c[phantom] >> 9) & 1) ^ 0),2,0xc889;.fill (((%c[phantom] >> 9) & 1) ^ 1),3,0x00418d;.fill (%c[phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];testl $%c[mask],%%ecx;jnz 6f;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:imull $%c[factor],%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_H
@@ -3862,18 +3872,22 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LEAF_ALU_B ".byte 0x81,%c[leaf_alu_b];.long %c[key_b];"
 #undef OBFH_SF_LEAF_SHIFT
 #define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];"
+#undef OBFH_SF_LEAF_COMPARE
+#define OBFH_SF_LEAF_COMPARE(reg, cc, reversed, bit, skip) ".short 0x39+256*(0xc0+8*" reg "+0)+((%c[phantom]>>" bit ")&1)*1792*(0-" reg ");.byte " cc "+((%c[phantom]>>" bit ")&1)*(" reversed "-" cc ");.byte " skip ";"
+#undef OBFH_SF_LEAF_REVERSE_SUB
+#define OBFH_SF_LEAF_REVERSE_SUB ".long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);"
 #undef OBFH_SF_LEAF_A
 #define OBFH_SF_LEAF_A "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;.byte %c[leaf_alu_a];.long %c[key_a];cmpl %%edx,%%eax;jbe 6f;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];subl %%edx,%%eax;ret;6:.byte 0x81,%c[leaf_alu_b];.long %c[key_b];leal (%%eax,%%edx,2),%%eax;ret;"
 #undef OBFH_SF_LEAF_B
 #define OBFH_SF_LEAF_B "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;addl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_C
-#define OBFH_SF_LEAF_C "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;cmpl %%ecx,%%eax;jge 6f;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;.byte 0xeb,(4 + ((%c[rotate] != 1) & 1));6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_C "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);movl %%edx,%%ecx;roll $%c[rotate],%%ecx;.short 51257+((%c[phantom]>>11)&1)*-1792;.byte 0x7d+((%c[phantom]>>11)&1)*(0x7e-0x7d);.byte 9;.byte %c[leaf_alu_a];.long %c[key_a];xorl %%ecx,%%eax;.byte 0xeb,(4 + ((%c[rotate] != 1) & 1));6:.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];addl %%edx,%%eax;7:movl %c[leaf_slot](%%esp),%%ecx;subl %%ecx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_D
 #define OBFH_SF_LEAF_D "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movl $%c[loops],%%ecx;6:.byte %c[leaf_alu_a];.long %c[key_a];.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];.byte 0x81,%c[leaf_alu_b];.long %c[key_b];addl %%edx,%%eax;decl %%ecx;jnz 6b;ret;"
 #undef OBFH_SF_LEAF_E
 #define OBFH_SF_LEAF_E "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;cmpl $%c[key_a],%%eax;jb 6f;bswap %%eax;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:movl $%c[factor],%%ecx;xorl %%edx,%%edx;divl %%ecx;xorl %%edx,%%eax;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];ret;"
 #undef OBFH_SF_LEAF_F
-#define OBFH_SF_LEAF_F "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);subl %%edx,%%eax;negl %%eax;.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
+#define OBFH_SF_LEAF_F "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;subl $%c[leaf_frame],%%esp;movl %%eax,%c[leaf_slot](%%esp);.long 0xd8f7d029+((%c[phantom]>>13)&1)*(0xd001d8f7-0xd8f7d029);.byte %c[leaf_alu_a];.long %c[key_a];movl %c[leaf_slot](%%esp),%%ecx;xorl %%ecx,%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];adcl %%edx,%%eax;addl $%c[leaf_frame],%%esp;ret;"
 #undef OBFH_SF_LEAF_G
 #define OBFH_SF_LEAF_G "movl 4(%%esp),%%eax;movl 8(%%esp),%%edx;.fill (%c[phantom] & 1),1,0x90;movl %%eax,%%ecx;.byte (0xc1 + 0x10 * ((%c[rotate] == 1) & 1)),%c[leaf_shift];.fill ((%c[rotate] != 1) & 1),1,%c[rotate];testl $%c[mask],%%ecx;jnz 6f;.byte %c[leaf_alu_a];.long %c[key_a];ret;6:imull $%c[factor],%%eax;.byte 0x81,%c[leaf_alu_b];.long %c[key_b];xorl %%edx,%%eax;ret;"
 #undef OBFH_SF_LEAF_H
@@ -5024,8 +5038,8 @@ typedef struct {
     volatile LONG state;
 #endif
 } OBFH_CRT_ENTRY;
-static FARPROC obfh_crt_lookup(const char *name);
-static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key);
+static inline FARPROC obfh_crt_lookup(const char *name);
+static inline FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key);
 #define obfh_crt_resolve(name) ({ \
     enum { __obfh_crt_site = __COUNTER__, \
            __obfh_crt_draw = OBFH_MIX_B(OBFH_JUNK_WORD ^ __obfh_crt_site) }; \
@@ -5042,7 +5056,7 @@ static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key);
     PHANTOM_NOP; \
     STACK_PROXY_FUNCTIONS; \
     RET_BY_VAR(value)
-static void *malloc_proxy(size_t size) {
+static inline void *malloc_proxy(size_t size) {
     OBFH_CRT_PROXY_ENTER;
     char name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -5057,14 +5071,14 @@ static void *malloc_proxy(size_t size) {
 
 static float rndValueToProxy = RND(0, 10);
 
-static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE {
     // Keep index calls small; the value still uses protected return transport.
     PHANTOM_NOP;
     RET_BY_VAR(value);
 }
 
 // Preserve pointer and SIZE_T width on both Windows targets.
-static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     RET_BY_VAR(value);
@@ -5072,16 +5086,16 @@ static ULONG_PTR obfh_uintptr_proxy(ULONG_PTR value) OBFH_CODE_SECTION_ATTRIBUTE
 
 #define OBFH_PTR(type, value) ((type)obfh_uintptr_proxy((ULONG_PTR)(value)))
 
-static double obfh_double_proxy(double value) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline double obfh_double_proxy(double value) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     RET_BY_VAR(value);
 }
 
-static float obfh_condition_true();
+static inline float obfh_condition_true();
 
 // Hidden string access
-static char *obfh_process_hidden_string(char *string, ...) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline char *obfh_process_hidden_string(char *string, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
 
@@ -5094,19 +5108,19 @@ static char *obfh_process_hidden_string(char *string, ...) OBFH_CODE_SECTION_ATT
     return string + 1;
 }
 
-static float obfh_condition_true() OBFH_CODE_SECTION_ATTRIBUTE {
+static inline float obfh_condition_true() OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return _1 && TRUE;
 }
 
-static int obfh_condition_proxy(float junk, float condition, ...) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int obfh_condition_proxy(float junk, float condition, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     RET_BY_VAR(condition);
 }
 
-static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     unsigned long long rdtsc_result;
     {
@@ -5157,7 +5171,7 @@ static long double __s_rdtsc(float junk, ...) OBFH_CODE_SECTION_ATTRIBUTE {
 #define OBFH_CRT_BYTE_ENCODE(value, mask) ((unsigned char)((value) - (mask)))
 #define OBFH_CRT_BYTE_DECODE(value, mask) ((unsigned char)((value) + (mask)))
 #endif
-static FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
+static inline FARPROC obfh_crt_site(const char *name, void *storage, ULONG_PTR key) {
     OBFH_CRT_ENTRY *entry = (OBFH_CRT_ENTRY *)storage;
     unsigned int length = 0;
     if (!name) return NULL;
@@ -5900,84 +5914,122 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_P_LAST_STEP_I(last, s, p, style) OBFH_P_LAST_STEP_##last(s, p, style)
 #define OBFH_P_LAST_STEP(s, p, last, style) OBFH_P_LAST_STEP_I(last, s, p, style)
 
-// Graph families: sequential diamonds, split selectors, crossed paths, split exits.
+// Choose the order of block names before expanding their bodies. Passing expanded
+// bodies through an ordering macro would make the preprocessor scan them again.
+// The separator always follows the first emitted block, preserving fallthrough.
+#if ((OBFH_SEED ^ (OBFH_SEED >> 9) ^ (OBFH_SEED >> 19)) >> 0) & 1u
+#define OBFH_P_ORDER_0(left, right, between, args) right args between args left args
+#else
+#define OBFH_P_ORDER_0(left, right, between, args) left args between args right args
+#endif
+#if ((OBFH_SEED ^ (OBFH_SEED >> 9) ^ (OBFH_SEED >> 19)) >> 1) & 1u
+#define OBFH_P_ORDER_1(left, right, between, args) right args between args left args
+#else
+#define OBFH_P_ORDER_1(left, right, between, args) left args between args right args
+#endif
+#if ((OBFH_SEED ^ (OBFH_SEED >> 9) ^ (OBFH_SEED >> 19)) >> 2) & 1u
+#define OBFH_P_ORDER_2(left, right, between, args) right args between args left args
+#else
+#define OBFH_P_ORDER_2(left, right, between, args) left args between args right args
+#endif
+#if ((OBFH_SEED ^ (OBFH_SEED >> 9) ^ (OBFH_SEED >> 19)) >> 3) & 1u
+#define OBFH_P_ORDER_3(left, right, between, args) right args between args left args
+#else
+#define OBFH_P_ORDER_3(left, right, between, args) left args between args right args
+#endif
+// Block fragments share the enclosing graph's labels; none creates a new scope.
+#define OBFH_P_BLOCK_JOIN(s, t, last) \
+    goto join; \
+    OBFH_P_GAP(s, 0, 1);
+#define OBFH_P_BLOCK_DONE_DIAMOND(s, t, last) \
+    goto done; \
+    OBFH_P_GAP(s, 1, 1);
+#define OBFH_P_BLOCK_DONE_SPLIT(s, t, last) \
+    goto done; \
+    OBFH_P_GAP(s, 0, 0);
+#define OBFH_P_BLOCK_EMPTY(s, t, last)
+#define OBFH_P_BLOCK_FIRST_A(s, t, last) \
+    a: \
+    OBFH_P_STEP(s, 0);
+#define OBFH_P_BLOCK_FIRST_B(s, t, last) \
+    b: \
+    OBFH_P_STEP(s, 1);
+#define OBFH_P_BLOCK_LAST_C(s, t, last) \
+    c: \
+    OBFH_P_LAST_STEP(t, 0, last, __obfh_flow_exit);
+#define OBFH_P_BLOCK_LAST_D(s, t, last) \
+    d: \
+    OBFH_P_LAST_STEP(t, 1, last, __obfh_flow_exit);
+#define OBFH_P_BLOCK_SPLIT_A(s, t, last) \
+    a: \
+    OBFH_P_STEP(s, 0); \
+    OBFH_P_TABLE(t, c, d);
+#define OBFH_P_BLOCK_SPLIT_B(s, t, last) \
+    b: \
+    OBFH_P_STEP(s, 1); \
+    OBFH_P_TABLE(t, d, c);
+// Alternate exits preserve polarity: equality {0,1,2,4,6}, inequality {3,5,7}.
+#define OBFH_P_BLOCK_CROSS_BC(s, t, last) \
+    b: \
+    OBFH_P_STEP(s, 1); \
+    OBFH_P_MASK(t, c, d); \
+    c: \
+    OBFH_P_LAST_STEP(t, 0, last, ((0x30765421u >> (4u * __obfh_flow_exit)) & 7u));
+#define OBFH_P_BLOCK_CROSS_AD(s, t, last) \
+    a: \
+    OBFH_P_STEP(s, 0); \
+    OBFH_P_MASK(t, d, c); \
+    d: \
+    OBFH_P_LAST_STEP(t, 1, last, __obfh_flow_exit);
+#define OBFH_P_BLOCK_EXITS_AD(s, t, last) \
+    a: \
+    OBFH_P_STEP(s, 0); \
+    OBFH_P_TABLE(t, c, d); \
+    d: \
+    OBFH_P_LAST_STEP(t, 1, last, ((0x54327106u >> (4u * __obfh_flow_exit)) & 7u));
+#define OBFH_P_BLOCK_EXITS_BC(s, t, last) \
+    b: \
+    OBFH_P_STEP(s, 1); \
+    OBFH_P_TABLE(t, c, d); \
+    c: \
+    OBFH_P_LAST_STEP(t, 0, last, __obfh_flow_exit);
+// Sequential diamonds.
 #define OBFH_P_GRAPH_0(s, t, last) \
     ({ \
         __label__ a, b, c, d, join, done; \
         OBFH_P_MASK(s, a, b); \
-    a: \
-        OBFH_P_STEP(s, 0); \
-        goto join; \
-        OBFH_P_GAP(s, 0, 1); \
-    b: \
-        OBFH_P_STEP(s, 1); \
+        OBFH_P_ORDER_##s(OBFH_P_BLOCK_FIRST_A, OBFH_P_BLOCK_FIRST_B, OBFH_P_BLOCK_JOIN, (s, t, last)); \
     join: \
         OBFH_P_MASK(t, c, d); \
-    c: \
-        OBFH_P_LAST_STEP(t, 0, last, __obfh_flow_exit); \
-        goto done; \
-        OBFH_P_GAP(s, 1, 1); \
-    d: \
-        OBFH_P_LAST_STEP(t, 1, last, __obfh_flow_exit); \
+        OBFH_P_ORDER_##t(OBFH_P_BLOCK_LAST_C, OBFH_P_BLOCK_LAST_D, OBFH_P_BLOCK_DONE_DIAMOND, (s, t, last)); \
     done: \
         ((void)0); \
     })
+// Split selectors.
 #define OBFH_P_GRAPH_1(s, t, last) \
     ({ \
         __label__ a, b, c, d, join, done; \
         OBFH_P_TABLE(s, a, b); \
-    a: \
-        OBFH_P_STEP(s, 0); \
-        OBFH_P_TABLE(t, c, d); \
-    b: \
-        OBFH_P_STEP(s, 1); \
-        OBFH_P_TABLE(t, d, c); \
-    c: \
-        OBFH_P_LAST_STEP(t, 0, last, __obfh_flow_exit); \
-        goto done; \
-        OBFH_P_GAP(s, 0, 0); \
-    d: \
-        OBFH_P_LAST_STEP(t, 1, last, __obfh_flow_exit); \
+        OBFH_P_ORDER_##s(OBFH_P_BLOCK_SPLIT_A, OBFH_P_BLOCK_SPLIT_B, OBFH_P_BLOCK_EMPTY, (s, t, last)); \
+        OBFH_P_ORDER_##t(OBFH_P_BLOCK_LAST_C, OBFH_P_BLOCK_LAST_D, OBFH_P_BLOCK_DONE_SPLIT, (s, t, last)); \
     done: \
         ((void)0); \
     })
-// Alternate exits preserve polarity: equality {0,1,2,4,6}, inequality {3,5,7}.
-// Packed nibble maps rotate each group forward/backward without runtime work.
+// Crossed paths.
 #define OBFH_P_GRAPH_2(s, t, last) \
     ({ \
         __label__ a, b, c, d, join, done; \
         OBFH_P_MASK(s, a, b); \
-    b: \
-        OBFH_P_STEP(s, 1); \
-        OBFH_P_MASK(t, c, d); \
-    c: \
-        OBFH_P_LAST_STEP(t, 0, last, ((0x30765421u >> (4u * __obfh_flow_exit)) & 7u)); \
-        goto done; \
-        OBFH_P_GAP(s, 0, 0); \
-    a: \
-        OBFH_P_STEP(s, 0); \
-        OBFH_P_MASK(t, d, c); \
-    d: \
-        OBFH_P_LAST_STEP(t, 1, last, __obfh_flow_exit); \
+        OBFH_P_ORDER_##s(OBFH_P_BLOCK_CROSS_BC, OBFH_P_BLOCK_CROSS_AD, OBFH_P_BLOCK_DONE_SPLIT, (s, t, last)); \
     done: \
         ((void)0); \
     })
+// Split exits.
 #define OBFH_P_GRAPH_3(s, t, last) \
     ({ \
         __label__ a, b, c, d, join, done; \
         OBFH_P_TABLE(s, a, b); \
-    a: \
-        OBFH_P_STEP(s, 0); \
-        OBFH_P_TABLE(t, c, d); \
-    d: \
-        OBFH_P_LAST_STEP(t, 1, last, ((0x54327106u >> (4u * __obfh_flow_exit)) & 7u)); \
-        goto done; \
-        OBFH_P_GAP(s, 0, 0); \
-    b: \
-        OBFH_P_STEP(s, 1); \
-        OBFH_P_TABLE(t, c, d); \
-    c: \
-        OBFH_P_LAST_STEP(t, 0, last, __obfh_flow_exit); \
+        OBFH_P_ORDER_##s(OBFH_P_BLOCK_EXITS_AD, OBFH_P_BLOCK_EXITS_BC, OBFH_P_BLOCK_DONE_SPLIT, (s, t, last)); \
     done: \
         ((void)0); \
     })
@@ -6015,6 +6067,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                                                          : OBFH_C_IMM(__c_value##s##p##previous, __c_key##s##p##n, __c_form##s##p##n) };
 #define OBFH_C_FIELDS(s, p) \
     enum { __c_rank##s##p = (__obfh_k##s##p >> 8) % 24u, \
+           __c_commit##s##p = (__obfh_k##s##p >> 28) % 3u, \
            __c_first##s##p = __c_rank##s##p / 6u, \
            __c_second##s##p = ((__c_rank##s##p / 2u) % 3u) + (((__c_rank##s##p / 2u) % 3u) >= __c_first##s##p), \
            __c_z##s##p = (__c_rank##s##p & 1u) + ((__c_rank##s##p & 1u) >= (__c_first##s##p < __c_second##s##p ? __c_first##s##p : __c_second##s##p)), \
@@ -6046,7 +6099,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #undef OBFH_P_PREPARE
 #define OBFH_P_PREPARE(s, p) OBFH_C_PREPARE_I(s, p)
 #define OBFH_C_SLOT(n) ".fill 1,%c[len" #n "],(((%c[code" #n "])&0xffffffff)^0x80000000)-0x80000000; .fill %c[imm" #n "],4,(((%c[key" #n "])&0xffffffff)^0x80000000)-0x80000000;"
-#define OBFH_C_TEXT OBFH_C_SLOT(1) OBFH_C_SLOT(2) OBFH_C_SLOT(3) OBFH_C_SLOT(4) "addl $%c[correction], %%eax;"
+#define OBFH_C_TEXT OBFH_C_SLOT(1) OBFH_C_SLOT(2) OBFH_C_SLOT(3) OBFH_C_SLOT(4) ".byte %c[correction_op]; .long %c[correction];"
 #define OBFH_C_ENCODING(s, p, n) \
     enum { __obfh_primitive_len##s##p##n = __c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 ? 1 : __c_kind##s##p##n == 1 && __c_rform##s##p##n >= 2 || __c_kind##s##p##n == 2 && __c_lform##s##p##n ? 2 \
                                                                                                                                                                                                     : 3, \
@@ -6063,7 +6116,11 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         [key##n] "i"(__obfh_primitive_key##s##p##n), \
         [code##n] "i"(__obfh_primitive_code##s##p##n)
 #define OBFH_C_ARGS(s, p) OBFH_C_ARG(s, p, 1), OBFH_C_ARG(s, p, 2), OBFH_C_ARG(s, p, 3), OBFH_C_ARG(s, p, 4), \
-                          [correction] "i"((unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)) - (unsigned)__c_value##s##p##4)
+                          [correction_op] "i"(__c_commit##s##p == 0 ? 0x05 : __c_commit##s##p == 1 ? 0x2d \
+                                                                                                   : 0x35), \
+                          [correction] "i"(__c_commit##s##p == 0   ? (unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)) - (unsigned)__c_value##s##p##4 \
+                                           : __c_commit##s##p == 1 ? (unsigned)__c_value##s##p##4 - (unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)) \
+                                                                   : (unsigned)__c_value##s##p##4 ^ (unsigned)OBFH_C_POINT(OBFH_C_NEXT(s)))
 #undef OBFH_P_STEP
 #define OBFH_P_STEP(s, p) \
     ({ __obfh_asm__(OBFH_C_TEXT \
@@ -8721,8 +8778,8 @@ typedef struct {
 } OBFH_GUI_SLOT;
 #define OBFH_GUI_COUNT 275
 static PVOID volatile obfh_gui_modules[4];
-static HMODULE LoadLibraryA_proxy(LPCSTR name);
-static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
+static inline HMODULE LoadLibraryA_proxy(LPCSTR name);
+static inline FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 #define OBFH_GUI_DRAW(index, salt) OBFH_MIX_B(OBFH_MIX_A((unsigned int)(index) ^ (unsigned int)OBFH_SEED ^ (salt)))
 #if defined(__x86_64__)
 #define OBFH_GUI_WIDTH "q"
@@ -8782,7 +8839,7 @@ static FARPROC obfh_find_export(HMODULE module, LPCSTR name, unsigned depth);
 })
 
 // Internal fixed names use caller-owned storage and the same compile-time store selector.
-static char *getKernel32Name_proxy(char *name) {
+static inline char *getKernel32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -8792,7 +8849,7 @@ static char *getKernel32Name_proxy(char *name) {
     return name;
 }
 
-static char *getUser32Name_proxy(char *name) {
+static inline char *getUser32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -8802,7 +8859,7 @@ static char *getUser32Name_proxy(char *name) {
     return name;
 }
 
-static char *getGdi32Name_proxy(char *name) {
+static inline char *getGdi32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW,
@@ -8812,7 +8869,7 @@ static char *getGdi32Name_proxy(char *name) {
     return name;
 }
 
-static char *getAdvapi32Name_proxy(char *name) {
+static inline char *getAdvapi32Name_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
@@ -8822,7 +8879,7 @@ static char *getAdvapi32Name_proxy(char *name) {
     return name;
 }
 
-static char *getLoaderName_proxy(char *name) {
+static inline char *getLoaderName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     unsigned char local[16];
@@ -8836,7 +8893,7 @@ static char *getLoaderName_proxy(char *name) {
     return name;
 }
 
-static char *getDebuggerName_proxy(char *name) {
+static inline char *getDebuggerName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH | OBFH_ALPHA_UPPER,
@@ -8847,8 +8904,8 @@ static char *getDebuggerName_proxy(char *name) {
 }
 
 // Native cold-path control avoids expanding CFLOW at every cache check.
-static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsigned int key_id,
-                               const unsigned char *name, size_t length) {
+static inline ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsigned int key_id,
+                                      const unsigned char *name, size_t length) {
     DWORD saved_error = GetLastError();
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
@@ -9352,21 +9409,21 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
 // Bootstrap calls below are defined before public API interception.
 // They cannot use the lazy API cache while that cache is resolving its loader.
 // WriteConsoleA
-static BOOL obfh_bootstrap_write_console(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline BOOL obfh_bootstrap_write_console(HANDLE hConsoleOutput, const void *lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
 }
 #define WriteConsoleA(...) obfh_bootstrap_write_console(__VA_ARGS__)
 
-static HANDLE obfh_bootstrap_std_handle(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline HANDLE obfh_bootstrap_std_handle(DWORD nStdHandle) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return GetStdHandle(obfh_int_proxy(nStdHandle));
 }
 #define GetStdHandle(...) obfh_bootstrap_std_handle(__VA_ARGS__)
 
-static HMODULE obfh_bootstrap_module(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline HMODULE obfh_bootstrap_module(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return GetModuleHandleA(lpModuleName);
@@ -9374,10 +9431,10 @@ static HMODULE obfh_bootstrap_module(LPCSTR lpModuleName) OBFH_CODE_SECTION_ATTR
 #define GetModuleHandleA(...) obfh_bootstrap_module(__VA_ARGS__)
 
 // Forward declaration for forwarded-export module loading.
-static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
+static inline HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName);
 
 // Bounded string scan used by the export parser.
-static const char *obfh_find_zero(const void *buffer, size_t count) {
+static inline const char *obfh_find_zero(const void *buffer, size_t count) {
     OBFH_CUSTOM_BEGIN;
     OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
@@ -9390,7 +9447,7 @@ static const char *obfh_find_zero(const void *buffer, size_t count) {
     return NULL;
 }
 // Check an RVA range against the loaded image size.
-static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
+static inline int obfh_image_range(DWORD size, DWORD rva, size_t length) {
     OBFH_CUSTOM_BEGIN;
     OBFH_CUSTOM_NOP;
     PHANTOM_NOP;
@@ -9399,7 +9456,7 @@ static int obfh_image_range(DWORD size, DWORD rva, size_t length) {
 // GetProcAddress: custom PE export lookup, including ordinals and forwarders.
 // Windows may bind a forwarded EAT entry to code outside the source image.
 // Accept it only from a loader-owned module and an executable image page.
-static FARPROC obfh_bound_export(HMODULE source, DWORD rva) {
+static inline FARPROC obfh_bound_export(HMODULE source, DWORD rva) {
     HMODULE owner = NULL;
     if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                             (LPCSTR)source, &owner) ||
@@ -9414,7 +9471,7 @@ static FARPROC obfh_bound_export(HMODULE source, DWORD rva) {
     return (FARPROC)target;
 }
 
-static FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline FARPROC obfh_find_export(HMODULE hModule, LPCSTR lpProcName, unsigned int depth) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CUSTOM_BEGIN;
     OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
@@ -9565,7 +9622,7 @@ __obfh_getprocaddress_done: \
 #endif
 
 // LoadLibraryA: dynamic loader resolution and proxy chain.
-static HMODULE obfh_load_library_core(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline HMODULE obfh_load_library_core(LPCSTR lpLibFileName) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     switch (_0) {
@@ -9604,7 +9661,7 @@ static HMODULE obfh_load_library_core(LPCSTR lpLibFileName) OBFH_CODE_SECTION_AT
     return NULL;
 }
 
-static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
+static inline HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
     // Two native hops; both the argument and result use full-width, randomized
     // address transport instead of five repeated forwarding wrappers.
     HMODULE result = obfh_load_library_core(OBFH_PTR(LPCSTR, lpLibFileName));
@@ -9644,7 +9701,7 @@ static HMODULE LoadLibraryA_proxy(LPCSTR lpLibFileName) {
         } \
     }
 // The worker owns the duplicated handle, including after a failed/timed-out wait.
-static DWORD WINAPI obfh_ad_register_worker(void *argument) {
+static inline DWORD WINAPI obfh_ad_register_worker(void *argument) {
     HANDLE thread = (HANDLE)argument;
     DWORD detected = 0;
     BREAK_STACK_CFLOW;
@@ -9654,7 +9711,7 @@ static DWORD WINAPI obfh_ad_register_worker(void *argument) {
     return detected;
 }
 
-static int obfh_ad_register_oneshot(void) {
+static inline int obfh_ad_register_oneshot(void) {
     HANDLE target = NULL;
     BREAK_STACK_CFLOW;
     if (!DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
@@ -9686,7 +9743,7 @@ typedef struct {
     DWORD detected;
 } OBFH_AD_REQUEST;
 
-static void obfh_ad_request_release(OBFH_AD_REQUEST *request) {
+static inline void obfh_ad_request_release(OBFH_AD_REQUEST *request) {
     if (InterlockedDecrement(&request->references) == 0) {
         CloseHandle(request->target);
         CloseHandle(request->completed);
@@ -9694,7 +9751,7 @@ static void obfh_ad_request_release(OBFH_AD_REQUEST *request) {
     }
 }
 
-static void WINAPI obfh_ad_register_callback(void *instance, void *argument) {
+static inline void WINAPI obfh_ad_register_callback(void *instance, void *argument) {
     OBFH_AD_REQUEST *request = (OBFH_AD_REQUEST *)argument;
     // The OS releases the module after returning from its code, including on timeout.
     request->release_module(instance, request->module);
@@ -9707,7 +9764,7 @@ static void WINAPI obfh_ad_register_callback(void *instance, void *argument) {
     obfh_ad_request_release(request);
 }
 
-static int obfh_ad_pool_apis(OBFH_AD_SUBMIT *submit, OBFH_AD_MODULE_RELEASE *release) {
+static inline int obfh_ad_pool_apis(OBFH_AD_SUBMIT *submit, OBFH_AD_MODULE_RELEASE *release) {
     static struct {
         PVOID volatile submit, release;
         LONG volatile ready;
@@ -9741,7 +9798,7 @@ static int obfh_ad_pool_apis(OBFH_AD_SUBMIT *submit, OBFH_AD_MODULE_RELEASE *rel
     return 1;
 }
 
-static int obfh_ad_register_probe(void) {
+static inline int obfh_ad_register_probe(void) {
     OBFH_AD_SUBMIT submit;
     OBFH_AD_MODULE_RELEASE release;
     if (!obfh_ad_pool_apis(&submit, &release))
@@ -9778,7 +9835,7 @@ static int obfh_ad_register_probe(void) {
 }
 #endif
 
-static int obfh_ad_process_probe(void) {
+static inline int obfh_ad_process_probe(void) {
     typedef BOOL(WINAPI * ObfhDebuggerCheck)(void);
     static struct {
         PVOID volatile encoded;
@@ -9828,7 +9885,7 @@ static int obfh_ad_process_probe(void) {
     return peb && *((volatile unsigned char *)peb + 2) != 0;
 }
 
-static int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     int detected = obfh_ad_process_probe();
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
@@ -9841,7 +9898,7 @@ static int IsDebuggerPresent_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
 
 // Live paths use defined unsigned arithmetic and leave SP untouched. Random
 // instructions come from the shared pool and reside on its skipped paths.
-static void obfh_ad_sink_a(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void obfh_ad_sink_a(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     volatile unsigned int state = initial | 1u;
     PHANTOM_NOP;
     for (;;) {
@@ -9851,7 +9908,7 @@ static void obfh_ad_sink_a(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     }
 }
 
-static void obfh_ad_sink_b(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void obfh_ad_sink_b(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     volatile unsigned int state = initial;
     PHANTOM_NOP;
     for (;;) {
@@ -9861,7 +9918,7 @@ static void obfh_ad_sink_b(unsigned int initial) OBFH_CODE_SECTION_ATTRIBUTE {
     }
 }
 
-static void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECTION_ATTRIBUTE {
+static inline void obfh_ad_react(unsigned int nonce, unsigned int route) OBFH_CODE_SECTION_ATTRIBUTE {
     typedef void (*ObfhResponse)(unsigned int);
     ObfhResponse volatile response = (route & 1u) ? obfh_ad_sink_a : obfh_ad_sink_b;
     PHANTOM_NOP;
@@ -13670,7 +13727,7 @@ WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 // 22. Math aliases and typed operand transport
 // ============================================================================
 
-static int obfh_abs_proxy(int value) {
+static inline int obfh_abs_proxy(int value) {
     BREAK_STACK_CFLOW;
     PHANTOM_NOP;
     return value < (int)FALSE ? -value : value;
