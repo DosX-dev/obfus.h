@@ -1,3 +1,4 @@
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <windows.h>
@@ -247,7 +248,37 @@ static int native_loops(int outer) { LOOP_BODY }
 static int native_else_control(int limit, int mode) {
     ELSE_CONTROL_BODY
 }
+// Keep native arithmetic before keyword interception: it is the rounding oracle.
+#define CAPTURE_FP_BODY \
+    int result = 0; \
+    if ((++*calls, x * y)) result |= 1; \
+    if ((++*calls, x + y)) result |= 2; \
+    if ((++*calls, x - y)) result |= 4; \
+    return result;
+static int native_capture_float(float x, float y, int *calls) { CAPTURE_FP_BODY }
+static int native_capture_double(double x, double y, int *calls) { CAPTURE_FP_BODY }
+static int native_capture_long_double(long double x, long double y, int *calls) { CAPTURE_FP_BODY }
+struct CaptureScalars {
+    volatile signed int bits : 4;
+    volatile unsigned char byte_value;
+    const volatile unsigned long long wide;
+    const void *volatile pointer;
+};
+#define CAPTURE_SCALAR_BODY \
+    int result = 0; \
+    if ((++*calls, value->bits)) result |= 1; \
+    if ((++*calls, value->byte_value)) result |= 2; \
+    if ((++*calls, value->wide)) result |= 4; \
+    if ((++*calls, value->pointer)) result |= 8; \
+    if ((++*calls, value->bits && (++*calls, value->byte_value))) result |= 16; \
+    if (({ ++*calls; value->wide; })) result |= 32; \
+    return result;
+static int native_capture_scalars(const struct CaptureScalars *value, int *calls) { CAPTURE_SCALAR_BODY }
 #include "../include/obfus.h"
+static int protected_capture_float(float x, float y, int *calls) { CAPTURE_FP_BODY }
+static int protected_capture_double(double x, double y, int *calls) { CAPTURE_FP_BODY }
+static int protected_capture_long_double(long double x, long double y, int *calls) { CAPTURE_FP_BODY }
+static int protected_capture_scalars(const struct CaptureScalars *value, int *calls) { CAPTURE_SCALAR_BODY }
 static int protected_branch(double a, double b) { BODY }
 static int protected_loops(int outer) { LOOP_BODY }
 static int protected_else_control(int limit, int mode) { ELSE_CONTROL_BODY }
@@ -561,6 +592,29 @@ int main(void) {
     for (int i = 0; i < 9; ++i)
         for (int j = 0; j < 9; ++j)
             CHECK(protected_branch(values[i], values[j]) == native(values[i], values[j]));
+    // Arithmetic conditions cover underflow, overflow, signed zero and NaN.
+    float capture_floats[] = {0.0f, -0.0f, FLT_MIN, -FLT_MIN, FLT_MAX, -FLT_MAX, 0.5f, INFINITY, NAN};
+    double capture_doubles[] = {0.0, -0.0, DBL_MIN, -DBL_MIN, DBL_MAX, -DBL_MAX, 0.5, HUGE_VAL, NAN};
+    long double capture_long_doubles[] = {0.0L, -0.0L, LDBL_MIN, -LDBL_MIN, LDBL_MAX, -LDBL_MAX, 0.5L, HUGE_VAL, NAN};
+#define CHECK_CAPTURE_VALUES(type_name, values) \
+    for (unsigned a = 0; a < sizeof(values) / sizeof(values[0]); ++a) \
+        for (unsigned b = 0; b < sizeof(values) / sizeof(values[0]); ++b) { \
+            int native_calls = 0, protected_calls = 0; \
+            int expected = native_capture_##type_name(values[a], values[b], &native_calls); \
+            CHECK(protected_capture_##type_name(values[a], values[b], &protected_calls) == expected); \
+            CHECK(native_calls == 3 && protected_calls == native_calls); \
+        }
+    CHECK_CAPTURE_VALUES(float, capture_floats);
+    CHECK_CAPTURE_VALUES(double, capture_doubles);
+    CHECK_CAPTURE_VALUES(long_double, capture_long_doubles);
+#undef CHECK_CAPTURE_VALUES
+    struct CaptureScalars capture_scalars[] = {{0, 0, 0, NULL}, {-1, 255, 1ull << 63, &visits}, {7, 0, 1ull << 32, NULL}, {-8, 1, ~0ull, &visits}};
+    for (unsigned i = 0; i < sizeof(capture_scalars) / sizeof(capture_scalars[0]); ++i) {
+        int native_calls = 0, protected_calls = 0;
+        int expected = native_capture_scalars(&capture_scalars[i], &native_calls);
+        CHECK(protected_capture_scalars(&capture_scalars[i], &protected_calls) == expected);
+        CHECK(protected_calls == native_calls);
+    }
     int nan_calls = 0;
     CHECK(ordered_nan(NAN, 1.0, &nan_calls) == 0 && nan_calls == 8);
     nan_calls = 0;
