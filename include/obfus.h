@@ -569,10 +569,13 @@ static int obfh_int_proxy(int value) OBFH_CODE_SECTION_ATTRIBUTE;
 // Select stores at compile time; each use has its own captured parameters.
 #define OBFH_NAME_ORDER_FOR(groups, forward, reverse) ({ \
     OBFH_LOADER_FOR(groups); \
-    enum { __obfh_name_order = OBFH_MIX_B(OBFH_JUNK_WORD) & 1u }; \
-    __builtin_choose_expr(__obfh_name_order, forward, reverse); \
+    enum { __obfh_name_order = OBFH_MIX_B(OBFH_JUNK_WORD) }; \
+    __builtin_choose_expr(__obfh_name_order & 1u, forward, reverse); \
 })
 
+// Only distinct caller-owned byte stores may be paired; neither reads the other.
+#define OBFH_NAME_PAIR(bit, first, second) \
+    __builtin_choose_expr((__obfh_name_order >> (bit)) & 1u, ((first), (second)), ((second), (first)))
 #define OBFH_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER_FOR(OBFH_ALPHA_ALL, forward, reverse)
 #define OBFH_CRT_NAME_ORDER_FOR(groups, forward, reverse) OBFH_NAME_ORDER_FOR(groups, forward, reverse)
 #define OBFH_CRT_NAME_ORDER(forward, reverse) OBFH_NAME_ORDER(forward, reverse)
@@ -5043,8 +5046,8 @@ static void *malloc_proxy(size_t size) {
     OBFH_CRT_PROXY_ENTER;
     char name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _m, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _c, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _c, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(0)] = _m));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _m, name[OBFH_NAME_INDEX(1)] = _a), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _c), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _c), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _a), name[OBFH_NAME_INDEX(0)] = _m));
     PHANTOM_NOP;
     void *result = OBFH_CRT_TARGET(void *(*)(size_t), name)(size);
     STACK_PROXY_FUNCTIONS;
@@ -5208,20 +5211,24 @@ typedef struct {
 #define OBFH_VM_BYTE_DECODE(value, add, mask) ((unsigned char)((value) ^ (mask)) - (add))
 #endif
 
-// Each step is invertible on 32-bit state; both transports share the choice.
+// Reverse and mirror the same xorshift triple: four compile-time state maps.
+// Reversal plus transposition preserves the original map's period; bit reversal
+// exchanges left/right shifts. Both transports must use the same map.
+#define OBFH_VM_STATE_FIRST (((OBFH_SEED >> 22) & 1u) ? 5 : 13)
+#define OBFH_VM_STATE_LAST (((OBFH_SEED >> 22) & 1u) ? 13 : 5)
 #if (OBFH_SEED >> 21) & 1u
 #define OBFH_VM_STATE_STEP(state) \
     do { \
-        (state) ^= (state) >> 13; \
+        (state) ^= (state) >> OBFH_VM_STATE_FIRST; \
         (state) ^= (state) << 17; \
-        (state) ^= (state) >> 5; \
+        (state) ^= (state) >> OBFH_VM_STATE_LAST; \
     } while (0)
 #else
 #define OBFH_VM_STATE_STEP(state) \
     do { \
-        (state) ^= (state) << 13; \
+        (state) ^= (state) << OBFH_VM_STATE_FIRST; \
         (state) ^= (state) >> 17; \
-        (state) ^= (state) << 5; \
+        (state) ^= (state) << OBFH_VM_STATE_LAST; \
     } while (0)
 #endif
 
@@ -6919,8 +6926,8 @@ static inline long double Obfh_VirtualMachine(const unsigned int *program, unsig
 __obfh_memchr_loop: \
     OBFH_CUSTOM_EXIT(!__obfh_memchr_args.__obfh_memchr_count, __obfh_memchr_done); \
     OBFH_CUSTOM_EXIT(*(const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory == __obfh_memchr_wanted, __obfh_memchr_found); \
-    __obfh_memchr_args.__obfh_memchr_memory = (const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory + 1; \
-    --__obfh_memchr_args.__obfh_memchr_count; \
+    OBFH_CUSTOM_PAIR(__obfh_memchr_args.__obfh_memchr_memory = (const unsigned char *)__obfh_memchr_args.__obfh_memchr_memory + 1, \
+                     --__obfh_memchr_args.__obfh_memchr_count); \
     goto __obfh_memchr_loop; \
 __obfh_memchr_found: \
     __obfh_memchr_result = (void *)__obfh_memchr_args.__obfh_memchr_memory; \
@@ -8833,8 +8840,8 @@ static char *getDebuggerName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_HIDE_JUNK;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH | OBFH_ALPHA_UPPER,
-                        (name[OBFH_NAME_INDEX(0)] = _I, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _D, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _b, name[OBFH_NAME_INDEX(5)] = _u, name[OBFH_NAME_INDEX(6)] = _g, name[OBFH_NAME_INDEX(7)] = _g, name[OBFH_NAME_INDEX(8)] = _e, name[OBFH_NAME_INDEX(9)] = _r, name[OBFH_NAME_INDEX(10)] = _P, name[OBFH_NAME_INDEX(11)] = _r, name[OBFH_NAME_INDEX(12)] = _e, name[OBFH_NAME_INDEX(13)] = _s, name[OBFH_NAME_INDEX(14)] = _e, name[OBFH_NAME_INDEX(15)] = _n, name[OBFH_NAME_INDEX(16)] = _t, name[OBFH_NAME_INDEX(17)] = _0),
-                        (name[OBFH_NAME_INDEX(17)] = _0, name[OBFH_NAME_INDEX(16)] = _t, name[OBFH_NAME_INDEX(15)] = _n, name[OBFH_NAME_INDEX(14)] = _e, name[OBFH_NAME_INDEX(13)] = _s, name[OBFH_NAME_INDEX(12)] = _e, name[OBFH_NAME_INDEX(11)] = _r, name[OBFH_NAME_INDEX(10)] = _P, name[OBFH_NAME_INDEX(9)] = _r, name[OBFH_NAME_INDEX(8)] = _e, name[OBFH_NAME_INDEX(7)] = _g, name[OBFH_NAME_INDEX(6)] = _g, name[OBFH_NAME_INDEX(5)] = _u, name[OBFH_NAME_INDEX(4)] = _b, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _D, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _I));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _I, name[OBFH_NAME_INDEX(1)] = _s), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _D, name[OBFH_NAME_INDEX(3)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _b, name[OBFH_NAME_INDEX(5)] = _u), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _g, name[OBFH_NAME_INDEX(7)] = _g), OBFH_NAME_PAIR(5, name[OBFH_NAME_INDEX(8)] = _e, name[OBFH_NAME_INDEX(9)] = _r), OBFH_NAME_PAIR(6, name[OBFH_NAME_INDEX(10)] = _P, name[OBFH_NAME_INDEX(11)] = _r), OBFH_NAME_PAIR(7, name[OBFH_NAME_INDEX(12)] = _e, name[OBFH_NAME_INDEX(13)] = _s), OBFH_NAME_PAIR(8, name[OBFH_NAME_INDEX(14)] = _e, name[OBFH_NAME_INDEX(15)] = _n), OBFH_NAME_PAIR(9, name[OBFH_NAME_INDEX(16)] = _t, name[OBFH_NAME_INDEX(17)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(17)] = _0, name[OBFH_NAME_INDEX(16)] = _t), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(15)] = _n, name[OBFH_NAME_INDEX(14)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(13)] = _s, name[OBFH_NAME_INDEX(12)] = _e), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(11)] = _r, name[OBFH_NAME_INDEX(10)] = _P), OBFH_NAME_PAIR(5, name[OBFH_NAME_INDEX(9)] = _r, name[OBFH_NAME_INDEX(8)] = _e), OBFH_NAME_PAIR(6, name[OBFH_NAME_INDEX(7)] = _g, name[OBFH_NAME_INDEX(6)] = _g), OBFH_NAME_PAIR(7, name[OBFH_NAME_INDEX(5)] = _u, name[OBFH_NAME_INDEX(4)] = _b), OBFH_NAME_PAIR(8, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _D), OBFH_NAME_PAIR(9, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _I)));
     PHANTOM_NOP;
     return name;
 }
@@ -8868,9 +8875,14 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
     FARPROC address = obfh_find_export(module, (const char *)name, 0);
     if (!address)
         ExitProcess(0xe0bf4701u);
-    ULONG_PTR value = (ULONG_PTR)address ^ OBFH_GUI_KEY(key_id);
-    unsigned int rotate = OBFH_GUI_ROTATE(key_id);
-    value = ((value << rotate) | (value >> (sizeof(ULONG_PTR) * 8 - rotate))) + OBFH_GUI_BIAS(key_id);
+    ULONG_PTR value = (ULONG_PTR)address, key = OBFH_GUI_KEY(key_id), bias = OBFH_GUI_BIAS(key_id);
+    unsigned int rotate = OBFH_GUI_ROTATE(key_id), form = OBFH_GUI_DRAW(key_id, 0x47554936u) & 3u;
+    // Only the cold resolver branches on the form. Warm calls keep three instructions.
+    if (form == 0 || form == 3) value ^= key;
+    if (form == 1 || form == 3) value += bias;
+    value = (value << rotate) | (value >> (sizeof(ULONG_PTR) * 8 - rotate));
+    if (form == 1 || form == 2) value ^= key;
+    if (form == 0 || form == 2) value += bias;
     // Zero is a valid encoding; ready is published after the atomic pointer write.
     InterlockedCompareExchangePointer(&slot->encoded, (PVOID)value, NULL);
     InterlockedExchange(&slot->ready, 1);
@@ -9097,8 +9109,9 @@ static ULONG_PTR obfh_gui_cold(unsigned int module_id, OBFH_GUI_SLOT *slot, unsi
                __obfh_helper_right = (__obfh_helper_draw >> 2) & 1u, \
                __obfh_helper_first = (__obfh_helper_draw >> 3) & 1u, \
                __obfh_helper_count = 1u + ((__obfh_helper_draw >> 4) % 31u), \
-               __obfh_helper_expected = __obfh_helper_first ? OBFH_HELPER_MIX_VALUE(OBFH_HELPER_ROTATE_VALUE(1u, __obfh_helper_count, __obfh_helper_right), __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form) : OBFH_HELPER_ROTATE_VALUE(OBFH_HELPER_MIX_VALUE(1u, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form), __obfh_helper_count, __obfh_helper_right) }; \
-        unsigned int __obfh_helper_state = (condition) ? 1u : 0u; \
+               __obfh_helper_true = (__obfh_helper_draw & 512u) ? 0u : 1u, \
+               __obfh_helper_expected = __obfh_helper_first ? OBFH_HELPER_MIX_VALUE(OBFH_HELPER_ROTATE_VALUE(__obfh_helper_true, __obfh_helper_count, __obfh_helper_right), __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form) : OBFH_HELPER_ROTATE_VALUE(OBFH_HELPER_MIX_VALUE(__obfh_helper_true, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form), __obfh_helper_count, __obfh_helper_right) }; \
+        unsigned int __obfh_helper_state = __builtin_choose_expr(__obfh_helper_true, !!(condition), !(condition)); \
         __builtin_choose_expr(__obfh_helper_first, ({ \
                                   OBFH_HELPER_ROTATE(__obfh_helper_state, __obfh_helper_count, __obfh_helper_right); \
                                   OBFH_HELPER_MIX(__obfh_helper_state, __obfh_helper_key, __obfh_helper_bias, __obfh_helper_form); \
@@ -9961,8 +9974,8 @@ static inline int obfh_printf_variadic(int junk, const char *format, ...) {
     va_start(args, format);
     char functionName[8];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (functionName[OBFH_NAME_INDEX(0)] = _v, functionName[OBFH_NAME_INDEX(1)] = _p, functionName[OBFH_NAME_INDEX(2)] = _r, functionName[OBFH_NAME_INDEX(3)] = _i, functionName[OBFH_NAME_INDEX(4)] = _n, functionName[OBFH_NAME_INDEX(5)] = _t, functionName[OBFH_NAME_INDEX(6)] = _f, functionName[OBFH_NAME_INDEX(7)] = _0),
-                        (functionName[OBFH_NAME_INDEX(7)] = _0, functionName[OBFH_NAME_INDEX(6)] = _f, functionName[OBFH_NAME_INDEX(5)] = _t, functionName[OBFH_NAME_INDEX(4)] = _n, functionName[OBFH_NAME_INDEX(3)] = _i, functionName[OBFH_NAME_INDEX(2)] = _r, functionName[OBFH_NAME_INDEX(1)] = _p, functionName[OBFH_NAME_INDEX(0)] = _v));
+                        (OBFH_NAME_PAIR(1, functionName[OBFH_NAME_INDEX(0)] = _v, functionName[OBFH_NAME_INDEX(1)] = _p), OBFH_NAME_PAIR(2, functionName[OBFH_NAME_INDEX(2)] = _r, functionName[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, functionName[OBFH_NAME_INDEX(4)] = _n, functionName[OBFH_NAME_INDEX(5)] = _t), OBFH_NAME_PAIR(4, functionName[OBFH_NAME_INDEX(6)] = _f, functionName[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, functionName[OBFH_NAME_INDEX(7)] = _0, functionName[OBFH_NAME_INDEX(6)] = _f), OBFH_NAME_PAIR(2, functionName[OBFH_NAME_INDEX(5)] = _t, functionName[OBFH_NAME_INDEX(4)] = _n), OBFH_NAME_PAIR(3, functionName[OBFH_NAME_INDEX(3)] = _i, functionName[OBFH_NAME_INDEX(2)] = _r), OBFH_NAME_PAIR(4, functionName[OBFH_NAME_INDEX(1)] = _p, functionName[OBFH_NAME_INDEX(0)] = _v)));
     int result;
     DWORD mode;
     PHANTOM_NOP;
@@ -10007,8 +10020,8 @@ static inline int obfh_printf_variadic(int junk, const char *format, ...) {
     const char *__obfh_puts_string = (string); \
     char __obfh_puts_name[5]; \
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_HIGH, \
-                        (__obfh_puts_name[OBFH_NAME_INDEX(0)] = _p, __obfh_puts_name[OBFH_NAME_INDEX(1)] = _u, __obfh_puts_name[OBFH_NAME_INDEX(2)] = _t, __obfh_puts_name[OBFH_NAME_INDEX(3)] = _s, __obfh_puts_name[OBFH_NAME_INDEX(4)] = _0), \
-                        (__obfh_puts_name[OBFH_NAME_INDEX(4)] = _0, __obfh_puts_name[OBFH_NAME_INDEX(3)] = _s, __obfh_puts_name[OBFH_NAME_INDEX(2)] = _t, __obfh_puts_name[OBFH_NAME_INDEX(1)] = _u, __obfh_puts_name[OBFH_NAME_INDEX(0)] = _p)); \
+                        (OBFH_NAME_PAIR(1, __obfh_puts_name[OBFH_NAME_INDEX(0)] = _p, __obfh_puts_name[OBFH_NAME_INDEX(1)] = _u), OBFH_NAME_PAIR(2, __obfh_puts_name[OBFH_NAME_INDEX(2)] = _t, __obfh_puts_name[OBFH_NAME_INDEX(3)] = _s), __obfh_puts_name[OBFH_NAME_INDEX(4)] = _0), \
+                        (OBFH_NAME_PAIR(1, __obfh_puts_name[OBFH_NAME_INDEX(4)] = _0, __obfh_puts_name[OBFH_NAME_INDEX(3)] = _s), OBFH_NAME_PAIR(2, __obfh_puts_name[OBFH_NAME_INDEX(2)] = _t, __obfh_puts_name[OBFH_NAME_INDEX(1)] = _u), __obfh_puts_name[OBFH_NAME_INDEX(0)] = _p)); \
     OBFH_CRT_TARGET(int (*)(const char *), __obfh_puts_name) \
     (__obfh_puts_string); \
 })
@@ -10028,8 +10041,8 @@ static inline int obfh_printf_variadic(int junk, const char *format, ...) {
 static inline char *getScanfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _s));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _c), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _f, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _f), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _s)));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10054,8 +10067,8 @@ static inline char *getScanfName_proxy(char *name) {
 
 static inline char *getFreeName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _0),
-                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e), name[OBFH_NAME_INDEX(4)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r), name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -10063,8 +10076,8 @@ static inline char *getFreeName_proxy(char *name) {
 
 static inline char *getAtofName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _a, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(4)] = _0),
-                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _a));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _a, name[OBFH_NAME_INDEX(1)] = _t), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f), name[OBFH_NAME_INDEX(4)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _t), name[OBFH_NAME_INDEX(0)] = _a));
     PHANTOM_NOP;
     return name;
 }
@@ -10072,8 +10085,8 @@ static inline char *getAtofName_proxy(char *name) {
 
 static inline char *getStrtodName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _s));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _d), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t), name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
     return name;
 }
@@ -10081,8 +10094,8 @@ static inline char *getStrtodName_proxy(char *name) {
 
 static inline char *getSrandName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _s));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _n), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _n, name[OBFH_NAME_INDEX(2)] = _a), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _s)));
     PHANTOM_NOP;
     return name;
 }
@@ -10090,8 +10103,8 @@ static inline char *getSrandName_proxy(char *name) {
 
 static inline char *getFgetsName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10099,8 +10112,8 @@ static inline char *getFgetsName_proxy(char *name) {
 
 static inline char *getFputsName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _s), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10108,8 +10121,8 @@ static inline char *getFputsName_proxy(char *name) {
 
 static inline char *getFprintfName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
-                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10117,8 +10130,8 @@ static inline char *getFprintfName_proxy(char *name) {
 
 static inline char *getFflushName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _f, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _u, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _h, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _h, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _u, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _f, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _f), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _u), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _h), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _h), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _u), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _f), name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -10126,8 +10139,8 @@ static inline char *getFflushName_proxy(char *name) {
 
 static inline char *getFseekName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _s), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _k, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _k), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _s, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10135,8 +10148,8 @@ static inline char *getFseekName_proxy(char *name) {
 
 static inline char *getFtellName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _t), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _l), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10144,8 +10157,8 @@ static inline char *getFtellName_proxy(char *name) {
 
 static inline char *getFgetcName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _g), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _g, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10153,8 +10166,8 @@ static inline char *getFgetcName_proxy(char *name) {
 
 static inline char *getFputcName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _p), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _u, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _c, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _c), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _u), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10162,8 +10175,8 @@ static inline char *getFputcName_proxy(char *name) {
 
 static inline char *getGetcharName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _g, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0),
-                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _g));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _g, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _g)));
     PHANTOM_NOP;
     return name;
 }
@@ -10172,8 +10185,8 @@ static inline char *getGetcharName_proxy(char *name) {
 
 static inline char *getPutcharName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0),
-                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(0)] = _p));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _u), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _t, name[OBFH_NAME_INDEX(3)] = _c), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _h, name[OBFH_NAME_INDEX(5)] = _a), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(5)] = _a, name[OBFH_NAME_INDEX(4)] = _h), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(3)] = _c, name[OBFH_NAME_INDEX(2)] = _t), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(1)] = _u, name[OBFH_NAME_INDEX(0)] = _p)));
     PHANTOM_NOP;
     return name;
 }
@@ -10182,8 +10195,8 @@ static inline char *getPutcharName_proxy(char *name) {
 
 static inline char *getFeofName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(4)] = _0),
-                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(3)] = _f), name[OBFH_NAME_INDEX(4)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _f), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _o, name[OBFH_NAME_INDEX(1)] = _e), name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -10192,8 +10205,8 @@ static inline char *getFeofName_proxy(char *name) {
 
 static inline char *getFerrorName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e), name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
     return name;
 }
@@ -10202,8 +10215,8 @@ static inline char *getFerrorName_proxy(char *name) {
 
 static inline char *getClearerrName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _c, name[OBFH_NAME_INDEX(1)] = _l, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _r, name[OBFH_NAME_INDEX(8)] = _0),
-                        (name[OBFH_NAME_INDEX(8)] = _0, name[OBFH_NAME_INDEX(7)] = _r, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _l, name[OBFH_NAME_INDEX(0)] = _c));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _c, name[OBFH_NAME_INDEX(1)] = _l), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(7)] = _r), name[OBFH_NAME_INDEX(8)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(8)] = _0, name[OBFH_NAME_INDEX(7)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(6)] = _r, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _r, name[OBFH_NAME_INDEX(3)] = _a), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _l), name[OBFH_NAME_INDEX(0)] = _c));
     PHANTOM_NOP;
     return name;
 }
@@ -10212,8 +10225,8 @@ static inline char *getClearerrName_proxy(char *name) {
 
 static inline char *getRewindName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _d), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _d), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _w, name[OBFH_NAME_INDEX(1)] = _e), name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
     return name;
 }
@@ -10222,8 +10235,8 @@ static inline char *getRewindName_proxy(char *name) {
 
 static inline char *getRemoveName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(5)] = _e), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _v, name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _m, name[OBFH_NAME_INDEX(1)] = _e), name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
     return name;
 }
@@ -10232,8 +10245,8 @@ static inline char *getRemoveName_proxy(char *name) {
 
 static inline char *getRenameName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _a), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(5)] = _e), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _m, name[OBFH_NAME_INDEX(3)] = _a), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _e), name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
     return name;
 }
@@ -10242,8 +10255,8 @@ static inline char *getRenameName_proxy(char *name) {
 
 static inline char *getFreopenName_proxy(char *name) {
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(7)] = _0),
-                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _p, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _n, name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _n), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _p), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
     return name;
 }
@@ -10254,8 +10267,8 @@ static inline void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE
     int saved_errno = errno;
     char name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _p));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _p, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _r), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _e), name[OBFH_NAME_INDEX(0)] = _p));
     PHANTOM_NOP;
     FARPROC function = obfh_crt_resolve(name);
     errno = saved_errno;
@@ -10266,8 +10279,8 @@ static inline void perror_proxy(const char *message) OBFH_CODE_SECTION_ATTRIBUTE
 static inline char *getSprintfName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0),
-                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _s));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _p), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _t), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _f, name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _f), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(5)] = _t, name[OBFH_NAME_INDEX(4)] = _n), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(1)] = _p, name[OBFH_NAME_INDEX(0)] = _s)));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10279,8 +10292,8 @@ static inline char *getSprintfName_proxy(char *name) {
 static inline char *getFcloseName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _o, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _c, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _c), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(5)] = _e), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _s, name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _l, name[OBFH_NAME_INDEX(1)] = _c), name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10292,8 +10305,8 @@ static inline char *getFcloseName_proxy(char *name) {
 static inline char *getFopenName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _p, name[OBFH_NAME_INDEX(3)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _n, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _n), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _e, name[OBFH_NAME_INDEX(2)] = _p), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _o, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10305,8 +10318,8 @@ static inline char *getFopenName_proxy(char *name) {
 static inline char *getFreadName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0),
-                        (name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _r), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _e, name[OBFH_NAME_INDEX(3)] = _a), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _d, name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(5)] = _0, name[OBFH_NAME_INDEX(4)] = _d), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(3)] = _a, name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(1)] = _r, name[OBFH_NAME_INDEX(0)] = _f)));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10318,8 +10331,8 @@ static inline char *getFreadName_proxy(char *name) {
 static inline char *getFwriteName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(3)] = _i, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _w, name[OBFH_NAME_INDEX(0)] = _f));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _f, name[OBFH_NAME_INDEX(1)] = _w), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(5)] = _e), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _t, name[OBFH_NAME_INDEX(3)] = _i), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _w), name[OBFH_NAME_INDEX(0)] = _f));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10331,8 +10344,8 @@ static inline char *getFwriteName_proxy(char *name) {
 static inline char *getExitName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _e, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _0),
-                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(1)] = _x, name[OBFH_NAME_INDEX(0)] = _e));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _e, name[OBFH_NAME_INDEX(1)] = _x), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(3)] = _t), name[OBFH_NAME_INDEX(4)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _i, name[OBFH_NAME_INDEX(1)] = _x), name[OBFH_NAME_INDEX(0)] = _e));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10346,8 +10359,8 @@ static inline char *getStrtokName_proxy(char *name) {
     OBFH_CUSTOM_NOP;
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(6)] = _0),
-                        (name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _k, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t, name[OBFH_NAME_INDEX(0)] = _s));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _s, name[OBFH_NAME_INDEX(1)] = _t), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(5)] = _k), name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(6)] = _0, name[OBFH_NAME_INDEX(5)] = _k), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(4)] = _o, name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(2)] = _r, name[OBFH_NAME_INDEX(1)] = _t), name[OBFH_NAME_INDEX(0)] = _s));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10359,8 +10372,8 @@ static inline char *getStrtokName_proxy(char *name) {
 static inline char *getRandName_proxy(char *name) {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(4)] = _0),
-                        (name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _d, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _a, name[OBFH_NAME_INDEX(0)] = _r));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _a), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(3)] = _d), name[OBFH_NAME_INDEX(4)] = _0),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(4)] = _0, name[OBFH_NAME_INDEX(3)] = _d), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _n, name[OBFH_NAME_INDEX(1)] = _a), name[OBFH_NAME_INDEX(0)] = _r));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10372,8 +10385,8 @@ static inline char *getRandName_proxy(char *name) {
 static inline char *getReallocName_proxy(char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     BREAK_STACK_CFLOW;
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(7)] = _0),
-                        (name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r));
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(0)] = _r, name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(2)] = _a, name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(4)] = _l, name[OBFH_NAME_INDEX(5)] = _o), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(6)] = _c, name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, name[OBFH_NAME_INDEX(7)] = _0, name[OBFH_NAME_INDEX(6)] = _c), OBFH_NAME_PAIR(2, name[OBFH_NAME_INDEX(5)] = _o, name[OBFH_NAME_INDEX(4)] = _l), OBFH_NAME_PAIR(3, name[OBFH_NAME_INDEX(3)] = _l, name[OBFH_NAME_INDEX(2)] = _a), OBFH_NAME_PAIR(4, name[OBFH_NAME_INDEX(1)] = _e, name[OBFH_NAME_INDEX(0)] = _r)));
     PHANTOM_NOP;
 #if OBFH_BETTER_CONTROL_FLOW
     BREAK_STACK_CFLOW;
@@ -10392,8 +10405,8 @@ static inline void *calloc_proxy(size_t nmemb, size_t size) OBFH_CODE_SECTION_AT
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _c));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _c, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _a), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _c), __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _c), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _a), __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _c));
     void *result = OBFH_CRT_TARGET(void *(*)(size_t, size_t), __obfh_resolved_name)(nmemb, size);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10414,8 +10427,8 @@ static inline char *gets_proxy(char *s) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[5];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(4)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _s), __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _0),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _s), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e), __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g));
     char *result = OBFH_CRT_TARGET(char *(*)(char *), __obfh_resolved_name)(s);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10437,8 +10450,8 @@ static inline int vsprintf_proxy(char *str, const char *format, va_list args) OB
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[9];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _f, __obfh_resolved_name[OBFH_NAME_INDEX(8)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(8)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _f, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _v));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _s), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _n), OBFH_NAME_PAIR(4, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _f), __obfh_resolved_name[OBFH_NAME_INDEX(8)] = _0),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(8)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _f), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _n), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(4, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _s), __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _v));
     int result = OBFH_CRT_TARGET(int (*)(char *, const char *, va_list), __obfh_resolved_name)(str, format, args);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10456,8 +10469,8 @@ static inline char *getenv_proxy(const char *name) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _v, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _e), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _v), __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _v), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _n, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _e), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _e), __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _g));
     char *result = OBFH_CRT_TARGET(char *(*)(const char *), __obfh_resolved_name)(name);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10467,8 +10480,8 @@ static inline int system_proxy(const char *command) OBFH_CODE_SECTION_ATTRIBUTE 
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _y, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _m, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _m, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _y, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _s));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _y), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _m), __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _m), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _s, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _y), __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _s));
     int result = OBFH_CRT_TARGET(int (*)(const char *), __obfh_resolved_name)(command);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10479,8 +10492,8 @@ static inline void abort_proxy(void) OBFH_CODE_SECTION_ATTRIBUTE {
     PHANTOM_NOP;
     char __obfh_resolved_name[6];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _b, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(5)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _b, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _b), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _0)),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _t), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _o), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _b, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a)));
     OBFH_CRT_TARGET(void (*)(void), __obfh_resolved_name)
     ();
 }
@@ -10490,8 +10503,8 @@ static inline int atexit_proxy(void (*func)(void)) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[7];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _x, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _x, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _t), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _x), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _t), __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _t), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _i, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _x), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _t), __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _a));
     int result = OBFH_CRT_TARGET(int (*)(void (*)(void)), __obfh_resolved_name)(func);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10512,8 +10525,8 @@ static inline int tolower_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _w, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(4, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _w), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _l), OBFH_NAME_PAIR(4, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t)));
     int result = OBFH_CRT_TARGET(int (*)(int), __obfh_resolved_name)(c);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10523,8 +10536,8 @@ static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
     OBFH_CRT_PROXY_ENTER;
     char __obfh_resolved_name[8];
     OBFH_NAME_ORDER_FOR(OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH,
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _u, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0),
-                        (__obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _u, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t));
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _u, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _p), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e), OBFH_NAME_PAIR(4, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0)),
+                        (OBFH_NAME_PAIR(1, __obfh_resolved_name[OBFH_NAME_INDEX(7)] = _0, __obfh_resolved_name[OBFH_NAME_INDEX(6)] = _r), OBFH_NAME_PAIR(2, __obfh_resolved_name[OBFH_NAME_INDEX(5)] = _e, __obfh_resolved_name[OBFH_NAME_INDEX(4)] = _p), OBFH_NAME_PAIR(3, __obfh_resolved_name[OBFH_NAME_INDEX(3)] = _p, __obfh_resolved_name[OBFH_NAME_INDEX(2)] = _u), OBFH_NAME_PAIR(4, __obfh_resolved_name[OBFH_NAME_INDEX(1)] = _o, __obfh_resolved_name[OBFH_NAME_INDEX(0)] = _t)));
     int result = OBFH_CRT_TARGET(int (*)(int), __obfh_resolved_name)(c);
     OBFH_CRT_PROXY_RETURN(result);
 }
@@ -10569,17 +10582,12 @@ static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 })
 #define OBFH_GUI_FORM_0(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
                                                "sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
-#define OBFH_GUI_FORM_1(index) ({ \
-    __obfh_asm__("add" OBFH_GUI_WIDTH " %2, %0; rol" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;" \
-                 : "+&r"(__obfh_gui_value) \
-                 : "r"(OBFH_GUI_SITE_KEY), "r"((ULONG_PTR) - ((ULONG_PTR)(unsigned int)__obfh_gui_bias)), \
-                   "i"(sizeof(ULONG_PTR) * 8 - __obfh_gui_rotate) \
-                 : "cc"); \
-})
-#define OBFH_GUI_FORM_2(index) OBFH_GUI_DECODE(index, ~OBFH_GUI_SITE_KEY, \
-                                               "sub" OBFH_GUI_WIDTH " %2, %0; ror" OBFH_GUI_WIDTH " %3, %0; not" OBFH_GUI_WIDTH " %0; xor" OBFH_GUI_WIDTH " %1, %0;")
+#define OBFH_GUI_FORM_1(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
+                                               "xor" OBFH_GUI_WIDTH " %1, %0; ror" OBFH_GUI_WIDTH " %3, %0; sub" OBFH_GUI_WIDTH " %2, %0;")
+#define OBFH_GUI_FORM_2(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
+                                               "sub" OBFH_GUI_WIDTH " %2, %0; xor" OBFH_GUI_WIDTH " %1, %0; ror" OBFH_GUI_WIDTH " %3, %0;")
 #define OBFH_GUI_FORM_3(index) OBFH_GUI_DECODE(index, OBFH_GUI_SITE_KEY, \
-                                               "neg" OBFH_GUI_WIDTH " %0; add" OBFH_GUI_WIDTH " %2, %0; neg" OBFH_GUI_WIDTH " %0; ror" OBFH_GUI_WIDTH " %3, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
+                                               "ror" OBFH_GUI_WIDTH " %3, %0; sub" OBFH_GUI_WIDTH " %2, %0; xor" OBFH_GUI_WIDTH " %1, %0;")
 // Optional internal observer for cache-isolation regression tests.
 #ifdef OBFH_GUI_CACHE_OBSERVER
 #define OBFH_GUI_CACHE_VISIT(slot, site) OBFH_GUI_CACHE_OBSERVER(slot, site)
@@ -10589,7 +10597,7 @@ static inline int toupper_proxy(int c) OBFH_CODE_SECTION_ATTRIBUTE {
 #define OBFH_GUI_CALL(index, module, name, type, ...) ({ \
     __label__ __obfh_gui_cached, __obfh_gui_decode; \
     enum { __obfh_gui_site = __COUNTER__, \
-           OBFH_GUI_FIELDS(__obfh_gui_form_draw, __obfh_gui_site ^ (index), 0x47554936u), \
+           OBFH_GUI_FIELDS(__obfh_gui_form_draw, __obfh_gui_site, 0x47554936u), \
            __obfh_gui_form = __obfh_gui_form_draw & 3u, \
            OBFH_GUI_FIELDS(__obfh_gui_gap_draw, __obfh_gui_site, 0x534c4f54u), \
            __obfh_gui_gap = __obfh_gui_gap_draw & 31u, \
@@ -13672,19 +13680,15 @@ static int obfh_abs_proxy(int value) {
 #define OBFH_MATH_KEY ((ULONG_PTR)obfh_condition_proxy((float)_1, (float)obfh_int_proxy(SALT_SHIFT)))
 // Mutate the typed value's address: arithmetic identities can change -0,
 // rounding, NaN payloads or wide integer exponents before the math call.
-#if (OBFH_SEED >> 12) % 3u == 0u
-#define OBFH_MATH_ADDRESS_ENCODE(address, key) ((address) ^ (key))
-#define OBFH_MATH_ADDRESS_DECODE(address, key) ((address) ^ (key))
-#endif
-#if (OBFH_SEED >> 12) % 3u == 1u
-#define OBFH_MATH_ADDRESS_ENCODE(address, key) ((address) + (key))
-#define OBFH_MATH_ADDRESS_DECODE(address, key) ((address) - (key))
-#endif
-#if !(((OBFH_SEED >> 12) % 3u == 0u) || ((OBFH_SEED >> 12) % 3u == 1u))
-#define OBFH_MATH_ADDRESS_ENCODE(address, key) ((address) - (key))
-#define OBFH_MATH_ADDRESS_DECODE(address, key) ((address) + (key))
-#endif
+#define OBFH_MATH_ADDRESS_ENCODE(address, key) \
+    __builtin_choose_expr(__obfh_math_form == 0, (address) ^ (key), \
+                          __builtin_choose_expr(__obfh_math_form == 1, (address) + (key), (address) - (key)))
+#define OBFH_MATH_ADDRESS_DECODE(address, key) \
+    __builtin_choose_expr(__obfh_math_form == 0, (address) ^ (key), \
+                          __builtin_choose_expr(__obfh_math_form == 1, (address) - (key), (address) + (key)))
 #define _MUTATE_MATH(value) ({ \
+    enum { OBFH_DATA_FIELDS(__obfh_math_draw, __COUNTER__), \
+           __obfh_math_form = __obfh_math_draw % 3u }; \
     BREAK_STACK_CFLOW; \
     __typeof__((value)) volatile __obfh_math_value = (value); \
     volatile ULONG_PTR __obfh_math_key = OBFH_MATH_KEY; \
@@ -13736,18 +13740,18 @@ static int obfh_abs_proxy(int value) {
 })
 
 #define acos(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _c), __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
                                    double (*)(double), (x))
 
 #define asin(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _s), __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
                                    double (*)(double), (x))
 
 #define atan(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _n), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _a, __obfh_math_name[OBFH_NAME_INDEX(1)] = _t), __obfh_math_name[OBFH_NAME_INDEX(0)] = _a), \
                                    double (*)(double), (x))
 
 #define atan2(y, x) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
@@ -13756,53 +13760,53 @@ static int obfh_abs_proxy(int value) {
                                        double (*)(double, double), (y, x))
 
 #define ceil(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _l), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _i, __obfh_math_name[OBFH_NAME_INDEX(1)] = _e), __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
                                    double (*)(double), (x))
 
 #define cos(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0)), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c)), \
                                   double (*)(double), (x))
 
 #define cosh(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _c, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), __obfh_math_name[OBFH_NAME_INDEX(0)] = _c), \
                                    double (*)(double), (x))
 
 #define exp(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(0)] = _e), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0)), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _p), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(1)] = _x, __obfh_math_name[OBFH_NAME_INDEX(0)] = _e)), \
                                   double (*)(double), (x))
 
 #define fabs(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _s), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _b, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a), __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
                                    double (*)(double), (x))
 
 #define floor(x) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                    (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                                    (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                    (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o), OBFH_NAME_PAIR(3, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0)), \
+                                    (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _r), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(3)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o), OBFH_NAME_PAIR(3, __obfh_math_name[OBFH_NAME_INDEX(1)] = _l, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)), \
                                     double (*)(double), (x))
 
 #define fmod(x, y) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                      (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                      (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                      (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                      (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _d), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _o, __obfh_math_name[OBFH_NAME_INDEX(1)] = _m), __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
                                       double (*)(double, double), (x, y))
 
 #define frexp(x, y) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                       (__obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                                       (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f), \
+                                       (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x), OBFH_NAME_PAIR(3, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0)), \
+                                       (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, __obfh_math_name[OBFH_NAME_INDEX(1)] = _r, __obfh_math_name[OBFH_NAME_INDEX(0)] = _f)), \
                                        double (*)(double, int *), (x, y))
 
 #define ldexp(x, y) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                       (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0), \
-                                       (__obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l), \
+                                       (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x), OBFH_NAME_PAIR(3, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0)), \
+                                       (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(5)] = _0, __obfh_math_name[OBFH_NAME_INDEX(4)] = _p), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(3)] = _x, __obfh_math_name[OBFH_NAME_INDEX(2)] = _e), OBFH_NAME_PAIR(3, __obfh_math_name[OBFH_NAME_INDEX(1)] = _d, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)), \
                                        double (*)(double, int), (x, y))
 
 #define log(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0)), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _g), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _l)), \
                                   double (*)(double), (x))
 
 #define log10(x) OBFH_MATH_CRT_CALL(6, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
@@ -13811,38 +13815,38 @@ static int obfh_abs_proxy(int value) {
                                     double (*)(double), (x))
 
 #define modf(x, y) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                      (__obfh_math_name[OBFH_NAME_INDEX(0)] = _m, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                      (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _m), \
+                                      (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _m, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                      (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _f), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _d, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), __obfh_math_name[OBFH_NAME_INDEX(0)] = _m), \
                                       double (*)(double, double *), (x, y))
 
 #define pow(x, y) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_HIGH, \
-                                     (__obfh_math_name[OBFH_NAME_INDEX(0)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                                     (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _p), \
+                                     (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _p, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0)), \
+                                     (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _w), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(1)] = _o, __obfh_math_name[OBFH_NAME_INDEX(0)] = _p)), \
                                      double (*)(double, double), (x, y))
 
 #define sin(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0)), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s)), \
                                   double (*)(double), (x))
 
 #define sinh(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _i), __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
                                    double (*)(double), (x))
 
 #define sqrt(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _s, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _t), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _r, __obfh_math_name[OBFH_NAME_INDEX(1)] = _q), __obfh_math_name[OBFH_NAME_INDEX(0)] = _s), \
                                    double (*)(double), (x))
 
 #define tan(x) OBFH_MATH_CRT_CALL(4, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0), \
-                                  (__obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0)), \
+                                  (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(3)] = _0, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t)), \
                                   double (*)(double), (x))
 
 #define tanh(x) OBFH_MATH_CRT_CALL(5, OBFH_ALPHA_LOW | OBFH_ALPHA_HIGH, \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
-                                   (__obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(0)] = _t, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h), __obfh_math_name[OBFH_NAME_INDEX(4)] = _0), \
+                                   (OBFH_NAME_PAIR(1, __obfh_math_name[OBFH_NAME_INDEX(4)] = _0, __obfh_math_name[OBFH_NAME_INDEX(3)] = _h), OBFH_NAME_PAIR(2, __obfh_math_name[OBFH_NAME_INDEX(2)] = _n, __obfh_math_name[OBFH_NAME_INDEX(1)] = _a), __obfh_math_name[OBFH_NAME_INDEX(0)] = _t), \
                                    double (*)(double), (x))
 
 // #endregion

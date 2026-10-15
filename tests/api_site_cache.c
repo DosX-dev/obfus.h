@@ -33,12 +33,57 @@ static void cache_observer(void *slot, unsigned int site) {
 static DWORD first_site(void) { return GetCurrentThreadId(); }
 static DWORD second_site(void) { return GetCurrentThreadId(); }
 static DWORD thread_site(void) { return GetCurrentThreadId(); }
+static int decode_forms(void) {
+    enum { __obfh_gui_key_lo = 0xfedcba98u,
+           __obfh_gui_key_hi = 0x76543210u,
+           __obfh_gui_bias = 0x89abcdefu,
+           __obfh_gui_rotate = 17 };
+    const ULONG_PTR values[] = {0, 1, (ULONG_PTR)-1, (ULONG_PTR)-2, (ULONG_PTR)1 << (sizeof(ULONG_PTR) * 8 - 1)};
+    for (unsigned int i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+        for (unsigned int form = 0; form < 4; ++form) {
+            ULONG_PTR x = values[i], key = OBFH_GUI_SITE_KEY, bias = (unsigned int)__obfh_gui_bias;
+            ULONG_PTR __obfh_gui_value;
+#define ROTATE(x) (((x) << 17) | ((x) >> (sizeof(ULONG_PTR) * 8 - 17)))
+            if (form == 0) __obfh_gui_value = ROTATE(x ^ key) + bias;
+            if (form == 1) __obfh_gui_value = ROTATE(x + bias) ^ key;
+            if (form == 2) __obfh_gui_value = (ROTATE(x) ^ key) + bias;
+            if (form == 3) __obfh_gui_value = ROTATE((x ^ key) + bias);
+#undef ROTATE
+            if (form == 0) OBFH_GUI_FORM_0(0);
+            if (form == 1) OBFH_GUI_FORM_1(0);
+            if (form == 2) OBFH_GUI_FORM_2(0);
+            if (form == 3) OBFH_GUI_FORM_3(0);
+            if (__obfh_gui_value != x) return 1;
+        }
+    }
+    return 0;
+}
+static int cold_forms(void) {
+    unsigned int forms = 0;
+    const unsigned char name[] = "GetCurrentThreadId";
+    for (unsigned int site = 0; site < 64; ++site) {
+        OBFH_GUI_SLOT slot = {0};
+        ULONG_PTR value = obfh_gui_cold(2, &slot, site, name, sizeof(name));
+        ULONG_PTR key = OBFH_GUI_KEY(site), bias = OBFH_GUI_BIAS(site);
+        unsigned int rotate = OBFH_GUI_ROTATE(site), form = OBFH_GUI_DRAW(site, 0x47554936u) & 3u;
+        if (!slot.ready || (ULONG_PTR)slot.encoded != value) return 1;
+        forms |= 1u << form;
+        if (form == 0 || form == 2) value -= bias;
+        if (form == 1 || form == 2) value ^= key;
+        value = (value >> rotate) | (value << (sizeof(ULONG_PTR) * 8 - rotate));
+        if (form == 1 || form == 3) value -= bias;
+        if (form == 0 || form == 3) value ^= key;
+        if (((DWORD(WINAPI *)(void))value)() != (GetCurrentThreadId)()) return 2;
+    }
+    return forms != 15u;
+}
 static DWORD WINAPI worker(void *unused) {
     for (unsigned int i = 0; i < 1000; ++i)
         if (thread_site() != (GetCurrentThreadId)()) return 1;
     return 0;
 }
 int main(void) {
+    if (decode_forms() || cold_forms()) return 7;
     DWORD expected = (GetCurrentThreadId)();
     if (first_site() != expected || first_site() != expected || second_site() != expected || second_site() != expected) return 1;
     if (failed || count != 2 || seen[0] == seen[1] || keys[0] == keys[1]) return 2;

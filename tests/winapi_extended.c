@@ -40,6 +40,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #undef for
 #undef while
 #undef break
+#include "api_decode.h"
 // TCC's bundled headers/import libraries omit these newer/NLS APIs.
 #if OBFH_DISABLE_ANY_OBFUSCATION == 1
 #if defined(__x86_64__)
@@ -66,9 +67,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
         SetLastError(0x12345678u); \
         ULONG_PTR value = obfh_gui_cold(module_id, &test_gui_slots[OBFH_GUI_ID_##api], OBFH_GUI_ID_##api, bytes, length); \
         CHECK(GetLastError() == 0x12345678u); \
-        unsigned r = OBFH_GUI_ROTATE(OBFH_GUI_ID_##api); \
-        value -= OBFH_GUI_BIAS(OBFH_GUI_ID_##api); \
-        value = ((value >> r) | (value << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(OBFH_GUI_ID_##api); \
+        value = test_api_decode(value, OBFH_GUI_ID_##api); \
         CHECK(value == (ULONG_PTR)native_export(modules[module_id], #api)); \
     } while (0)
 int main(void) {

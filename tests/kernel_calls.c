@@ -44,6 +44,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #undef for
 #undef while
 #undef break
+#include "api_decode.h"
 #define CHECK(x) \
     do { \
         if (!(x)) { \
@@ -58,9 +59,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
         SetLastError(0x12345678u); \
         ULONG_PTR value = obfh_gui_cold(2, &test_gui_slots[index], index, name, length); \
         CHECK(GetLastError() == 0x12345678u); \
-        unsigned r = OBFH_GUI_ROTATE(index); \
-        value -= OBFH_GUI_BIAS(index); \
-        value = ((value >> r) | (value << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(index); \
+        value = test_api_decode(value, index); \
         CHECK(value == (ULONG_PTR)native_export(kernel, #api)); \
     } while (0)
 int main(int argc, char **argv) {

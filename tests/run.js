@@ -414,7 +414,7 @@ async function main() {
             '#define OBFH_HIDE_JUNK ((void)0)\n#define OBFH_NAME_ORDER(forward, reverse) ((mode & 1) ? (forward) : (reverse))\n' +
             '#define OBFH_NAME_ORDER_FOR(groups, forward, reverse) OBFH_NAME_ORDER(forward, reverse)\n' +
             '#define OBFH_LOADER_FOR(groups) ((void)0)\n' +
-            '#define OBFH_NAME_INDEX(index) (index)\n' +
+            '#define OBFH_NAME_INDEX(index) (index)\n#define OBFH_NAME_PAIR(bit, first, second) ((mode & 1) ? ((first),(second)) : ((second),(first)))\n' +
             [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ']
                 .map((char) => `static volatile char _${char} = '${char}';`)
                 .join('\n') +

@@ -17,7 +17,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         const maskEnd = normalized.indexOf('static inline unsigned int obfh_v_flags(', maskBegin);
         const transportBegin = normalized.indexOf('#if (OBFH_SEED >> 10) & 1u');
         const transportEnd = normalized.indexOf('static inline OBFH_VM_VALUE obfh_vm_encode(', transportBegin);
-        const mathBegin = normalized.indexOf('#if (OBFH_SEED >> 12) % 3u');
+        const mathBegin = normalized.indexOf('#define OBFH_MATH_ADDRESS_ENCODE(');
         const mathEnd = normalized.indexOf('#define _MUTATE_MATH(', mathBegin);
         assert(maskBegin >= 0 && transportBegin >= 0 && mathBegin >= 0, 'VM transport variants missing');
         let c = '#include <stdio.h>\n#include <string.h>\n#include <stddef.h>\n#include <stdint.h>\ntypedef int LONG;typedef uintptr_t ULONG_PTR;typedef void *PVOID;\n';
@@ -85,7 +85,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
         const crtBegin = normalized.indexOf('#if (OBFH_SEED % 3u) == 0u');
         const crtEnd = normalized.indexOf('static FARPROC obfh_crt_site(', crtBegin);
         assert(crtBegin >= 0 && crtEnd > crtBegin, 'CRT byte encodings missing');
-        const transportSeeds = [0, 256, 512, 1024, 1280, 1536, 4096, 8192];
+        const transportSeeds = [0, 256, 512, 1024, 1280, 1536, 4096, 8192, 2097152, 4194304, 6291456];
         for (const seed of transportSeeds) {
             c += `#define OBFH_SEED ${seed}u\n`;
             c += normalized.slice(maskBegin, maskEnd) + normalized.slice(transportBegin, transportEnd) + normalized.slice(mathBegin, mathEnd) + normalized.slice(crtBegin, crtEnd);
@@ -97,8 +97,11 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             c += 'unsigned int values[5]={0,1,0x7fffffffu,0x80000000u,0xffffffffu};\n';
             c += 'for(unsigned int i=0;i<5;++i)for(unsigned int j=0;j<5;++j){unsigned int wire=OBFH_V_VALUE_ENCODE(values[i],values[j]);if(OBFH_V_VALUE_DECODE(wire,values[j])!=values[i])return 3;}\n';
             c += 'size_t pointers[5]={0,1,(size_t)-1,(size_t)-2,((size_t)-1)>>1};\n';
-            c += 'for(unsigned int i=0;i<5;++i)for(unsigned int j=0;j<5;++j){size_t wire=OBFH_MATH_ADDRESS_ENCODE(pointers[i],pointers[j]);if(OBFH_MATH_ADDRESS_DECODE(wire,pointers[j])!=pointers[i])return 4;}return 0;}\n';
-            c += ['OBFH_CRT_BYTE_ENCODE', 'OBFH_CRT_BYTE_DECODE', 'OBFH_SEED', 'OBFH_V_VALUE_ENCODE', 'OBFH_V_VALUE_DECODE', 'OBFH_VM_BYTE_ENCODE', 'OBFH_VM_BYTE_DECODE', 'OBFH_MATH_ADDRESS_ENCODE', 'OBFH_MATH_ADDRESS_DECODE'].map((name) => '#undef ' + name).join('\n') + '\n';
+            for (let form = 0; form < 3; ++form)
+                c += `{enum {__obfh_math_form=${form}};for(unsigned int i=0;i<5;++i)for(unsigned int j=0;j<5;++j){size_t wire=OBFH_MATH_ADDRESS_ENCODE(pointers[i],pointers[j]);if(wire!=(pointers[i]${['^', '+', '-'][form]}pointers[j])||OBFH_MATH_ADDRESS_DECODE(wire,pointers[j])!=pointers[i])return 4;}}\n`;
+            const first = seed & 4194304 ? 5 : 13, last = seed & 4194304 ? 13 : 5, left = seed & 2097152 ? '>>' : '<<', right = seed & 2097152 ? '<<' : '>>';
+            c += `for(unsigned int i=0;i<1000;++i){unsigned int actual=i*2654435761u,expected=actual;expected^=expected${left}${first};expected^=expected${right}17;expected^=expected${left}${last};OBFH_VM_STATE_STEP(actual);if(actual!=expected)return 6;}return 0;}\n`;
+            c += ['OBFH_VM_STATE_FIRST', 'OBFH_VM_STATE_LAST', 'OBFH_VM_STATE_STEP', 'OBFH_CRT_BYTE_ENCODE', 'OBFH_CRT_BYTE_DECODE', 'OBFH_SEED', 'OBFH_V_VALUE_ENCODE', 'OBFH_V_VALUE_DECODE', 'OBFH_VM_BYTE_ENCODE', 'OBFH_VM_BYTE_DECODE', 'OBFH_MATH_ADDRESS_ENCODE', 'OBFH_MATH_ADDRESS_DECODE'].map((name) => '#undef ' + name).join('\n') + '\n';
         }
         const vectorBegin = normalized.indexOf('// All forms copy the same 128 bits');
         const vectorEnd = normalized.indexOf('#define memmove', vectorBegin);

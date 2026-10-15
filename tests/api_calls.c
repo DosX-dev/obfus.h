@@ -38,6 +38,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
 #undef for
 #undef while
 #undef break
+#include "api_decode.h"
 #define CHECK(x) \
     do { \
         if (!(x)) { \
@@ -52,9 +53,7 @@ static OBFH_GUI_SLOT test_gui_slots[OBFH_GUI_COUNT];
         SetLastError(0x12345678u); \
         ULONG_PTR v = obfh_gui_cold(module, &test_gui_slots[index], index, bytes, length); \
         CHECK(GetLastError() == 0x12345678u); \
-        unsigned r = OBFH_GUI_ROTATE(index); \
-        v -= OBFH_GUI_BIAS(index); \
-        v = ((v >> r) | (v << (sizeof(ULONG_PTR) * 8 - r))) ^ OBFH_GUI_KEY(index); \
+        v = test_api_decode(v, index); \
         CHECK(v == (ULONG_PTR)native_export(modules[module], #api)); \
     } while (0)
 static DWORD WINAPI worker(void *event) { return SetEvent(event) ? 0 : 1; }
