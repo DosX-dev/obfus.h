@@ -23,7 +23,7 @@ function trace(source) {
         body = body
             .replaceAll('"movq %%rdx, -8(%%rbp);', '"lock incl %[visit]; movq %%rdx, -8(%%rbp);')
             .replaceAll('jz 2f; xorl', 'jz 2f; lock incl %[odd]; xorl')
-            .replaceAll('"2: imull', '"2: lock incl %[even]; imull')
+            .replaceAll('2: imull', '2: lock incl %[even]; imull')
             .replaceAll(
                 '[frame] "i"(__obfh_pd_frame),',
                 '[visit] "m"(obfh_test_chain_entries[OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [odd] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site) + 1u]), [even] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [frame] "i"(__obfh_pd_frame),'
@@ -33,7 +33,9 @@ function trace(source) {
             '[frame] "i"(__obfh_pd_frame),',
             '[visit] "m"(obfh_test_chain_entries[OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [odd] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site) + 1u]), [even] "m"(obfh_test_chain_routes[2u * OBFH_PD_LIVE_INDEX(__obfh_pd_site)]), [frame] "i"(__obfh_pd_frame),'
         );
-    if (!body.includes('lock incl %[visit]') || !body.includes('[visit] "m"'))
+    if (!body.includes('lock incl %[visit]') || !body.includes('lock incl %[odd]') ||
+        !body.includes('lock incl %[even]') || !body.includes('[visit] "m"') ||
+        !body.includes('[odd] "m"') || !body.includes('[even] "m"'))
         throw new Error('chain tracing target missing');
     const traced = source.slice(0, start) + body + source.slice(end);
     return source.includes('__obfh_pd_site = (site)')
