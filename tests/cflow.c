@@ -287,6 +287,26 @@ static int wide_branch(unsigned long long n) {
     else
         return 0;
 }
+static int raw_branch(unsigned n) {
+    if (n) return 1;
+    return 0;
+}
+static int wide_effect(volatile unsigned long long *n) {
+    if ((*n)++) return 1;
+    return 0;
+}
+static int condition_designators(void) {
+    int array[1], result = 0;
+    enum { present = 7 } value = present;
+    struct {
+        unsigned bit : 1;
+    } bits = {1};
+    if (array) result |= 1;
+    if (raw_branch) result |= 2;
+    if (value) result |= 4;
+    if (bits.bit) result |= 8;
+    return result;
+}
 static int recursive(int n) {
     if (n <= 0) return 0;
     return 1 + recursive(n - 1);
@@ -534,6 +554,19 @@ int main(void) {
     CHECK(comma_condition(&count, 1) == 1 && count == 1);
     CHECK(pointer_branch(&count) && !pointer_branch(NULL));
     CHECK(wide_branch(1ull << 63) && !wide_branch(0));
+    CHECK(condition_designators() == 15);
+    const unsigned long long edges[] = {0, 1, 0xffffffffull, 1ull << 32, 1ull << 63, ~0ull};
+    for (unsigned i = 0; i < sizeof(edges) / sizeof(edges[0]); ++i) {
+        volatile unsigned long long input = edges[i];
+        CHECK(wide_branch(input) == (edges[i] != 0));
+        CHECK(wide_effect(&input) == (edges[i] != 0) && input == edges[i] + 1);
+    }
+    unsigned raw = 0;
+    for (unsigned i = 0; i < 256; ++i) {
+        CHECK(raw_branch(raw) == (raw != 0));
+        CHECK(wide_branch((unsigned long long)raw << 32) == (raw != 0));
+        raw = raw * 1664525u + 1013904223u;
+    }
     CHECK(recursive(100) == 100);
     CHECK(protected_loops(0) == native_loops(0));
     CHECK(protected_loops(1) == native_loops(1));

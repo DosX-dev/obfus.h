@@ -5886,7 +5886,7 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 // Each row is an existing exit family, emitted once with assembler-time selection.
 #define OBFH_P_TERMINAL_TEXT \
     ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;" \
-    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* XOR already supplies ZF; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),2,(((0xd031)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
+    ".fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,(((0xb9)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,(((0)&0xffffffff)^0x80000000)-0x80000000;" /* sub/xor edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,(((0x1)&0xffffffff)^0x80000000)-0x80000000;" /* xor/sub edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,(((0xd8)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,(((0x1b8d039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),4,(((0xf000000)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==2)&1),2,(((0xc145)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub/xor edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,(((0x1e083)&0xffffffff)^0x80000000)-0x80000000;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,(((0x1f083)&0xffffffff)^0x80000000)-0x80000000;" /* xor/sub edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,(((0x1f0)&0xffffffff)^0x80000000)-0x80000000;" /* XOR/SUB supplies ZF; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),2,(((0xd031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x1b8)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,(((0x0)&0xffffffff)^0x80000000)-0x80000000;"
 
 #ifdef OBFH_TEST_FLOW_TRACE
 #define OBFH_P_TERMINAL_SAVE "movl %%eax, %[saved_a]; movl %%edx, %[saved_b];"
@@ -6135,8 +6135,16 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
                       [finish] "i"((style)&7u), [zero_form] "i"((__obfh_flow_hash >> 11) % 3u) \
                     : "edx", "ecx", "cc"); })
 
+// Keep integer/pointer values in the transport instead of replacing them with
+// two tags. OR-fold wide values without losing high-only nonzero inputs. Floating
+// conditions retain C's original comparison path (including NaN and signed zero).
 #define OBFH_FLOW_CONDITION(condition, site_value, ...) \
     ({ \
+        typedef __typeof__((condition) + 0) __obfh_condition_type; \
+        enum { __obfh_value_input = sizeof(__obfh_condition_type) <= 8 && \
+                                    !__builtin_types_compatible_p(__obfh_condition_type, float) && \
+                                    !__builtin_types_compatible_p(__obfh_condition_type, double) && \
+                                    !__builtin_types_compatible_p(__obfh_condition_type, long double) }; \
         enum { \
             __obfh_flow_site = (site_value), \
             __obfh_flow_seed = (unsigned int)__obfh_flow_site ^ (unsigned int)OBFH_SEED ^ 0x43464C57u, \
@@ -6205,11 +6213,18 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         OBFH_P_PREPARE(1, 0); \
         OBFH_P_PREPARE(1, 1); \
         OBFH_P_SECOND_PREPARE \
-        /* Match the selected equality/inequality exit without re-evaluating the condition. */ \
-        unsigned int __obfh_flow_state = (condition) \
-                                             ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag) \
-                                             : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag); \
-        __builtin_choose_expr((__obfh_flow_hash & 1u) ^ (__obfh_flow_exit == 3u || __obfh_flow_exit == 5u || __obfh_flow_exit == 7u), (void)0, \
+        /* Zero is the reference point for value inputs; floating inputs retain their original polarity. */ \
+        unsigned int __obfh_flow_state = __builtin_choose_expr(__obfh_value_input, \
+                                                               ({ unsigned int __obfh_input = __builtin_choose_expr(sizeof(__obfh_condition_type) <= 4, \
+                   (unsigned int)(condition), ({ unsigned long long __obfh_wide = (unsigned long long)(condition); \
+                                                (unsigned int)__obfh_wide | (unsigned int)(__obfh_wide >> 32); })); \
+               __obfh_asm__(".byte %c[op]; .long %c[key];" : "+a"(__obfh_input) \
+                   : [op] "i"(__obfh_flow_hash % 3u == 0 ? 0x35 : __obfh_flow_hash % 3u == 1 ? 0x05 : 0x2d), \
+                     [key] "i"(__obfh_flow_hash % 3u == 2 ? 0u - __obfh_point0 : __obfh_point0) : "cc"); \
+               __obfh_input; }), \
+                                                               (condition) ? (__obfh_flow_hash & 1u ? __obfh_true_tag : __obfh_false_tag) \
+                                                                           : (__obfh_flow_hash & 1u ? __obfh_false_tag : __obfh_true_tag)); \
+        __builtin_choose_expr(__obfh_value_input || (__obfh_flow_hash & 1u) ^ (__obfh_flow_exit == 3u || __obfh_flow_exit == 5u || __obfh_flow_exit == 7u), (void)0, \
                               (void)(__obfh_flow_state ^= __obfh_false_tag ^ __obfh_true_tag)); \
         unsigned int __obfh_flow_tag = __obfh_true_tag, __obfh_flow_result; \
         ULONG_PTR __obfh_cookie = ((ULONG_PTR)&__obfh_flow_state >> 4) ^ (ULONG_PTR)__obfh_flow_hash; \
@@ -6224,7 +6239,8 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
         __obfh_flow_state ^= __obfh_flow_tag ^ __obfh_point0; \
         OBFH_P_FIRST_GRAPH; \
         OBFH_P_SECOND_GRAPH; \
-        __obfh_flow_result; \
+        __builtin_choose_expr(__obfh_value_input && !(__obfh_flow_exit == 3u || __obfh_flow_exit == 5u || __obfh_flow_exit == 7u), \
+                              __obfh_flow_result ^ 1u, __obfh_flow_result); \
     })
 
 #endif /* CFLOW helpers; kernel precedes keyword interception. */

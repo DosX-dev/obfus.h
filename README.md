@@ -1,237 +1,298 @@
 <p align="center"><img src="pics/obfus.h.png" width="560" alt="obfus.h — compile-time obfuscation"></p>
 
-# obfus.h
+<h1 align="center">obfus.h</h1>
 
-**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** is a macro-only library for compile-time polymorphic obfuscation of C applications, designed specifically for **TinyCC 0.9.28rc** on Windows x86 and x64. Download the complete compiler package from **[TinyCC-builder releases](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**. **One file. Protection baked into your binary.**
+<p align="center">Aggressive polymorphic protection for native code. One header. Completely free.</p>
 
-**Just seeing obfus.h in your binary will make a reverse engineer question the existence of God.**
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Windows%20x86%20%2F%20x64-60758a?style=flat&amp;labelColor=30363d" alt="Platform: Windows x86 / x64">
+  <a href="#-compiler-important"><img src="https://img.shields.io/badge/compiler-TinyCC-60758a?style=flat&amp;labelColor=30363d" alt="Compiler: TinyCC"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%2B-60758a?style=flat&amp;labelColor=30363d" alt="License: MIT+"></a>
+</p>
 
-### What features does it have?...
-- 🔍 **Function Call Obfuscation**: Confuse function calls to make your code less readable to unauthorized eyes.
-- 🛡️ **Anti-Debugging Techniques**: Built-in mechanisms to prevent code analysis during runtime.
-- 🔄 **Control Flow Code Mutation**: Turns code into spaghetti, making it difficult to parse conditions and loops.
-- 🧶 **Strings Hiding**: Hides specified strings in a file and dynamically collects them when executed.
-- 🚫 **Anti-Decompilation Techniques**: Makes many popular decompilers useless visually breaking their output.
-- 😈 **Fake Signatures Adding**: Can add fake signatures of various packers and protectors to confuse reverse engineers.
-- 🧠 **Virtualization**: Makes math operations very difficult to understand using virtual machine commands.
-- 🪟 **Windows API Protection**: Automatically protects common GUI and system calls with no extra setup.
+<p align="center"><strong><a href="#-usage">Get started</a> • <a href="https://github.com/DosX-dev/obfus.h/releases/tag/daily-crackme">Download the crackmes</a></strong></p>
+
+**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** brings compile-time polymorphic protection to **C applications on Windows x86 and x64**, built specifically for **[TinyCC](#-compiler-important)**. Turn familiar control flow into tangled paths, obscure calls, hide selected strings and virtualize sensitive calculations. Include the header and build: protection becomes part of your binary.
+
+*Just seeing obfus.h in your binary will make a reverse engineer question the existence of God.*
+
+### What makes it worth using
+
+- 🧬 **The same logic. Many different forms.** Instruction sequences, constants and control-flow layouts vary across protected sites and build seeds.
+- 🔄 **Familiar logic. Unfamiliar control flow.** Automatic protection transforms conditions, loops and returns, complicating reconstruction of the original program structure.
+- 🛡️ **Protection beyond branches.** Combine call obfuscation, runtime string construction, anti-debugging and optional virtualization. Common Windows API and CRT calls receive protection automatically.
+- 📦 **One header. Direct integration.** Build protection directly into your application during compilation, using your existing TCC build.
+- 🔓 **Free, including commercial use.** Open source, with every protection feature included. No paid tiers or feature gates.
+- 🕹️ **Real binaries to take apart.** Download generated crackmes at four difficulty levels and judge the protection yourself.
+
+## 📖 Protection in practice
+
+**Easy to integrate. Unpleasant to reverse.** Polymorphic transformations complicate the path from machine code back to readable logic. They reshape branches, calls and calculations while preserving the intended behavior of the program.
+
+The comparisons below illustrate the transformation. The resulting graph and decompiled output vary with the code, build settings and analysis tool.
+
+### Control-flow graph
+
+![Stylized illustration of control-flow graphs before and after obfuscation](pics/before_and_after.webp)
+
+### Decompiled output
+
+![Example of decompiled output before and after obfuscation](pics/before_and_after_2.webp)
 
 ## 🕹️ [Daily Crackmes](https://github.com/DosX-dev/obfus.h/releases/tag/daily-crackme)
 
-**Four levels: Easy, Medium, Hardcore and Extreme. Unique crackmes, automatically generated and built every day.** Each challenge has its own generated verification logic, not just a different password. Sharpen your reverse-engineering skills or see how obfus.h works in real binaries — no compiler or test setup needed. **Download. Disassemble. Find the password.**
+**See the protection. Take it apart. Judge it yourself.**
+
+Four levels: **Easy, Medium, Hardcore and Extreme**. Generated verification logic changes the challenge itself, not just its password. Download ready-to-run Windows binaries, sharpen your reverse-engineering skills and explore the generated protection without setting up a compiler. **Download. Disassemble. Find the password.**
 
 New crackmes are published daily. The scheduler is set for **13:00 Moscow time (UTC+3)**, but the actual publication time depends on GitHub Actions' mood.
 
 ## 🎯 Intended use
 
-**obfus.h is a full-featured obfuscation tool, not a proof of concept.** It is a powerful tool when you understand where and how to apply it: use it to protect selected native components containing sensitive logic.
+**Protect the logic that makes your software yours.** Apply protection to native components containing proprietary algorithms, licensing checks or other sensitive logic. Choose the mechanisms and settings that fit the component's performance requirements.
 
-Since obfus.h requires **TCC**, the recommended approach for larger projects is to isolate that logic in C DLLs compiled with TCC and obfuscated with obfus.h. The main application can remain in **C#, C++**, another language, or **C compiled with GCC, LLVM/Clang or Visual C** and call those DLLs through their exported interfaces.
+For larger projects, isolate that logic in **C DLLs compiled with TCC**. The main application can keep its existing toolchain — **C#, C++**, another language, or **C compiled with GCC, LLVM/Clang or Visual C** — and call the protected DLLs through their exported interfaces.
 
-The resulting binaries can also be processed by commercial protectors and packers to add another layer of protection. Check compatibility with your chosen protector and settings before distributing the protected components.
+You can also combine the resulting binaries with commercial protectors and packers. Check compatibility with the chosen protector and settings before distribution.
 
 > [!IMPORTANT]
-> obfus.h significantly raises the barrier to reverse engineering, but it is not a panacea. Protecting trade secrets also requires your own internal protection mechanisms; obfuscation should be one layer of your protection strategy.
+> **Make reverse engineering cost more time and effort.** Layered, polymorphic protection complicates analysis and recovery of your program's logic. The goal is to raise the effort required to recover protected logic, rather than promise immunity to reverse engineering.
 
 This project is intended to protect lawful software, including commercial applications and crackmes. Its author categorically opposes any malicious use. This statement is not a license condition, but projects involving malicious activity will receive no support from the author or the development team.
 
 ## 👾 Usage
 
-Integrating **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** into your project is a simple process. Just include the following line in your code:
+Download **[TinyCC 0.9.28rc from TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)** and place **[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** in your project. Include it **after standard and system headers**, before the code you want to protect:
+
 ```c
 #include "obfus.h"
 ```
-**One file. Powerful protection.** Include it and build your application: the protection code is baked directly into the output binary, making your native code much harder to analyze.
 
-Protection is polymorphic throughout the application: even small changes to the source code can substantially reshape the protection baked into the output binary, changing its instructions, constants and control-flow paths.
+Build with TCC as usual. Automatic protection is enabled by default; use markers and `HIDE_STRING` for additional protection at selected points. IntelliSense remains available.
 
-Control-flow protection uses **Control Flow Explosion**: straightforward conditions and loops expand into a tangled graph of branches, indirect transitions and fake functions. Polymorphic instruction sequences carry state and select continuations, so removing them without preserving their dependencies can break execution. The graph's structure and instruction forms vary with the source code, making the original logic harder to follow in disassemblers and decompilers. `OBFH_BETTER_CONTROL_FLOW` adds another layer of control-flow mutation.
+Automatic control-flow protection covers `if`, `else`, `case`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do`. Use the `BREAK_STACK_CFLOW;` and `STACK_PROXY_FUNCTIONS;` markers to add protection at selected points in your code.
 
-Automatic control-flow protection transforms `if`, `else`, `case`, `break`, `switch`, `while`, `for`, `return`, `continue`, `default` and `do` into polymorphic code that makes the original logic harder to follow. For explicit insertion, use `BREAK_STACK_CFLOW;` or `STACK_PROXY_FUNCTIONS;`. `OBFH_DISABLE_CONTROL_FLOW` disables automatic control-flow protection; `OBFH_DISABLE_ANY_OBFUSCATION` disables obfuscation.
+Enable `OBFH_BETTER_CONTROL_FLOW` for an additional layer of control-flow protection, with higher runtime cost.
 
-IntelliSense remains available. No extra tools or code generation are required.
+### Choose your build variants
 
-> Define options **before** including `obfus.h`:
-> ```c
-> // Build settings
-> #define OBFH_SEED                     123456789u // Choose compile-time protection variants
-> 
-> // Additional options
-> #define OBFH_BETTER_CONTROL_FLOW      1          // Stronger control-flow protection (slower execution)
-> #define OBFH_BETTER_ANTIDEBUG         1          // Add hardware-breakpoint checks to anti-debugging protection
-> #define OBFH_FAKE_SIGNATURES          1          // Fake protector/packer signatures (crackme/CTF only)
-> 
-> // Disabling default features
-> #define OBFH_DISABLE_ANY_OBFUSCATION  1          // Don't obfuscate (for debugging)
-> #define OBFH_DISABLE_CONTROL_FLOW     1          // Don't use Control-Flow obfuscation
-> #define OBFH_DISABLE_ANTIDEBUG        1          // Don't build in debugging protection
-> #define OBFH_DISABLE_PDATA_DECOYS     1          // Disable additional x64 fake functions
-> ```
+`OBFH_SEED` is an unsigned 32-bit build seed (default: `0u`). Change it to generate different protection layouts for the same program behavior. Source changes can also affect the generated protection.
 
-`OBFH_SEED` is an unsigned 32-bit build seed (default: `0u`). Change it to vary
-the generated protection while keeping your program's behavior. It is not a secret
-or a password; identical binaries also depend on the source, compiler and build settings.
-For command-line builds, use `-DOBFH_SEED=123456789u`.
+For command-line builds, use `-DOBFH_SEED=123456789u`. The seed can be stored openly in your build configuration; reproducing a binary also requires matching the source, compiler and build settings.
 
-Older names such as `OBFH_BUILD_SEED` remain compatible but produce a
-`#warning`. If both names are defined, the new `OBFH_*` option takes precedence.
+Define options **before** including the header. For example, to enable the additional control-flow and anti-debugging mechanisms:
+
+```c
+#define OBFH_SEED                   123456789u
+#define OBFH_BETTER_CONTROL_FLOW    1
+#define OBFH_BETTER_ANTIDEBUG       1
+
+#include "obfus.h"
+
+```
+
+### Option reference
+
+Choose individual options to match your protection and performance requirements.
+
+| Option | Effect when set to `1` |
+|--------|------------------------|
+| `OBFH_BETTER_CONTROL_FLOW` | Add another layer of control-flow mutation, with higher execution cost. |
+| `OBFH_BETTER_ANTIDEBUG` | Add hardware-breakpoint checks to anti-debugging protection. |
+| `OBFH_FAKE_SIGNATURES` | Add fake protector/packer signatures for crackme and CTF challenges. |
+
+For debugging or selective disabling:
+
+| Option | Effect when set to `1` |
+|--------|------------------------|
+| `OBFH_DISABLE_ANY_OBFUSCATION` | Disable obfuscation. |
+| `OBFH_DISABLE_CONTROL_FLOW` | Disable automatic control-flow protection. |
+| `OBFH_DISABLE_ANTIDEBUG` | Disable built-in anti-debugging protection. |
+| `OBFH_DISABLE_PDATA_DECOYS` | Disable x64 decoy functions and their associated control-flow protection. |
+
+Older names such as `OBFH_BUILD_SEED` remain compatible but produce a `#warning`. If both names are defined, the new `OBFH_*` option takes precedence.
 
 > [!WARNING]
 > **Reserve `OBFH_FAKE_SIGNATURES` for crackme/CTF challenges; avoid it in production software.** Fake protector and packer signatures can trigger antivirus detections and cause tools such as Detect It Easy to flag the binary as suspicious or potentially malicious.
 
-> or use it with compiler args:
-> 
-> ```
-> tcc "app.c" -w  -D OBFH_DISABLE_CONTROL_FLOW  -D OBFH_BETTER_ANTIDEBUG  -D OBFH_FAKE_SIGNATURES
-> ```
+You can also select options on the command line:
+
+```bat
+tcc "app.c" -w -DOBFH_SEED=123456789u -DOBFH_BETTER_ANTIDEBUG=1
+```
 
 > [!TIP]
 > Use `-w` to suppress warnings generated by the protection during compilation.
 
-🔐 Debugging protection is triggered by calls to many basic MSVCRT functions.
-In critical places in the code you can use the `ANTI_DEBUG;` construct. For example:
+Calls to many common MSVCRT functions automatically trigger anti-debugging checks. Place the `ANTI_DEBUG;` marker where you need an additional check:
+
 ```c
 ANTI_DEBUG;
 if (!licenseExpired()) {
-	// ...
+    // ...
 }
 ```
 
-## 🧶 Strings hiding
-Use `HIDE_STRING(str)` to build a string at runtime instead of storing it as a plain string in the binary. Use it inside functions; it cannot initialize static variables.
+## 🧶 String hiding
 
-The returned pointer remains valid until the enclosing block ends. Copy the string if it needs to outlive that block. Some decompilers can still reconstruct its contents.
+**Hide selected string literals.** Use the `HIDE_STRING(str)` construct inside functions to build strings at runtime instead of storing them as plain text in the binary.
 
-Example:
+The returned pointer remains valid until the enclosing block ends. For longer-lived or static storage, copy the string into your own buffer at runtime. Contents can be recovered through code analysis or runtime inspection.
+
 ```c
 char *hidden_message = HIDE_STRING("Hello, world!");
 // ...
-printf(hidden_message);
+printf("%s", hidden_message);
+```
+
+An example of runtime string construction in x86-64 disassembly:
+
+```asm
+  ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
+  ; PROTECTED STRING:                  ; ORIGINAL STRING:         ;
+  mov eax, 48h                         lea rax, aHelloWorld       ;
+  mov [rbp-0Fh], al                    mov r11, rax               ;
+  mov eax, 65h                         ; . . .                    ;
+  mov [rbp-0Eh], al                                               ;
+  mov eax, 6Ch                                                    ;
+  mov [rbp-0Dh], al                                               ;
+  mov eax, 6Ch                                                    ;
+  mov [rbp-0Ch], al                                               ;
+  mov eax, 6Fh                                                    ;
+  mov [rbp-0Bh], al                                               ;
+  mov eax, 2Ch                                                    ;
+  ; etc . . .                                                     ;
+  ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 ```
 
 ## 👺 Virtualization
-The virtual machine is automatically included when you use its `VM_*` operators. No extra option or initialization is required. Its `static inline` functions keep unused VM code out of the binary. With `OBFH_DISABLE_ANY_OBFUSCATION=1`, these macro-operators use ordinary calculations.
 
-Selected standard math functions keep lightweight argument protection without using the VM.
+**Put selected calculations behind a virtual instruction set.** Use `VM_*` markers to express sensitive arithmetic and comparisons through VM operations.
+
+The virtual machine is included automatically when you use `VM_*` markers; unused VM functions add no weight to your binary. With `OBFH_DISABLE_ANY_OBFUSCATION=1`, these markers expand to ordinary calculations.
 
 > [!WARNING]
-> Virtualization in critical locations can impact optimization. Use with caution only in areas where it is really needed
+> **Focus virtualization on sensitive calculations.** VM protection adds runtime overhead; measure performance when using it in frequently executed code.
 
-| Function         | Type           | Op | Description                                                                | Example                              |
+| Marker           | Type           | Op | Description                                                                | Example                              |
 |------------------|----------------|----|----------------------------------------------------------------------------|--------------------------------------|
-| **`VM_ADD`**     | *long*         |`+` | Adds two numbers                                                           | `VM_ADD(5, 3)` = **`8`**             |
-| **`VM_SUB`**     | *long*         |`-` | Subtracts two numbers                                                      | `VM_SUB(5, 3)` = **`2`**             |
-| **`VM_MUL`**     | *long*         |`*` | Multiplies two numbers                                                     | `VM_MUL(5, 3)` = **`15`**            |
-| **`VM_DIV`**     | *long*         |`/` | Divides two numbers                                                        | `VM_DIV(6, 3)` = **`2`**             |
-| **`VM_MOD`**     | *long*         |`%` | Calculates the modulus of two numbers                                      | `VM_MOD(5, 3)` = **`2`**             |
-| **`VM_AND`**     | *unsigned int* |`&` | Calculates the bitwise AND of two numbers                                  | `VM_AND(6, 3)` = **`2`**             |
-| **`VM_OR`**      | *unsigned int* |`\|`| Calculates the bitwise OR of two numbers                                   | `VM_OR(6, 3)` = **`7`**              |
-| **`VM_XOR`**     | *unsigned int* |`^` | Calculates the bitwise XOR of two numbers                                  | `VM_XOR(6, 3)` = **`5`**             |
-| **`VM_NOT`**     | *unsigned int* |`~` | Inverts all bits of a number                                               | `VM_NOT(0)` = **`0xFFFFFFFFu`**      |
-| **`VM_SHL`**     | *unsigned int* |`<<`| Shifts a number left by the specified number of bits                       | `VM_SHL(1, 3)` = **`8`**             |
-| **`VM_SHR`**     | *unsigned int* |`>>`| Shifts a number right by the specified number of bits, filling with zeros  | `VM_SHR(8, 3)` = **`1`**             |
-| **`VM_EQU`**     | *BOOL*         |`==`| Checks if two numbers are equal                                            | `VM_EQU(5, 5)` = **`true`**          |
-| **`VM_NEQ`**     | *BOOL*         |`!=`| Checks if two numbers are not equal                                        | `VM_NEQ(5, 3)` = **`true`**          |
-| **`VM_LSS`**     | *BOOL*         |`<` | Checks if the first number is less than the second number                  | `VM_LSS(3, 5)` = **`true`**          |
-| **`VM_GTR`**     | *BOOL*         |`>` | Checks if the first number is greater than the second number               | `VM_GTR(5, 3)` = **`true`**          |
-| **`VM_LEQ`**     | *BOOL*         |`<=`| Checks if the first number is less than or equal to the second number      | `VM_LEQ(3, 5)` = **`true`**          |
-| **`VM_GEQ`**     | *BOOL*         |`>=`| Checks if the first number is greater than or equal to the second number   | `VM_GEQ(5, 3)` = **`true`**          |
-| **`VM_ADD_DBL`** | *long double*  |`+` | Adds two double numbers                                                    | `VM_ADD_DBL(5.5, 3.2)` = **`≈8.7`**  |
-| **`VM_SUB_DBL`** | *long double*  |`-` | Subtracts two double numbers                                               | `VM_SUB_DBL(5.5, 3.2)` = **`≈2.3`**  |
-| **`VM_MUL_DBL`** | *long double*  |`*` | Multiplies two double numbers                                              | `VM_MUL_DBL(5.5, 3.2)` = **`≈17.6`** |
-| **`VM_DIV_DBL`** | *long double*  |`/` | Divides two double numbers                                                 | `VM_DIV_DBL(6.0, 3.0)` = **`≈2.0`**  |
-| **`VM_LSS_DBL`** | *BOOL*         |`<` | Checks if the first double number is less than the second double number    | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
-| **`VM_GTR_DBL`** | *BOOL*         |`>` | Checks if the first double number is greater than the second double number | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
-> The virtual machine does not support some basic `double` comparison operations.
+| **`VM_ADD`**     | *long*         |`+` | Addition | `VM_ADD(5, 3)` = **`8`**             |
+| **`VM_SUB`**     | *long*         |`-` | Subtraction | `VM_SUB(5, 3)` = **`2`**             |
+| **`VM_MUL`**     | *long*         |`*` | Multiplication | `VM_MUL(5, 3)` = **`15`**            |
+| **`VM_DIV`**     | *long*         |`/` | Division | `VM_DIV(6, 3)` = **`2`**             |
+| **`VM_MOD`**     | *long*         |`%` | Remainder | `VM_MOD(5, 3)` = **`2`**             |
+| **`VM_AND`**     | *unsigned int* |`&` | Bitwise AND | `VM_AND(6, 3)` = **`2`**             |
+| **`VM_OR`**      | *unsigned int* |`\|`| Bitwise OR | `VM_OR(6, 3)` = **`7`**              |
+| **`VM_XOR`**     | *unsigned int* |`^` | Bitwise XOR | `VM_XOR(6, 3)` = **`5`**             |
+| **`VM_NOT`**     | *unsigned int* |`~` | Bitwise NOT | `VM_NOT(0)` = **`0xFFFFFFFFu`**      |
+| **`VM_SHL`**     | *unsigned int* |`<<`| Left shift | `VM_SHL(1, 3)` = **`8`**             |
+| **`VM_SHR`**     | *unsigned int* |`>>`| Right shift, zero-filled | `VM_SHR(8, 3)` = **`1`**             |
+| **`VM_EQU`**     | *BOOL*         |`==`| Equal | `VM_EQU(5, 5)` = **`true`**          |
+| **`VM_NEQ`**     | *BOOL*         |`!=`| Not equal | `VM_NEQ(5, 3)` = **`true`**          |
+| **`VM_LSS`**     | *BOOL*         |`<` | Less than | `VM_LSS(3, 5)` = **`true`**          |
+| **`VM_GTR`**     | *BOOL*         |`>` | Greater than | `VM_GTR(5, 3)` = **`true`**          |
+| **`VM_LEQ`**     | *BOOL*         |`<=`| Less than or equal | `VM_LEQ(3, 5)` = **`true`**          |
+| **`VM_GEQ`**     | *BOOL*         |`>=`| Greater than or equal | `VM_GEQ(5, 3)` = **`true`**          |
+| **`VM_ADD_DBL`** | *long double*  |`+` | Addition | `VM_ADD_DBL(5.5, 3.2)` = **`≈8.7`**  |
+| **`VM_SUB_DBL`** | *long double*  |`-` | Subtraction | `VM_SUB_DBL(5.5, 3.2)` = **`≈2.3`**  |
+| **`VM_MUL_DBL`** | *long double*  |`*` | Multiplication | `VM_MUL_DBL(5.5, 3.2)` = **`≈17.6`** |
+| **`VM_DIV_DBL`** | *long double*  |`/` | Division | `VM_DIV_DBL(6.0, 3.0)` = **`≈2.0`**  |
+| **`VM_LSS_DBL`** | *BOOL*         |`<` | Less than | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
+| **`VM_GTR_DBL`** | *BOOL*         |`>` | Greater than | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
 
-You can use logical operators that use virtual machine calls to further complicate the understanding of your code:
-| Operator        | Description               |
+> For floating-point comparisons, use `VM_LSS_DBL` and `VM_GTR_DBL`.
+
+The following markers route condition checks through a VM proxy layer, adding another layer of complexity to branch analysis:
+
+| Marker          | Description               |
 |-----------------|---------------------------|
 | **`VM_IF`**     | Use instead of `if`       |
 | **`VM_ELSE_IF`**| Use instead of `else if`  |
 | **`VM_ELSE`**   | Use instead of `else`     |
-> This is not a complete replacement for if/else, but is just a complication of standard operators.
 
-A simple example of using virtualization:
+For example:
+
 ```c
 // ...
 
 // if ((2 + 2) == 4) { ... }
-VM_IF (VM_EQU(VM_ADD(2, 2), 4)) {
-	printf("2 + 2 == 4!");
+VM_IF(VM_EQU(VM_ADD(2, 2), 4)) {
+    printf("2 + 2 == 4!");
 }
 
 // if (condition1) { ... }
 // else if (condition2) { ... }
 // else { ... }
-VM_IF (condition1) {
-	// if
-} VM_ELSE_IF (condition2) {
-	// else if
+VM_IF(condition1) {
+    // if
+} VM_ELSE_IF(condition2) {
+    // else if
 } VM_ELSE {
-	// else
+    // else
 }
 ```
 
-You can find examples of using all the functions of a virtual machine in the file [tests/vm.c](tests/vm.c)
+See [tests/vm.c](tests/vm.c) for further examples of VM markers.
 
 ## ❓ Example
-If you need advanced protection against skilled reversers, use `OBFH_BETTER_CONTROL_FLOW` and `OBFH_BETTER_ANTIDEBUG` options.
+
+This example combines automatic protection, `HIDE_STRING` and VM markers with enhanced control-flow and anti-debugging options.
+
+Save it as `app.c` next to `obfus.h` and build with `tcc app.c -w -o app.exe`.
+
 ```c
-// Let's obfuscate your code!
-
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define OBFH_SEED                     123321u  // [@] Use "123321" as a seed
-
-#define OBFH_BETTER_CONTROL_FLOW      1        // [+] Better ControlFlow (stronger)
-#define OBFH_BETTER_ANTIDEBUG         1        // [+] Better AntiDebug (stronger)
-#define OBFH_FAKE_SIGNATURES          1        // [+] Fake signatures
-
-#define OBFH_DISABLE_ANY_OBFUSCATION  0        // [-] Don't obfuscate (disable all)
-#define OBFH_DISABLE_CONTROL_FLOW     0        // [-] Disable ControlFlow
-#define OBFH_DISABLE_ANTIDEBUG        0        // [-] Disable AntiDebug
+#define OBFH_SEED                   123321u
+#define OBFH_BETTER_CONTROL_FLOW    1          // Additional control-flow mutation; higher runtime cost
+#define OBFH_BETTER_ANTIDEBUG       1          // Additional hardware-breakpoint checks
+#define OBFH_FAKE_SIGNATURES        0          // Enable only for crackme/CTF challenges
 
 #include "obfus.h"
 
-void _start(void) {
-	ANTI_DEBUG;
+int main(void) {
+    ANTI_DEBUG;
 
-	char *out = malloc(256);
+    char *out = malloc(256);
+    STACK_PROXY_FUNCTIONS;
 
-	STACK_PROXY_FUNCTIONS;
+    if (out) {
+        strcpy(out, HIDE_STRING("Hello, world!\n"));
+        printf("%s", out);
+    } else {
+        printf("Allocation failed!\n");
+        return 1;
+    }
 
-	if (out) {
-		strcpy(out, HIDE_STRING("Hello, world!\n"));
-		printf("%s", out);
-	} else {
-		printf("Error!\n");
-	}
+    free(out);
 
-	free(out);
+    int result = VM_ADD(5, 7);
+    BREAK_STACK_CFLOW;
 
-	int result = VM_ADD(5, 7); // 5 + 7
+    VM_IF(VM_EQU(result, 12)) {
+        printf("5 + 7 == 12\n");
+    }
 
-	BREAK_STACK_CFLOW;
-	VM_IF (VM_EQU(result, 12)) { // (5 + 7) == 12
-		printf("5 + 7 == 12");
-	}
-
-	exit(0);
+    return 0;
 }
 ```
 
 ## 🤖 How it works
-> ![](pics/how-it-works.png)
+
+![Overview of the obfuscation process](pics/how-it-works.png)
 
 ## 🛠 Compiler (important)
-Use **TinyCC `0.9.28rc` from [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**, which includes the Windows headers, libraries and `obfh-update.cmd`. TinyCC `0.9.27`, **Visual C**, **GCC** and **Clang** are not supported.
+
+Use **TinyCC `0.9.28rc` from [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder/releases/latest)**, which includes the Windows headers, libraries and `obfh-update.cmd`. Use this package to get the compiler version required by the protection.
 
 > [!NOTE]
 > To build the latest compiler yourself, download [TinyCC-builder](https://github.com/DosX-dev/TinyCC-builder) and double-click `build.cmd`; sources and dependencies are downloaded automatically.
 
 ## 🌐 obfus.h updater
-**`obfh-update.cmd` is already included in the standard [TinyCC-builder package](https://github.com/DosX-dev/TinyCC-builder/releases/latest), next to `tcc.exe`.** No separate download is needed.
+
+**`obfh-update.cmd` is already included in the standard [TinyCC-builder package](https://github.com/DosX-dev/TinyCC-builder/releases/latest), next to `tcc.exe`.**
 
 Run it manually from your project directory or add it to your build pipeline. It downloads the latest `obfus.h` into the current directory:
 
@@ -248,49 +309,26 @@ call "C:\TinyCC\obfh-update.cmd" "include"
 call "C:\TinyCC\obfh-update.cmd" "C:\My project\include"
 ```
 
-Without the compiler package, you can also [download the script separately](include-updater/obfh-update.cmd).
+For standalone use, [download the script separately](include-updater/obfh-update.cmd).
 
-## 🦎 Security Audits and the Community
- * **[Defeating a Heavily Obfuscated Binary](https://vxcall.github.io/posts/defeating-a-heavily-obfuscated-binary/)** - Black-box analysis of internal obfus.h security mechanisms and it deobfuscation. All vulnerabilities have now been patched.
- * **[V1t CTF 2026 Writeup: 8 Challenges Solved](https://cybersecurityelite.com/ctf-writeups/v1t-ctf-2026-writeup/)** - Reverse engineering of the obfus.h-protected Sealed Input Verifier challenge.
- * **[\[CTF\] 2024 CISCN x 长城杯 初赛逆向0解题-VT 解题全流程](https://www.52pojie.cn/thread-2008228-1-1.html#1)** -  Reversing CTF with previous generation of obfus.h using the original protection code.
- * **[ObfusHunter](https://github.com/hACKCASCAC/ObfusHunter)** - A utility for scanning files protected by obfus.h
+## 🦎 Security Research and Community
 
-## 📖 Protection in practice
-**Extremely aggressive polymorphic obfuscation is the core of obfus.h.** Its protection deliberately uses aggressive transformations to disrupt the semantic structure recovered by analysis tools while preserving the program's behavior. Instructions and control-flow paths vary throughout the binary, making the original logic harder to reconstruct and modify. Use it alongside your application's own checks and protections.
+**Research feeds back into the protection.** Community analysis and CTF writeups help identify weaknesses and guide improvements. Each article examines a specific sample and version, rather than establishing a universal method for removing protection.
 
-> **What the diagrammatic code will look like after obfuscation:**
-> ![](pics/before_and_after.png)
-
-> **The reverser will see something like this if he tries to use a decompiler:**
-> ![](pics/before_and_after_2.png)
-
-> **This is what all hidden strings via `HIDE_STRING` feature look like in the disassembler (x86-64 arch):**
-> ```asm
->   ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
->   ; PROTECTED STRING:                  ; ORIGINAL STRING:         ;
->   mov eax, 48h                         lea rax, aHelloWorld       ;
->   mov [rbp-0Fh], al                    mov r11, rax               ;
->   mov eax, 65h                         ; . . .                    ;
->   mov [rbp-0Eh], al                                               ;
->   mov eax, 6Ch                                                    ;
->   mov [rbp-0Dh], al                                               ;
->   mov eax, 6Ch                                                    ;
->   mov [rbp-0Ch], al                                               ;
->   mov eax, 6Fh                                                    ;
->   mov [rbp-0Bh], al                                               ;
->   mov eax, 2Ch                                                    ;
->   ; etc . . .                                                     ;
->   ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-> ```
+- **[Defeating a Heavily Obfuscated Binary](https://vxcall.github.io/posts/defeating-a-heavily-obfuscated-binary/)** - A black-box analysis of an obfus.h-protected binary and techniques used to examine its protection.
+- **[V1t CTF 2026 Writeup: 8 Challenges Solved](https://cybersecurityelite.com/ctf-writeups/v1t-ctf-2026-writeup/)** - Reverse engineering of the obfus.h-protected Sealed Input Verifier challenge.
+- **[\[CTF\] 2024 CISCN x 长城杯 初赛逆向0解题-VT 解题全流程](https://www.52pojie.cn/thread-2008228-1-1.html#1)** - A CTF reversing walkthrough involving an earlier generation of obfus.h.
+- **[ObfusHunter](https://github.com/hACKCASCAC/ObfusHunter)** - A community-built detector for identifying obfus.h protection in compiled binaries.
 
 ## 📄 License
 
 **[MIT with a compiled-distribution exception](LICENSE).** Distributed EXEs, DLLs and other compiled binaries do not need to include attribution or the license text for obfus.h. When distributing obfus.h source code, modified versions or substantial portions of it, retain the copyright notice and license text. You do not need to disclose your application's source code.
 
 ## 🌈 Special thanks
+
 Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
- * 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advices)*
- * 🐺 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
+
+- 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advice)*
+- 🐺 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
 
 And **thanks to you** 🤝 for paying attention to this project!
