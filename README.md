@@ -54,18 +54,18 @@ IntelliSense remains available. No extra tools or code generation are required.
 > Define options **before** including `obfus.h`:
 > ```c
 > // Build settings
-> #define OBFH_SEED                    123456789u // Choose compile-time protection variants
+> #define OBFH_SEED                     123456789u // Choose compile-time protection variants
 > 
 > // Additional options
-> #define OBFH_BETTER_CONTROL_FLOW     1          // Stronger control-flow protection (slower execution)
-> #define OBFH_BETTER_ANTIDEBUG        1          // Add hardware-breakpoint checks to anti-debugging protection
-> #define OBFH_FAKE_SIGNATURES         1          // Fake protector/packer signatures (crackme/CTF only)
+> #define OBFH_BETTER_CONTROL_FLOW      1          // Stronger control-flow protection (slower execution)
+> #define OBFH_BETTER_ANTIDEBUG         1          // Add hardware-breakpoint checks to anti-debugging protection
+> #define OBFH_FAKE_SIGNATURES          1          // Fake protector/packer signatures (crackme/CTF only)
 > 
 > // Disabling default features
-> #define OBFH_DISABLE_ANY_OBFUSCATION 1          // Don't obfuscate (for debugging)
-> #define OBFH_DISABLE_CONTROL_FLOW    1          // Don't use Control-Flow obfuscation
-> #define OBFH_DISABLE_ANTIDEBUG       1          // Don't build in debugging protection
-> #define OBFH_DISABLE_PDATA_DECOYS    1          // Disable additional x64 fake functions
+> #define OBFH_DISABLE_ANY_OBFUSCATION  1          // Don't obfuscate (for debugging)
+> #define OBFH_DISABLE_CONTROL_FLOW     1          // Don't use Control-Flow obfuscation
+> #define OBFH_DISABLE_ANTIDEBUG        1          // Don't build in debugging protection
+> #define OBFH_DISABLE_PDATA_DECOYS     1          // Disable additional x64 fake functions
 > ```
 
 `OBFH_SEED` is an unsigned 32-bit build seed (default: `0u`). Change it to vary
