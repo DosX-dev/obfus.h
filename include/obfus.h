@@ -2011,19 +2011,19 @@ OBFH_PD_DEFINE(127);
 // x86 uses explicit imm32 pushes so its sequence is always 18 bytes.
 #define OBFH_SF_LINK_BYTES(channel, size, value) \
     ".fill .Lsle" channel "," size "," value ";"
-#define OBFH_SF_LINK_GATE(span, channel) \
-    OBFH_SF_LINK_BYTES(channel, "2", "0xc085 ^ (.Lsln" channel " << 12)") \
-    OBFH_SF_LINK_BYTES(channel, "1", "0x74 | .Lslz" channel) \
-    OBFH_SF_LINK_BYTES(channel, "1", span)
+// Capture TEST and Jcc opcode bytes; the gate adds its original rel8 displacement.
+#define OBFH_SF_LINK_CONSTANT(channel) ".set .Lslhead" channel ",(0xc085^(.Lsln" channel "<<12))|((0x74|.Lslz" channel ")<<16);"
+#define OBFH_SF_LINK_GATE(span, channel) ".fill .Lsle" channel ",4,.Lslhead" channel "+((" span ")<<24);"
 // Frame sizes are 32..192 bytes. Bit 7 selects imm8/disp8 or imm32/disp32;
 // SUB/LEA selection, frame sizes, native boundaries and links stay unchanged.
-// Assembler constants select the original opcode and its width once per frame:
-// .Lfh chooses MOV/LEA frame setup; .Lfa chooses SUB/LEA allocation; .Lfw selects disp32.
+// Capture each frame encoding once per pool; emission only reads its fields.
+// hw/aw/dw are head/allocation/displacement widths; h/a/d hold their native values.
 #if defined(__x86_64__)
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
-#define OBFH_SF_FRAME_HEAD(size) "pushq %%rbp;.set .Lfh,1^((.Lsp>>(1+((.Lss_" size ">>4)&3)))&1);.fill 1,3+.Lfh,0xe58948+.Lfh*(0x242c8d48-0xe58948);"
+#define OBFH_SF_FRAME_CONSTANTS(size) ".set .Lfh,1^((.Lsp>>(1+((.Lss_" size ">>4)&3)))&1);.set .Lfw,.Lss_" size ">>7;.set .Lfa,1^((.Lsp>>(4+((.Lss_" size ">>4)&3)))&1);.set .Lsf_hw_" size ",3+.Lfh;.set .Lsf_h_" size ",0xe58948+.Lfh*(0x242c8d48-0xe58948);.set .Lsf_aw_" size ",3+.Lfa;.set .Lsf_a_" size ",0xec8348-.Lfw*0x200+.Lfa*(0x24648d48-0xec8348+.Lfw*(0x400000+0x200));.set .Lsf_dw_" size ",1+3*.Lfw;.set .Lsf_d_" size ",.Lss_" size "*(1-2*.Lfa);"
+#define OBFH_SF_FRAME_HEAD(size) "pushq %%rbp;.fill 1,.Lsf_hw_" size ",.Lsf_h_" size ";"
 
-#define OBFH_SF_FRAME_ALLOC(size) ".set .Lfw,.Lss_" size ">>7;.set .Lfa,1^((.Lsp>>(4+((.Lss_" size ">>4)&3)))&1);.fill 1,3+.Lfa,0xec8348-.Lfw*0x200+.Lfa*(0x24648d48-0xec8348+.Lfw*(0x400000+0x200));.fill 1,1+3*.Lfw,.Lss_" size "*(1-2*.Lfa);"
+#define OBFH_SF_FRAME_ALLOC(size) ".fill 1,.Lsf_aw_" size ",.Lsf_a_" size ";.fill 1,.Lsf_dw_" size ",((.Lsf_d_" size "&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_SF_FRAME(size) OBFH_SF_FRAME_HEAD(size) OBFH_SF_FRAME_ALLOC(size)
 
 #define OBFH_SF_FRAME_ALT(size) "pushq %%rbp;" OBFH_SF_FRAME_ALLOC(size) "leaq .Lss_" size "(%%rsp), %%rbp;"
@@ -2051,9 +2051,10 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
 #else
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
-#define OBFH_SF_FRAME_HEAD(size) "pushl %%ebp;.set .Lfh,1^((.Lsp>>(1+((.Lss_" size ">>4)&3)))&1);.fill 1,2+.Lfh,0xe589+.Lfh*(0x242c8d-0xe589);"
+#define OBFH_SF_FRAME_CONSTANTS(size) ".set .Lfh,1^((.Lsp>>(1+((.Lss_" size ">>4)&3)))&1);.set .Lfw,.Lss_" size ">>7;.set .Lfa,1^((.Lsp>>(4+((.Lss_" size ">>4)&3)))&1);.set .Lsf_hw_" size ",2+.Lfh;.set .Lsf_h_" size ",0xe589+.Lfh*(0x242c8d-0xe589);.set .Lsf_aw_" size ",2+.Lfa;.set .Lsf_a_" size ",0xec83-.Lfw*2+.Lfa*(0x24648d-0xec83+.Lfw*(0x4000+2));.set .Lsf_dw_" size ",1+3*.Lfw;.set .Lsf_d_" size ",.Lss_" size "*(1-2*.Lfa);"
+#define OBFH_SF_FRAME_HEAD(size) "pushl %%ebp;.fill 1,.Lsf_hw_" size ",.Lsf_h_" size ";"
 
-#define OBFH_SF_FRAME_ALLOC(size) ".set .Lfw,.Lss_" size ">>7;.set .Lfa,1^((.Lsp>>(4+((.Lss_" size ">>4)&3)))&1);.fill 1,2+.Lfa,0xec83-.Lfw*2+.Lfa*(0x24648d-0xec83+.Lfw*(0x4000+2));.fill 1,1+3*.Lfw,.Lss_" size "*(1-2*.Lfa);"
+#define OBFH_SF_FRAME_ALLOC(size) ".fill 1,.Lsf_aw_" size ",.Lsf_a_" size ";.fill 1,.Lsf_dw_" size ",((.Lsf_d_" size "&0xffffffff)^0x80000000)-0x80000000;"
 #define OBFH_SF_FRAME(size) OBFH_SF_FRAME_HEAD(size) OBFH_SF_FRAME_ALLOC(size)
 
 #define OBFH_SF_FRAME_ALT(size) "pushl %%ebp;" OBFH_SF_FRAME_ALLOC(size) "leal .Lss_" size "(%%esp), %%ebp;"
@@ -2439,7 +2440,6 @@ OBFH_PD_DEFINE(127);
 // Shared leaf immediates emit no bytes; each native insertion initializes them once.
 #define OBFH_SF_LEAF_CONSTANTS ".set .Lsl_frame,%c[leaf_frame];.set .Lsl_slot,%c[leaf_slot];.set .Lsl_alu_a,%c[leaf_alu_a];.set .Lsl_alu_b,%c[leaf_alu_b];.set .Lsl_shift,%c[leaf_shift];"
 #define OBFH_SF_LEAF_ALU_A ".byte .Lsl_alu_a; .long .Lsa;"
-
 #define OBFH_SF_LEAF_ALU_B ".byte 0x81, .Lsl_alu_b; .long .Lsb;"
 #define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((.Lsr == 1) & 1)), .Lsl_shift; .fill ((.Lsr != 1) & 1), 1, .Lsr;"
 // Reverse CMP operands together with its condition. Only these bounded leaf
@@ -2547,7 +2547,7 @@ OBFH_SF_DECLARE_ROLES(25);
 OBFH_SF_DECLARE_ROLES(26);
 OBFH_SF_DECLARE_ROLES(28);
 #define OBFH_SF_ASM_CONSTANTS \
-    ".set .Lss_frame_a,%c[frame_a];.set .Lss_frame_b,%c[frame_b];.set .Lss_frame_c,%c[frame_c];.set .Lss_frame_d,%c[frame_d];.set .Lss_arg_a,%c[arg_a];.set .Lss_arg_b,%c[arg_b];.set .Lss_pad,%c[pad];.set .Lss_pad_b,%c[pad_b];.set .Lss_noise_a,%c[noise_a];.set .Lss_noise_b,%c[noise_b];" OBFH_SF_ASM_BITS ".set .Lsa,%c[key_a];.set .Lsle0,((.Lsp^.Lsa)>>12)&1;.set .Lslz0,((.Lsp^.Lsa)>>13)&1;.set .Lsln0,((.Lsp^.Lsa)>>14)&1;.set .Lsle1,((.Lsp^.Lsa)>>15)&1;.set .Lslz1,((.Lsp^.Lsa)>>16)&1;.set .Lsln1,((.Lsp^.Lsa)>>17)&1;.set .Lsle2,((.Lsp^.Lsa)>>18)&1;.set .Lslz2,((.Lsp^.Lsa)>>19)&1;.set .Lsln2,((.Lsp^.Lsa)>>20)&1;.set .Lsle3,((.Lsp^.Lsa)>>21)&1;.set .Lslz3,((.Lsp^.Lsa)>>22)&1;.set .Lsln3,((.Lsp^.Lsa)>>23)&1;.set .Lsle4,((.Lsp^.Lsa)>>24)&1;.set .Lslz4,((.Lsp^.Lsa)>>25)&1;.set .Lsln4,((.Lsp^.Lsa)>>26)&1;.set .Lsle5,((.Lsp^.Lsa)>>27)&1;.set .Lslz5,((.Lsp^.Lsa)>>28)&1;.set .Lsln5,((.Lsp^.Lsa)>>29)&1;" OBFH_SF_SPELLING_CONSTANTS OBFH_SF_LEAF_CONSTANTS
+    ".set .Lss_frame_a,%c[frame_a];.set .Lss_frame_b,%c[frame_b];.set .Lss_frame_c,%c[frame_c];.set .Lss_frame_d,%c[frame_d];.set .Lss_arg_a,%c[arg_a];.set .Lss_arg_b,%c[arg_b];.set .Lss_pad,%c[pad];.set .Lss_pad_b,%c[pad_b];.set .Lss_noise_a,%c[noise_a];.set .Lss_noise_b,%c[noise_b];" OBFH_SF_ASM_BITS ".set .Lsa,%c[key_a];.set .Lsle0,((.Lsp^.Lsa)>>12)&1;.set .Lslz0,((.Lsp^.Lsa)>>13)&1;.set .Lsln0,((.Lsp^.Lsa)>>14)&1;.set .Lsle1,((.Lsp^.Lsa)>>15)&1;.set .Lslz1,((.Lsp^.Lsa)>>16)&1;.set .Lsln1,((.Lsp^.Lsa)>>17)&1;.set .Lsle2,((.Lsp^.Lsa)>>18)&1;.set .Lslz2,((.Lsp^.Lsa)>>19)&1;.set .Lsln2,((.Lsp^.Lsa)>>20)&1;.set .Lsle3,((.Lsp^.Lsa)>>21)&1;.set .Lslz3,((.Lsp^.Lsa)>>22)&1;.set .Lsln3,((.Lsp^.Lsa)>>23)&1;.set .Lsle4,((.Lsp^.Lsa)>>24)&1;.set .Lslz4,((.Lsp^.Lsa)>>25)&1;.set .Lsln4,((.Lsp^.Lsa)>>26)&1;.set .Lsle5,((.Lsp^.Lsa)>>27)&1;.set .Lslz5,((.Lsp^.Lsa)>>28)&1;.set .Lsln5,((.Lsp^.Lsa)>>29)&1;" OBFH_SF_SPELLING_CONSTANTS OBFH_SF_LEAF_CONSTANTS OBFH_SF_FRAME_CONSTANTS("frame_a") OBFH_SF_FRAME_CONSTANTS("frame_b") OBFH_SF_FRAME_CONSTANTS("frame_c") OBFH_SF_FRAME_CONSTANTS("frame_d") OBFH_SF_LINK_CONSTANT("0") OBFH_SF_LINK_CONSTANT("1") OBFH_SF_LINK_CONSTANT("2") OBFH_SF_LINK_CONSTANT("3") OBFH_SF_LINK_CONSTANT("4") OBFH_SF_LINK_CONSTANT("5")
 #define OBFH_SF_ROLES_SELECT __builtin_choose_expr((__obfh_pool_layout) <= 7u, __builtin_choose_expr((__obfh_pool_layout) <= 3u, __builtin_choose_expr((__obfh_pool_layout) <= 1u, __builtin_choose_expr((__obfh_pool_layout) <= 0u, __obfh_sf_roles_0, __obfh_sf_roles_1), __builtin_choose_expr((__obfh_pool_layout) <= 2u, __obfh_sf_roles_2, __obfh_sf_roles_3)), __builtin_choose_expr((__obfh_pool_layout) <= 5u, __builtin_choose_expr((__obfh_pool_layout) <= 4u, __obfh_sf_roles_4, __obfh_sf_roles_5), __builtin_choose_expr((__obfh_pool_layout) <= 6u, __obfh_sf_roles_6, __obfh_sf_roles_7))), __builtin_choose_expr((__obfh_pool_layout) <= 23u, __builtin_choose_expr((__obfh_pool_layout) <= 9u, __builtin_choose_expr((__obfh_pool_layout) <= 8u, __obfh_sf_roles_8, __obfh_sf_roles_9), __builtin_choose_expr((__obfh_pool_layout) <= 22u, __obfh_sf_roles_22, __obfh_sf_roles_23)), __builtin_choose_expr((__obfh_pool_layout) <= 25u, __builtin_choose_expr((__obfh_pool_layout) <= 24u, __obfh_sf_roles_24, __obfh_sf_roles_25), __builtin_choose_expr((__obfh_pool_layout) <= 26u, __obfh_sf_roles_26, __obfh_sf_roles_28))))
 // Select a compact compile-time recipe before expanding native assembly.
 // The recipe is source metadata only: all native families remain independent.

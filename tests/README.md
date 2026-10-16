@@ -193,6 +193,10 @@ Stack-proxy recipes select guards, layout fragments and bodies independently, av
 
 Slot roles are packed into three-bit fields in ordinary enum constants derived directly from those layout callbacks. A pool selects its role word once, then extracts each slot's role without repeating the layout-selection tree. These constants emit no data or lookup code; the contiguous reference layouts remain independent of the packed-role selector.
 
+Frame opcode words, widths and allocation displacements are captured once per pool for its four frame sizes. `OBFH_SF_FRAME_CONSTANTS` retains the original frame algebra; emitters read the captured fields at the original instruction positions. Standalone frame and short-jump probes capture their own fields explicitly. The independent frame oracle checks all 11 sizes, 16 selector combinations and four prologue/epilogue combinations on each architecture: 1,408 byte-and-stack checks.
+
+Link gates emit their existing TEST and conditional rel8 jump as one four-byte field. Each channel captures its TEST/Jcc bytes once; each call supplies its original displacement. `sf_links.js` compares independent literal bytes for all six channels, enable/register/condition choices and both call spans on x86 and x64: 192 byte-span checks, including disabled gates that must emit zero bytes.
+
 The fragment emitter relies on consecutive TCC ASM blocks: FLOW START supplies EAX and FLOW END captures it after the guard's destination label. Intermediate blocks have immediate operands only; inserting runtime C evaluation between them would violate that contract. Layout labels are isolated from body labels and discarded compile-time alternatives. Keep the native-reference, nested-condition and flow-state mutation tests when changing this structure.
 
 Framed bodies emit their shared argument loading and local stores once around the selected core; leaf bodies share argument loading while retaining their individual exits. The contiguous reference emitter still assembles complete bodies, so the native-entry comparison also checks these fragment boundaries.

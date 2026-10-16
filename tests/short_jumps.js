@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-exports.fixture = function({ arch, source, assert, sharedHelpers = false }) {
+exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
     const first = source.indexOf('#define OBFH_SF_BYTES'), last = source.indexOf('#define OBFH_SF_ASM_BITS', first);
     assert(first >= 0 && last > first, 'proxy fragments missing');
     let helpers = source.slice(first, last);
@@ -23,6 +23,7 @@ exports.fixture = function({ arch, source, assert, sharedHelpers = false }) {
         (sharedHelpers ? '' : helpers + require('./stack_frames').aliases(source, assert)) + '\n' + bodies.join('\n') + '\n';
     const spellings = (source.includes("#define OBFH_SF_SPELLING_CONSTANTS") ? "OBFH_SF_SPELLING_CONSTANTS " : "") +
         (source.includes("#define OBFH_SF_LEAF_CONSTANTS") ? "OBFH_SF_LEAF_CONSTANTS " : "");
+    const frameCapture = source.includes('#define OBFH_SF_FRAME_CONSTANTS(') ? 'OBFH_SF_FRAME_CONSTANTS("frame_a") ' : '';
     c += `typedef unsigned (*Entry)(unsigned,unsigned);
 #if defined(__x86_64__)
 #define ADDRESS "leaq 1f(%%rip),%0;jmp 9f;1:"
@@ -31,7 +32,7 @@ exports.fixture = function({ arch, source, assert, sharedHelpers = false }) {
 #define ADDRESS "leal 1f,%0;jmp 9f;1:"
 #define SP(x) __asm__ __volatile__("movl %%esp,%0":"=r"(x)::"memory")
 #endif
-#define CARRIER(name,body,count,shift,draw) static Entry name(void){Entry result;__asm__ __volatile__(OBFH_SF_ASM_BITS ${spellings}".set .Lss_frame_a,%c[frame_a];" ADDRESS body "9:":"=r"(result):[phantom]"i"(draw),[rotate]"i"(count),[leaf_shift]"i"(shift),[key_a]"i"(0xfeed1234u),[key_b]"i"(0x9abcdef1u),[leaf_alu_a]"i"(0x35),[leaf_alu_b]"i"(0xf2),[leaf_frame]"i"(40),[leaf_slot]"i"(16),[local_a]"i"(8),[local_b]"i"(24),[frame_a]"i"(64):"eax","ecx","edx","cc","memory");return result;}
+#define CARRIER(name,body,count,shift,draw) static Entry name(void){Entry result;__asm__ __volatile__(OBFH_SF_ASM_BITS ${spellings}".set .Lss_frame_a,%c[frame_a];" ${frameCapture}ADDRESS body "9:":"=r"(result):[phantom]"i"(draw),[rotate]"i"(count),[leaf_shift]"i"(shift),[key_a]"i"(0xfeed1234u),[key_b]"i"(0x9abcdef1u),[leaf_alu_a]"i"(0x35),[leaf_alu_b]"i"(0xf2),[leaf_frame]"i"(40),[leaf_slot]"i"(16),[local_a]"i"(8),[local_b]"i"(24),[frame_a]"i"(64):"eax","ecx","edx","cc","memory");return result;}
 `;
     const pairs = [];
     for (let count = 1; count <= 31; count++) for (const shift of [0xc0, 0xc8, 0xe0, 0xe8, 0xf8]) for (const draw of [0, 0xffff]) for (const name of ['BODY_K', 'LEAF_C', 'LEAF_J', 'LEAF_L']) {
@@ -45,7 +46,7 @@ exports.fixture = function({ arch, source, assert, sharedHelpers = false }) {
     c += `int main(void){Entry pairs[][2]={${pairs.join(',')}};unsigned values[]={0,1,0x7fffffffu,0x80000000u,~0u,0x12345678u};volatile unsigned canary=0xabcdef01u;for(unsigned i=0;i<sizeof(pairs)/sizeof(pairs[0]);i++)for(unsigned a=0;a<6;a++)for(unsigned b=0;b<6;b++){uintptr_t before,after;SP(before);unsigned x=pairs[i][0](values[a],values[b]);unsigned y=pairs[i][1](values[a],values[b]);SP(after);if(x!=y||before!=after||canary!=0xabcdef01u){fprintf(stderr,"short jumps: pair %u, inputs %u/%u, values %u/%u, stack delta %lld\\n",i,a,b,x,y,(long long)(after-before));return 1;}}if(puts("SHORT_JUMPS_PASS")==EOF||fflush(stdout))return 2;return 0;}\n`;
     return c;
 };
-exports.runSuite = async function({ arch, compiler, directory, source, check, compile, execute, assert }) {
+exports.runSuite = async function ({ arch, compiler, directory, source, check, compile, execute, assert }) {
     await check(`${arch}/short proxy jumps: targets, all shift counts and native stack`, async () => {
         const c = exports.fixture({ arch, source, assert });
         const file = path.join(directory, arch + '-short-jumps.c');
