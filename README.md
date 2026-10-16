@@ -110,8 +110,6 @@ For debugging or selective disabling:
 | `OBFH_DISABLE_ANTIDEBUG`       | Disable built-in anti-debugging protection. |
 | `OBFH_DISABLE_PDATA_DECOYS`    | Disable additional x64 fake functions.      |
 
-Older names such as `OBFH_BUILD_SEED` remain compatible but produce a `#warning`. If both names are defined, the new `OBFH_*` option takes precedence.
-
 > [!WARNING]
 > **Reserve `OBFH_FAKE_SIGNATURES` for crackme/CTF challenges; avoid it in production software.** Fake protector and packer signatures can trigger antivirus detections and cause tools such as Detect It Easy to flag the binary as suspicious or potentially malicious.
 
@@ -326,9 +324,11 @@ For standalone use, [download the script separately](include-updater/obfh-update
 
 ## 🌈 Special thanks
 
-Thanks to everyone who helped in the development of this project. I appreciate it! ❤️
+I (DosX) couldn’t have made this project what it is today without your help. Thank you! ❤️
 
 - 👨🏼‍💻 **[@horsicq](https://github.com/horsicq)** *(for help with the code and advice)*
 - 🐺 **[@ac3ss0r](https://github.com/ac3ss0r)** *(for cool ideas and their solutions)*
+- 🛡️ **[@AsoiX-exe](https://github.com/AsoiX-exe)** *(for testing and security audits)*
+- 🤖 **[OpenAI](https://openai.com/)** *(for providing development grants)*
 
 And **thanks to you** 🤝 for paying attention to this project!
