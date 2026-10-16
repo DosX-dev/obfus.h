@@ -274,6 +274,7 @@ async function main() {
             );
         });
         await check('source: 128 proxy variants with distinct guard/layout pairs', async () => {
+            require('./sf_bodies').checkSlotReachability(source, assert);
             const variants = [
                 ...source.matchAll(
                     /^#define OBFH_SF_SPEC_(\d+)\(emit\) emit\((\d+)u,\s*(\d+)u,/gm

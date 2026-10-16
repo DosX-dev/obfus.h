@@ -92,4 +92,26 @@ if(a.end-a.start!=b.end-b.start){fprintf(stderr,"body length %u:%u\\n",i/32,i%32
 for(unsigned n=0;n<(unsigned)(a.end-a.start);++n)if(a.start[n]!=b.start[n]){fprintf(stderr,"body bytes %u:%u:%u\\n",i/32,i%32,n);return 2;}}
 if(puts("SF_BODIES_PASS")==EOF||fflush(stdout))return 3;return 0;}\n`;
 }
-module.exports = { fixture };
+// Specialized selectors must cover every body reachable through the recipe table.
+function checkSlotReachability(source, assert) {
+    if (!source.includes('#define OBFH_SF_SLOT_LEAF_REGISTER')) return;
+    const allowed = { 3: /^(LEAF_A|LEAF_E|LEAF_I)$/, 5: /^BODY_[BDFHJLNPRT]$/, 6: /^(LEAF_A|LEAF_E|LEAF_I)$/ };
+    const seen = new Set();
+    const recipes = [...source.matchAll(/^#define OBFH_SF_SPEC_(\d+)\(emit\) emit\(\d+u,\s*(\d+)u,\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+)\)/gm)];
+    assert(recipes.length === 128, 'cannot inspect every proxy recipe');
+    for (const [, index, layout, a, b, c, d] of recipes) {
+        const text = macroDefinition(source, 'OBFH_SF_LAYOUT_SOURCE_' + layout).body.replace(/\\\r?\n/g, ' ').replace(/"(?:\\.|[^"\\])*"/g, '""');
+        const slots = [...text.matchAll(/\b([A-I])\(context,[\s\S]*?,\s*([0-5])\)/g)];
+        assert(slots.length === (text.match(/\b[A-I]\(context,/g) || []).length, 'unrecognized proxy layout role');
+        assert(new Set(slots.map(s => s[1])).size === slots.length, 'duplicate proxy slot');
+        for (const [, letter, role] of slots) {
+            const slot = letter.charCodeAt(0) - 65;
+            if (!allowed[slot] || role === '0') continue;
+            const body = [null, a, b, c, d, a][Number(role)];
+            assert(allowed[slot].test(body), `proxy recipe ${index}: slot ${slot} cannot emit ${body}`);
+            seen.add(slot);
+        }
+    }
+    assert(seen.size === 3, 'specialized proxy slots were not inspected');
+}
+module.exports = { fixture, checkSlotReachability };

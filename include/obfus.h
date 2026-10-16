@@ -3017,18 +3017,18 @@ OBFH_SF_DECLARE_RECIPE(127)
 #define OBFH_SF_SLOT_BODY_0(body) OBFH_SF_SLOT_BODY(body)
 #define OBFH_SF_SLOT_BODY_1(body) OBFH_SF_SLOT_BODY(body)
 #define OBFH_SF_SLOT_BODY_2(body) OBFH_SF_SLOT_BODY(body)
-#define OBFH_SF_SLOT_BODY_3(body) OBFH_SF_SLOT_LEAF(body)
+#define OBFH_SF_SLOT_BODY_3(body) OBFH_SF_SLOT_LEAF_REGISTER(body)
 #define OBFH_SF_SLOT_BODY_4(body) OBFH_SF_SLOT_LEAF(body)
-#define OBFH_SF_SLOT_BODY_5(body) OBFH_SF_SLOT_FRAMED(body)
-#define OBFH_SF_SLOT_BODY_6(body) OBFH_SF_SLOT_LEAF(body)
+#define OBFH_SF_SLOT_BODY_5(body) OBFH_SF_SLOT_REPEATED_FRAME(body)
+#define OBFH_SF_SLOT_BODY_6(body) OBFH_SF_SLOT_LEAF_REGISTER(body)
 #define OBFH_SF_SLOT_BODY_7(body) OBFH_SF_SLOT_LEAF(body)
 #define OBFH_SF_SLOT_BODY_8(body) ((void)0)
 #define OBFH_SF_SLOT_ROLE_SELECT(slot) ((__obfh_pool_roles >> (3u * (slot))) & 7u)
 #define OBFH_SF_SLOT_RUN(slot) ({ enum { __obfh_slot_role=OBFH_SF_SLOT_ROLE_SELECT(slot), __obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3 }; OBFH_SF_SLOT_ASM(slot); __builtin_choose_expr(__obfh_slot_role!=0,OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body),((void)0)); })
 #define OBFH_SF_SLOT_LATE(slot) __builtin_choose_expr(__obfh_pool_layout == 28, ({enum {__obfh_slot_role=(0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_ROLE,unused)),__obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3}; OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_TEXT,unused)); OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body); }), ((void)0))
-// Keep these source coordinates stable: random choices include header line numbers.
-// Pool constants above emit no runtime state; each slot retains its native order.
-// Immediate-only ASM fragments must remain adjacent across slot boundaries.
+// Keep source coordinates and immediate-only ASM adjacency stable; slots 3/6 use leaf A/E/I, slot 5 uses framed B/D/F/H/J/L/N/P/R/T.
+#define OBFH_SF_SLOT_LEAF_REGISTER(body) ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_ARGS, OBFH_SF_OPERAND(phantom)); __builtin_choose_expr((body)==OBFH_SF_ID_LEAF_A, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_CORE_A, ); }), __builtin_choose_expr((body)==OBFH_SF_ID_LEAF_E, ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_CORE_E, OBFH_SF_OPERAND(factor), OBFH_SF_OPERAND(key_a)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_LEAF_CORE_I, OBFH_SF_OPERAND(factor)); }))); })
+#define OBFH_SF_SLOT_REPEATED_FRAME(body) ({ OBFH_SF_LEAF_ASM(OBFH_SF_ARGS, ); __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_J, __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_D, __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_B, ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_B, ); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_D, OBFH_SF_OPERAND(factor)); })), __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_F, ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_F, OBFH_SF_OPERAND(factor), OBFH_SF_OPERAND(key_b), OBFH_SF_OPERAND(loops)); }), __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_H, ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_H, OBFH_SF_OPERAND(key_b)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_J, OBFH_SF_OPERAND(key_a), OBFH_SF_OPERAND(rotate)); })))), __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_N, __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_L, ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_L, OBFH_SF_OPERAND(factor)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_N, OBFH_SF_OPERAND(key_a), OBFH_SF_OPERAND(key_b)); })), __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_P, ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_P, OBFH_SF_OPERAND(factor)); }), __builtin_choose_expr((body)<=OBFH_SF_ID_BODY_R, ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_R, OBFH_SF_OPERAND(key_a), OBFH_SF_OPERAND(loops)); }), ({ OBFH_SF_LEAF_ASM(OBFH_SF_CORE_T, ); }))))); OBFH_SF_FRAME_ASM(OBFH_SF_LOCAL); })
 #define OBFH_SF_POOL_RUN(recipe, start, end, ...) ({ enum { __obfh_pool_id=__COUNTER__,__obfh_pool_recipe=(recipe),__obfh_pool_guard=__obfh_pool_recipe&15u,__obfh_pool_layout=(__obfh_pool_recipe>>4)&31u,__obfh_pool_roles=OBFH_SF_ROLES_SELECT,__obfh_pool_body_0=(__obfh_pool_recipe>>9)&31u,__obfh_pool_body_1=(__obfh_pool_recipe>>14)&31u,__obfh_pool_body_2=(__obfh_pool_recipe>>19)&31u,__obfh_pool_body_3=(__obfh_pool_recipe>>24)&31u }; __obfh_asm__(OBFH_SF_ASM_CONSTANTS : : [phantom] "i"(__obfh_sf_phantom), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [rotate] "i"(__obfh_sf_rotate), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [frame_d] "i"(__obfh_sf_frame_d), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [pad] "i"(__obfh_sf_pad), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b)); __VA_ARGS__; OBFH_SF_POOL_GUARDS(start);OBFH_SF_SLOT_RUN(0);OBFH_SF_SLOT_RUN(1);OBFH_SF_SLOT_RUN(2);OBFH_SF_SLOT_RUN(3);OBFH_SF_SLOT_LATE(4);OBFH_SF_SLOT_LATE(5);OBFH_SF_SLOT_LATE(6);OBFH_SF_SLOT_LATE(7);OBFH_SF_SLOT_LATE(8);end;(void)0; })
 #define OBFH_SF_SELECT(index) ({OBFH_SF_CAPTURE;OBFH_SF_POOL_RUN(OBFH_SF_RECIPE_SELECT(index),OBFH_SF_START,OBFH_SF_END,OBFH_SF_START_PREFIX); })
 #define OBFH_SF_VARIANT_COUNT 128u
@@ -4017,15 +4017,15 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
 #define OBFH_C_TEXT OBFH_C_SLOT(1) OBFH_C_SLOT(2) OBFH_C_SLOT(3) OBFH_C_SLOT(4) ".byte %c[correction_op]; .long %c[correction];"
 // Bits 0..23 are the original instruction; 24..25 hold its length, bit 26 its immediate flag.
 #define OBFH_C_ENCODING(s, p, n) \
-    enum { __obfh_primitive_code##s##p##n = (__c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 ? (__c_form##s##p##n == 0 ? 0x35 : __c_form##s##p##n == 1 ? 0x05 \
-                                                                                                                                                        : 0x2d) \
-                                             : __c_kind##s##p##n == 1                         ? (__c_rform##s##p##n < 2 ? 0xc0c1 + (__c_rform##s##p##n << 11) + (__obfh_r##s##p << 16) : __c_rform##s##p##n == 2 ? 0xd0f7 \
-                                                                                                                                                                                                                 : 0xd8f7) \
-                                                                                              : (__c_lform##s##p##n ? 0xd0f7 : 0x40048d + (__c_scale##s##p << 22))) | \
-                                            ((__c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 ? 1 : __c_kind##s##p##n == 1 && __c_rform##s##p##n >= 2 || __c_kind##s##p##n == 2 && __c_lform##s##p##n ? 2 \
-                                                                                                                                                                                                       : 3) \
-                                             << 24) | \
-                                            ((__c_kind##s##p##n == 0 || __c_kind##s##p##n == 3) << 26) };
+    enum { __obfh_primitive_code##s##p##n = __c_kind##s##p##n == 0 || __c_kind##s##p##n == 3 \
+                                                ? (0x05000000u | (__c_form##s##p##n == 0 ? 0x35u : __c_form##s##p##n == 1 ? 0x05u \
+                                                                                                                          : 0x2du)) \
+                                            : __c_kind##s##p##n == 1 \
+                                                ? (__c_rform##s##p##n < 2    ? 0x0300c0c1u + (__c_rform##s##p##n << 11) + (__obfh_r##s##p << 16) \
+                                                   : __c_rform##s##p##n == 2 ? 0x0200d0f7u \
+                                                                             : 0x0200d8f7u) \
+                                                : (__c_lform##s##p##n ? 0x0200d0f7u : 0x0340048du + (__c_scale##s##p << 22)) };
+
 #define OBFH_C_ARG(s, p, n) \
     [key##n] "i"(__c_key##s##p##n), [code##n] "i"(__obfh_primitive_code##s##p##n)
 #define OBFH_C_ARGS(s, p) OBFH_C_ARG(s, p, 1), OBFH_C_ARG(s, p, 2), OBFH_C_ARG(s, p, 3), OBFH_C_ARG(s, p, 4), \
