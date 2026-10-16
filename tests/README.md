@@ -264,3 +264,7 @@ Four bounded forward jumps inside BODY_K and LEAF_C/J/L use rel8 instead of TCC'
 `vm_packing.js` compares every word of all eight VM programs with an independent canonical-word reference across opcode encodings, field permutations, packing layouts, word masks, operations and keys. Direct packed-field construction changes compile-time work while retaining the encoded instruction words.
 
 Public conditions share integer input storage with the 32-bit transport words on little-endian x86/x64. Wide values still OR both halves; floating-point truth evaluation remains separate. `cflow.c` covers signed and unsigned widths, high-only values, narrow signed inputs, long-double truth, side effects, short-circuit evaluation and nested protected conditions.
+
+CFLOW forms 95�98 share the skipped payload after their selected predicate fragment. The fragments stay adjacent, with the original branch targets and instruction bytes. The miscellaneous-form byte oracle (`cflow_other.js`) exercises this shared emitter against the frozen independent forms, including immediate-width boundaries on x86/x64. Forms with EBX clobbers remain single ASM blocks because splitting them changes TCC register saves.
+
+The x64 stack-proxy call skeleton captures the two MOV-immediate opcodes and argument order once per pool. `sf_calls.js` checks all ten emitted bytes against independently constructed references for both orders and 16 argument pairs; x86 retains its original PUSH sequence. Whole-binary replay checks retain every native CFLOW and proxy form.

@@ -62,7 +62,7 @@ function fixture(header) {
     const first = header.indexOf('#define OBFH_JUNK_PAYLOAD '), last = header.indexOf('// Native fragments are adjacent', first);
     const forms = header.indexOf('#define OBFH_CFLOW_TEMPLATE_86'), end = header.indexOf('#define OBFH_CFLOW_TEMPLATE_99', forms);
     if (first < 0 || last < first || forms < 0 || end < forms) throw new Error('Missing miscellaneous CFLOW forms');
-    let code = '#include <stdint.h>\n#include <stdio.h>\n#define __obfh_asm__ __asm__\n#define OBFH_JUNK_CLOBBERS "eax","ebx","ecx","edx","cc","memory"\n' +
+    let code = '#include <stdint.h>\n#include <stdio.h>\n#define __obfh_asm__ __asm__\n#define OBFH_JUNK_CLOBBERS "eax","ebx","ecx","edx","cc","memory"\n#define OBFH_CFLOW_CLOBBERS "eax","edx","ecx","cc","memory"\n' +
         header.slice(first, last) + header.slice(forms, end) + reference;
     code += `
 static volatile unsigned char _0=0;
@@ -86,7 +86,8 @@ body;__asm__ __volatile__("8302:8309:");return s;}
         [0, 1, 127, 128, 0x7fffffff, 0xffffffff][Math.floor(config / 4)]].map(value => value + 'u').join(',');
         for (let form = 86; form < 99; ++form) {
             const id = pairs.length;
-            code += `OTHER_CARRIER(other_actual_${id},OBFH_CFLOW_TEMPLATE_${form},${args})\nOTHER_CARRIER(other_reference_${id},REF_OBFH_CFLOW_TEMPLATE_${form},${args})\n`;
+            const actual = form >= 95 && header.includes('#define OBFH_CFLOW_STACK_EMIT(') ? `OBFH_CFLOW_STACK_EMIT(${form}u)` : `OBFH_CFLOW_TEMPLATE_${form}`;
+            code += `OTHER_CARRIER(other_actual_${id},${actual},${args})\nOTHER_CARRIER(other_reference_${id},REF_OBFH_CFLOW_TEMPLATE_${form},${args})\n`;
             pairs.push(`{other_actual_${id},other_reference_${id}}`);
         }
     }

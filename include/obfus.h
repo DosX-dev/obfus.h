@@ -1572,7 +1572,7 @@ OBFH_PD_DEFINE(127);
 })
 // All 128 native forms retain their original selection indices.
 #define OBFH_CFLOW_VARIANT_COUNT 128u
-#define OBFH_CFLOW_OTHER(index) __builtin_choose_expr((index) < 92u, __builtin_choose_expr((index) < 89u, __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), __builtin_choose_expr((index) < 88u, ({ OBFH_CFLOW_TEMPLATE_87; }), ({ OBFH_CFLOW_TEMPLATE_88; }))), __builtin_choose_expr((index) < 90u, ({ OBFH_CFLOW_TEMPLATE_89; }), __builtin_choose_expr((index) < 91u, ({ OBFH_CFLOW_TEMPLATE_90; }), ({ OBFH_CFLOW_TEMPLATE_91; })))), __builtin_choose_expr((index) < 95u, __builtin_choose_expr((index) < 93u, ({ OBFH_CFLOW_TEMPLATE_92; }), __builtin_choose_expr((index) < 94u, ({ OBFH_CFLOW_TEMPLATE_93; }), ({ OBFH_CFLOW_TEMPLATE_94; }))), __builtin_choose_expr((index) < 97u, __builtin_choose_expr((index) < 96u, ({ OBFH_CFLOW_TEMPLATE_95; }), ({ OBFH_CFLOW_TEMPLATE_96; })), __builtin_choose_expr((index) < 98u, ({ OBFH_CFLOW_TEMPLATE_97; }), ({ OBFH_CFLOW_TEMPLATE_98; })))))
+#define OBFH_CFLOW_OTHER(index) __builtin_choose_expr((index) < 92u, __builtin_choose_expr((index) < 89u, __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), __builtin_choose_expr((index) < 88u, ({ OBFH_CFLOW_TEMPLATE_87; }), ({ OBFH_CFLOW_TEMPLATE_88; }))), __builtin_choose_expr((index) < 90u, ({ OBFH_CFLOW_TEMPLATE_89; }), __builtin_choose_expr((index) < 91u, ({ OBFH_CFLOW_TEMPLATE_90; }), ({ OBFH_CFLOW_TEMPLATE_91; })))), __builtin_choose_expr((index) < 95u, __builtin_choose_expr((index) < 93u, ({ OBFH_CFLOW_TEMPLATE_92; }), __builtin_choose_expr((index) < 94u, ({ OBFH_CFLOW_TEMPLATE_93; }), ({ OBFH_CFLOW_TEMPLATE_94; }))), OBFH_CFLOW_STACK_EMIT(index)))
 #define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; __builtin_choose_expr((index)<86u, OBFH_CFLOW_BASIC_EMIT(index), __builtin_choose_expr((index)<99u, OBFH_CFLOW_OTHER(index), OBFH_CFLOW_NAMED_EMIT(index))); (void)0; })
 // All 128 families use nonserializing arithmetic; keep selection uniform.
 #define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
@@ -1732,6 +1732,7 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_TEMPLATE_94 \
     OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%edx; roll $%c[tail_pad], %%edx; leal (%%edx,%%edx,4), %%eax;")
 
+#define OBFH_CFLOW_STACK_EMIT(index) ({ __builtin_choose_expr((index)<=96u, __builtin_choose_expr((index)<=95u, ({ OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0xE8; ", "eax", "edx"); }), ({ OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%edx; addl %0, %%edx; imull %%edx, %%edx; testb $2, %%dl; jz 1f; .byte 0xFF, 0x25; ", "edx"); })), __builtin_choose_expr((index)<=97u, ({ OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0x0F, 0x0B, 0xE8; ", "eax", "edx"); }), ({ OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testb $1, %%al; jnz 1f; .byte 0xC3, 0xE8; ", "eax", "edx"); }))); OBFH_CFLOW_LOCAL_ASM(OBFH_CFLOW_NATIVE_PAYLOAD "1:"); })
 #define OBFH_CFLOW_TEMPLATE_95 \
     OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1:", "eax", "edx")
 
@@ -1903,7 +1904,6 @@ OBFH_PD_DEFINE(127);
 #define BREAK_STACK_CFLOW_125 ({ OBFH_CFLOW_CAPTURE; OBFH_CFLOW_TEMPLATE_125; })
 #define BREAK_STACK_CFLOW_126 ({ OBFH_CFLOW_CAPTURE; OBFH_CFLOW_TEMPLATE_126; })
 #define BREAK_STACK_CFLOW_127 ({ OBFH_CFLOW_CAPTURE; OBFH_CFLOW_TEMPLATE_127; })
-
 #define BREAK_STACK_CFLOW OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_EXTRA)
 
 // #endregion
@@ -2039,17 +2039,12 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_ARGS \
     OBFH_SF_BIT_BYTES("9", "0", "2", "0xc889") \
     OBFH_SF_BIT_BYTES("9", "1", "3", "0x00418d")
-#define OBFH_SF_CALL_ARGS \
-    OBFH_SF_BIT_BYTES("10", "0", "1", "0xb9") \
-    OBFH_SF_BIT_BYTES("10", "0", "4", ".Lss_arg_a") \
-    OBFH_SF_BIT_BYTES("10", "0", "1", "0xba") \
-    OBFH_SF_BIT_BYTES("10", "0", "4", ".Lss_arg_b") \
-    OBFH_SF_BIT_BYTES("10", "1", "1", "0xba") \
-    OBFH_SF_BIT_BYTES("10", "1", "4", ".Lss_arg_b") \
-    OBFH_SF_BIT_BYTES("10", "1", "1", "0xb9") \
-    OBFH_SF_BIT_BYTES("10", "1", "4", ".Lss_arg_a")
+// Select argument order once; each call retains its two MOV imm32 instructions.
+#define OBFH_SF_CALL_CONSTANTS ".set .Lsc_op0,0xba-.Lsp10;.set .Lsc_op1,0xb9+.Lsp10;.set .Lsc_arg0,.Lss_arg_b+(.Lss_arg_a-.Lss_arg_b)*.Lsp10;.set .Lsc_arg1,.Lss_arg_a+(.Lss_arg_b-.Lss_arg_a)*.Lsp10;"
+#define OBFH_SF_CALL_ARGS ".byte .Lsc_op0;.long .Lsc_arg0;.byte .Lsc_op1;.long .Lsc_arg1;"
 #define OBFH_SF_CALL_AT(target, channel) OBFH_SF_LINK_GATE("23", channel) "subq $32, %%rsp;" OBFH_SF_CALL_ARGS "call " target "; addq $32, %%rsp;"
 #else
+#define OBFH_SF_CALL_CONSTANTS ""
 #define OBFH_SF_INPUT "movl %%esp, %%eax;"
 #define OBFH_SF_FRAME_CONSTANTS(size) ".set .Lfh,1^((.Lsp>>(1+((.Lss_" size ">>4)&3)))&1);.set .Lfw,.Lss_" size ">>7;.set .Lfa,1^((.Lsp>>(4+((.Lss_" size ">>4)&3)))&1);.set .Lsf_hw_" size ",2+.Lfh;.set .Lsf_h_" size ",0xe589+.Lfh*(0x242c8d-0xe589);.set .Lsf_aw_" size ",2+.Lfa;.set .Lsf_a_" size ",0xec83-.Lfw*2+.Lfa*(0x24648d-0xec83+.Lfw*(0x4000+2));.set .Lsf_dw_" size ",1+3*.Lfw;.set .Lsf_d_" size ",.Lss_" size "*(1-2*.Lfa);"
 #define OBFH_SF_FRAME_HEAD(size) "pushl %%ebp;.fill 1,.Lsf_hw_" size ",.Lsf_h_" size ";"
@@ -2547,7 +2542,8 @@ OBFH_SF_DECLARE_ROLES(25);
 OBFH_SF_DECLARE_ROLES(26);
 OBFH_SF_DECLARE_ROLES(28);
 #define OBFH_SF_ASM_CONSTANTS \
-    ".set .Lss_frame_a,%c[frame_a];.set .Lss_frame_b,%c[frame_b];.set .Lss_frame_c,%c[frame_c];.set .Lss_frame_d,%c[frame_d];.set .Lss_arg_a,%c[arg_a];.set .Lss_arg_b,%c[arg_b];.set .Lss_pad,%c[pad];.set .Lss_pad_b,%c[pad_b];.set .Lss_noise_a,%c[noise_a];.set .Lss_noise_b,%c[noise_b];" OBFH_SF_ASM_BITS ".set .Lsa,%c[key_a];.set .Lsle0,((.Lsp^.Lsa)>>12)&1;.set .Lslz0,((.Lsp^.Lsa)>>13)&1;.set .Lsln0,((.Lsp^.Lsa)>>14)&1;.set .Lsle1,((.Lsp^.Lsa)>>15)&1;.set .Lslz1,((.Lsp^.Lsa)>>16)&1;.set .Lsln1,((.Lsp^.Lsa)>>17)&1;.set .Lsle2,((.Lsp^.Lsa)>>18)&1;.set .Lslz2,((.Lsp^.Lsa)>>19)&1;.set .Lsln2,((.Lsp^.Lsa)>>20)&1;.set .Lsle3,((.Lsp^.Lsa)>>21)&1;.set .Lslz3,((.Lsp^.Lsa)>>22)&1;.set .Lsln3,((.Lsp^.Lsa)>>23)&1;.set .Lsle4,((.Lsp^.Lsa)>>24)&1;.set .Lslz4,((.Lsp^.Lsa)>>25)&1;.set .Lsln4,((.Lsp^.Lsa)>>26)&1;.set .Lsle5,((.Lsp^.Lsa)>>27)&1;.set .Lslz5,((.Lsp^.Lsa)>>28)&1;.set .Lsln5,((.Lsp^.Lsa)>>29)&1;" OBFH_SF_SPELLING_CONSTANTS OBFH_SF_LEAF_CONSTANTS OBFH_SF_FRAME_CONSTANTS("frame_a") OBFH_SF_FRAME_CONSTANTS("frame_b") OBFH_SF_FRAME_CONSTANTS("frame_c") OBFH_SF_FRAME_CONSTANTS("frame_d") OBFH_SF_LINK_CONSTANT("0") OBFH_SF_LINK_CONSTANT("1") OBFH_SF_LINK_CONSTANT("2") OBFH_SF_LINK_CONSTANT("3") OBFH_SF_LINK_CONSTANT("4") OBFH_SF_LINK_CONSTANT("5")
+    ".set .Lss_frame_a,%c[frame_a];.set .Lss_frame_b,%c[frame_b];.set .Lss_frame_c,%c[frame_c];.set .Lss_frame_d,%c[frame_d];.set .Lss_arg_a,%c[arg_a];.set .Lss_arg_b,%c[arg_b];.set .Lss_pad,%c[pad];.set .Lss_pad_b,%c[pad_b];.set .Lss_noise_a,%c[noise_a];.set .Lss_noise_b,%c[noise_b];" OBFH_SF_ASM_BITS ".set .Lsa,%c[key_a];.set .Lsle0,((.Lsp^.Lsa)>>12)&1;.set .Lslz0,((.Lsp^.Lsa)>>13)&1;.set .Lsln0,((.Lsp^.Lsa)>>14)&1;.set .Lsle1,((.Lsp^.Lsa)>>15)&1;.set .Lslz1,((.Lsp^.Lsa)>>16)&1;.set .Lsln1,((.Lsp^.Lsa)>>17)&1;.set .Lsle2,((.Lsp^.Lsa)>>18)&1;.set .Lslz2,((.Lsp^.Lsa)>>19)&1;.set .Lsln2,((.Lsp^.Lsa)>>20)&1;.set .Lsle3,((.Lsp^.Lsa)>>21)&1;.set .Lslz3,((.Lsp^.Lsa)>>22)&1;.set .Lsln3,((.Lsp^.Lsa)>>23)&1;.set .Lsle4,((.Lsp^.Lsa)>>24)&1;.set .Lslz4,((.Lsp^.Lsa)>>25)&1;.set .Lsln4,((.Lsp^.Lsa)>>26)&1;.set .Lsle5,((.Lsp^.Lsa)>>27)&1;.set .Lslz5,((.Lsp^.Lsa)>>28)&1;.set .Lsln5,((.Lsp^.Lsa)>>29)&1;" OBFH_SF_SPELLING_CONSTANTS OBFH_SF_LEAF_CONSTANTS OBFH_SF_FRAME_CONSTANTS("frame_a") OBFH_SF_FRAME_CONSTANTS("frame_b") OBFH_SF_FRAME_CONSTANTS("frame_c") OBFH_SF_FRAME_CONSTANTS("frame_d") OBFH_SF_LINK_CONSTANT("0") OBFH_SF_LINK_CONSTANT("1") OBFH_SF_LINK_CONSTANT("2") OBFH_SF_LINK_CONSTANT("3") OBFH_SF_LINK_CONSTANT("4") OBFH_SF_LINK_CONSTANT("5") OBFH_SF_CALL_CONSTANTS
+
 #define OBFH_SF_ROLES_SELECT __builtin_choose_expr((__obfh_pool_layout) <= 7u, __builtin_choose_expr((__obfh_pool_layout) <= 3u, __builtin_choose_expr((__obfh_pool_layout) <= 1u, __builtin_choose_expr((__obfh_pool_layout) <= 0u, __obfh_sf_roles_0, __obfh_sf_roles_1), __builtin_choose_expr((__obfh_pool_layout) <= 2u, __obfh_sf_roles_2, __obfh_sf_roles_3)), __builtin_choose_expr((__obfh_pool_layout) <= 5u, __builtin_choose_expr((__obfh_pool_layout) <= 4u, __obfh_sf_roles_4, __obfh_sf_roles_5), __builtin_choose_expr((__obfh_pool_layout) <= 6u, __obfh_sf_roles_6, __obfh_sf_roles_7))), __builtin_choose_expr((__obfh_pool_layout) <= 23u, __builtin_choose_expr((__obfh_pool_layout) <= 9u, __builtin_choose_expr((__obfh_pool_layout) <= 8u, __obfh_sf_roles_8, __obfh_sf_roles_9), __builtin_choose_expr((__obfh_pool_layout) <= 22u, __obfh_sf_roles_22, __obfh_sf_roles_23)), __builtin_choose_expr((__obfh_pool_layout) <= 25u, __builtin_choose_expr((__obfh_pool_layout) <= 24u, __obfh_sf_roles_24, __obfh_sf_roles_25), __builtin_choose_expr((__obfh_pool_layout) <= 26u, __obfh_sf_roles_26, __obfh_sf_roles_28))))
 // Select a compact compile-time recipe before expanding native assembly.
 // The recipe is source metadata only: all native families remain independent.
@@ -3029,6 +3025,10 @@ OBFH_SF_DECLARE_RECIPE(127)
 #define OBFH_SF_SLOT_ROLE_SELECT(slot) ((__obfh_pool_roles >> (3u * (slot))) & 7u)
 #define OBFH_SF_SLOT_RUN(slot) ({ enum { __obfh_slot_role=OBFH_SF_SLOT_ROLE_SELECT(slot), __obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3 }; OBFH_SF_SLOT_ASM(slot); __builtin_choose_expr(__obfh_slot_role!=0,OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body),((void)0)); })
 #define OBFH_SF_SLOT_LATE(slot) __builtin_choose_expr(__obfh_pool_layout == 28, ({enum {__obfh_slot_role=(0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_ROLE,unused)),__obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3}; OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_TEXT,unused)); OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body); }), ((void)0))
+// Keep these source coordinates stable: random choices include header line numbers.
+// Pool constants above emit no runtime state; each slot retains its native order.
+// Immediate-only ASM fragments must remain adjacent across slot boundaries.
+
 #define OBFH_SF_POOL_RUN(recipe, start, end) ({ enum { __obfh_pool_id=__COUNTER__,__obfh_pool_recipe=(recipe),__obfh_pool_guard=__obfh_pool_recipe&15u,__obfh_pool_layout=(__obfh_pool_recipe>>4)&31u,__obfh_pool_roles=OBFH_SF_ROLES_SELECT,__obfh_pool_body_0=(__obfh_pool_recipe>>9)&31u,__obfh_pool_body_1=(__obfh_pool_recipe>>14)&31u,__obfh_pool_body_2=(__obfh_pool_recipe>>19)&31u,__obfh_pool_body_3=(__obfh_pool_recipe>>24)&31u }; __obfh_asm__(OBFH_SF_ASM_CONSTANTS : : [phantom] "i"(__obfh_sf_phantom), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [rotate] "i"(__obfh_sf_rotate), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [frame_d] "i"(__obfh_sf_frame_d), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [pad] "i"(__obfh_sf_pad), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b)); OBFH_SF_POOL_GUARDS(start);OBFH_SF_SLOT_RUN(0);OBFH_SF_SLOT_RUN(1);OBFH_SF_SLOT_RUN(2);OBFH_SF_SLOT_RUN(3);OBFH_SF_SLOT_LATE(4);OBFH_SF_SLOT_LATE(5);OBFH_SF_SLOT_LATE(6);OBFH_SF_SLOT_LATE(7);OBFH_SF_SLOT_LATE(8);end;(void)0; })
 #define OBFH_SF_SELECT(index) ({OBFH_SF_CAPTURE;OBFH_SF_POOL_RUN(OBFH_SF_RECIPE_SELECT(index),OBFH_SF_START,OBFH_SF_END); })
 #define OBFH_SF_VARIANT_COUNT 128u

@@ -14,6 +14,7 @@ function cases(source) {
         ...(source.includes('#define OBFH_SF_SPELLING_CONSTANTS') ? [['bricks', 'BRICK_FORMS_PASS', require('./brick_forms')]] : []),
         ...(source.includes('#define OBFH_SF_LEAF_CONSTANTS') ? [['immediates', 'SF_IMMEDIATES_PASS', require('./sf_immediates')]] : []),
         ...(source.includes('#define OBFH_SF_LINK_CONSTANT(') ? [['links', 'SF_LINKS_PASS', require('./sf_links')]] : []),
+        ...(source.includes('#define OBFH_SF_CALL_CONSTANTS ') ? [['calls', 'SF_CALLS_PASS', require('./sf_calls')]] : []),
         ['single_lane', 'MACHINE_PRIMITIVES_PASS', require('./cflow_single_lane')],
         ...(source.includes('#define OBFH_SF_FLOW_COMMIT ') ? [['commit', 'CFLOW_COMMIT_PASS', require('./cflow_commit')]] : [])
     ];
