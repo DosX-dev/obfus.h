@@ -12,12 +12,12 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
         .replace('.byte 0xeb,(4 + ((.Lsr != 1) & 1)); 6:', 'jmp 7f; 6:')
         .replace('.byte 0xeb,2; 6: negl', 'jmp 7f; 6: negl').replace('.byte 0xeb,8; 6:', 'jmp 7f; 6:');
     assert(original !== helpers && !original.includes('.byte 0xeb,'), 'short jump reference boundaries changed');
-    const bodies = [];
+    // Preserve the entire reference dependency graph. Wrapper-only copies would
+    // resolve CORE/INNER names back to the production short-jump definitions.
+    const bodies = [original.replace(/\bOBFH_SF_[A-Z0-9_]+\b/g, name => 'OLD_' + name)];
     for (const name of ['BODY_K', 'LEAF_C', 'LEAF_J', 'LEAF_L']) {
-        const regex = new RegExp('^#define OBFH_SF_' + name + ' [^\\n]*(?:\\n(?=[ \t])[^\\n]*)*', 'm');
-        const old = original.match(regex);
-        assert(old, 'missing reference body ' + name);
-        bodies.push(old[0].replace('OBFH_SF_' + name, 'OLD_' + name));
+        assert(original.includes('#define OBFH_SF_' + name + ' '), 'missing reference body ' + name);
+        bodies.push('#define OLD_' + name + ' OLD_OBFH_SF_' + name);
     }
     let c = '#include <stdio.h>\n#include <stdint.h>\n' +
         (sharedHelpers ? '' : helpers + require('./stack_frames').aliases(source, assert)) + '\n' + bodies.join('\n') + '\n';
