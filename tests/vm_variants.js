@@ -70,7 +70,7 @@ async function runSuite({ arch, compiler, directory, source, check, compile, exe
             c += ['OBFH_SEED', ...names].map((name) => '#undef ' + name).join('\n') + '\n';
         }
         // Exercise the production enum draws, without compiling 256 whole headers.
-        for (const name of ['RND', 'OBFH_JUNK_WORD', 'OBFH_MIX_A']) c += definition(name) + '\n';
+        for (const name of ['RND', ...(normalized.includes('#define OBFH_DRAW16 ') ? ['OBFH_DRAW16'] : []), 'OBFH_JUNK_WORD', 'OBFH_MIX_A']) c += definition(name) + '\n';
         const execBegin = normalized.indexOf('#define OBFH_VM_EXEC(');
         const enumBegin = normalized.indexOf('enum {', execBegin);
         const enumEnd = normalized.indexOf('};', enumBegin) + 2;

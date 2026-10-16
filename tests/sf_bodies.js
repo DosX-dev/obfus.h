@@ -62,6 +62,7 @@ function fixture(source) {
     const last = source.indexOf('#define OBFH_SF_ASM_BITS', first);
     if (first < 0 || last < first) throw new Error('Missing native body helpers');
     const names = ['OBFH_SF_ASM_BITS', 'OBFH_SF_OPERAND', 'OBFH_SF_FRAME_ASM', 'OBFH_SF_LEAF_ASM', 'OBFH_SF_SLOT_FRAMED', 'OBFH_SF_SLOT_LEAF',
+        ...(source.includes('#define OBFH_SF_EARLY_FRAME_CORE') ? ['OBFH_SF_EARLY_FRAME_CORE', ...Array.from('ABCDEFGHIJKLMNOPQRST', x => 'OBFH_SF_ID_BODY_' + x)] : []),
         ...Array.from('ABCDEFGHIJKL', x => 'OBFH_SF_ID_LEAF_' + x)];
     const definitions = names.map(name => macroDefinition(source, name).body).join('\n');
     let code = '#include <stdint.h>\n#include <stdio.h>\n#define __obfh_asm__ __asm__ __volatile__\n' + source.slice(first, last) + definitions + '\n' + reference + `
@@ -96,6 +97,9 @@ if(puts("SF_BODIES_PASS")==EOF||fflush(stdout))return 3;return 0;}\n`;
 function checkSlotReachability(source, assert) {
     if (!source.includes('#define OBFH_SF_SLOT_LEAF_REGISTER')) return;
     const allowed = { 3: /^(LEAF_A|LEAF_E|LEAF_I)$/, 5: /^BODY_[BDFHJLNPRT]$/, 6: /^(LEAF_A|LEAF_E|LEAF_I)$/ };
+    if (source.includes('#define OBFH_SF_EARLY_FRAME_CORE')) {
+        allowed[0] = allowed[2] = /^(BODY_[A-MOQS]|LEAF_[A-L])$/;
+    }
     const seen = new Set();
     const recipes = [...source.matchAll(/^#define OBFH_SF_SPEC_(\d+)\(emit\) emit\(\d+u,\s*(\d+)u,\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+)\)/gm)];
     assert(recipes.length === 128, 'cannot inspect every proxy recipe');
@@ -112,6 +116,6 @@ function checkSlotReachability(source, assert) {
             seen.add(slot);
         }
     }
-    assert(seen.size === 3, 'specialized proxy slots were not inspected');
+    assert(seen.size === Object.keys(allowed).length, 'specialized proxy slots were not inspected');
 }
 module.exports = { fixture, checkSlotReachability };

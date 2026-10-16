@@ -13,7 +13,7 @@
         OBFH_INPUT_EAX(in, 123u); \
         OBFH_INPUT_OTHER(in, 123u, 1); \
         OBFH_INPUT_OTHER(in, 123u, 2); \
-        __asm__ __volatile__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_INPUT_CONSTANTS "movl %%esp, %[stack]; " OBFH_CFLOW_INPUT(reg, index) "movl " reg ", %[actual];" \
+        __asm__ __volatile__(OBFH_CFLOW_PRED_CONSTANTS OBFH_CFLOW_INPUT_CONSTANTS ".set .Lcfi1a,%c[i1a];.set .Lcfi1b,%c[i1b];movl %%esp, %[stack]; " OBFH_CFLOW_INPUT(reg, index) "movl " reg ", %[actual];" \
                              : [stack] "=m"(stack), [actual] "=m"(actual) \
                              : [junk_key] "i"(key), \
                                [junk_salt] "i"(123), [junk_rotate] "i"(11), \
