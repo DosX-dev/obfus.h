@@ -1352,7 +1352,7 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_PRED_ISOLATE_BIT OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_ISOLATE_BIT
 #define OBFH_CFLOW_TAIL_ISOLATE_BIT "" OBFH_CFLOW_COPY_DX("11") " negl %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "21") " leal -1(%%eax), %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "22") " testl %%eax, %%eax;"
 
-// Immediate-only .set directives emit no bytes. Capture precedes each selected template.
+#define OBFH_CFLOW_NATIVE_PAYLOAD ".byte .Lcfb0,.Lcfb1,.Lcfb2,.Lcfb3;.long .Lcfdata;.fill .Lcfpad,1,.Lcfbyte;"
 #define OBFH_CFLOW_PRED_CONSTANTS ".set .Lcfk,%c[junk_key];.set .Lcfr,%c[junk_rotate];.set .Lcfs,%c[junk_salt];"
 #define OBFH_CFLOW_INPUT_CONSTANTS ".set .Lcfn,%c[il];.set .Lcft,%c[it];.set .Lcfi0a,%c[i0a];.set .Lcfi0b,%c[i0b];.set .Lcfi1a,%c[i1a];.set .Lcfi1b,%c[i1b];.set .Lcfi2a,%c[i2a];.set .Lcfi2b,%c[i2b];"
 #define OBFH_CFLOW_DATA_CONSTANTS ".set .Lcfpad,%c1;.set .Lcfbyte,%c2;.set .Lcfb0,%c4;.set .Lcfb1,%c5;.set .Lcfb2,%c6;.set .Lcfb3,%c7;.set .Lcfdata,%c8;"
@@ -1390,12 +1390,12 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_LOCAL_JUNK_ASM(code) \
     __obfh_asm__(code \
                  : \
-                 : OBFH_CFLOW_LOCAL_JUNK_INPUTS \
+                 : [tail_key] "i"(__obfh_cf_payload), [tail_pad] "i"(__obfh_cf_pad) \
                  : OBFH_JUNK_CLOBBERS)
 #define OBFH_CFLOW_LOCAL_STACK_ASM(code, ...) \
     __obfh_asm__(code \
                  : \
-                 : "i"(__obfh_cf_salt), OBFH_CFLOW_LOCAL_JUNK_INPUTS \
+                 : "i"(__obfh_cf_salt) \
                  : __VA_ARGS__, "cc", "memory")
 #define OBFH_CFLOW_LOCAL_NAMED_INPUTS [junk_salt] "i"(__obfh_cf_salt), "i"(__obfh_cf_pad), "i"(__obfh_cf_byte), \
                                       [junk_key] "i"(__obfh_cf_word), OBFH_CFLOW_LOCAL_RANDOM, [junk_rotate] "i"(__obfh_cf_rotate), \
@@ -1418,23 +1418,23 @@ OBFH_PD_DEFINE(127);
                                                                                                : 1u)
 #define OBFH_CFLOW_BASIC_NONZERO(family) ((family) == 3u || (family) == 10u)
 #define OBFH_CFLOW_BASIC_LOAD_REG(reg, style) ({ \
-    OBFH_CFLOW_BASIC_ASM("movl %%esp, " reg ";"); \
-    __builtin_choose_expr((style) == 3u, OBFH_CFLOW_BASIC_ASM("roll $7, " reg ";"), ((void)0)); \
-    __builtin_choose_expr((style) == 1u || (style) == 5u, OBFH_CFLOW_BASIC_ASM("xorl $.Lcfs, " reg ";"), \
-                          __builtin_choose_expr((style) == 2u, OBFH_CFLOW_BASIC_ASM("subl $.Lcfs, " reg ";"), OBFH_CFLOW_BASIC_ASM("addl $.Lcfs, " reg ";"))); \
-})
-#define OBFH_CFLOW_BASIC_LOAD(family, style) \
-    __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 0u, OBFH_CFLOW_BASIC_LOAD_REG("%%eax", style), \
-                          __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 2u, OBFH_CFLOW_BASIC_LOAD_REG("%%edx", style), OBFH_CFLOW_BASIC_LOAD_REG("%%ecx", style)))
-#define OBFH_CFLOW_BASIC_TEST_REG(reg, mask) ({ \
-    __obfh_asm__("testb $%c[test_mask], " reg ";" \
+    __obfh_asm__(".short 0xe089+256*%c[native_reg];.fill (%c[load_style]==3)&1,3,0x07c0c1+256*%c[native_reg];.set .Lcl_short,(%c[native_reg]!=0)&(.Lcfs>0)&(.Lcfs<=127)&1;.set .Lcl_group,((%c[native_reg]!=0)|.Lcl_short)&1;.byte 5+8*%c[alu]+.Lcl_group*(124+2*.Lcl_short-8*%c[alu]);.fill .Lcl_group,1,0xc0+%c[native_reg]+8*%c[alu];.fill 1,4-3*.Lcl_short,.Lcfs;" \
                  : \
-                 : [test_mask] "i"(mask) \
+                 : [native_reg] "i"(reg), [load_style] "i"(style), [alu] "i"(6u * ((style) == 1u || (style) == 5u) + 5u * ((style) == 2u)) \
                  : OBFH_CFLOW_CLOBBERS); \
 })
-#define OBFH_CFLOW_BASIC_TEST(family, mask) \
-    __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 0u, OBFH_CFLOW_BASIC_TEST_REG("%%al", mask), \
-                          __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 2u, OBFH_CFLOW_BASIC_TEST_REG("%%dl", mask), OBFH_CFLOW_BASIC_TEST_REG("%%cl", mask)))
+// EAX keeps imm32; ECX/EDX use imm8 for salts 1..127. ADD/SUB/XOR group fields are 0/5/6.
+#define OBFH_CFLOW_BASIC_LOAD(family, style) OBFH_CFLOW_BASIC_LOAD_REG(OBFH_CFLOW_BASIC_REGISTER(family), style)
+// TEST uses A8 for AL and F6 /0 for CL/DL, retaining the original native widths.
+#define OBFH_CFLOW_BASIC_TEST_REG(reg, mask) ({ \
+    __obfh_asm__(".byte 0xa8+78*((%c[native_reg]!=0)&1);.fill (%c[native_reg]!=0)&1,1,0xc0+%c[native_reg];.byte %c[test_mask];" \
+                 : \
+                 : [native_reg] "i"(reg), [test_mask] "i"(mask) \
+                 : OBFH_CFLOW_CLOBBERS); \
+})
+
+#define OBFH_CFLOW_BASIC_TEST(family, mask) OBFH_CFLOW_BASIC_TEST_REG(OBFH_CFLOW_BASIC_REGISTER(family), mask)
+
 #define OBFH_CFLOW_BASIC_BRANCH(nonzero, target) \
     __builtin_choose_expr(nonzero, OBFH_CFLOW_BASIC_ASM("jnz " target ";"), OBFH_CFLOW_BASIC_ASM("jz " target ";"))
 #define OBFH_CFLOW_BASIC_PRED_0 OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx")
@@ -1692,14 +1692,14 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_TEMPLATE_85 OBFH_CFLOW_BASIC_EMIT(85u)
 
 #define OBFH_CFLOW_TEMPLATE_86 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%eax; roll $%c0, %%eax; xorl %%eax, %%edx;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%eax; roll $%c[tail_pad], %%eax; xorl %%eax, %%edx;")
 
 #define OBFH_CFLOW_TEMPLATE_87 ({ \
     enum { __obfh_break_salt = RND(1, 32767), \
            __obfh_break_gap = RND(1, 255) }; \
-    __obfh_asm__("movzbl %7, %%eax; xorl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0xE8; " OBFH_JUNK_PAYLOAD "1:" \
+    __obfh_asm__("movzbl %[byte_zero], %%eax; xorl %[salt], %%eax; cmpl %[limit], %%eax; jne 1f; .byte 0x00, 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1:" \
                  : \
-                 : OBFH_CFLOW_LOCAL_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_gap) \
+                 : [byte_zero] "m"(_0), [salt] "i"(__obfh_break_salt), [limit] "i"(__obfh_break_salt + __obfh_break_gap) \
                  : OBFH_JUNK_CLOBBERS); \
 })
 
@@ -1707,42 +1707,42 @@ OBFH_PD_DEFINE(127);
     enum { __obfh_break_salt = RND(1, 32767), \
            __obfh_break_case1 = RND(129, 191), \
            __obfh_break_case2 = RND(257, 319) }; \
-    __obfh_asm__("movzbl %7, %%eax; addl %8, %%eax; cmpl %9, %%eax; jne 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD \
-                 "1: cmpl %10, %%eax; jne 2f; .byte 0xFF, 0x25; " OBFH_JUNK_PAYLOAD "2:" \
+    __obfh_asm__("movzbl %[byte_zero], %%eax; addl %[salt], %%eax; cmpl %[limit], %%eax; jne 1f; .byte 0x00, 0x00; " OBFH_CFLOW_NATIVE_PAYLOAD \
+                 "1: cmpl %[limit2], %%eax; jne 2f; .byte 0xFF, 0x25; " OBFH_CFLOW_NATIVE_PAYLOAD "2:" \
                  : \
-                 : OBFH_CFLOW_LOCAL_JUNK_INPUTS, "m"(_0), "i"(__obfh_break_salt), "i"(__obfh_break_salt + __obfh_break_case1), "i"(__obfh_break_salt + __obfh_break_case2) \
+                 : [byte_zero] "m"(_0), [salt] "i"(__obfh_break_salt), [limit] "i"(__obfh_break_salt + __obfh_break_case1), [limit2] "i"(__obfh_break_salt + __obfh_break_case2) \
                  : OBFH_JUNK_CLOBBERS); \
 })
 
 #define OBFH_CFLOW_TEMPLATE_89 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; " OBFH_JUNK_PAYLOAD "1: leal %c6(%%ebx), %%ecx; rorl $%c0, %%ecx;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%edx, %%edx; xorl %%ebx, %%edx; jz 1f; mov $4, %%eax; .byte 0x00; " OBFH_CFLOW_NATIVE_PAYLOAD "1: leal %c[tail_key](%%ebx), %%ecx; rorl $%c[tail_pad], %%ecx;")
 
 #define OBFH_CFLOW_TEMPLATE_90 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%edx; bswap %%edx; xorl %%edx, %%eax;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%ebx, %%ebx; xorl %%eax, %%eax; mov %%eax, %%ebx; mov %%edx, %%ebx; xorl %%ebx, %%edx; jz 1f; .byte 0x20; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%edx; bswap %%edx; xorl %%edx, %%eax;")
 
 #define OBFH_CFLOW_TEMPLATE_91 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%ecx; negl %%ecx; roll $%c0, %%ecx;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; xorl %%eax, %%eax; mov %%eax, %%edx; jz 1f; .byte 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%ecx; negl %%ecx; roll $%c[tail_pad], %%ecx;")
 
 #define OBFH_CFLOW_TEMPLATE_92 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%eax; notl %%eax; leal (%%eax,%%eax,2), %%edx;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%eax; notl %%eax; leal (%%eax,%%eax,2), %%edx;")
 
 #define OBFH_CFLOW_TEMPLATE_93 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0x50; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%ecx; rorl $%c0, %%ecx; xorl %%ecx, %%eax;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0x50; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%ecx; rorl $%c[tail_pad], %%ecx; xorl %%ecx, %%eax;")
 
 #define OBFH_CFLOW_TEMPLATE_94 \
-    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%edx; roll $%c0, %%edx; leal (%%edx,%%edx,4), %%eax;")
+    OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%edx, %%edx; jz 1f; .byte 0x00, 0x00; " OBFH_CFLOW_NATIVE_PAYLOAD "1: movl $%c[tail_key], %%edx; roll $%c[tail_pad], %%edx; leal (%%edx,%%edx,4), %%eax;")
 
 #define OBFH_CFLOW_TEMPLATE_95 \
-    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0xE8; " OBFH_STACK_JUNK_PAYLOAD "1:", "eax", "edx")
+    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1:", "eax", "edx")
 
 #define OBFH_CFLOW_TEMPLATE_96 \
-    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%edx; addl %0, %%edx; imull %%edx, %%edx; testb $2, %%dl; jz 1f; .byte 0xFF, 0x25; " OBFH_STACK_JUNK_PAYLOAD "1:", "edx")
+    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%edx; addl %0, %%edx; imull %%edx, %%edx; testb $2, %%dl; jz 1f; .byte 0xFF, 0x25; " OBFH_CFLOW_NATIVE_PAYLOAD "1:", "edx")
 
 #define OBFH_CFLOW_TEMPLATE_97 \
-    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0x0F, 0x0B, 0xE8; " OBFH_STACK_JUNK_PAYLOAD "1:", "eax", "edx")
+    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; movl %%eax, %%edx; imull %%eax, %%eax; xorl %%edx, %%eax; testb $1, %%al; jz 1f; .byte 0x0F, 0x0B, 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1:", "eax", "edx")
 
 #define OBFH_CFLOW_TEMPLATE_98 \
-    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testb $1, %%al; jnz 1f; .byte 0xC3, 0xE8; " OBFH_STACK_JUNK_PAYLOAD "1:", "eax", "edx")
+    OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testb $1, %%al; jnz 1f; .byte 0xC3, 0xE8; " OBFH_CFLOW_NATIVE_PAYLOAD "1:", "eax", "edx")
 
 #define OBFH_CFLOW_TEMPLATE_99 OBFH_CFLOW_NAMED_EMIT(99u)
 #define OBFH_CFLOW_TEMPLATE_100 OBFH_CFLOW_NAMED_EMIT(100u)
@@ -3820,9 +3820,9 @@ static const OBFH_PD_LIVE_FN obfh_pd_live_entries[86] = {
     __builtin_choose_expr(((style)&7u) == 0u, OBFH_P_EXIT_0, OBFH_P_EXIT_SELECT_1(style))
 #define OBFH_P_FINISH(style) OBFH_P_EXIT_SELECT_0(style)
 // The final encoded state and its expected value stay in EAX/EDX through completion.
-// Each row is an existing exit family, emitted once with assembler-time selection.
+// Each row retains an existing exit family; fixed words use their signed 32-bit spelling.
 #define OBFH_P_TERMINAL_TEXT \
-    ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,0xb9; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,0;" /* sub/xor edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(((0xc083c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),1,0x1;" /* xor/sub edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(((0xf7c01901)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),1,0xd8;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,0x1b8d039; .fill ((%c[finish]==2)&1),4,0xf000000; .fill ((%c[finish]==2)&1),2,0xc145;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(((0x950fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==3)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000;" /* sub/xor edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(((0xd0f7c019)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),3,0x1e083;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(((0x940fd039)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),4,(((0xc1b60fc1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==5)&1),3,0x1f083;" /* xor/sub edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0xc809d9f7)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(((0x831fe8c1)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),2,0x1f0;" /* XOR/SUB supplies ZF; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),2,(((0xd031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,0x1b8; .fill ((%c[finish]==7)&1),4,(((0xb8057500)&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,0x0;"
+    ".fill ((%c[finish]==2)&(%c[zero_form]!=2)&1),2,(((0xc931-8*((%c[zero_form]==1)&1))&0xffffffff)^0x80000000)-0x80000000;.fill ((%c[finish]==2)&(%c[zero_form]==2)&1),1,0xb9; .fill ((%c[finish]==2)&(%c[zero_form]==2)&1),4,0;" /* sub/xor edx; neg; sbb; add 1 */ ".fill ((%c[finish]==0)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==0)&1),4,(0xc083c019-0x100000000); .fill ((%c[finish]==0)&1),1,0x1;" /* xor/sub edx; sub 1; sbb; neg */ ".fill ((%c[finish]==1)&1),4,(((0xe883d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==1)&1),4,(0xf7c01901-0x100000000); .fill ((%c[finish]==1)&1),1,0xd8;" /* cmp edx; mov 1; cmovne ecx */ ".fill ((%c[finish]==2)&1),4,0x1b8d039; .fill ((%c[finish]==2)&1),4,0xf000000; .fill ((%c[finish]==2)&1),2,0xc145;" /* cmp edx; setne; movzx */ ".fill ((%c[finish]==3)&1),4,(0x950fd039-0x100000000); .fill ((%c[finish]==3)&1),4,(0xc1b60fc1-0x100000000);" /* sub/xor edx; neg; sbb; not; and 1 */ ".fill ((%c[finish]==4)&1),4,(((0xd8f7d029+8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==4)&1),4,(0xd0f7c019-0x100000000); .fill ((%c[finish]==4)&1),3,0x1e083;" /* cmp edx; sete; movzx; xor 1 */ ".fill ((%c[finish]==5)&1),4,(0x940fd039-0x100000000); .fill ((%c[finish]==5)&1),4,(0xc1b60fc1-0x100000000); .fill ((%c[finish]==5)&1),3,0x1f083;" /* xor/sub edx; mov ecx; neg ecx; or; shr 31; xor 1 */ ".fill ((%c[finish]==6)&1),4,(((0xc189d031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==6)&1),4,(0xc809d9f7-0x100000000); .fill ((%c[finish]==6)&1),4,(0x831fe8c1-0x100000000); .fill ((%c[finish]==6)&1),2,0x1f0;" /* XOR/SUB supplies ZF; mov 1; jnz +5; mov 0 */ ".fill ((%c[finish]==7)&1),2,(((0xd031-8*(%c[zero_form]&1))&0xffffffff)^0x80000000)-0x80000000; .fill ((%c[finish]==7)&1),4,0x1b8; .fill ((%c[finish]==7)&1),4,(0xb8057500-0x100000000); .fill ((%c[finish]==7)&1),4,0x0;"
 
 // The last-stage flag is a preprocessing literal: never expand an unused terminal.
 #define OBFH_P_LAST_STEP_0(s, p, style) OBFH_P_STEP(s, p)

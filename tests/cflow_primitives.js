@@ -7,6 +7,7 @@ function cases(source) {
     return [
         ...(source.includes('#define OBFH_P_TERMINAL_TEXT') ? [['terminal', 'CFLOW_TERMINAL_PASS', require('./cflow_terminal')]] : []),
         ['forms', 'CFLOW_FORMS_PASS', require('./cflow_forms')],
+        ...(source.includes('#define OBFH_CFLOW_NATIVE_PAYLOAD ') ? [['other', 'CFLOW_OTHER_PASS', require('./cflow_other')]] : []),
         ['packing', 'CFLOW_PACKING_PASS', require('./cflow_packing')],
         ...(source.includes('#define OBFH_CFLOW_BASIC_EMIT(') ? [['basic', 'CFLOW_BASIC_PASS', require('./cflow_basic')]] : []),
         ...(source.includes('#define OBFH_CFLOW_NAMED_EMIT(') ? [['named', 'CFLOW_NAMED_PASS', require('./cflow_named')]] : []),
