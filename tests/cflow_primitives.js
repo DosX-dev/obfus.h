@@ -9,6 +9,7 @@ function cases(source) {
         ['forms', 'CFLOW_FORMS_PASS', require('./cflow_forms')],
         ['packing', 'CFLOW_PACKING_PASS', require('./cflow_packing')],
         ...(source.includes('#define OBFH_CFLOW_BASIC_EMIT(') ? [['basic', 'CFLOW_BASIC_PASS', require('./cflow_basic')]] : []),
+        ...(source.includes('#define OBFH_CFLOW_NAMED_EMIT(') ? [['named', 'CFLOW_NAMED_PASS', require('./cflow_named')]] : []),
         ['single_lane', 'MACHINE_PRIMITIVES_PASS', require('./cflow_single_lane')],
         ...(source.includes('#define OBFH_SF_FLOW_COMMIT ') ? [['commit', 'CFLOW_COMMIT_PASS', require('./cflow_commit')]] : [])
     ];

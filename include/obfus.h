@@ -1285,35 +1285,64 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_DATA_TRAP ".byte 0x0F, 0x0B, 0x8F, 0x04, 0x24;" OBFH_CFLOW_DATA
 #define OBFH_CFLOW_DATA_RETURN ".byte 0xC2, .Lcfb0, .Lcfb1, 0xE8; .long .Lcfdata;" OBFH_CFLOW_DATA
 
-#define OBFH_CFLOW_PRED_ADD_CARRY OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl $.Lcfk, %%eax; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x01", "2", "2", ".Lcfk", "19") OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "20") OBFH_CFLOW_INPUT("%%edx", "2") "addl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "21") ""
-#define OBFH_CFLOW_PRED_OR_AND_SUM OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl $.Lcfk, %%eax; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "22") OBFH_CFLOW_INPUT("%%edx", "2") "addl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "23") ""
-#define OBFH_CFLOW_PRED_SUB_BORROW OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl $.Lcfk, %%eax; notl %%edx; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x01", "2", "2", ".Lcfk", "24") OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "25") OBFH_CFLOW_INPUT("%%edx", "2") "subl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "26") ""
-#define OBFH_CFLOW_PRED_DEMORGAN OBFH_CFLOW_INPUT("%%eax", "0") "orl $.Lcfk, %%eax; notl %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "notl %%edx; movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", ".Lcfk", "27") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "28") ""
-#define OBFH_CFLOW_PRED_OR_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl $.Lcfk, %%eax; movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x09", "2", "1", ".Lcfk", "29") OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "18") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "19") ""
-#define OBFH_CFLOW_PRED_AND_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $.Lcfk, %%eax; movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", ".Lcfk", "20") OBFH_ASM_BINARY32("0x09", "0", "2", ".Lcfk", "21") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "22") ""
-#define OBFH_CFLOW_PRED_XOR_CANCEL OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; xorl $.Lcfk, %%eax; " OBFH_ASM_BINARY32("0x31", "0", "2", ".Lcfk", "23") " cmpl $.Lcfk, %%eax;"
-#define OBFH_CFLOW_PRED_COMPLEMENT_CARRY OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; notl %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "24") ""
-#define OBFH_CFLOW_PRED_COMPLEMENT_WRAP OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; notl %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "25") " addl $1, %%eax;"
-#define OBFH_CFLOW_PRED_MASK_SUBTRACT OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "26") ""
-#define OBFH_CFLOW_PRED_MASK_OR_ORDER OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; orl $.Lcfk, %%eax; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "27") ""
-#define OBFH_CFLOW_PRED_ROTATE_XOR OBFH_CFLOW_INPUT("%%eax", "0") "xorl $.Lcfk, %%eax; roll $.Lcfr, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "roll $.Lcfr, %%edx; movl $.Lcfk, %%ecx; roll $.Lcfr, %%ecx; " OBFH_ASM_BINARY32("0x31", "2", "1", ".Lcfk", "28") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "29") ""
-#define OBFH_CFLOW_PRED_ROTATE_RESTORE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_ASM_ROTATE_PAIR("0", ".Lcfr", ".Lcfk", "0") OBFH_ASM_ROTATE_PAIR("0", ".Lcfr", ".Lcfk", "1") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
-#define OBFH_CFLOW_PRED_BSWAP_XOR OBFH_CFLOW_INPUT("%%eax", "0") "xorl $.Lcfk, %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; movl $.Lcfk, %%ecx; bswap %%ecx; " OBFH_ASM_BINARY32("0x31", "2", "1", ".Lcfk", "18") OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
-#define OBFH_CFLOW_PRED_WORD_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $65535, %%eax; andl $-65536, %%edx; " OBFH_ASM_BINARY32("0x09", "0", "2", ".Lcfk", "19") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "20") ""
-#define OBFH_CFLOW_PRED_BYTE_PARITY OBFH_CFLOW_INPUT("%%eax", "0") "movzbl %%al, %%edx; imull %%eax, %%eax; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "21") " testb $1, %%al;"
-#define OBFH_CFLOW_PRED_BYTE_ROTATE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; rolb $.Lcfr, %%al; rorb $.Lcfr, %%al; cmpb %%dl, %%al;"
-#define OBFH_CFLOW_PRED_WORD_ROTATE OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; rolw $.Lcfr, %%ax; rorw $.Lcfr, %%ax; cmpw %%dx, %%ax;"
-#define OBFH_CFLOW_PRED_NEG_COMPLEMENT OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; addl $1, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; " OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
-#define OBFH_CFLOW_PRED_MUL_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") "addl $.Lcfk, %%eax; imull $.Lcfs, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull $.Lcfs, %%edx; movl $.Lcfk, %%ecx; imull $.Lcfs, %%ecx; " OBFH_ASM_BINARY32("0x01", "2", "1", ".Lcfk", "22") OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
-#define OBFH_CFLOW_PRED_SQUARE_EXPAND OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; imull %%edx, %%edx; movl %%eax, %%ecx; imull $.Lcfk, %%ecx; " OBFH_ASM_BINARY32("0x01", "1", "1", ".Lcfk", "23") " addl $.Lcfk, %%eax; imull %%eax, %%eax; " OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "24") OBFH_ASM_BINARY32("0x29", "0", "1", ".Lcfk", "25") " movl $.Lcfk, %%edx; imull %%edx, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "26") ""
-#define OBFH_CFLOW_PRED_NEG_SQUARE OBFH_CFLOW_INPUT("%%eax", "0") "negl %%eax; imull %%eax, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull %%edx, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "27") ""
-#define OBFH_CFLOW_PRED_BSWAP_NOT OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; notl %%edx; " OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
-#define OBFH_CFLOW_PRED_SUB_MASK OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "28") OBFH_CFLOW_INPUT("%%edx", "2") "movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", ".Lcfk", "29") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "18") ""
-#define OBFH_CFLOW_PRED_MASK_ORDER OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; andl $.Lcfk, %%eax; orl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "19") ""
-#define OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE OBFH_CFLOW_INPUT("%%eax", "0") "notl %%eax; addl $.Lcfk, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; addl $.Lcfk, %%edx; subl $1, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "20") ""
-#define OBFH_CFLOW_PRED_SQUARE_RESIDUE OBFH_CFLOW_INPUT("%%eax", "0") "imull %%eax, %%eax; andl $7, %%eax; leal -1(%%eax), %%edx; leal -4(%%eax), %%ecx; imull %%edx, %%eax; imull %%ecx, %%eax; testl %%eax, %%eax;"
-#define OBFH_CFLOW_PRED_FOURTH_RESIDUE OBFH_CFLOW_INPUT("%%eax", "0") "imull %%eax, %%eax; imull %%eax, %%eax; andl $15, %%eax; leal -1(%%eax), %%edx; imull %%edx, %%eax; testl %%eax, %%eax;"
-#define OBFH_CFLOW_PRED_ISOLATE_BIT OBFH_CFLOW_INPUT("%%eax", "0") "movl %%eax, %%edx; negl %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "21") " leal -1(%%eax), %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "22") " testl %%eax, %%eax;"
+#define OBFH_CFLOW_PRED_ADD_CARRY OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_ADD_CARRY
+#define OBFH_CFLOW_TAIL_ADD_CARRY "movl %%eax, %%edx; xorl $.Lcfk, %%eax; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x01", "2", "2", ".Lcfk", "19") OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "20") OBFH_CFLOW_INPUT("%%edx", "2") "addl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "21") ""
+#define OBFH_CFLOW_PRED_OR_AND_SUM OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_OR_AND_SUM
+#define OBFH_CFLOW_TAIL_OR_AND_SUM "movl %%eax, %%edx; orl $.Lcfk, %%eax; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "22") OBFH_CFLOW_INPUT("%%edx", "2") "addl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "23") ""
+#define OBFH_CFLOW_PRED_SUB_BORROW OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_SUB_BORROW
+#define OBFH_CFLOW_TAIL_SUB_BORROW "movl %%eax, %%edx; xorl $.Lcfk, %%eax; notl %%edx; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x01", "2", "2", ".Lcfk", "24") OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "25") OBFH_CFLOW_INPUT("%%edx", "2") "subl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "26") ""
+#define OBFH_CFLOW_PRED_DEMORGAN OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_DEMORGAN
+#define OBFH_CFLOW_TAIL_DEMORGAN "orl $.Lcfk, %%eax; notl %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "notl %%edx; movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", ".Lcfk", "27") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "28") ""
+#define OBFH_CFLOW_PRED_OR_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_OR_DISTRIBUTE
+#define OBFH_CFLOW_TAIL_OR_DISTRIBUTE "movl %%eax, %%edx; orl $.Lcfk, %%eax; movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x09", "2", "1", ".Lcfk", "29") OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "18") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "19") ""
+#define OBFH_CFLOW_PRED_AND_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_AND_PARTITION
+#define OBFH_CFLOW_TAIL_AND_PARTITION "movl %%eax, %%edx; andl $.Lcfk, %%eax; movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", ".Lcfk", "20") OBFH_ASM_BINARY32("0x09", "0", "2", ".Lcfk", "21") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "22") ""
+#define OBFH_CFLOW_PRED_XOR_CANCEL OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_XOR_CANCEL
+#define OBFH_CFLOW_TAIL_XOR_CANCEL "movl %%eax, %%edx; xorl $.Lcfk, %%eax; " OBFH_ASM_BINARY32("0x31", "0", "2", ".Lcfk", "23") " cmpl $.Lcfk, %%eax;"
+#define OBFH_CFLOW_PRED_COMPLEMENT_CARRY OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_COMPLEMENT_CARRY
+#define OBFH_CFLOW_TAIL_COMPLEMENT_CARRY "movl %%eax, %%edx; notl %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "24") ""
+#define OBFH_CFLOW_PRED_COMPLEMENT_WRAP OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_COMPLEMENT_WRAP
+#define OBFH_CFLOW_TAIL_COMPLEMENT_WRAP "movl %%eax, %%edx; notl %%edx; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "25") " addl $1, %%eax;"
+#define OBFH_CFLOW_PRED_MASK_SUBTRACT OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_MASK_SUBTRACT
+#define OBFH_CFLOW_TAIL_MASK_SUBTRACT "movl %%eax, %%edx; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "26") ""
+#define OBFH_CFLOW_PRED_MASK_OR_ORDER OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_MASK_OR_ORDER
+#define OBFH_CFLOW_TAIL_MASK_OR_ORDER "movl %%eax, %%edx; orl $.Lcfk, %%eax; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "27") ""
+#define OBFH_CFLOW_PRED_ROTATE_XOR OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_ROTATE_XOR
+#define OBFH_CFLOW_TAIL_ROTATE_XOR "xorl $.Lcfk, %%eax; roll $.Lcfr, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "roll $.Lcfr, %%edx; movl $.Lcfk, %%ecx; roll $.Lcfr, %%ecx; " OBFH_ASM_BINARY32("0x31", "2", "1", ".Lcfk", "28") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "29") ""
+#define OBFH_CFLOW_PRED_ROTATE_RESTORE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_ROTATE_RESTORE
+#define OBFH_CFLOW_TAIL_ROTATE_RESTORE OBFH_ASM_ROTATE_PAIR("0", ".Lcfr", ".Lcfk", "0") OBFH_ASM_ROTATE_PAIR("0", ".Lcfr", ".Lcfk", "1") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
+#define OBFH_CFLOW_PRED_BSWAP_XOR OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_BSWAP_XOR
+#define OBFH_CFLOW_TAIL_BSWAP_XOR "xorl $.Lcfk, %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; movl $.Lcfk, %%ecx; bswap %%ecx; " OBFH_ASM_BINARY32("0x31", "2", "1", ".Lcfk", "18") OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
+#define OBFH_CFLOW_PRED_WORD_PARTITION OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_WORD_PARTITION
+#define OBFH_CFLOW_TAIL_WORD_PARTITION "movl %%eax, %%edx; andl $65535, %%eax; andl $-65536, %%edx; " OBFH_ASM_BINARY32("0x09", "0", "2", ".Lcfk", "19") OBFH_CFLOW_INPUT("%%edx", "2") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "20") ""
+#define OBFH_CFLOW_PRED_BYTE_PARITY OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_BYTE_PARITY
+#define OBFH_CFLOW_TAIL_BYTE_PARITY "movzbl %%al, %%edx; imull %%eax, %%eax; " OBFH_ASM_BINARY32("0x01", "0", "2", ".Lcfk", "21") " testb $1, %%al;"
+#define OBFH_CFLOW_PRED_BYTE_ROTATE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_BYTE_ROTATE
+#define OBFH_CFLOW_TAIL_BYTE_ROTATE "movl %%eax, %%edx; rolb $.Lcfr, %%al; rorb $.Lcfr, %%al; cmpb %%dl, %%al;"
+#define OBFH_CFLOW_PRED_WORD_ROTATE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_WORD_ROTATE
+#define OBFH_CFLOW_TAIL_WORD_ROTATE "movl %%eax, %%edx; rolw $.Lcfr, %%ax; rorw $.Lcfr, %%ax; cmpw %%dx, %%ax;"
+#define OBFH_CFLOW_PRED_NEG_COMPLEMENT OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_NEG_COMPLEMENT
+#define OBFH_CFLOW_TAIL_NEG_COMPLEMENT "notl %%eax; addl $1, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; " OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
+#define OBFH_CFLOW_PRED_MUL_DISTRIBUTE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_MUL_DISTRIBUTE
+#define OBFH_CFLOW_TAIL_MUL_DISTRIBUTE "addl $.Lcfk, %%eax; imull $.Lcfs, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull $.Lcfs, %%edx; movl $.Lcfk, %%ecx; imull $.Lcfs, %%ecx; " OBFH_ASM_BINARY32("0x01", "2", "1", ".Lcfk", "22") OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
+#define OBFH_CFLOW_PRED_SQUARE_EXPAND OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_SQUARE_EXPAND
+#define OBFH_CFLOW_TAIL_SQUARE_EXPAND "movl %%eax, %%edx; imull %%edx, %%edx; movl %%eax, %%ecx; imull $.Lcfk, %%ecx; " OBFH_ASM_BINARY32("0x01", "1", "1", ".Lcfk", "23") " addl $.Lcfk, %%eax; imull %%eax, %%eax; " OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "24") OBFH_ASM_BINARY32("0x29", "0", "1", ".Lcfk", "25") " movl $.Lcfk, %%edx; imull %%edx, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "26") ""
+#define OBFH_CFLOW_PRED_NEG_SQUARE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_NEG_SQUARE
+#define OBFH_CFLOW_TAIL_NEG_SQUARE "negl %%eax; imull %%eax, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "imull %%edx, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "27") ""
+#define OBFH_CFLOW_PRED_BSWAP_NOT OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_BSWAP_NOT
+#define OBFH_CFLOW_TAIL_BSWAP_NOT "notl %%eax; bswap %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "bswap %%edx; notl %%edx; " OBFH_ASM_EQ32("0", "2", ".Lcfk", "16") ""
+#define OBFH_CFLOW_PRED_SUB_MASK OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_SUB_MASK
+#define OBFH_CFLOW_TAIL_SUB_MASK "movl %%eax, %%edx; andl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x29", "0", "2", ".Lcfk", "28") OBFH_CFLOW_INPUT("%%edx", "2") "movl $.Lcfk, %%ecx; notl %%ecx; " OBFH_ASM_BINARY32("0x21", "2", "1", ".Lcfk", "29") OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "18") ""
+#define OBFH_CFLOW_PRED_MASK_ORDER OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_MASK_ORDER
+#define OBFH_CFLOW_TAIL_MASK_ORDER "movl %%eax, %%edx; andl $.Lcfk, %%eax; orl $.Lcfk, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "19") ""
+#define OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_COMPLEMENT_TRANSLATE
+#define OBFH_CFLOW_TAIL_COMPLEMENT_TRANSLATE "notl %%eax; addl $.Lcfk, %%eax; " OBFH_CFLOW_INPUT("%%edx", "2") "negl %%edx; addl $.Lcfk, %%edx; subl $1, %%edx; " OBFH_ASM_BINARY32("0x39", "0", "2", ".Lcfk", "20") ""
+#define OBFH_CFLOW_PRED_SQUARE_RESIDUE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_SQUARE_RESIDUE
+#define OBFH_CFLOW_TAIL_SQUARE_RESIDUE "imull %%eax, %%eax; andl $7, %%eax; leal -1(%%eax), %%edx; leal -4(%%eax), %%ecx; imull %%edx, %%eax; imull %%ecx, %%eax; testl %%eax, %%eax;"
+#define OBFH_CFLOW_PRED_FOURTH_RESIDUE OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_FOURTH_RESIDUE
+#define OBFH_CFLOW_TAIL_FOURTH_RESIDUE "imull %%eax, %%eax; imull %%eax, %%eax; andl $15, %%eax; leal -1(%%eax), %%edx; imull %%edx, %%eax; testl %%eax, %%eax;"
+#define OBFH_CFLOW_PRED_ISOLATE_BIT OBFH_CFLOW_INPUT("%%eax", "0") OBFH_CFLOW_TAIL_ISOLATE_BIT
+#define OBFH_CFLOW_TAIL_ISOLATE_BIT "movl %%eax, %%edx; negl %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "21") " leal -1(%%eax), %%edx; " OBFH_ASM_BINARY32("0x21", "0", "2", ".Lcfk", "22") " testl %%eax, %%eax;"
 
 // Immediate-only .set directives emit no bytes. Capture precedes each selected template.
 #define OBFH_CFLOW_PRED_CONSTANTS ".set .Lcfk,%c[junk_key];.set .Lcfr,%c[junk_rotate];.set .Lcfs,%c[junk_salt];"
@@ -1468,10 +1497,73 @@ OBFH_PD_DEFINE(127);
     (void)0; \
 })
 
+// Named forms share source fragments only: every predicate, branch and payload
+// remains adjacent native ASM with no runtime C evaluation between fragments.
+#define OBFH_CFLOW_NAMED_FRAGMENT(text) ({ OBFH_CFLOW_LOCAL_NAMED_ASM(text); })
+#define OBFH_CFLOW_NAMED_PREDICATE(family) ({ \
+    OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_INPUT("%%eax", "0")); \
+    __builtin_choose_expr((family) < 14u, __builtin_choose_expr((family) < 7u, __builtin_choose_expr((family) < 3u, __builtin_choose_expr((family) < 1u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_ADD_CARRY), __builtin_choose_expr((family) < 2u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_OR_AND_SUM), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_SUB_BORROW))), __builtin_choose_expr((family) < 5u, __builtin_choose_expr((family) < 4u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_DEMORGAN), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_OR_DISTRIBUTE)), __builtin_choose_expr((family) < 6u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_AND_PARTITION), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_XOR_CANCEL)))), __builtin_choose_expr((family) < 10u, __builtin_choose_expr((family) < 8u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_COMPLEMENT_CARRY), __builtin_choose_expr((family) < 9u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_COMPLEMENT_WRAP), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_MASK_SUBTRACT))), __builtin_choose_expr((family) < 12u, __builtin_choose_expr((family) < 11u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_MASK_OR_ORDER), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_ROTATE_XOR)), __builtin_choose_expr((family) < 13u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_ROTATE_RESTORE), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_BSWAP_XOR))))), __builtin_choose_expr((family) < 21u, __builtin_choose_expr((family) < 17u, __builtin_choose_expr((family) < 15u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_WORD_PARTITION), __builtin_choose_expr((family) < 16u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_BYTE_PARITY), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_BYTE_ROTATE))), __builtin_choose_expr((family) < 19u, __builtin_choose_expr((family) < 18u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_WORD_ROTATE), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_NEG_COMPLEMENT)), __builtin_choose_expr((family) < 20u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_MUL_DISTRIBUTE), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_SQUARE_EXPAND)))), __builtin_choose_expr((family) < 25u, __builtin_choose_expr((family) < 23u, __builtin_choose_expr((family) < 22u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_NEG_SQUARE), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_BSWAP_NOT)), __builtin_choose_expr((family) < 24u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_SUB_MASK), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_MASK_ORDER))), __builtin_choose_expr((family) < 27u, __builtin_choose_expr((family) < 26u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_COMPLEMENT_TRANSLATE), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_SQUARE_RESIDUE)), __builtin_choose_expr((family) < 28u, OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_FOURTH_RESIDUE), OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_TAIL_ISOLATE_BIT)))))); \
+})
+// Native condition codes keep the original equality/carry/order tests.
+#define OBFH_CFLOW_NAMED_CC(family) ((family) == 7u || (family) == 9u || (family) == 10u ? 0x83u : (family) == 8u ? 0x82u \
+                                                                                               : (family) == 24u  ? 0x86u \
+                                                                                                                  : 0x84u)
+#define OBFH_CFLOW_NAMED_BRANCH(cc, inverse, target) ({ \
+    __obfh_asm__(".byte 0x0f,%c[condition];.long " target "-.-4;" \
+                 : \
+                 : [condition] "i"((cc) ^ (inverse)) \
+                 : OBFH_CFLOW_CLOBBERS); \
+})
+// The backward edges in the four layouts consume only ZF or clear CF.
+// Let the assembler retain its normal short/near branch selection.
+#define OBFH_CFLOW_NAMED_BACK_BRANCH(cc, target) \
+    __builtin_choose_expr((cc) == 0x84u, OBFH_CFLOW_NAMED_FRAGMENT("jne " target ";"), OBFH_CFLOW_NAMED_FRAGMENT("jc " target ";"))
+#define OBFH_CFLOW_NAMED_SET(cc) ({ \
+    __obfh_asm__(".byte 0x0f,%c[condition],0xc1;" \
+                 : \
+                 : [condition] "i"((cc) + 0x10u) \
+                 : OBFH_CFLOW_CLOBBERS); \
+})
+#define OBFH_CFLOW_NAMED_PAYLOAD(kind) ({ \
+    __builtin_choose_expr((kind) < 3u, __builtin_choose_expr((kind) < 1u, OBFH_CFLOW_NAMED_FRAGMENT(".byte (0xE8 + ((.Lcfk >> 15) & 1)); .long .Lcfk;"), __builtin_choose_expr((kind) < 2u, OBFH_CFLOW_NAMED_FRAGMENT(".byte 0xBC; .long .Lcfdata; .byte 0xFF, 0xE4;"), OBFH_CFLOW_NAMED_FRAGMENT(".byte 0xC8, .Lcfb0, .Lcfb1, .Lcfb2, 0xC9, 0xC3;"))), __builtin_choose_expr((kind) < 4u, OBFH_CFLOW_NAMED_FRAGMENT(".byte 0xFF, 0x15; .long .Lcfdata; .byte 0xE9; .long .Lcfk;"), __builtin_choose_expr((kind) < 5u, OBFH_CFLOW_NAMED_FRAGMENT(".byte 0x0F, 0x0B, 0x8F, 0x04, 0x24;"), OBFH_CFLOW_NAMED_FRAGMENT(".byte 0xC2, .Lcfb0, .Lcfb1, 0xE8; .long .Lcfdata;")))); \
+    OBFH_CFLOW_NAMED_FRAGMENT(OBFH_CFLOW_DATA); \
+})
+#define OBFH_CFLOW_NAMED_EMIT(index) ({ \
+    enum { __obfh_named_first = (index)-99u, \
+           __obfh_named_second = (__obfh_named_first + 11u) % 29u, \
+           __obfh_named_layout = __obfh_named_first & 3u, \
+           __obfh_named_payload = __obfh_named_first % 6u, \
+           __obfh_named_payload_second = (__obfh_named_payload + 3u) % 6u, \
+           __obfh_named_cc_first = OBFH_CFLOW_NAMED_CC(__obfh_named_first), \
+           __obfh_named_cc_second = OBFH_CFLOW_NAMED_CC(__obfh_named_second) }; \
+    OBFH_CFLOW_NAMED_PREDICATE(__obfh_named_first); \
+    __builtin_choose_expr(__obfh_named_layout == 2u, ({ \
+                              OBFH_CFLOW_NAMED_SET(__obfh_named_cc_first); \
+                              OBFH_CFLOW_NAMED_FRAGMENT("movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 52f;"); \
+                          }), \
+                          __builtin_choose_expr(__obfh_named_layout == 1u, OBFH_CFLOW_NAMED_BRANCH(__obfh_named_cc_first, 1, "51f"), OBFH_CFLOW_NAMED_BRANCH(__obfh_named_cc_first, 0, "52f"))); \
+    __builtin_choose_expr(__obfh_named_layout == 1u, OBFH_CFLOW_NAMED_FRAGMENT("jmp 52f;"), ((void)0)); \
+    OBFH_CFLOW_NAMED_FRAGMENT("51:"); \
+    OBFH_CFLOW_NAMED_PAYLOAD(__obfh_named_payload); \
+    OBFH_CFLOW_NAMED_FRAGMENT("52:"); \
+    OBFH_CFLOW_NAMED_PREDICATE(__obfh_named_second); \
+    __builtin_choose_expr(__obfh_named_layout == 1u, ({ \
+                              OBFH_CFLOW_NAMED_SET(__obfh_named_cc_second); \
+                              OBFH_CFLOW_NAMED_FRAGMENT("movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 54f;"); \
+                          }), \
+                          __builtin_choose_expr(__obfh_named_layout == 0u, OBFH_CFLOW_NAMED_BRANCH(__obfh_named_cc_second, 0, "54f"), \
+                                                __builtin_choose_expr(__obfh_named_layout == 2u, OBFH_CFLOW_NAMED_BRANCH(__obfh_named_cc_second, 1, "53f"), OBFH_CFLOW_NAMED_BACK_BRANCH(__obfh_named_cc_second, "51b")))); \
+    __builtin_choose_expr(__obfh_named_layout >= 2u, OBFH_CFLOW_NAMED_FRAGMENT("jmp 54f;"), ((void)0)); \
+    OBFH_CFLOW_NAMED_FRAGMENT("53:"); \
+    OBFH_CFLOW_NAMED_PAYLOAD(__obfh_named_payload_second); \
+    OBFH_CFLOW_NAMED_FRAGMENT("54:"); \
+    (void)0; \
+})
+
 // All 128 native forms retain their original selection indices.
 #define OBFH_CFLOW_VARIANT_COUNT 128u
-#define OBFH_CFLOW_OTHER(index) __builtin_choose_expr((index) < 107u, __builtin_choose_expr((index) < 96u, __builtin_choose_expr((index) < 91u, __builtin_choose_expr((index) < 88u, __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), ({ OBFH_CFLOW_TEMPLATE_87; })), __builtin_choose_expr((index) < 89u, ({ OBFH_CFLOW_TEMPLATE_88; }), __builtin_choose_expr((index) < 90u, ({ OBFH_CFLOW_TEMPLATE_89; }), ({ OBFH_CFLOW_TEMPLATE_90; })))), __builtin_choose_expr((index) < 93u, __builtin_choose_expr((index) < 92u, ({ OBFH_CFLOW_TEMPLATE_91; }), ({ OBFH_CFLOW_TEMPLATE_92; })), __builtin_choose_expr((index) < 94u, ({ OBFH_CFLOW_TEMPLATE_93; }), __builtin_choose_expr((index) < 95u, ({ OBFH_CFLOW_TEMPLATE_94; }), ({ OBFH_CFLOW_TEMPLATE_95; }))))), __builtin_choose_expr((index) < 101u, __builtin_choose_expr((index) < 98u, __builtin_choose_expr((index) < 97u, ({ OBFH_CFLOW_TEMPLATE_96; }), ({ OBFH_CFLOW_TEMPLATE_97; })), __builtin_choose_expr((index) < 99u, ({ OBFH_CFLOW_TEMPLATE_98; }), __builtin_choose_expr((index) < 100u, ({ OBFH_CFLOW_TEMPLATE_99; }), ({ OBFH_CFLOW_TEMPLATE_100; })))), __builtin_choose_expr((index) < 104u, __builtin_choose_expr((index) < 102u, ({ OBFH_CFLOW_TEMPLATE_101; }), __builtin_choose_expr((index) < 103u, ({ OBFH_CFLOW_TEMPLATE_102; }), ({ OBFH_CFLOW_TEMPLATE_103; }))), __builtin_choose_expr((index) < 105u, ({ OBFH_CFLOW_TEMPLATE_104; }), __builtin_choose_expr((index) < 106u, ({ OBFH_CFLOW_TEMPLATE_105; }), ({ OBFH_CFLOW_TEMPLATE_106; })))))), __builtin_choose_expr((index) < 117u, __builtin_choose_expr((index) < 112u, __builtin_choose_expr((index) < 109u, __builtin_choose_expr((index) < 108u, ({ OBFH_CFLOW_TEMPLATE_107; }), ({ OBFH_CFLOW_TEMPLATE_108; })), __builtin_choose_expr((index) < 110u, ({ OBFH_CFLOW_TEMPLATE_109; }), __builtin_choose_expr((index) < 111u, ({ OBFH_CFLOW_TEMPLATE_110; }), ({ OBFH_CFLOW_TEMPLATE_111; })))), __builtin_choose_expr((index) < 114u, __builtin_choose_expr((index) < 113u, ({ OBFH_CFLOW_TEMPLATE_112; }), ({ OBFH_CFLOW_TEMPLATE_113; })), __builtin_choose_expr((index) < 115u, ({ OBFH_CFLOW_TEMPLATE_114; }), __builtin_choose_expr((index) < 116u, ({ OBFH_CFLOW_TEMPLATE_115; }), ({ OBFH_CFLOW_TEMPLATE_116; }))))), __builtin_choose_expr((index) < 122u, __builtin_choose_expr((index) < 119u, __builtin_choose_expr((index) < 118u, ({ OBFH_CFLOW_TEMPLATE_117; }), ({ OBFH_CFLOW_TEMPLATE_118; })), __builtin_choose_expr((index) < 120u, ({ OBFH_CFLOW_TEMPLATE_119; }), __builtin_choose_expr((index) < 121u, ({ OBFH_CFLOW_TEMPLATE_120; }), ({ OBFH_CFLOW_TEMPLATE_121; })))), __builtin_choose_expr((index) < 125u, __builtin_choose_expr((index) < 123u, ({ OBFH_CFLOW_TEMPLATE_122; }), __builtin_choose_expr((index) < 124u, ({ OBFH_CFLOW_TEMPLATE_123; }), ({ OBFH_CFLOW_TEMPLATE_124; }))), __builtin_choose_expr((index) < 126u, ({ OBFH_CFLOW_TEMPLATE_125; }), __builtin_choose_expr((index) < 127u, ({ OBFH_CFLOW_TEMPLATE_126; }), ({ OBFH_CFLOW_TEMPLATE_127; })))))))
-#define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; __builtin_choose_expr((index)<86u, OBFH_CFLOW_BASIC_EMIT(index), OBFH_CFLOW_OTHER(index)); (void)0; })
+#define OBFH_CFLOW_OTHER(index) __builtin_choose_expr((index) < 92u, __builtin_choose_expr((index) < 89u, __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), __builtin_choose_expr((index) < 88u, ({ OBFH_CFLOW_TEMPLATE_87; }), ({ OBFH_CFLOW_TEMPLATE_88; }))), __builtin_choose_expr((index) < 90u, ({ OBFH_CFLOW_TEMPLATE_89; }), __builtin_choose_expr((index) < 91u, ({ OBFH_CFLOW_TEMPLATE_90; }), ({ OBFH_CFLOW_TEMPLATE_91; })))), __builtin_choose_expr((index) < 95u, __builtin_choose_expr((index) < 93u, ({ OBFH_CFLOW_TEMPLATE_92; }), __builtin_choose_expr((index) < 94u, ({ OBFH_CFLOW_TEMPLATE_93; }), ({ OBFH_CFLOW_TEMPLATE_94; }))), __builtin_choose_expr((index) < 97u, __builtin_choose_expr((index) < 96u, ({ OBFH_CFLOW_TEMPLATE_95; }), ({ OBFH_CFLOW_TEMPLATE_96; })), __builtin_choose_expr((index) < 98u, ({ OBFH_CFLOW_TEMPLATE_97; }), ({ OBFH_CFLOW_TEMPLATE_98; })))))
+#define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; __builtin_choose_expr((index)<86u, OBFH_CFLOW_BASIC_EMIT(index), __builtin_choose_expr((index)<99u, OBFH_CFLOW_OTHER(index), OBFH_CFLOW_NAMED_EMIT(index))); (void)0; })
 
 // All 128 families use nonserializing arithmetic; keep selection uniform.
 #define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
@@ -1645,92 +1737,35 @@ OBFH_PD_DEFINE(127);
 #define OBFH_CFLOW_TEMPLATE_98 \
     OBFH_CFLOW_LOCAL_STACK_ASM("movl %%esp, %%eax; addl %0, %%eax; leal 1(%%eax), %%edx; imull %%edx, %%eax; addl $1, %%eax; testb $1, %%al; jnz 1f; .byte 0xC3, 0xE8; " OBFH_STACK_JUNK_PAYLOAD "1:", "eax", "edx")
 
-#define OBFH_CFLOW_TEMPLATE_99 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_ADD_CARRY "je 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_ROTATE_XOR "je 2f;" OBFH_CFLOW_DATA_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_100 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_OR_AND_SUM "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_ROTATE_RESTORE "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_TRAP "3:")
-
-#define OBFH_CFLOW_TEMPLATE_101 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_SUB_BORROW "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_BSWAP_XOR "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_RETURN "3:")
-
-#define OBFH_CFLOW_TEMPLATE_102 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_DEMORGAN "je 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_WORD_PARTITION "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_CALL "3:")
-
-#define OBFH_CFLOW_TEMPLATE_103 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_OR_DISTRIBUTE "je 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_BYTE_PARITY "je 2f;" OBFH_CFLOW_DATA_STACK "2:")
-
-#define OBFH_CFLOW_TEMPLATE_104 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_AND_PARTITION "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_BYTE_ROTATE "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_FRAME "3:")
-
-#define OBFH_CFLOW_TEMPLATE_105 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_XOR_CANCEL "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_WORD_ROTATE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_106 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_COMPLEMENT_CARRY "jnc 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_NEG_COMPLEMENT "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_TRAP "3:")
-
-#define OBFH_CFLOW_TEMPLATE_107 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_COMPLEMENT_WRAP "jc 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_MUL_DISTRIBUTE "je 2f;" OBFH_CFLOW_DATA_RETURN "2:")
-
-#define OBFH_CFLOW_TEMPLATE_108 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_MASK_SUBTRACT "jc 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_SQUARE_EXPAND "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_CALL "3:")
-
-#define OBFH_CFLOW_TEMPLATE_109 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_MASK_OR_ORDER "setae %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_NEG_SQUARE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_STACK "3:")
-
-#define OBFH_CFLOW_TEMPLATE_110 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_ROTATE_XOR "je 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_BSWAP_NOT "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_FRAME "3:")
-
-#define OBFH_CFLOW_TEMPLATE_111 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_ROTATE_RESTORE "je 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_SUB_MASK "je 2f;" OBFH_CFLOW_DATA_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_112 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_BSWAP_XOR "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_MASK_ORDER "setbe %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_TRAP "3:")
-
-#define OBFH_CFLOW_TEMPLATE_113 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_WORD_PARTITION "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_RETURN "3:")
-
-#define OBFH_CFLOW_TEMPLATE_114 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_BYTE_PARITY "je 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_SQUARE_RESIDUE "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_CALL "3:")
-
-#define OBFH_CFLOW_TEMPLATE_115 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_BYTE_ROTATE "je 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_FOURTH_RESIDUE "je 2f;" OBFH_CFLOW_DATA_STACK "2:")
-
-#define OBFH_CFLOW_TEMPLATE_116 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_WORD_ROTATE "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_ISOLATE_BIT "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_FRAME "3:")
-
-#define OBFH_CFLOW_TEMPLATE_117 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_NEG_COMPLEMENT "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_ADD_CARRY "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_118 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_MUL_DISTRIBUTE "je 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_OR_AND_SUM "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_TRAP "3:")
-
-#define OBFH_CFLOW_TEMPLATE_119 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_SQUARE_EXPAND "je 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_SUB_BORROW "je 2f;" OBFH_CFLOW_DATA_RETURN "2:")
-
-#define OBFH_CFLOW_TEMPLATE_120 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_NEG_SQUARE "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_DEMORGAN "sete %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_CALL "3:")
-
-#define OBFH_CFLOW_TEMPLATE_121 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_BSWAP_NOT "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_OR_DISTRIBUTE "jne 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_STACK "3:")
-
-#define OBFH_CFLOW_TEMPLATE_122 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_SUB_MASK "je 2f; 1:" OBFH_CFLOW_DATA_RETURN "2:" OBFH_CFLOW_PRED_AND_PARTITION "jne 1b; jmp 3f;" OBFH_CFLOW_DATA_FRAME "3:")
-
-#define OBFH_CFLOW_TEMPLATE_123 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_MASK_ORDER "jbe 1f;" OBFH_CFLOW_DATA_CALL "1:" OBFH_CFLOW_PRED_XOR_CANCEL "je 2f;" OBFH_CFLOW_DATA_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_124 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_COMPLEMENT_TRANSLATE "jne 1f; jmp 2f; 1:" OBFH_CFLOW_DATA_STACK "2:" OBFH_CFLOW_PRED_COMPLEMENT_CARRY "setnc %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz 3f;" OBFH_CFLOW_DATA_TRAP "3:")
-
-#define OBFH_CFLOW_TEMPLATE_125 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_SQUARE_RESIDUE "sete %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js 1f;" OBFH_CFLOW_DATA_FRAME "1:" OBFH_CFLOW_PRED_COMPLEMENT_WRAP "jnc 2f; jmp 3f; 2:" OBFH_CFLOW_DATA_RETURN "3:")
-
-#define OBFH_CFLOW_TEMPLATE_126 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_FOURTH_RESIDUE "je 2f; 1:" OBFH_CFLOW_DATA_INDIRECT "2:" OBFH_CFLOW_PRED_MASK_SUBTRACT "jc 1b; jmp 3f;" OBFH_CFLOW_DATA_CALL "3:")
-
-#define OBFH_CFLOW_TEMPLATE_127 \
-    OBFH_CFLOW_LOCAL_NAMED_ASM(OBFH_CFLOW_PRED_ISOLATE_BIT "je 1f;" OBFH_CFLOW_DATA_TRAP "1:" OBFH_CFLOW_PRED_MASK_OR_ORDER "jae 2f;" OBFH_CFLOW_DATA_STACK "2:")
+#define OBFH_CFLOW_TEMPLATE_99 OBFH_CFLOW_NAMED_EMIT(99u)
+#define OBFH_CFLOW_TEMPLATE_100 OBFH_CFLOW_NAMED_EMIT(100u)
+#define OBFH_CFLOW_TEMPLATE_101 OBFH_CFLOW_NAMED_EMIT(101u)
+#define OBFH_CFLOW_TEMPLATE_102 OBFH_CFLOW_NAMED_EMIT(102u)
+#define OBFH_CFLOW_TEMPLATE_103 OBFH_CFLOW_NAMED_EMIT(103u)
+#define OBFH_CFLOW_TEMPLATE_104 OBFH_CFLOW_NAMED_EMIT(104u)
+#define OBFH_CFLOW_TEMPLATE_105 OBFH_CFLOW_NAMED_EMIT(105u)
+#define OBFH_CFLOW_TEMPLATE_106 OBFH_CFLOW_NAMED_EMIT(106u)
+#define OBFH_CFLOW_TEMPLATE_107 OBFH_CFLOW_NAMED_EMIT(107u)
+#define OBFH_CFLOW_TEMPLATE_108 OBFH_CFLOW_NAMED_EMIT(108u)
+#define OBFH_CFLOW_TEMPLATE_109 OBFH_CFLOW_NAMED_EMIT(109u)
+#define OBFH_CFLOW_TEMPLATE_110 OBFH_CFLOW_NAMED_EMIT(110u)
+#define OBFH_CFLOW_TEMPLATE_111 OBFH_CFLOW_NAMED_EMIT(111u)
+#define OBFH_CFLOW_TEMPLATE_112 OBFH_CFLOW_NAMED_EMIT(112u)
+#define OBFH_CFLOW_TEMPLATE_113 OBFH_CFLOW_NAMED_EMIT(113u)
+#define OBFH_CFLOW_TEMPLATE_114 OBFH_CFLOW_NAMED_EMIT(114u)
+#define OBFH_CFLOW_TEMPLATE_115 OBFH_CFLOW_NAMED_EMIT(115u)
+#define OBFH_CFLOW_TEMPLATE_116 OBFH_CFLOW_NAMED_EMIT(116u)
+#define OBFH_CFLOW_TEMPLATE_117 OBFH_CFLOW_NAMED_EMIT(117u)
+#define OBFH_CFLOW_TEMPLATE_118 OBFH_CFLOW_NAMED_EMIT(118u)
+#define OBFH_CFLOW_TEMPLATE_119 OBFH_CFLOW_NAMED_EMIT(119u)
+#define OBFH_CFLOW_TEMPLATE_120 OBFH_CFLOW_NAMED_EMIT(120u)
+#define OBFH_CFLOW_TEMPLATE_121 OBFH_CFLOW_NAMED_EMIT(121u)
+#define OBFH_CFLOW_TEMPLATE_122 OBFH_CFLOW_NAMED_EMIT(122u)
+#define OBFH_CFLOW_TEMPLATE_123 OBFH_CFLOW_NAMED_EMIT(123u)
+#define OBFH_CFLOW_TEMPLATE_124 OBFH_CFLOW_NAMED_EMIT(124u)
+#define OBFH_CFLOW_TEMPLATE_125 OBFH_CFLOW_NAMED_EMIT(125u)
+#define OBFH_CFLOW_TEMPLATE_126 OBFH_CFLOW_NAMED_EMIT(126u)
+#define OBFH_CFLOW_TEMPLATE_127 OBFH_CFLOW_NAMED_EMIT(127u)
 
 // Direct templates share the same parameter capture as automatic selection.
 #define BREAK_STACK_CFLOW_0 ({ OBFH_CFLOW_CAPTURE; OBFH_CFLOW_TEMPLATE_0; })
