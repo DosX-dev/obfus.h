@@ -748,13 +748,16 @@ async function main() {
                                     /#define OBFH_SF_INPUTS\s*\\\r?\n/,
                                     '#define OBFH_SF_INPUTS \\\n    [sf_input] "m"(guard_input), \\\n'
                                 )
-                                .replace(/(#define OBFH_SF_GUARD_INPUTS[ \t]+)/, '$1[sf_input] "m"(guard_input), ');
+                                .replace(/(#define OBFH_SF_GUARD_INPUTS[ \t]+)/, '$1[sf_input] "m"(guard_input), ')
+                                .replace(/(#define OBFH_SF_START_PREFIX[^\n]*\n[^\n]*\n[ \t]*: )/, '$1[sf_input] "m"(guard_input), ');
                             assert(
                                 traced !== source && traced.includes('[sf_input] "m"(guard_input)'),
                                 'proxy instrumentation target missing'
                             );
                             assert(!source.includes('#define OBFH_SF_GUARD_INPUTS ') || traced.includes('#define OBFH_SF_GUARD_INPUTS [sf_input] "m"(guard_input), '),
                                 'guard-only arbitrary-input instrumentation missing');
+                            assert(!source.includes('#define OBFH_SF_START_PREFIX ') || /#define OBFH_SF_START_PREFIX[^\n]*\n[^\n]*\n[ \t]*: \[sf_input\]/.test(traced),
+                                'guard-prefix arbitrary-input instrumentation missing');
                             fs.writeFileSync(proxyHeader, traced);
                             const flags = ['OBFH_DISABLE_CONTROL_FLOW=1', 'OBFH_DISABLE_ANTIDEBUG=1', `OBFH_SEED=${seed}u`];
                             const output = await execute(

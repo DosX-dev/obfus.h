@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-exports.runSuite = async function({ arch, compiler, directory, mode, source, check, compile, execute, run, assert }) {
+exports.runSuite = async function ({ arch, compiler, directory, mode, source, check, compile, execute, run, assert }) {
     for (const part of [0, 1, 2, 0xdeadbeef, 0xffffffff, 'if', 'while', 'for', 'token', 'proxy', 'oracle', 'stage'])
         await check(`${arch}/cflow-v${mode + 1} tokens, semantics and bypass control/${part}`, async () =>
             checkFlowTransport({ arch, compiler, directory, mode, part, source, compile, execute, run, assert })
@@ -139,7 +139,8 @@ async function checkFlowTransport({ arch, compiler, directory, mode, part, sourc
     assert(proxyEmit, 'linked proxy guard mutation target missing');
     // Preserve operands and the finishing/commit operations; bypass only the
     // guard's computation. The untraced oracle must detect its lost dependency.
-    const strippedProxy = proxyEmit.replace(' guard ', ' "jmp 9f;" ');
+    const strippedProxy = proxyEmit.replace(' guard ', ' "jmp 9f;" ')
+        .replace('__obfh_asm__(guard', '__obfh_asm__("jmp 9f;"');
     assert(strippedProxy !== proxyEmit, 'native guard removal target missing');
     if (part === 'proxy') {
         fs.writeFileSync(header, traced + '\n#undef OBFH_SF_FLOW_START\n' + strippedProxy + '\n');
