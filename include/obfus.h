@@ -1434,30 +1434,35 @@ OBFH_PD_DEFINE(127);
 })
 
 #define OBFH_CFLOW_BASIC_TEST(family, mask) OBFH_CFLOW_BASIC_TEST_REG(OBFH_CFLOW_BASIC_REGISTER(family), mask)
-
 #define OBFH_CFLOW_BASIC_BRANCH(nonzero, target) \
-    __builtin_choose_expr(nonzero, OBFH_CFLOW_BASIC_ASM("jnz " target ";"), OBFH_CFLOW_BASIC_ASM("jz " target ";"))
-#define OBFH_CFLOW_BASIC_PRED_0 OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx")
-#define OBFH_CFLOW_BASIC_PRED_1 OBFH_CFLOW_PRED_SQUARE("%%eax")
-#define OBFH_CFLOW_BASIC_PRED_2 OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx")
-#define OBFH_CFLOW_BASIC_PRED_3 OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx")
-#define OBFH_CFLOW_BASIC_PRED_4 OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx")
-#define OBFH_CFLOW_BASIC_PRED_5 OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax")
-#define OBFH_CFLOW_BASIC_PRED_6 OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax")
-#define OBFH_CFLOW_BASIC_PRED_7 OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx")
-#define OBFH_CFLOW_BASIC_PRED_8 OBFH_CFLOW_PRED_FOURTH("%%ecx")
-#define OBFH_CFLOW_BASIC_PRED_9 OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax")
-#define OBFH_CFLOW_BASIC_PRED_10 OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax")
-#define OBFH_CFLOW_BASIC_PRED_11 OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax")
-#define OBFH_CFLOW_BASIC_PRED_12 OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx")
-#define OBFH_CFLOW_BASIC_PRED_13 OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx")
-#define OBFH_CFLOW_BASIC_PRED_14 OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx")
-#define OBFH_CFLOW_BASIC_PRED_15 OBFH_CFLOW_PRED_ODD_SQUARE("%%eax")
-#define OBFH_CFLOW_BASIC_PREDICATE(family) __builtin_choose_expr((family) < 8u, __builtin_choose_expr((family) < 4u, __builtin_choose_expr((family) < 2u, __builtin_choose_expr((family) < 1u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_0), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_1)), __builtin_choose_expr((family) < 3u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_2), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_3))), __builtin_choose_expr((family) < 6u, __builtin_choose_expr((family) < 5u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_4), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_5)), __builtin_choose_expr((family) < 7u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_6), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_7)))), __builtin_choose_expr((family) < 12u, __builtin_choose_expr((family) < 10u, __builtin_choose_expr((family) < 9u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_8), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_9)), __builtin_choose_expr((family) < 11u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_10), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_11))), __builtin_choose_expr((family) < 14u, __builtin_choose_expr((family) < 13u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_12), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_13)), __builtin_choose_expr((family) < 15u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_14), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_15)))))
-#define OBFH_CFLOW_BASIC_PAYLOAD(index) \
-    __builtin_choose_expr(((index)&3u) == 0u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_CALL), \
-                          __builtin_choose_expr(((index)&3u) == 1u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_INDIRECT), \
-                                                __builtin_choose_expr(((index)&3u) == 2u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_MOV), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_JUMP))))
+    OBFH_CFLOW_BASIC_PARAMETER_ASM(".byte 0x0f,%c[branch];.long " target "-.-4;", [branch] "i"((nonzero) ? 0x85u : 0x84u))
+#if defined(__x86_64__)
+#define OBFH_CFLOW_BASIC_ADDRESS ".byte 0x67;"
+#else
+#define OBFH_CFLOW_BASIC_ADDRESS ""
+#endif
+#define OBFH_CFLOW_BASIC_PARAMETER_ASM(text, ...) ({ __obfh_asm__(text \
+                                                                  : \
+                                                                  : __VA_ARGS__ \
+                                                                  : OBFH_CFLOW_CLOBBERS); })
+// Adjacent/previous products: LEA, IMUL, optional accumulator ADD imm32.
+#define OBFH_CFLOW_BASIC_PRODUCT(f) OBFH_CFLOW_BASIC_PARAMETER_ASM(OBFH_CFLOW_BASIC_ADDRESS ".fill 1,3,0x01508d-2048*((%c[family]==12)&1)+0xfe0000*((%c[family]==12)&1);.fill 1,3,0xc2af0f-65536*((%c[family]==12)&1);.fill (%c[family]==3)&1,1,0x05;.fill (%c[family]==3)&1,4,1;", [family] "i"(f))
+// EAX square; ECX fourth power; EAX odd square. OR EAX retains imm32.
+#define OBFH_CFLOW_BASIC_POWER(f) OBFH_CFLOW_BASIC_PARAMETER_ASM(".fill 1,3,0xc0af0f+0x90000*((%c[family]==8)&1);.fill (%c[family]==8)&1,3,0xc9af0f;.fill (%c[family]==15)&1,1,0x0d;.fill (%c[family]==15)&1,4,1;", [family] "i"(f))
+// Copy/square chains share operands while retaining their multiply count and final ALU.
+#define OBFH_CFLOW_BASIC_CHAIN(f) OBFH_CFLOW_BASIC_PARAMETER_ASM(".short 0xc089+256*(8*%c[r]+%c[t]);.fill 1,3,0xc0af0f+0x90000*%c[r];.fill (%c[family]==9)&1,3,0xc9af0f;.fill %c[mul],3,0xc0af0f+65536*(8*%c[r]+%c[t]);.short %c[op]+256*(0xc0+8*%c[t]+%c[r]);", [family] "i"(f), [r] "i"((f) == 4 ? 2u : (f) == 9 ? 1u \
+                                                                                                                                                                                                                                                                                                                   : 0u), \
+                                                                 [t] "i"((f) == 2 ? 2u : (f) == 9 ? 0u \
+                                                                                                  : 1u), \
+                                                                 [mul] "i"((f) == 4 || (f) == 9 || (f) == 14), [op] "i"((f) == 2 ? 0x31u : (f) == 4 || (f) == 9 ? 0x29u \
+                                                                                                                                                                : 0x01u))
+// The adjacent OR/AND pair differs only in its final opcode.
+#define OBFH_CFLOW_BASIC_BITS(f) OBFH_CFLOW_BASIC_PARAMETER_ASM(OBFH_CFLOW_BASIC_ADDRESS ".fill 1,3,0x01418d;.short 0xc109+24*((%c[family]==11)&1);", [family] "i"(f))
+#define OBFH_CFLOW_BASIC_PREDICATE(f) ({ __builtin_choose_expr((f) == 0u || (f) == 3u || (f) == 12u, ({ OBFH_CFLOW_BASIC_PRODUCT(f); }), __builtin_choose_expr((f) == 1u || (f) == 8u || (f) == 15u, ({ OBFH_CFLOW_BASIC_POWER(f); }), __builtin_choose_expr((f) == 2u || (f) == 4u || (f) == 9u || (f) == 13u || (f) == 14u, ({ OBFH_CFLOW_BASIC_CHAIN(f); }), __builtin_choose_expr((f) == 10u || (f) == 11u, ({ OBFH_CFLOW_BASIC_BITS(f); }), __builtin_choose_expr((f) == 5u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax")), __builtin_choose_expr((f) == 6u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax")), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx")))))))); })
+#define OBFH_CFLOW_BASIC_PAYLOAD(index) ({ \
+    __builtin_choose_expr(((index)&3u) == 0u, OBFH_CFLOW_BASIC_ASM(".byte 0xe8+(.Lcfbasic&1);"), __builtin_choose_expr(((index)&3u) == 1u, OBFH_CFLOW_BASIC_ASM(".byte 0xff,0x15+16*((.Lcfbasic>>4)&1);.long .Lcfbasic;"), __builtin_choose_expr(((index)&3u) == 2u, OBFH_CFLOW_BASIC_ASM(".fill (.Lcfbasic>>8)&1,1,0x66;.byte 0xb8+((.Lcfbasic>>9)&7);.long .Lcfbasic;"), OBFH_CFLOW_BASIC_ASM(".byte 0xb8+((.Lcfbasic>>12)&7);.long .Lcfbasic;")))); \
+    OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_FILL); \
+})
 #define OBFH_CFLOW_BASIC_EMIT(index) ({ \
     enum { __obfh_basic_family = (index)&15u, \
            __obfh_basic_style = (index) >> 4, \
@@ -1504,7 +1509,6 @@ OBFH_PD_DEFINE(127);
                           })); \
     (void)0; \
 })
-
 // Named forms share source fragments only: every predicate, branch and payload
 // remains adjacent native ASM with no runtime C evaluation between fragments.
 #define OBFH_CFLOW_NAMED_FRAGMENT(text) ({ OBFH_CFLOW_LOCAL_NAMED_ASM(text); })
@@ -1566,12 +1570,10 @@ OBFH_PD_DEFINE(127);
     OBFH_CFLOW_NAMED_FRAGMENT("54:"); \
     (void)0; \
 })
-
 // All 128 native forms retain their original selection indices.
 #define OBFH_CFLOW_VARIANT_COUNT 128u
 #define OBFH_CFLOW_OTHER(index) __builtin_choose_expr((index) < 92u, __builtin_choose_expr((index) < 89u, __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), __builtin_choose_expr((index) < 88u, ({ OBFH_CFLOW_TEMPLATE_87; }), ({ OBFH_CFLOW_TEMPLATE_88; }))), __builtin_choose_expr((index) < 90u, ({ OBFH_CFLOW_TEMPLATE_89; }), __builtin_choose_expr((index) < 91u, ({ OBFH_CFLOW_TEMPLATE_90; }), ({ OBFH_CFLOW_TEMPLATE_91; })))), __builtin_choose_expr((index) < 95u, __builtin_choose_expr((index) < 93u, ({ OBFH_CFLOW_TEMPLATE_92; }), __builtin_choose_expr((index) < 94u, ({ OBFH_CFLOW_TEMPLATE_93; }), ({ OBFH_CFLOW_TEMPLATE_94; }))), __builtin_choose_expr((index) < 97u, __builtin_choose_expr((index) < 96u, ({ OBFH_CFLOW_TEMPLATE_95; }), ({ OBFH_CFLOW_TEMPLATE_96; })), __builtin_choose_expr((index) < 98u, ({ OBFH_CFLOW_TEMPLATE_97; }), ({ OBFH_CFLOW_TEMPLATE_98; })))))
 #define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; __builtin_choose_expr((index)<86u, OBFH_CFLOW_BASIC_EMIT(index), __builtin_choose_expr((index)<99u, OBFH_CFLOW_OTHER(index), OBFH_CFLOW_NAMED_EMIT(index))); (void)0; })
-
 // All 128 families use nonserializing arithmetic; keep selection uniform.
 #define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
 #define OBFH_CFLOW_INDEX(site) OBFH_CFLOW_SLOT(OBFH_MIX_B(OBFH_MIX_A((unsigned int)(site) ^ (unsigned int)OBFH_SEED ^ 2654435769u)))
@@ -1588,7 +1590,6 @@ OBFH_PD_DEFINE(127);
 #else
 #define OBFH_CFLOW_EXTRA(index) OBFH_CFLOW_SINGLE(index)
 #endif
-
 #define OBFH_CFLOW_EMIT(site, extra) ({ \
     enum { __obfh_break_id = (site), \
            __obfh_break_hash1 = OBFH_MIX_A((unsigned int)__obfh_break_id ^ (unsigned int)OBFH_SEED ^ 2654435769u), \
@@ -1599,7 +1600,6 @@ OBFH_PD_DEFINE(127);
     extra(__obfh_break_index); \
     (void)0; \
 })
-
 // Keep the string compound literal in caller scope and emit exactly one template.
 #define OBFH_HIDE_JUNK OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_SINGLE)
 
@@ -2441,7 +2441,6 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LEAF_ALU_A ".byte .Lsl_alu_a; .long .Lsa;"
 
 #define OBFH_SF_LEAF_ALU_B ".byte 0x81, .Lsl_alu_b; .long .Lsb;"
-
 #define OBFH_SF_LEAF_SHIFT ".byte (0xc1 + 0x10 * ((.Lsr == 1) & 1)), .Lsl_shift; .fill ((.Lsr != 1) & 1), 1, .Lsr;"
 // Reverse CMP operands together with its condition. Only these bounded leaf
 // branches use a rel8 displacement and must overwrite flags on both paths.
@@ -2455,29 +2454,22 @@ OBFH_PD_DEFINE(127);
 #define OBFH_SF_LEAF_B OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_B
 #define OBFH_SF_LEAF_CORE_C OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl %%edx, %%ecx; roll $%c[rotate], %%ecx;" OBFH_SF_LEAF_COMPARE("1", "0x7d", "0x7e", "11", "9") OBFH_SF_LEAF_ALU_A "xorl %%ecx, %%eax; .byte 0xeb,(4 + ((.Lsr != 1) & 1)); 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_C OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_C
-
 #define OBFH_SF_LEAF_CORE_D "movl $%c[loops], %%ecx; 6:" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT OBFH_SF_LEAF_ALU_B "addl %%edx, %%eax; decl %%ecx; jnz 6b; ret;"
 #define OBFH_SF_LEAF_D OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_D
-
 #define OBFH_SF_LEAF_CORE_E "cmpl $%c[key_a], %%eax; jb 6f; bswap %%eax;" OBFH_SF_LEAF_ALU_A "ret; 6: movl $%c[factor], %%ecx; xorl %%edx, %%edx; divl %%ecx; xorl %%edx, %%eax;" OBFH_SF_LEAF_SHIFT "ret;"
 #define OBFH_SF_LEAF_E OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_E
-
 #define OBFH_SF_LEAF_CORE_F OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_REVERSE_SUB OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_B "adcl %%edx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_F OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_F
 #define OBFH_SF_LEAF_CORE_G "movl %%eax, %%ecx;" OBFH_SF_LEAF_SHIFT "testl $%c[mask], %%ecx; jnz 6f;" OBFH_SF_LEAF_ALU_A "ret; 6: imull $%c[factor], %%eax;" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_G OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_G
-
 #define OBFH_SF_LEAF_CORE_H OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "movl $%c[loops], %%ecx; 6:" OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; decl %%ecx; jnz 6b;" OBFH_SF_LEAF_LOAD "xorl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_H OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_H
-
 #define OBFH_SF_LEAF_CORE_I "bswap %%eax;" OBFH_SF_LEAF_ALU_A "cmpl %%edx, %%eax; jne 6f;" OBFH_SF_LEAF_SHIFT "ret; 6: imull $%c[factor], %%eax; subl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_I OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_I
-
 #define OBFH_SF_LEAF_CORE_J OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE OBFH_SF_LEAF_ALU_B "testl %%edx, %%edx; js 6f;" OBFH_SF_LEAF_SHIFT ".byte 0xeb,2; 6: negl %%eax; 7:" OBFH_SF_LEAF_LOAD "addl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_J OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_J
 #define OBFH_SF_LEAF_CORE_K "movzbl %%al, %%ecx; shrl $8, %%eax; imull $%c[factor], %%ecx; xorl %%ecx, %%eax;" OBFH_SF_LEAF_ALU_A OBFH_SF_LEAF_SHIFT "addl %%edx, %%eax; ret;"
 #define OBFH_SF_LEAF_K OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_K
-
 #define OBFH_SF_LEAF_CORE_L OBFH_SF_LEAF_ENTER OBFH_SF_LEAF_STORE "cmpl %%edx, %%eax; jbe 6f;" OBFH_SF_LEAF_ALU_A ".byte 0xeb,8; 6:" OBFH_SF_LEAF_ALU_B "xorl %%edx, %%eax; 7:" OBFH_SF_LEAF_LOAD "subl %%ecx, %%eax;" OBFH_SF_LEAF_EXIT
 #define OBFH_SF_LEAF_L OBFH_SF_LEAF_ARGS OBFH_SF_LEAF_CORE_L
 #define OBFH_SF_LEAF_ENTRY(label, body) label ": " body
@@ -2486,14 +2478,12 @@ OBFH_PD_DEFINE(127);
     B(context, OBFH_SF_GAP "2220:;3221:;" OBFH_SF_FRAME("frame_a"), \
       1) \
     C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3222b", "1") OBFH_SF_EPILOGUE_ALT, 0)
-
 #define OBFH_SF_LAYOUT_22(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_22(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 #define OBFH_SF_LAYOUT_SOURCE_23(A, B, C, D, E, F, G, H, I, context) \
     A(context, OBFH_SF_CALL_AT("3231f", "0") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "2230:;3231:;", \
       3) \
     B(context, OBFH_SF_GAP "3232:;", 4) \
     C(context, "", 0)
-
 #define OBFH_SF_LAYOUT_23(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_23(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 #define OBFH_SF_LAYOUT_SOURCE_24(A, B, C, D, E, F, G, H, I, context) \
     A(context, OBFH_SF_CALL_AT("3241f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "2240:;3241:;" OBFH_SF_FRAME_ALT("frame_a"), \
@@ -2501,7 +2491,6 @@ OBFH_PD_DEFINE(127);
     B(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3243f", "1") OBFH_SF_CALL_AT("3242f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3242:;", 3) \
     C(context, OBFH_SF_GAP "3243:;", 4) \
     D(context, "", 0)
-
 #define OBFH_SF_LAYOUT_24(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_24(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 #define OBFH_SF_LAYOUT_SOURCE_25(A, B, C, D, E, F, G, H, I, context) \
     A(context, OBFH_SF_CALL_AT("3251f", "0") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3253:;", 4) \
@@ -2509,7 +2498,6 @@ OBFH_PD_DEFINE(127);
       1) \
     C(context, OBFH_SF_ENTRY_PADDING("1") OBFH_SF_CALL_AT("3252f", "1") OBFH_SF_EPILOGUE OBFH_SF_GAP "3252:;" OBFH_SF_FRAME_ALT("frame_b"), 2) \
     D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3253b", "2") OBFH_SF_EPILOGUE_ALT, 0)
-
 #define OBFH_SF_LAYOUT_25(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_25(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 #define OBFH_SF_LAYOUT_SOURCE_26(A, B, C, D, E, F, G, H, I, context) \
     A(context, OBFH_SF_CALL_AT("3261f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3262:;", 3) \
@@ -2517,7 +2505,6 @@ OBFH_PD_DEFINE(127);
       1) \
     C(context, OBFH_SF_ENTRY_PADDING("1") "testl %%eax, %%eax; jz 3264f;" OBFH_SF_CALL_AT("3262b", "1") "3264:" OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3263:;", 4) \
     D(context, "", 0)
-
 #define OBFH_SF_LAYOUT_26(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_26(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
 #define OBFH_SF_LAYOUT_SOURCE_27(A, B, C, D, E, F, G, H, I, context) \
     A(context, OBFH_SF_CALL_AT("3272f", "0") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "3271:;", 3) \
@@ -2525,7 +2512,6 @@ OBFH_PD_DEFINE(127);
     C(context, OBFH_SF_GAP "3272:;" OBFH_SF_FRAME("frame_b"), 2) \
     D(context, OBFH_SF_ENTRY_PADDING("2") OBFH_SF_CALL_AT("3271b", "1") OBFH_SF_CALL_AT("3273b", "2") OBFH_SF_EPILOGUE, 0)
 #define OBFH_SF_LAYOUT_27(a, b, c, d) OBFH_SF_LAYOUT_SOURCE_27(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, ""))
-
 #define OBFH_SF_LAYOUT_SOURCE_28(A, B, C, D, E, F, G, H, I, context) \
     A(context, OBFH_SF_CALL_AT("3281f", "0") OBFH_SF_EPILOGUE OBFH_SF_GAP "3282:;", 3) \
     B(context, OBFH_SF_GAP "2280:;3281:;" OBFH_SF_FRAME("frame_a"), \
@@ -2537,18 +2523,32 @@ OBFH_PD_DEFINE(127);
     G(context, OBFH_SF_ENTRY_PADDING("11") OBFH_SF_CALL_AT("32813f", "1") OBFH_SF_CALL_AT("32812f", "2") OBFH_SF_EPILOGUE_ALT OBFH_SF_GAP "32812:;", 4) \
     H(context, OBFH_SF_GAP "32813:;", 3) \
     I(context, "", 0)
-
 #define OBFH_SF_LAYOUT_28(a, b, c, d, repeated_a) OBFH_SF_LAYOUT_SOURCE_28(OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, OBFH_SF_SLOT_REFERENCE, (a, b, c, d, repeated_a))
-
+#define OBFH_SF_DECLARE_ROLES(index) enum { __obfh_sf_roles_##index = ((0 OBFH_SF_SLOT_0(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 0) | ((0 OBFH_SF_SLOT_1(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 3) | ((0 OBFH_SF_SLOT_2(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 6) | ((0 OBFH_SF_SLOT_3(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 9) | ((0 OBFH_SF_SLOT_4(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 12) | ((0 OBFH_SF_SLOT_5(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 15) | ((0 OBFH_SF_SLOT_6(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 18) | ((0 OBFH_SF_SLOT_7(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 21) | ((0 OBFH_SF_SLOT_8(OBFH_SF_LAYOUT_SOURCE_##index, OBFH_SF_SLOT_ROLE, unused)) << 24) };
 // Compiler-only constants shorten repeated selector arithmetic in ASM strings.
 // Each insertion defines them before its fragments; no bytes or runtime state.
 // .LspN is phantom bit N; .Lsl[e/z/n]N selects link enable/condition/register.
 #define OBFH_SF_ASM_BITS \
     ".set .Lsp,%c[phantom];.set .Lsp0,(.Lsp>>0)&1;.set .Lsp6,(.Lsp>>6)&1;.set .Lsp7,(.Lsp>>7)&1;.set .Lsp8,(.Lsp>>8)&1;.set .Lsp9,(.Lsp>>9)&1;.set .Lsp10,(.Lsp>>10)&1;.set .Lsp11,(.Lsp>>11)&1;.set .Lsp12,(.Lsp>>12)&1;.set .Lsp13,(.Lsp>>13)&1;.set .Lsp14,(.Lsp>>14)&1;.set .Lsp15,(.Lsp>>15)&1;.set .Lsp16,(.Lsp>>16)&1;"
-
+OBFH_SF_DECLARE_ROLES(0);
+OBFH_SF_DECLARE_ROLES(1);
+OBFH_SF_DECLARE_ROLES(2);
+OBFH_SF_DECLARE_ROLES(3);
+OBFH_SF_DECLARE_ROLES(4);
+OBFH_SF_DECLARE_ROLES(5);
+OBFH_SF_DECLARE_ROLES(6);
+OBFH_SF_DECLARE_ROLES(7);
+OBFH_SF_DECLARE_ROLES(8);
+OBFH_SF_DECLARE_ROLES(9);
+OBFH_SF_DECLARE_ROLES(22);
+OBFH_SF_DECLARE_ROLES(23);
+OBFH_SF_DECLARE_ROLES(24);
+OBFH_SF_DECLARE_ROLES(25);
+OBFH_SF_DECLARE_ROLES(26);
+OBFH_SF_DECLARE_ROLES(28);
 #define OBFH_SF_ASM_CONSTANTS \
     ".set .Lss_frame_a,%c[frame_a];.set .Lss_frame_b,%c[frame_b];.set .Lss_frame_c,%c[frame_c];.set .Lss_frame_d,%c[frame_d];.set .Lss_arg_a,%c[arg_a];.set .Lss_arg_b,%c[arg_b];.set .Lss_pad,%c[pad];.set .Lss_pad_b,%c[pad_b];.set .Lss_noise_a,%c[noise_a];.set .Lss_noise_b,%c[noise_b];" OBFH_SF_ASM_BITS ".set .Lsa,%c[key_a];.set .Lsle0,((.Lsp^.Lsa)>>12)&1;.set .Lslz0,((.Lsp^.Lsa)>>13)&1;.set .Lsln0,((.Lsp^.Lsa)>>14)&1;.set .Lsle1,((.Lsp^.Lsa)>>15)&1;.set .Lslz1,((.Lsp^.Lsa)>>16)&1;.set .Lsln1,((.Lsp^.Lsa)>>17)&1;.set .Lsle2,((.Lsp^.Lsa)>>18)&1;.set .Lslz2,((.Lsp^.Lsa)>>19)&1;.set .Lsln2,((.Lsp^.Lsa)>>20)&1;.set .Lsle3,((.Lsp^.Lsa)>>21)&1;.set .Lslz3,((.Lsp^.Lsa)>>22)&1;.set .Lsln3,((.Lsp^.Lsa)>>23)&1;.set .Lsle4,((.Lsp^.Lsa)>>24)&1;.set .Lslz4,((.Lsp^.Lsa)>>25)&1;.set .Lsln4,((.Lsp^.Lsa)>>26)&1;.set .Lsle5,((.Lsp^.Lsa)>>27)&1;.set .Lslz5,((.Lsp^.Lsa)>>28)&1;.set .Lsln5,((.Lsp^.Lsa)>>29)&1;" OBFH_SF_SPELLING_CONSTANTS OBFH_SF_LEAF_CONSTANTS
-
+#define OBFH_SF_ROLES_SELECT __builtin_choose_expr((__obfh_pool_layout) <= 7u, __builtin_choose_expr((__obfh_pool_layout) <= 3u, __builtin_choose_expr((__obfh_pool_layout) <= 1u, __builtin_choose_expr((__obfh_pool_layout) <= 0u, __obfh_sf_roles_0, __obfh_sf_roles_1), __builtin_choose_expr((__obfh_pool_layout) <= 2u, __obfh_sf_roles_2, __obfh_sf_roles_3)), __builtin_choose_expr((__obfh_pool_layout) <= 5u, __builtin_choose_expr((__obfh_pool_layout) <= 4u, __obfh_sf_roles_4, __obfh_sf_roles_5), __builtin_choose_expr((__obfh_pool_layout) <= 6u, __obfh_sf_roles_6, __obfh_sf_roles_7))), __builtin_choose_expr((__obfh_pool_layout) <= 23u, __builtin_choose_expr((__obfh_pool_layout) <= 9u, __builtin_choose_expr((__obfh_pool_layout) <= 8u, __obfh_sf_roles_8, __obfh_sf_roles_9), __builtin_choose_expr((__obfh_pool_layout) <= 22u, __obfh_sf_roles_22, __obfh_sf_roles_23)), __builtin_choose_expr((__obfh_pool_layout) <= 25u, __builtin_choose_expr((__obfh_pool_layout) <= 24u, __obfh_sf_roles_24, __obfh_sf_roles_25), __builtin_choose_expr((__obfh_pool_layout) <= 26u, __obfh_sf_roles_26, __obfh_sf_roles_28))))
 // Select a compact compile-time recipe before expanding native assembly.
 // The recipe is source metadata only: all native families remain independent.
 #define OBFH_SF_ID_BODY_A 0u
@@ -3026,10 +3026,10 @@ OBFH_SF_DECLARE_RECIPE(127)
 #define OBFH_SF_SLOT_BODY_6(body) OBFH_SF_SLOT_LEAF(body)
 #define OBFH_SF_SLOT_BODY_7(body) OBFH_SF_SLOT_LEAF(body)
 #define OBFH_SF_SLOT_BODY_8(body) ((void)0)
-#define OBFH_SF_SLOT_ROLE_SELECT(slot) __builtin_choose_expr((__obfh_pool_layout) <= 7u, __builtin_choose_expr((__obfh_pool_layout) <= 3u, __builtin_choose_expr((__obfh_pool_layout) <= 1u, __builtin_choose_expr((__obfh_pool_layout) <= 0u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_0, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_1, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 2u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_2, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_3, OBFH_SF_SLOT_ROLE, unused)))), __builtin_choose_expr((__obfh_pool_layout) <= 5u, __builtin_choose_expr((__obfh_pool_layout) <= 4u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_4, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_5, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 6u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_6, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_7, OBFH_SF_SLOT_ROLE, unused))))), __builtin_choose_expr((__obfh_pool_layout) <= 23u, __builtin_choose_expr((__obfh_pool_layout) <= 9u, __builtin_choose_expr((__obfh_pool_layout) <= 8u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_8, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_9, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 22u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_22, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_23, OBFH_SF_SLOT_ROLE, unused)))), __builtin_choose_expr((__obfh_pool_layout) <= 25u, __builtin_choose_expr((__obfh_pool_layout) <= 24u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_24, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_25, OBFH_SF_SLOT_ROLE, unused))), __builtin_choose_expr((__obfh_pool_layout) <= 26u, (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_26, OBFH_SF_SLOT_ROLE, unused)), (0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28, OBFH_SF_SLOT_ROLE, unused))))))
+#define OBFH_SF_SLOT_ROLE_SELECT(slot) ((__obfh_pool_roles >> (3u * (slot))) & 7u)
 #define OBFH_SF_SLOT_RUN(slot) ({ enum { __obfh_slot_role=OBFH_SF_SLOT_ROLE_SELECT(slot), __obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3 }; OBFH_SF_SLOT_ASM(slot); __builtin_choose_expr(__obfh_slot_role!=0,OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body),((void)0)); })
 #define OBFH_SF_SLOT_LATE(slot) __builtin_choose_expr(__obfh_pool_layout == 28, ({enum {__obfh_slot_role=(0 OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_ROLE,unused)),__obfh_slot_body=__obfh_slot_role==1||__obfh_slot_role==5?__obfh_pool_body_0:__obfh_slot_role==2?__obfh_pool_body_1:__obfh_slot_role==3?__obfh_pool_body_2:__obfh_pool_body_3}; OBFH_SF_SKELETON_ASM("" OBFH_SF_SLOT_##slot(OBFH_SF_LAYOUT_SOURCE_28,OBFH_SF_SLOT_TEXT,unused)); OBFH_SF_SLOT_BODY_##slot(__obfh_slot_body); }), ((void)0))
-#define OBFH_SF_POOL_RUN(recipe, start, end) ({ enum { __obfh_pool_id=__COUNTER__,__obfh_pool_recipe=(recipe),__obfh_pool_guard=__obfh_pool_recipe&15u,__obfh_pool_layout=(__obfh_pool_recipe>>4)&31u,__obfh_pool_body_0=(__obfh_pool_recipe>>9)&31u,__obfh_pool_body_1=(__obfh_pool_recipe>>14)&31u,__obfh_pool_body_2=(__obfh_pool_recipe>>19)&31u,__obfh_pool_body_3=(__obfh_pool_recipe>>24)&31u }; __obfh_asm__(OBFH_SF_ASM_CONSTANTS : : [phantom] "i"(__obfh_sf_phantom), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [rotate] "i"(__obfh_sf_rotate), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [frame_d] "i"(__obfh_sf_frame_d), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [pad] "i"(__obfh_sf_pad), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b)); OBFH_SF_POOL_GUARDS(start);OBFH_SF_SLOT_RUN(0);OBFH_SF_SLOT_RUN(1);OBFH_SF_SLOT_RUN(2);OBFH_SF_SLOT_RUN(3);OBFH_SF_SLOT_LATE(4);OBFH_SF_SLOT_LATE(5);OBFH_SF_SLOT_LATE(6);OBFH_SF_SLOT_LATE(7);OBFH_SF_SLOT_LATE(8);end;(void)0; })
+#define OBFH_SF_POOL_RUN(recipe, start, end) ({ enum { __obfh_pool_id=__COUNTER__,__obfh_pool_recipe=(recipe),__obfh_pool_guard=__obfh_pool_recipe&15u,__obfh_pool_layout=(__obfh_pool_recipe>>4)&31u,__obfh_pool_roles=OBFH_SF_ROLES_SELECT,__obfh_pool_body_0=(__obfh_pool_recipe>>9)&31u,__obfh_pool_body_1=(__obfh_pool_recipe>>14)&31u,__obfh_pool_body_2=(__obfh_pool_recipe>>19)&31u,__obfh_pool_body_3=(__obfh_pool_recipe>>24)&31u }; __obfh_asm__(OBFH_SF_ASM_CONSTANTS : : [phantom] "i"(__obfh_sf_phantom), [key_a] "i"(__obfh_sf_key_a), [key_b] "i"(__obfh_sf_key_b), [rotate] "i"(__obfh_sf_rotate), [leaf_frame] "i"(__obfh_sf_leaf_frame), [leaf_slot] "i"(__obfh_sf_leaf_slot), [leaf_alu_a] "i"(__obfh_sf_leaf_alu_a), [leaf_alu_b] "i"(__obfh_sf_leaf_alu_b), [leaf_shift] "i"(__obfh_sf_leaf_shift), [frame_a] "i"(__obfh_sf_frame_a), [frame_b] "i"(__obfh_sf_frame_b), [frame_c] "i"(__obfh_sf_frame_c), [frame_d] "i"(__obfh_sf_frame_d), [arg_a] "i"(__obfh_sf_arg_a), [arg_b] "i"(__obfh_sf_arg_b), [pad] "i"(__obfh_sf_pad), [pad_b] "i"(__obfh_sf_pad_b), [noise_a] "i"(__obfh_sf_noise_a), [noise_b] "i"(__obfh_sf_noise_b)); OBFH_SF_POOL_GUARDS(start);OBFH_SF_SLOT_RUN(0);OBFH_SF_SLOT_RUN(1);OBFH_SF_SLOT_RUN(2);OBFH_SF_SLOT_RUN(3);OBFH_SF_SLOT_LATE(4);OBFH_SF_SLOT_LATE(5);OBFH_SF_SLOT_LATE(6);OBFH_SF_SLOT_LATE(7);OBFH_SF_SLOT_LATE(8);end;(void)0; })
 #define OBFH_SF_SELECT(index) ({OBFH_SF_CAPTURE;OBFH_SF_POOL_RUN(OBFH_SF_RECIPE_SELECT(index),OBFH_SF_START,OBFH_SF_END); })
 #define OBFH_SF_VARIANT_COUNT 128u
 

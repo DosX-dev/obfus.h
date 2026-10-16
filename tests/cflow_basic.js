@@ -67,6 +67,10 @@ __asm__ __volatile__(".set .Lcfs,%c[s];.set .Lcfpad,%c[p];.set .Lcfbyte,%c[b];.s
 body;__asm__ __volatile__("9:");return span;}
 `;
     const configurations = [[1, 1, 0, 1], [127, 3, 255, 0x7ffffffe], [128, 4, 0xa5, 0x12345678], [32767, 7, 0x80, 0x60000001]];
+    // Exercise every MOV/JUMP register field and both optional-prefix states.
+    for (let register = 0; register < 8; ++register)
+        configurations.push([register & 1 ? 127 : 128, register % 7 + 1, register * 31,
+        0x40000000 | (register << 12) | (register << 9) | ((register & 1) << 8) | (register & 1)]);
     const actual = [], expected = [];
     for (let config = 0; config < configurations.length; ++config) {
         for (let index = 0; index < 86; ++index) {
