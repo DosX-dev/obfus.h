@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
+exports.fixture = function({ arch, source, assert, sharedHelpers = false }) {
     const first = source.indexOf('#define OBFH_SF_BYTES'), last = source.indexOf('#define OBFH_SF_ASM_BITS', first);
     assert(first >= 0 && last > first, 'proxy fragments missing');
     let helpers = source.slice(first, last);
@@ -9,6 +9,7 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
         .replace('OBFH_SF_LEAF_COMPARE("1", "0x7d", "0x7e", "11", "9")', '\"cmpl %%ecx, %%eax; jge 6f;\"')
         .replace('.byte 0xeb,4; 6: negl', 'jmp 7f; 6: negl')
         .replace('.byte 0xeb,(4 + ((%c[rotate] != 1) & 1)); 6:', 'jmp 7f; 6:')
+        .replace('.byte 0xeb,(4 + ((.Lsr != 1) & 1)); 6:', 'jmp 7f; 6:')
         .replace('.byte 0xeb,2; 6: negl', 'jmp 7f; 6: negl').replace('.byte 0xeb,8; 6:', 'jmp 7f; 6:');
     assert(original !== helpers && !original.includes('.byte 0xeb,'), 'short jump reference boundaries changed');
     const bodies = [];
@@ -20,7 +21,8 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
     }
     let c = '#include <stdio.h>\n#include <stdint.h>\n' +
         (sharedHelpers ? '' : helpers + require('./stack_frames').aliases(source, assert)) + '\n' + bodies.join('\n') + '\n';
-    const spellings = source.includes("#define OBFH_SF_SPELLING_CONSTANTS") ? "OBFH_SF_SPELLING_CONSTANTS " : "";
+    const spellings = (source.includes("#define OBFH_SF_SPELLING_CONSTANTS") ? "OBFH_SF_SPELLING_CONSTANTS " : "") +
+        (source.includes("#define OBFH_SF_LEAF_CONSTANTS") ? "OBFH_SF_LEAF_CONSTANTS " : "");
     c += `typedef unsigned (*Entry)(unsigned,unsigned);
 #if defined(__x86_64__)
 #define ADDRESS "leaq 1f(%%rip),%0;jmp 9f;1:"
@@ -43,7 +45,7 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
     c += `int main(void){Entry pairs[][2]={${pairs.join(',')}};unsigned values[]={0,1,0x7fffffffu,0x80000000u,~0u,0x12345678u};volatile unsigned canary=0xabcdef01u;for(unsigned i=0;i<sizeof(pairs)/sizeof(pairs[0]);i++)for(unsigned a=0;a<6;a++)for(unsigned b=0;b<6;b++){uintptr_t before,after;SP(before);unsigned x=pairs[i][0](values[a],values[b]);unsigned y=pairs[i][1](values[a],values[b]);SP(after);if(x!=y||before!=after||canary!=0xabcdef01u){fprintf(stderr,"short jumps: pair %u, inputs %u/%u, values %u/%u, stack delta %lld\\n",i,a,b,x,y,(long long)(after-before));return 1;}}if(puts("SHORT_JUMPS_PASS")==EOF||fflush(stdout))return 2;return 0;}\n`;
     return c;
 };
-exports.runSuite = async function ({ arch, compiler, directory, source, check, compile, execute, assert }) {
+exports.runSuite = async function({ arch, compiler, directory, source, check, compile, execute, assert }) {
     await check(`${arch}/short proxy jumps: targets, all shift counts and native stack`, async () => {
         const c = exports.fixture({ arch, source, assert });
         const file = path.join(directory, arch + '-short-jumps.c');

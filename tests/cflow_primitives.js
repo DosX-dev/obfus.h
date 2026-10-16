@@ -11,6 +11,7 @@ function cases(source) {
         ...(source.includes('#define OBFH_CFLOW_BASIC_EMIT(') ? [['basic', 'CFLOW_BASIC_PASS', require('./cflow_basic')]] : []),
         ...(source.includes('#define OBFH_CFLOW_NAMED_EMIT(') ? [['named', 'CFLOW_NAMED_PASS', require('./cflow_named')]] : []),
         ...(source.includes('#define OBFH_SF_SPELLING_CONSTANTS') ? [['bricks', 'BRICK_FORMS_PASS', require('./brick_forms')]] : []),
+        ...(source.includes('#define OBFH_SF_LEAF_CONSTANTS') ? [['immediates', 'SF_IMMEDIATES_PASS', require('./sf_immediates')]] : []),
         ['single_lane', 'MACHINE_PRIMITIVES_PASS', require('./cflow_single_lane')],
         ...(source.includes('#define OBFH_SF_FLOW_COMMIT ') ? [['commit', 'CFLOW_COMMIT_PASS', require('./cflow_commit')]] : [])
     ];
