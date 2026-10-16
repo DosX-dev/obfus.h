@@ -120,11 +120,41 @@ const reference = String.raw`#define NAMED_REFERENCE_PRED_ADD_CARRY OBFH_CFLOW_I
 
 `;
 
+// Spell the expected alternatives with independent assembler mnemonics/bytes.
+// The frozen monolithic reference above remains the source of branch layouts.
+function expectedReference(key) {
+    const boundary = reference.indexOf('#define NAMED_REFERENCE_TEMPLATE_99');
+    let predicates = reference.slice(0, boundary), layouts = reference.slice(boundary);
+    let copy = 0;
+    predicates = predicates.replace(/movl %%(eax|ecx|edx), %%(eax|ecx|edx);/g, (text, source, target) => {
+        const flip = (key >>> (6 + copy++ % 12)) & 1;
+        if (!flip) return text;
+        const reg = { eax: 0, ecx: 1, edx: 2 };
+        return '.byte 0x8b,' + (0xc0 + 8 * reg[target] + reg[source]) + ';';
+    });
+    for (const [reg, direction, bit] of [['2', '19', 8], ['2', '24', 9], ['1', '23', 10]]) {
+        if ((key >>> bit) & 1)
+            predicates = predicates.replace('OBFH_ASM_BINARY32("0x01", "' + reg + '", "' + reg + '", ".Lcfk", "' + direction + '")', '".byte 0xd1,' + (reg === '2' ? '0xe2' : '0xe1') + ';"');
+    }
+    if ((key >>> 8) & 1)
+        predicates = predicates.replace('bswap %%edx; movl $.Lcfk, %%ecx; bswap %%ecx;', 'movl $.Lcfk, %%ecx; bswap %%ecx; bswap %%edx;');
+    if ((key >>> 9) & 1)
+        predicates = predicates.replace('imull $.Lcfs, %%edx; movl $.Lcfk, %%ecx; imull $.Lcfs, %%ecx;', 'movl $.Lcfk, %%ecx; imull $.Lcfs, %%edx; imull $.Lcfs, %%ecx;');
+    const inverse = { e: 'ne', ae: 'b', nc: 'c', be: 'a' };
+    if ((key >>> 6) & 1)
+        layouts = layouts.replace(/set(e|ae|nc|be) %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; js/g,
+            (_, cc) => 'set' + inverse[cc] + ' %%cl; movzbl %%cl, %%ecx; negl %%ecx; testl %%ecx, %%ecx; jns');
+    if ((key >>> 7) & 1)
+        layouts = layouts.replace(/set(e|ae|nc|be) %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jnz/g,
+            (_, cc) => 'set' + inverse[cc] + ' %%cl; movzbl %%cl, %%ecx; testl %%ecx, %%ecx; jz');
+    return [...(reference.matchAll(/#define (NAMED_REFERENCE_\w+)/g))].map(match => '#undef ' + match[1]).join('\n') + '\n' + predicates + layouts;
+}
+
 function fixture(header) {
     const start = header.indexOf('#define OBFH_CFLOW_FILL ');
     const end = header.indexOf('#define OBFH_CFLOW_VARIANT_COUNT ', start);
     if (start < 0 || end < start || !header.includes('#define OBFH_CFLOW_NAMED_EMIT(')) throw new Error('Missing factored named CFLOW emitter');
-    let code = '#include <stdint.h>\n#include <stdio.h>\n#define __obfh_asm__ __asm__\n#define OBFH_CFLOW_CLOBBERS "eax","ecx","edx","cc","memory"\n' + header.slice(start, end) + '\n' + reference;
+    let code = '#include <stdint.h>\n#include <stdio.h>\n#define __obfh_asm__ __asm__\n#define OBFH_CFLOW_CLOBBERS "eax","ecx","edx","cc","memory"\n' + header.slice(start, end) + '\n';
     code += `
 typedef struct { const unsigned char *start, *end; } NamedSpan;
 #if defined(__x86_64__)
@@ -147,6 +177,7 @@ body; __asm__ __volatile__("9:"); return span; }
     for (let form = 0; form < 16; ++form) {
         for (const rotate of [1, 2, 31]) {
             const key = (([0, 0x7fffffff, 0x80000000, 0xffffffff][config % 4] & ~((3 << 17) | (1 << 12) | (1 << 13))) | ((form >> 2) << 17) | ((form & 1) << 12) | (((form >> 1) & 1) << 13)) >>> 0;
+            code += header.includes("#define OBFH_CFLOW_NAMED_BOOLEAN(") ? expectedReference(key) : reference;
             const salt = [1, 127, 128, 32767][config % 4];
             const args = [salt, config % 7 + 1, [0, 255, 128][config % 3], key, rotate].map(value => value + 'u').join(',');
             for (let index = 99; index < 128; ++index) {

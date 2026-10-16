@@ -20,6 +20,7 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
     }
     let c = '#include <stdio.h>\n#include <stdint.h>\n' +
         (sharedHelpers ? '' : helpers + require('./stack_frames').aliases(source, assert)) + '\n' + bodies.join('\n') + '\n';
+    const spellings = source.includes("#define OBFH_SF_SPELLING_CONSTANTS") ? "OBFH_SF_SPELLING_CONSTANTS " : "";
     c += `typedef unsigned (*Entry)(unsigned,unsigned);
 #if defined(__x86_64__)
 #define ADDRESS "leaq 1f(%%rip),%0;jmp 9f;1:"
@@ -28,7 +29,7 @@ exports.fixture = function ({ arch, source, assert, sharedHelpers = false }) {
 #define ADDRESS "leal 1f,%0;jmp 9f;1:"
 #define SP(x) __asm__ __volatile__("movl %%esp,%0":"=r"(x)::"memory")
 #endif
-#define CARRIER(name,body,count,shift,draw) static Entry name(void){Entry result;__asm__ __volatile__(OBFH_SF_ASM_BITS ".set .Lss_frame_a,%c[frame_a];" ADDRESS body "9:":"=r"(result):[phantom]"i"(draw),[rotate]"i"(count),[leaf_shift]"i"(shift),[key_a]"i"(0xfeed1234u),[key_b]"i"(0x9abcdef1u),[leaf_alu_a]"i"(0x35),[leaf_alu_b]"i"(0xf2),[leaf_frame]"i"(40),[leaf_slot]"i"(16),[local_a]"i"(8),[local_b]"i"(24),[frame_a]"i"(64):"eax","ecx","edx","cc","memory");return result;}
+#define CARRIER(name,body,count,shift,draw) static Entry name(void){Entry result;__asm__ __volatile__(OBFH_SF_ASM_BITS ${spellings}".set .Lss_frame_a,%c[frame_a];" ADDRESS body "9:":"=r"(result):[phantom]"i"(draw),[rotate]"i"(count),[leaf_shift]"i"(shift),[key_a]"i"(0xfeed1234u),[key_b]"i"(0x9abcdef1u),[leaf_alu_a]"i"(0x35),[leaf_alu_b]"i"(0xf2),[leaf_frame]"i"(40),[leaf_slot]"i"(16),[local_a]"i"(8),[local_b]"i"(24),[frame_a]"i"(64):"eax","ecx","edx","cc","memory");return result;}
 `;
     const pairs = [];
     for (let count = 1; count <= 31; count++) for (const shift of [0xc0, 0xc8, 0xe0, 0xe8, 0xf8]) for (const draw of [0, 0xffff]) for (const name of ['BODY_K', 'LEAF_C', 'LEAF_J', 'LEAF_L']) {
