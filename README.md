@@ -12,7 +12,7 @@
 
 <p align="center"><strong><a href="#-usage">Get started</a> • <a href="https://github.com/DosX-dev/obfus.h/releases/tag/daily-crackme">Download the crackmes</a></strong></p>
 
-**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** brings compile-time polymorphic protection to **C applications on Windows x86 and x64**, built specifically for **[TinyCC](#-compiler-important)**. Turn familiar control flow into tangled paths, obscure calls, hide selected strings and virtualize sensitive calculations. Include the header and build: protection becomes part of your binary.
+**[obfus.h](https://github.com/DosX-dev/obfus.h/blob/main/include/obfus.h)** brings compile-time polymorphic obfuscation to **C applications and libraries on Windows x86 and x64**, built specifically for **[TinyCC](#-compiler-important)**. Turn familiar control flow into tangled paths, obscure calls, hide selected strings and virtualize sensitive calculations. Include the header and build: protection becomes part of your binary.
 
 *Just seeing obfus.h in your binary will make a reverse engineer question the existence of God.*
 
@@ -95,20 +95,20 @@ Define options **before** including the header. For example, to enable the addit
 
 Choose individual options to match your protection and performance requirements.
 
-| Option | Effect when set to `1` |
-|--------|------------------------|
+| Option                     | Effect when set to `1`                                                  |
+| -------------------------- | ----------------------------------------------------------------------- |
 | `OBFH_BETTER_CONTROL_FLOW` | Add another layer of control-flow mutation, with higher execution cost. |
-| `OBFH_BETTER_ANTIDEBUG` | Add hardware-breakpoint checks to anti-debugging protection. |
-| `OBFH_FAKE_SIGNATURES` | Add fake protector/packer signatures for crackme and CTF challenges. |
+| `OBFH_BETTER_ANTIDEBUG`    | Add hardware-breakpoint checks to anti-debugging protection.            |
+| `OBFH_FAKE_SIGNATURES`     | Add fake protector/packer signatures for crackme and CTF challenges.    |
 
 For debugging or selective disabling:
 
-| Option | Effect when set to `1` |
-|--------|------------------------|
-| `OBFH_DISABLE_ANY_OBFUSCATION` | Disable obfuscation. |
-| `OBFH_DISABLE_CONTROL_FLOW` | Disable automatic control-flow protection. |
-| `OBFH_DISABLE_ANTIDEBUG` | Disable built-in anti-debugging protection. |
-| `OBFH_DISABLE_PDATA_DECOYS` | Disable x64 decoy functions and their associated control-flow protection. |
+| Option                         | Effect when set to `1`                      |
+| ------------------------------ | ------------------------------------------- |
+| `OBFH_DISABLE_ANY_OBFUSCATION` | Disable obfuscation.                        |
+| `OBFH_DISABLE_CONTROL_FLOW`    | Disable automatic control-flow protection.  |
+| `OBFH_DISABLE_ANTIDEBUG`       | Disable built-in anti-debugging protection. |
+| `OBFH_DISABLE_PDATA_DECOYS`    | Disable additional x64 fake functions.      |
 
 Older names such as `OBFH_BUILD_SEED` remain compatible but produce a `#warning`. If both names are defined, the new `OBFH_*` option takes precedence.
 
@@ -133,7 +133,7 @@ if (!licenseExpired()) {
 }
 ```
 
-## 🧶 String hiding
+## 🧶 Strings hiding
 
 **Hide selected string literals.** Use the `HIDE_STRING(str)` construct inside functions to build strings at runtime instead of storing them as plain text in the binary.
 
@@ -174,31 +174,31 @@ The virtual machine is included automatically when you use `VM_*` markers; unuse
 > [!WARNING]
 > **Focus virtualization on sensitive calculations.** VM protection adds runtime overhead; measure performance when using it in frequently executed code.
 
-| Marker           | Type           | Op | Description                                                                | Example                              |
-|------------------|----------------|----|----------------------------------------------------------------------------|--------------------------------------|
-| **`VM_ADD`**     | *long*         |`+` | Addition | `VM_ADD(5, 3)` = **`8`**             |
-| **`VM_SUB`**     | *long*         |`-` | Subtraction | `VM_SUB(5, 3)` = **`2`**             |
-| **`VM_MUL`**     | *long*         |`*` | Multiplication | `VM_MUL(5, 3)` = **`15`**            |
-| **`VM_DIV`**     | *long*         |`/` | Division | `VM_DIV(6, 3)` = **`2`**             |
-| **`VM_MOD`**     | *long*         |`%` | Remainder | `VM_MOD(5, 3)` = **`2`**             |
-| **`VM_AND`**     | *unsigned int* |`&` | Bitwise AND | `VM_AND(6, 3)` = **`2`**             |
-| **`VM_OR`**      | *unsigned int* |`\|`| Bitwise OR | `VM_OR(6, 3)` = **`7`**              |
-| **`VM_XOR`**     | *unsigned int* |`^` | Bitwise XOR | `VM_XOR(6, 3)` = **`5`**             |
-| **`VM_NOT`**     | *unsigned int* |`~` | Bitwise NOT | `VM_NOT(0)` = **`0xFFFFFFFFu`**      |
-| **`VM_SHL`**     | *unsigned int* |`<<`| Left shift | `VM_SHL(1, 3)` = **`8`**             |
-| **`VM_SHR`**     | *unsigned int* |`>>`| Right shift, zero-filled | `VM_SHR(8, 3)` = **`1`**             |
-| **`VM_EQU`**     | *BOOL*         |`==`| Equal | `VM_EQU(5, 5)` = **`true`**          |
-| **`VM_NEQ`**     | *BOOL*         |`!=`| Not equal | `VM_NEQ(5, 3)` = **`true`**          |
-| **`VM_LSS`**     | *BOOL*         |`<` | Less than | `VM_LSS(3, 5)` = **`true`**          |
-| **`VM_GTR`**     | *BOOL*         |`>` | Greater than | `VM_GTR(5, 3)` = **`true`**          |
-| **`VM_LEQ`**     | *BOOL*         |`<=`| Less than or equal | `VM_LEQ(3, 5)` = **`true`**          |
-| **`VM_GEQ`**     | *BOOL*         |`>=`| Greater than or equal | `VM_GEQ(5, 3)` = **`true`**          |
-| **`VM_ADD_DBL`** | *long double*  |`+` | Addition | `VM_ADD_DBL(5.5, 3.2)` = **`≈8.7`**  |
-| **`VM_SUB_DBL`** | *long double*  |`-` | Subtraction | `VM_SUB_DBL(5.5, 3.2)` = **`≈2.3`**  |
-| **`VM_MUL_DBL`** | *long double*  |`*` | Multiplication | `VM_MUL_DBL(5.5, 3.2)` = **`≈17.6`** |
-| **`VM_DIV_DBL`** | *long double*  |`/` | Division | `VM_DIV_DBL(6.0, 3.0)` = **`≈2.0`**  |
-| **`VM_LSS_DBL`** | *BOOL*         |`<` | Less than | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
-| **`VM_GTR_DBL`** | *BOOL*         |`>` | Greater than | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
+| Marker           | Type           | Op   | Description              | Example                              |
+| ---------------- | -------------- | ---- | ------------------------ | ------------------------------------ |
+| **`VM_ADD`**     | _long_         | `+`  | Addition                 | `VM_ADD(5, 3)` = **`8`**             |
+| **`VM_SUB`**     | _long_         | `-`  | Subtraction              | `VM_SUB(5, 3)` = **`2`**             |
+| **`VM_MUL`**     | _long_         | `*`  | Multiplication           | `VM_MUL(5, 3)` = **`15`**            |
+| **`VM_DIV`**     | _long_         | `/`  | Division                 | `VM_DIV(6, 3)` = **`2`**             |
+| **`VM_MOD`**     | _long_         | `%`  | Remainder                | `VM_MOD(5, 3)` = **`2`**             |
+| **`VM_AND`**     | _unsigned int_ | `&`  | Bitwise AND              | `VM_AND(6, 3)` = **`2`**             |
+| **`VM_OR`**      | _unsigned int_ | `\|` | Bitwise OR               | `VM_OR(6, 3)` = **`7`**              |
+| **`VM_XOR`**     | _unsigned int_ | `^`  | Bitwise XOR              | `VM_XOR(6, 3)` = **`5`**             |
+| **`VM_NOT`**     | _unsigned int_ | `~`  | Bitwise NOT              | `VM_NOT(0)` = **`0xFFFFFFFFu`**      |
+| **`VM_SHL`**     | _unsigned int_ | `<<` | Left shift               | `VM_SHL(1, 3)` = **`8`**             |
+| **`VM_SHR`**     | _unsigned int_ | `>>` | Right shift, zero-filled | `VM_SHR(8, 3)` = **`1`**             |
+| **`VM_EQU`**     | _BOOL_         | `==` | Equal                    | `VM_EQU(5, 5)` = **`true`**          |
+| **`VM_NEQ`**     | _BOOL_         | `!=` | Not equal                | `VM_NEQ(5, 3)` = **`true`**          |
+| **`VM_LSS`**     | _BOOL_         | `<`  | Less than                | `VM_LSS(3, 5)` = **`true`**          |
+| **`VM_GTR`**     | _BOOL_         | `>`  | Greater than             | `VM_GTR(5, 3)` = **`true`**          |
+| **`VM_LEQ`**     | _BOOL_         | `<=` | Less or equal            | `VM_LEQ(3, 5)` = **`true`**          |
+| **`VM_GEQ`**     | _BOOL_         | `>=` | Greater or equal         | `VM_GEQ(5, 3)` = **`true`**          |
+| **`VM_ADD_DBL`** | _long double_  | `+`  | Addition                 | `VM_ADD_DBL(5.5, 3.2)` = **`≈8.7`**  |
+| **`VM_SUB_DBL`** | _long double_  | `-`  | Subtraction              | `VM_SUB_DBL(5.5, 3.2)` = **`≈2.3`**  |
+| **`VM_MUL_DBL`** | _long double_  | `*`  | Multiplication           | `VM_MUL_DBL(5.5, 3.2)` = **`≈17.6`** |
+| **`VM_DIV_DBL`** | _long double_  | `/`  | Division                 | `VM_DIV_DBL(6.0, 3.0)` = **`≈2.0`**  |
+| **`VM_LSS_DBL`** | _BOOL_         | `<`  | Less than                | `VM_LSS_DBL(3.5, 5.2)` = **`true`**  |
+| **`VM_GTR_DBL`** | _BOOL_         | `>`  | Greater than             | `VM_GTR_DBL(5.5, 3.2)` = **`true`**  |
 
 > For floating-point comparisons, use `VM_LSS_DBL` and `VM_GTR_DBL`.
 
