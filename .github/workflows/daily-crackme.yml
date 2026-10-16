@@ -45,6 +45,8 @@ jobs:
               run: npm test
             - name: Verify complete local preparation on the Windows runner
               working-directory: gamification
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
               run: node cli.js preview --out out/runner-preview
             # Deliberately no release updates, commits, secret inputs or artifact uploads.
     daily:

@@ -15,8 +15,17 @@ export function selectArchive(release) {
     return { repository: TOOLCHAIN.repository, release: release.tag_name, releaseId: release.id, assetId: asset.id, name: asset.name, size: asset.size, url, sha256: asset.digest.slice(7) };
 }
 async function download(url, limit, fetcher) {
-    const response = await fetcher(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'obfus-daily-crackme' }, signal: AbortSignal.timeout(180000) });
-    if (!response.ok) throw new Error(`Compiler download failed (${response.status})`);
+    // Hosted runners share the small anonymous API quota. Keep credentials on
+    // the exact API origin; public archive downloads never need the token.
+    const api = new URL(url).origin === 'https://api.github.com';
+    const headers = { Accept: api ? 'application/vnd.github+json' : 'application/octet-stream', 'User-Agent': 'obfus-daily-crackme' };
+    if (api && process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    const response = await fetcher(url, { headers, signal: AbortSignal.timeout(180000) });
+    if (!response.ok) {
+        const exhausted = response.headers.get('x-ratelimit-remaining') === '0';
+        await response.body?.cancel();
+        throw new Error(`Compiler download failed (${response.status}) from ${new URL(url).hostname}${exhausted ? ': GitHub API rate limit exhausted' : ''}`);
+    }
     const chunks = [];
     let size = 0;
     for await (const chunk of response.body) {

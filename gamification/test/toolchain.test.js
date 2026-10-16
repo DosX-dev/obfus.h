@@ -8,6 +8,31 @@ const data = Buffer.from('fixture ordinary compiler ZIP');
 const asset = { id: 23, name: 'tinycc-windows-2026-10-13.zip', size: data.length, digest: 'sha256:' + hash(data), browser_download_url: 'https://github.com/DosX-dev/TinyCC-builder/releases/download/2026-10-13/tinycc-windows-2026-10-13.zip' };
 const release = () => ({ id: 12, tag_name: '2026-10-13', draft: false, prerelease: false, assets: [asset, { ...asset, name: 'tinycc-windows-upx-2026-10-13.zip' }] });
 
+test('compiler metadata uses the runner token without sending it to archive hosts', async () => {
+    const previous = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = 'fixture-token';
+    try {
+        const settings = await resolveLatest(async (url, options) => {
+            assert.equal(options.headers.Authorization, 'Bearer fixture-token');
+            return Response.json(release());
+        });
+        await verifiedArchive(settings, async (url, options) => {
+            assert.equal(options.headers.Authorization, undefined);
+            assert.equal(options.headers.Accept, 'application/octet-stream');
+            return new Response(data);
+        });
+        delete process.env.GITHUB_TOKEN;
+        await resolveLatest(async (url, options) => {
+            assert.equal(options.headers.Authorization, undefined);
+            return Response.json(release());
+        });
+        await assert.rejects(resolveLatest(async () => new Response('', { status: 403, headers: { 'x-ratelimit-remaining': '0' } })), /API rate limit exhausted/);
+    } finally {
+        if (previous === undefined) delete process.env.GITHUB_TOKEN;
+        else process.env.GITHUB_TOKEN = previous;
+    }
+});
+
 test('latest release selects only the ordinary ZIP and records its actual identity', async () => {
     const settings = await resolveLatest(async url => {
         assert.equal(url, TOOLCHAIN.api);
