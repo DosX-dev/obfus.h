@@ -1370,42 +1370,108 @@ OBFH_PD_DEFINE(127);
                                                       : \
                                                       : OBFH_CFLOW_CLOBBERS)
 
-// All 128 templates are available; selection emits only the chosen asm.
+// Native fragments are adjacent immediate-only ASM blocks. No C evaluation may
+// be inserted between them: predicates, flags and numeric labels span blocks.
+#define OBFH_CFLOW_BASIC_ASM(text) ({ OBFH_CFLOW_LOCAL_ASM(text); })
+#define OBFH_CFLOW_BASIC_REGISTER(family) ((family) >= 4u && (family) < 8u ? 2u : (family) >= 8u && (family) < 12u ? 1u \
+                                                                                                                   : 0u)
+#define OBFH_CFLOW_BASIC_MASK(family) ((family) == 1u || (family) == 15u ? 2u : (family) == 6u ? 7u \
+                                                                            : (family) == 7u   ? 3u \
+                                                                            : (family) == 8u   ? 14u \
+                                                                                               : 1u)
+#define OBFH_CFLOW_BASIC_NONZERO(family) ((family) == 3u || (family) == 10u)
+#define OBFH_CFLOW_BASIC_LOAD_REG(reg, style) ({ \
+    OBFH_CFLOW_BASIC_ASM("movl %%esp, " reg ";"); \
+    __builtin_choose_expr((style) == 3u, OBFH_CFLOW_BASIC_ASM("roll $7, " reg ";"), ((void)0)); \
+    __builtin_choose_expr((style) == 1u || (style) == 5u, OBFH_CFLOW_BASIC_ASM("xorl $.Lcfs, " reg ";"), \
+                          __builtin_choose_expr((style) == 2u, OBFH_CFLOW_BASIC_ASM("subl $.Lcfs, " reg ";"), OBFH_CFLOW_BASIC_ASM("addl $.Lcfs, " reg ";"))); \
+})
+#define OBFH_CFLOW_BASIC_LOAD(family, style) \
+    __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 0u, OBFH_CFLOW_BASIC_LOAD_REG("%%eax", style), \
+                          __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 2u, OBFH_CFLOW_BASIC_LOAD_REG("%%edx", style), OBFH_CFLOW_BASIC_LOAD_REG("%%ecx", style)))
+#define OBFH_CFLOW_BASIC_TEST_REG(reg, mask) ({ \
+    __obfh_asm__("testb $%c[test_mask], " reg ";" \
+                 : \
+                 : [test_mask] "i"(mask) \
+                 : OBFH_CFLOW_CLOBBERS); \
+})
+#define OBFH_CFLOW_BASIC_TEST(family, mask) \
+    __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 0u, OBFH_CFLOW_BASIC_TEST_REG("%%al", mask), \
+                          __builtin_choose_expr(OBFH_CFLOW_BASIC_REGISTER(family) == 2u, OBFH_CFLOW_BASIC_TEST_REG("%%dl", mask), OBFH_CFLOW_BASIC_TEST_REG("%%cl", mask)))
+#define OBFH_CFLOW_BASIC_BRANCH(nonzero, target) \
+    __builtin_choose_expr(nonzero, OBFH_CFLOW_BASIC_ASM("jnz " target ";"), OBFH_CFLOW_BASIC_ASM("jz " target ";"))
+#define OBFH_CFLOW_BASIC_PRED_0 OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx")
+#define OBFH_CFLOW_BASIC_PRED_1 OBFH_CFLOW_PRED_SQUARE("%%eax")
+#define OBFH_CFLOW_BASIC_PRED_2 OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx")
+#define OBFH_CFLOW_BASIC_PRED_3 OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx")
+#define OBFH_CFLOW_BASIC_PRED_4 OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx")
+#define OBFH_CFLOW_BASIC_PRED_5 OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax")
+#define OBFH_CFLOW_BASIC_PRED_6 OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax")
+#define OBFH_CFLOW_BASIC_PRED_7 OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx")
+#define OBFH_CFLOW_BASIC_PRED_8 OBFH_CFLOW_PRED_FOURTH("%%ecx")
+#define OBFH_CFLOW_BASIC_PRED_9 OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax")
+#define OBFH_CFLOW_BASIC_PRED_10 OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax")
+#define OBFH_CFLOW_BASIC_PRED_11 OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax")
+#define OBFH_CFLOW_BASIC_PRED_12 OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx")
+#define OBFH_CFLOW_BASIC_PRED_13 OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx")
+#define OBFH_CFLOW_BASIC_PRED_14 OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx")
+#define OBFH_CFLOW_BASIC_PRED_15 OBFH_CFLOW_PRED_ODD_SQUARE("%%eax")
+#define OBFH_CFLOW_BASIC_PREDICATE(family) __builtin_choose_expr((family) < 8u, __builtin_choose_expr((family) < 4u, __builtin_choose_expr((family) < 2u, __builtin_choose_expr((family) < 1u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_0), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_1)), __builtin_choose_expr((family) < 3u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_2), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_3))), __builtin_choose_expr((family) < 6u, __builtin_choose_expr((family) < 5u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_4), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_5)), __builtin_choose_expr((family) < 7u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_6), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_7)))), __builtin_choose_expr((family) < 12u, __builtin_choose_expr((family) < 10u, __builtin_choose_expr((family) < 9u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_8), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_9)), __builtin_choose_expr((family) < 11u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_10), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_11))), __builtin_choose_expr((family) < 14u, __builtin_choose_expr((family) < 13u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_12), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_13)), __builtin_choose_expr((family) < 15u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_14), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_BASIC_PRED_15)))))
+#define OBFH_CFLOW_BASIC_PAYLOAD(index) \
+    __builtin_choose_expr(((index)&3u) == 0u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_CALL), \
+                          __builtin_choose_expr(((index)&3u) == 1u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_INDIRECT), \
+                                                __builtin_choose_expr(((index)&3u) == 2u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_MOV), OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_JUMP))))
+#define OBFH_CFLOW_BASIC_EMIT(index) ({ \
+    enum { __obfh_basic_family = (index)&15u, \
+           __obfh_basic_style = (index) >> 4, \
+           __obfh_basic_second = (__obfh_basic_family + 7u) & 15u, \
+           __obfh_basic_mask = OBFH_CFLOW_BASIC_MASK(__obfh_basic_family), \
+           __obfh_basic_mask_second = OBFH_CFLOW_BASIC_MASK(__obfh_basic_second) }; \
+    OBFH_CFLOW_BASIC_LOAD(__obfh_basic_family, __obfh_basic_style); \
+    OBFH_CFLOW_BASIC_PREDICATE(__obfh_basic_family); \
+    OBFH_CFLOW_BASIC_TEST(__obfh_basic_family, __obfh_basic_mask); \
+    __builtin_choose_expr(__obfh_basic_style & 1u, ({ \
+                              OBFH_CFLOW_BASIC_BRANCH(!OBFH_CFLOW_BASIC_NONZERO(__obfh_basic_family), "1f"); \
+                              OBFH_CFLOW_BASIC_ASM("jmp 2f;1:"); \
+                          }), \
+                          OBFH_CFLOW_BASIC_BRANCH(OBFH_CFLOW_BASIC_NONZERO(__obfh_basic_family), "1f")); \
+    __builtin_choose_expr(__obfh_basic_style == 3u, OBFH_CFLOW_BASIC_ASM(".byte 0xc3;"), ((void)0)); \
+    __builtin_choose_expr(__obfh_basic_style >= 4u, OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_CALL_DATA), OBFH_CFLOW_BASIC_PAYLOAD(index)); \
+    __builtin_choose_expr(__obfh_basic_style & 1u, OBFH_CFLOW_BASIC_ASM("2:"), OBFH_CFLOW_BASIC_ASM("1:")); \
+    __builtin_choose_expr(__obfh_basic_style >= 4u, ({ \
+                              OBFH_CFLOW_BASIC_LOAD(__obfh_basic_second, 0u); \
+                              OBFH_CFLOW_BASIC_PREDICATE(__obfh_basic_second); \
+                              OBFH_CFLOW_BASIC_TEST(__obfh_basic_second, __obfh_basic_mask_second); \
+                              __builtin_choose_expr(__obfh_basic_style == 4u, ({ \
+                                                        OBFH_CFLOW_BASIC_BRANCH(OBFH_CFLOW_BASIC_NONZERO(__obfh_basic_second), "2f"); \
+                                                        OBFH_CFLOW_BASIC_ASM(".byte 0xff,0x25;.long .Lcfbasic;.byte .Lcfbyte,0xe9;2:"); \
+                                                    }), \
+                                                    ({ \
+                                                        OBFH_CFLOW_BASIC_BRANCH(OBFH_CFLOW_BASIC_NONZERO(__obfh_basic_second), "3f"); \
+                                                        OBFH_CFLOW_BASIC_ASM(OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:"); \
+                                                    })); \
+                          }), \
+                          ({ \
+                              __builtin_choose_expr(__obfh_basic_style == 2u || __obfh_basic_style == 3u, ({ \
+                                                        OBFH_CFLOW_BASIC_TEST(__obfh_basic_family, __obfh_basic_mask); \
+                                                        __builtin_choose_expr(__obfh_basic_style == 2u, ({ \
+                                                                                  OBFH_CFLOW_BASIC_BRANCH(OBFH_CFLOW_BASIC_NONZERO(__obfh_basic_family), "2f"); \
+                                                                                  OBFH_CFLOW_BASIC_ASM(".byte 0x0f,0x0b,0xe8;.fill .Lcfpad,1,.Lcfbyte;2:"); \
+                                                                              }), \
+                                                                              ({ \
+                                                                                  OBFH_CFLOW_BASIC_BRANCH(OBFH_CFLOW_BASIC_NONZERO(__obfh_basic_family), "3f"); \
+                                                                                  OBFH_CFLOW_BASIC_ASM(".byte 0xff,0x25;.long .Lcfbasic;3:"); \
+                                                                              })); \
+                                                    }), \
+                                                    ((void)0)); \
+                          })); \
+    (void)0; \
+})
+
+// All 128 native forms retain their original selection indices.
 #define OBFH_CFLOW_VARIANT_COUNT 128u
-#define OBFH_CFLOW_GROUP_0(index) \
-    __builtin_choose_expr((index) < 4u, __builtin_choose_expr((index) < 2u, __builtin_choose_expr((index) < 1u, ({ OBFH_CFLOW_TEMPLATE_0; }), ({ OBFH_CFLOW_TEMPLATE_1; })), __builtin_choose_expr((index) < 3u, ({ OBFH_CFLOW_TEMPLATE_2; }), ({ OBFH_CFLOW_TEMPLATE_3; }))), __builtin_choose_expr((index) < 6u, __builtin_choose_expr((index) < 5u, ({ OBFH_CFLOW_TEMPLATE_4; }), ({ OBFH_CFLOW_TEMPLATE_5; })), __builtin_choose_expr((index) < 7u, ({ OBFH_CFLOW_TEMPLATE_6; }), ({ OBFH_CFLOW_TEMPLATE_7; }))))
-#define OBFH_CFLOW_GROUP_1(index) \
-    __builtin_choose_expr((index) < 12u, __builtin_choose_expr((index) < 10u, __builtin_choose_expr((index) < 9u, ({ OBFH_CFLOW_TEMPLATE_8; }), ({ OBFH_CFLOW_TEMPLATE_9; })), __builtin_choose_expr((index) < 11u, ({ OBFH_CFLOW_TEMPLATE_10; }), ({ OBFH_CFLOW_TEMPLATE_11; }))), __builtin_choose_expr((index) < 14u, __builtin_choose_expr((index) < 13u, ({ OBFH_CFLOW_TEMPLATE_12; }), ({ OBFH_CFLOW_TEMPLATE_13; })), __builtin_choose_expr((index) < 15u, ({ OBFH_CFLOW_TEMPLATE_14; }), ({ OBFH_CFLOW_TEMPLATE_15; }))))
-#define OBFH_CFLOW_GROUP_2(index) \
-    __builtin_choose_expr((index) < 20u, __builtin_choose_expr((index) < 18u, __builtin_choose_expr((index) < 17u, ({ OBFH_CFLOW_TEMPLATE_16; }), ({ OBFH_CFLOW_TEMPLATE_17; })), __builtin_choose_expr((index) < 19u, ({ OBFH_CFLOW_TEMPLATE_18; }), ({ OBFH_CFLOW_TEMPLATE_19; }))), __builtin_choose_expr((index) < 22u, __builtin_choose_expr((index) < 21u, ({ OBFH_CFLOW_TEMPLATE_20; }), ({ OBFH_CFLOW_TEMPLATE_21; })), __builtin_choose_expr((index) < 23u, ({ OBFH_CFLOW_TEMPLATE_22; }), ({ OBFH_CFLOW_TEMPLATE_23; }))))
-#define OBFH_CFLOW_GROUP_3(index) \
-    __builtin_choose_expr((index) < 28u, __builtin_choose_expr((index) < 26u, __builtin_choose_expr((index) < 25u, ({ OBFH_CFLOW_TEMPLATE_24; }), ({ OBFH_CFLOW_TEMPLATE_25; })), __builtin_choose_expr((index) < 27u, ({ OBFH_CFLOW_TEMPLATE_26; }), ({ OBFH_CFLOW_TEMPLATE_27; }))), __builtin_choose_expr((index) < 30u, __builtin_choose_expr((index) < 29u, ({ OBFH_CFLOW_TEMPLATE_28; }), ({ OBFH_CFLOW_TEMPLATE_29; })), __builtin_choose_expr((index) < 31u, ({ OBFH_CFLOW_TEMPLATE_30; }), ({ OBFH_CFLOW_TEMPLATE_31; }))))
-#define OBFH_CFLOW_GROUP_4(index) \
-    __builtin_choose_expr((index) < 36u, __builtin_choose_expr((index) < 34u, __builtin_choose_expr((index) < 33u, ({ OBFH_CFLOW_TEMPLATE_32; }), ({ OBFH_CFLOW_TEMPLATE_33; })), __builtin_choose_expr((index) < 35u, ({ OBFH_CFLOW_TEMPLATE_34; }), ({ OBFH_CFLOW_TEMPLATE_35; }))), __builtin_choose_expr((index) < 38u, __builtin_choose_expr((index) < 37u, ({ OBFH_CFLOW_TEMPLATE_36; }), ({ OBFH_CFLOW_TEMPLATE_37; })), __builtin_choose_expr((index) < 39u, ({ OBFH_CFLOW_TEMPLATE_38; }), ({ OBFH_CFLOW_TEMPLATE_39; }))))
-#define OBFH_CFLOW_GROUP_5(index) \
-    __builtin_choose_expr((index) < 44u, __builtin_choose_expr((index) < 42u, __builtin_choose_expr((index) < 41u, ({ OBFH_CFLOW_TEMPLATE_40; }), ({ OBFH_CFLOW_TEMPLATE_41; })), __builtin_choose_expr((index) < 43u, ({ OBFH_CFLOW_TEMPLATE_42; }), ({ OBFH_CFLOW_TEMPLATE_43; }))), __builtin_choose_expr((index) < 46u, __builtin_choose_expr((index) < 45u, ({ OBFH_CFLOW_TEMPLATE_44; }), ({ OBFH_CFLOW_TEMPLATE_45; })), __builtin_choose_expr((index) < 47u, ({ OBFH_CFLOW_TEMPLATE_46; }), ({ OBFH_CFLOW_TEMPLATE_47; }))))
-#define OBFH_CFLOW_GROUP_6(index) \
-    __builtin_choose_expr((index) < 52u, __builtin_choose_expr((index) < 50u, __builtin_choose_expr((index) < 49u, ({ OBFH_CFLOW_TEMPLATE_48; }), ({ OBFH_CFLOW_TEMPLATE_49; })), __builtin_choose_expr((index) < 51u, ({ OBFH_CFLOW_TEMPLATE_50; }), ({ OBFH_CFLOW_TEMPLATE_51; }))), __builtin_choose_expr((index) < 54u, __builtin_choose_expr((index) < 53u, ({ OBFH_CFLOW_TEMPLATE_52; }), ({ OBFH_CFLOW_TEMPLATE_53; })), __builtin_choose_expr((index) < 55u, ({ OBFH_CFLOW_TEMPLATE_54; }), ({ OBFH_CFLOW_TEMPLATE_55; }))))
-#define OBFH_CFLOW_GROUP_7(index) \
-    __builtin_choose_expr((index) < 60u, __builtin_choose_expr((index) < 58u, __builtin_choose_expr((index) < 57u, ({ OBFH_CFLOW_TEMPLATE_56; }), ({ OBFH_CFLOW_TEMPLATE_57; })), __builtin_choose_expr((index) < 59u, ({ OBFH_CFLOW_TEMPLATE_58; }), ({ OBFH_CFLOW_TEMPLATE_59; }))), __builtin_choose_expr((index) < 62u, __builtin_choose_expr((index) < 61u, ({ OBFH_CFLOW_TEMPLATE_60; }), ({ OBFH_CFLOW_TEMPLATE_61; })), __builtin_choose_expr((index) < 63u, ({ OBFH_CFLOW_TEMPLATE_62; }), ({ OBFH_CFLOW_TEMPLATE_63; }))))
-#define OBFH_CFLOW_GROUP_8(index) \
-    __builtin_choose_expr((index) < 68u, __builtin_choose_expr((index) < 66u, __builtin_choose_expr((index) < 65u, ({ OBFH_CFLOW_TEMPLATE_64; }), ({ OBFH_CFLOW_TEMPLATE_65; })), __builtin_choose_expr((index) < 67u, ({ OBFH_CFLOW_TEMPLATE_66; }), ({ OBFH_CFLOW_TEMPLATE_67; }))), __builtin_choose_expr((index) < 70u, __builtin_choose_expr((index) < 69u, ({ OBFH_CFLOW_TEMPLATE_68; }), ({ OBFH_CFLOW_TEMPLATE_69; })), __builtin_choose_expr((index) < 71u, ({ OBFH_CFLOW_TEMPLATE_70; }), ({ OBFH_CFLOW_TEMPLATE_71; }))))
-#define OBFH_CFLOW_GROUP_9(index) \
-    __builtin_choose_expr((index) < 76u, __builtin_choose_expr((index) < 74u, __builtin_choose_expr((index) < 73u, ({ OBFH_CFLOW_TEMPLATE_72; }), ({ OBFH_CFLOW_TEMPLATE_73; })), __builtin_choose_expr((index) < 75u, ({ OBFH_CFLOW_TEMPLATE_74; }), ({ OBFH_CFLOW_TEMPLATE_75; }))), __builtin_choose_expr((index) < 78u, __builtin_choose_expr((index) < 77u, ({ OBFH_CFLOW_TEMPLATE_76; }), ({ OBFH_CFLOW_TEMPLATE_77; })), __builtin_choose_expr((index) < 79u, ({ OBFH_CFLOW_TEMPLATE_78; }), ({ OBFH_CFLOW_TEMPLATE_79; }))))
-#define OBFH_CFLOW_GROUP_10(index) \
-    __builtin_choose_expr((index) < 84u, __builtin_choose_expr((index) < 82u, __builtin_choose_expr((index) < 81u, ({ OBFH_CFLOW_TEMPLATE_80; }), ({ OBFH_CFLOW_TEMPLATE_81; })), __builtin_choose_expr((index) < 83u, ({ OBFH_CFLOW_TEMPLATE_82; }), ({ OBFH_CFLOW_TEMPLATE_83; }))), __builtin_choose_expr((index) < 86u, __builtin_choose_expr((index) < 85u, ({ OBFH_CFLOW_TEMPLATE_84; }), ({ OBFH_CFLOW_TEMPLATE_85; })), __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), ({ OBFH_CFLOW_TEMPLATE_87; }))))
-#define OBFH_CFLOW_GROUP_11(index) \
-    __builtin_choose_expr((index) < 92u, __builtin_choose_expr((index) < 90u, __builtin_choose_expr((index) < 89u, ({ OBFH_CFLOW_TEMPLATE_88; }), ({ OBFH_CFLOW_TEMPLATE_89; })), __builtin_choose_expr((index) < 91u, ({ OBFH_CFLOW_TEMPLATE_90; }), ({ OBFH_CFLOW_TEMPLATE_91; }))), __builtin_choose_expr((index) < 94u, __builtin_choose_expr((index) < 93u, ({ OBFH_CFLOW_TEMPLATE_92; }), ({ OBFH_CFLOW_TEMPLATE_93; })), __builtin_choose_expr((index) < 95u, ({ OBFH_CFLOW_TEMPLATE_94; }), ({ OBFH_CFLOW_TEMPLATE_95; }))))
-#define OBFH_CFLOW_GROUP_12(index) \
-    __builtin_choose_expr((index) < 100u, __builtin_choose_expr((index) < 98u, __builtin_choose_expr((index) < 97u, ({ OBFH_CFLOW_TEMPLATE_96; }), ({ OBFH_CFLOW_TEMPLATE_97; })), __builtin_choose_expr((index) < 99u, ({ OBFH_CFLOW_TEMPLATE_98; }), ({ OBFH_CFLOW_TEMPLATE_99; }))), __builtin_choose_expr((index) < 102u, __builtin_choose_expr((index) < 101u, ({ OBFH_CFLOW_TEMPLATE_100; }), ({ OBFH_CFLOW_TEMPLATE_101; })), __builtin_choose_expr((index) < 103u, ({ OBFH_CFLOW_TEMPLATE_102; }), ({ OBFH_CFLOW_TEMPLATE_103; }))))
-#define OBFH_CFLOW_GROUP_13(index) \
-    __builtin_choose_expr((index) < 108u, __builtin_choose_expr((index) < 106u, __builtin_choose_expr((index) < 105u, ({ OBFH_CFLOW_TEMPLATE_104; }), ({ OBFH_CFLOW_TEMPLATE_105; })), __builtin_choose_expr((index) < 107u, ({ OBFH_CFLOW_TEMPLATE_106; }), ({ OBFH_CFLOW_TEMPLATE_107; }))), __builtin_choose_expr((index) < 110u, __builtin_choose_expr((index) < 109u, ({ OBFH_CFLOW_TEMPLATE_108; }), ({ OBFH_CFLOW_TEMPLATE_109; })), __builtin_choose_expr((index) < 111u, ({ OBFH_CFLOW_TEMPLATE_110; }), ({ OBFH_CFLOW_TEMPLATE_111; }))))
-#define OBFH_CFLOW_GROUP_14(index) \
-    __builtin_choose_expr((index) < 116u, __builtin_choose_expr((index) < 114u, __builtin_choose_expr((index) < 113u, ({ OBFH_CFLOW_TEMPLATE_112; }), ({ OBFH_CFLOW_TEMPLATE_113; })), __builtin_choose_expr((index) < 115u, ({ OBFH_CFLOW_TEMPLATE_114; }), ({ OBFH_CFLOW_TEMPLATE_115; }))), __builtin_choose_expr((index) < 118u, __builtin_choose_expr((index) < 117u, ({ OBFH_CFLOW_TEMPLATE_116; }), ({ OBFH_CFLOW_TEMPLATE_117; })), __builtin_choose_expr((index) < 119u, ({ OBFH_CFLOW_TEMPLATE_118; }), ({ OBFH_CFLOW_TEMPLATE_119; }))))
-#define OBFH_CFLOW_GROUP_15(index) \
-    __builtin_choose_expr((index) < 124u, __builtin_choose_expr((index) < 122u, __builtin_choose_expr((index) < 121u, ({ OBFH_CFLOW_TEMPLATE_120; }), ({ OBFH_CFLOW_TEMPLATE_121; })), __builtin_choose_expr((index) < 123u, ({ OBFH_CFLOW_TEMPLATE_122; }), ({ OBFH_CFLOW_TEMPLATE_123; }))), __builtin_choose_expr((index) < 126u, __builtin_choose_expr((index) < 125u, ({ OBFH_CFLOW_TEMPLATE_124; }), ({ OBFH_CFLOW_TEMPLATE_125; })), __builtin_choose_expr((index) < 127u, ({ OBFH_CFLOW_TEMPLATE_126; }), ({ OBFH_CFLOW_TEMPLATE_127; }))))
-#define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; \
-    __builtin_choose_expr((index) < 64u, __builtin_choose_expr((index) < 32u, __builtin_choose_expr((index) < 16u, __builtin_choose_expr((index) < 8u, OBFH_CFLOW_GROUP_0(index), OBFH_CFLOW_GROUP_1(index)), __builtin_choose_expr((index) < 24u, OBFH_CFLOW_GROUP_2(index), OBFH_CFLOW_GROUP_3(index))), __builtin_choose_expr((index) < 48u, __builtin_choose_expr((index) < 40u, OBFH_CFLOW_GROUP_4(index), OBFH_CFLOW_GROUP_5(index)), __builtin_choose_expr((index) < 56u, OBFH_CFLOW_GROUP_6(index), OBFH_CFLOW_GROUP_7(index)))), __builtin_choose_expr((index) < 96u, __builtin_choose_expr((index) < 80u, __builtin_choose_expr((index) < 72u, OBFH_CFLOW_GROUP_8(index), OBFH_CFLOW_GROUP_9(index)), __builtin_choose_expr((index) < 88u, OBFH_CFLOW_GROUP_10(index), OBFH_CFLOW_GROUP_11(index))), __builtin_choose_expr((index) < 112u, __builtin_choose_expr((index) < 104u, OBFH_CFLOW_GROUP_12(index), OBFH_CFLOW_GROUP_13(index)), __builtin_choose_expr((index) < 120u, OBFH_CFLOW_GROUP_14(index), OBFH_CFLOW_GROUP_15(index))))); (void)0; })
+#define OBFH_CFLOW_OTHER(index) __builtin_choose_expr((index) < 107u, __builtin_choose_expr((index) < 96u, __builtin_choose_expr((index) < 91u, __builtin_choose_expr((index) < 88u, __builtin_choose_expr((index) < 87u, ({ OBFH_CFLOW_TEMPLATE_86; }), ({ OBFH_CFLOW_TEMPLATE_87; })), __builtin_choose_expr((index) < 89u, ({ OBFH_CFLOW_TEMPLATE_88; }), __builtin_choose_expr((index) < 90u, ({ OBFH_CFLOW_TEMPLATE_89; }), ({ OBFH_CFLOW_TEMPLATE_90; })))), __builtin_choose_expr((index) < 93u, __builtin_choose_expr((index) < 92u, ({ OBFH_CFLOW_TEMPLATE_91; }), ({ OBFH_CFLOW_TEMPLATE_92; })), __builtin_choose_expr((index) < 94u, ({ OBFH_CFLOW_TEMPLATE_93; }), __builtin_choose_expr((index) < 95u, ({ OBFH_CFLOW_TEMPLATE_94; }), ({ OBFH_CFLOW_TEMPLATE_95; }))))), __builtin_choose_expr((index) < 101u, __builtin_choose_expr((index) < 98u, __builtin_choose_expr((index) < 97u, ({ OBFH_CFLOW_TEMPLATE_96; }), ({ OBFH_CFLOW_TEMPLATE_97; })), __builtin_choose_expr((index) < 99u, ({ OBFH_CFLOW_TEMPLATE_98; }), __builtin_choose_expr((index) < 100u, ({ OBFH_CFLOW_TEMPLATE_99; }), ({ OBFH_CFLOW_TEMPLATE_100; })))), __builtin_choose_expr((index) < 104u, __builtin_choose_expr((index) < 102u, ({ OBFH_CFLOW_TEMPLATE_101; }), __builtin_choose_expr((index) < 103u, ({ OBFH_CFLOW_TEMPLATE_102; }), ({ OBFH_CFLOW_TEMPLATE_103; }))), __builtin_choose_expr((index) < 105u, ({ OBFH_CFLOW_TEMPLATE_104; }), __builtin_choose_expr((index) < 106u, ({ OBFH_CFLOW_TEMPLATE_105; }), ({ OBFH_CFLOW_TEMPLATE_106; })))))), __builtin_choose_expr((index) < 117u, __builtin_choose_expr((index) < 112u, __builtin_choose_expr((index) < 109u, __builtin_choose_expr((index) < 108u, ({ OBFH_CFLOW_TEMPLATE_107; }), ({ OBFH_CFLOW_TEMPLATE_108; })), __builtin_choose_expr((index) < 110u, ({ OBFH_CFLOW_TEMPLATE_109; }), __builtin_choose_expr((index) < 111u, ({ OBFH_CFLOW_TEMPLATE_110; }), ({ OBFH_CFLOW_TEMPLATE_111; })))), __builtin_choose_expr((index) < 114u, __builtin_choose_expr((index) < 113u, ({ OBFH_CFLOW_TEMPLATE_112; }), ({ OBFH_CFLOW_TEMPLATE_113; })), __builtin_choose_expr((index) < 115u, ({ OBFH_CFLOW_TEMPLATE_114; }), __builtin_choose_expr((index) < 116u, ({ OBFH_CFLOW_TEMPLATE_115; }), ({ OBFH_CFLOW_TEMPLATE_116; }))))), __builtin_choose_expr((index) < 122u, __builtin_choose_expr((index) < 119u, __builtin_choose_expr((index) < 118u, ({ OBFH_CFLOW_TEMPLATE_117; }), ({ OBFH_CFLOW_TEMPLATE_118; })), __builtin_choose_expr((index) < 120u, ({ OBFH_CFLOW_TEMPLATE_119; }), __builtin_choose_expr((index) < 121u, ({ OBFH_CFLOW_TEMPLATE_120; }), ({ OBFH_CFLOW_TEMPLATE_121; })))), __builtin_choose_expr((index) < 125u, __builtin_choose_expr((index) < 123u, ({ OBFH_CFLOW_TEMPLATE_122; }), __builtin_choose_expr((index) < 124u, ({ OBFH_CFLOW_TEMPLATE_123; }), ({ OBFH_CFLOW_TEMPLATE_124; }))), __builtin_choose_expr((index) < 126u, ({ OBFH_CFLOW_TEMPLATE_125; }), __builtin_choose_expr((index) < 127u, ({ OBFH_CFLOW_TEMPLATE_126; }), ({ OBFH_CFLOW_TEMPLATE_127; })))))))
+#define OBFH_CFLOW_SELECT(index) ({ OBFH_CFLOW_CAPTURE; __builtin_choose_expr((index)<86u, OBFH_CFLOW_BASIC_EMIT(index), OBFH_CFLOW_OTHER(index)); (void)0; })
 
 // All 128 families use nonserializing arithmetic; keep selection uniform.
 #define OBFH_CFLOW_SLOT(value) (((unsigned int)(value) ^ ((unsigned int)(value) >> 16)) & 127u)
@@ -1439,263 +1505,92 @@ OBFH_PD_DEFINE(127);
 #define OBFH_HIDE_JUNK OBFH_CFLOW_EMIT(__COUNTER__, OBFH_CFLOW_SINGLE)
 
 // Template pool; only the selected ASM branch is emitted.
-#define OBFH_CFLOW_TEMPLATE_0 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1:")
-
-#define OBFH_CFLOW_TEMPLATE_1 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1:")
-
-#define OBFH_CFLOW_TEMPLATE_2 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1:")
-
-#define OBFH_CFLOW_TEMPLATE_3 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1:")
-
-#define OBFH_CFLOW_TEMPLATE_4 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1:")
-
-#define OBFH_CFLOW_TEMPLATE_5 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1:")
-
-#define OBFH_CFLOW_TEMPLATE_6 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $7, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1:")
-
-#define OBFH_CFLOW_TEMPLATE_7 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1:")
-
-#define OBFH_CFLOW_TEMPLATE_8 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1:")
-
-#define OBFH_CFLOW_TEMPLATE_9 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1:")
-
-#define OBFH_CFLOW_TEMPLATE_10 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1:")
-
-#define OBFH_CFLOW_TEMPLATE_11 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1:")
-
-#define OBFH_CFLOW_TEMPLATE_12 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1:")
-
-#define OBFH_CFLOW_TEMPLATE_13 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1:")
-
-#define OBFH_CFLOW_TEMPLATE_14 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1:")
-
-#define OBFH_CFLOW_TEMPLATE_15 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "testb $2, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1:")
-
-#define OBFH_CFLOW_TEMPLATE_16 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL "2:")
-
-#define OBFH_CFLOW_TEMPLATE_17 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_18 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV "2:")
-
-#define OBFH_CFLOW_TEMPLATE_19 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP "2:")
-
-#define OBFH_CFLOW_TEMPLATE_20 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL "2:")
-
-#define OBFH_CFLOW_TEMPLATE_21 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_22 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $7, %%dl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV "2:")
-
-#define OBFH_CFLOW_TEMPLATE_23 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP "2:")
-
-#define OBFH_CFLOW_TEMPLATE_24 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; xorl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL "2:")
-
-#define OBFH_CFLOW_TEMPLATE_25 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; xorl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_26 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; xorl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV "2:")
-
-#define OBFH_CFLOW_TEMPLATE_27 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; xorl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP "2:")
-
-#define OBFH_CFLOW_TEMPLATE_28 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL "2:")
-
-#define OBFH_CFLOW_TEMPLATE_29 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_INDIRECT "2:")
-
-#define OBFH_CFLOW_TEMPLATE_30 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_MOV "2:")
-
-#define OBFH_CFLOW_TEMPLATE_31 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "testb $2, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_JUMP "2:")
-
-#define OBFH_CFLOW_TEMPLATE_32 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1: testb $1, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_33 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1: testb $2, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_34 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1: testb $1, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_35 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1: testb $1, %%al; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_36 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1: testb $1, %%dl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_37 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1: testb $1, %%dl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_38 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $7, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1: testb $7, %%dl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_39 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; subl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1: testb $3, %%dl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_40 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1: testb $14, %%cl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_41 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1: testb $1, %%cl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_42 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1: testb $1, %%cl; jnz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_43 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; subl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1: testb $1, %%cl; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_44 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL "1: testb $1, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_45 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_INDIRECT "1: testb $1, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_46 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_MOV "1: testb $1, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_47 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; subl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "testb $2, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_JUMP "1: testb $2, %%al; jz 2f; .byte 0x0F, 0x0B, 0xE8; .fill .Lcfpad, 1,.Lcfbyte; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_48 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL "2: testb $1, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_49 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT "2: testb $2, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_50 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV "2: testb $1, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_51 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP "2: testb $1, %%al; jnz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_52 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; roll $7, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL "2: testb $1, %%dl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_53 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; roll $7, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT "2: testb $1, %%dl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_54 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; roll $7, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $7, %%dl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV "2: testb $7, %%dl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_55 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; roll $7, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP "2: testb $3, %%dl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_56 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL "2: testb $14, %%cl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_57 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT "2: testb $1, %%cl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_58 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV "2: testb $1, %%cl; jnz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_59 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; roll $7, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP "2: testb $1, %%cl; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_60 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_CALL "2: testb $1, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_61 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_INDIRECT "2: testb $1, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_62 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_MOV "2: testb $1, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_63 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; roll $7, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "testb $2, %%al; jnz 1f; jmp 2f; 1: .byte 0xC3; " OBFH_CFLOW_PAYLOAD_JUMP "2: testb $2, %%al; jz 3f; .byte 0xFF, 0x25; .long .Lcfbasic; 3:")
-
-#define OBFH_CFLOW_TEMPLATE_64 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_65 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_66 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_67 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jnz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_68 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_69 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_70 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $7, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_71 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_72 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "testb $2, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_73 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_74 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jnz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_75 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_76 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_77 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_78 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_CUBE_PLUS("%%eax", "%%ecx") "testb $1, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_79 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_SQUARE("%%eax") "testb $2, %%al; jz 1f; " OBFH_CFLOW_PAYLOAD_CALL_DATA "1: movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_FOUR_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $7, %%dl; jz 2f; .byte 0xFF, 0x25; .long .Lcfbasic; .byte .Lcfbyte, 0xE9; 2:")
-
-#define OBFH_CFLOW_TEMPLATE_80 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ADJACENT_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%edx; addl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_SQUARE_PRODUCT("%%edx", "%%ecx") "testb $3, %%dl; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_81 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE("%%eax") "testb $2, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FOURTH("%%ecx") "testb $14, %%cl; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_82 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_SQUARE_XOR("%%eax", "%%edx") "testb $1, %%al; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_FIFTH_MINUS("%%ecx", "%%eax") "testb $1, %%cl; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_83 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%eax; xorl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_ODD_PRODUCT("%%eax", "%%edx") "testb $1, %%al; jz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_OR("%%ecx", "%%eax") "testb $1, %%cl; jnz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_84 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_CUBE_MINUS("%%edx", "%%ecx") "testb $1, %%dl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%ecx; addl $.Lcfs, %%ecx; " OBFH_CFLOW_PRED_ADJACENT_AND("%%ecx", "%%eax") "testb $1, %%cl; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
-
-#define OBFH_CFLOW_TEMPLATE_85 \
-    OBFH_CFLOW_LOCAL_ASM("movl %%esp, %%edx; xorl $.Lcfs, %%edx; " OBFH_CFLOW_PRED_THREE_PRODUCT("%%edx", "%%ecx", "%%eax") "testb $1, %%dl; jnz 1f; jmp 2f; 1: " OBFH_CFLOW_PAYLOAD_CALL_DATA "2: movl %%esp, %%eax; addl $.Lcfs, %%eax; " OBFH_CFLOW_PRED_PREVIOUS_PRODUCT("%%eax", "%%ecx") "testb $1, %%al; jz 3f; " OBFH_CFLOW_PAYLOAD_TRAP_INDIRECT "3:")
+#define OBFH_CFLOW_TEMPLATE_0 OBFH_CFLOW_BASIC_EMIT(0u)
+#define OBFH_CFLOW_TEMPLATE_1 OBFH_CFLOW_BASIC_EMIT(1u)
+#define OBFH_CFLOW_TEMPLATE_2 OBFH_CFLOW_BASIC_EMIT(2u)
+#define OBFH_CFLOW_TEMPLATE_3 OBFH_CFLOW_BASIC_EMIT(3u)
+#define OBFH_CFLOW_TEMPLATE_4 OBFH_CFLOW_BASIC_EMIT(4u)
+#define OBFH_CFLOW_TEMPLATE_5 OBFH_CFLOW_BASIC_EMIT(5u)
+#define OBFH_CFLOW_TEMPLATE_6 OBFH_CFLOW_BASIC_EMIT(6u)
+#define OBFH_CFLOW_TEMPLATE_7 OBFH_CFLOW_BASIC_EMIT(7u)
+#define OBFH_CFLOW_TEMPLATE_8 OBFH_CFLOW_BASIC_EMIT(8u)
+#define OBFH_CFLOW_TEMPLATE_9 OBFH_CFLOW_BASIC_EMIT(9u)
+#define OBFH_CFLOW_TEMPLATE_10 OBFH_CFLOW_BASIC_EMIT(10u)
+#define OBFH_CFLOW_TEMPLATE_11 OBFH_CFLOW_BASIC_EMIT(11u)
+#define OBFH_CFLOW_TEMPLATE_12 OBFH_CFLOW_BASIC_EMIT(12u)
+#define OBFH_CFLOW_TEMPLATE_13 OBFH_CFLOW_BASIC_EMIT(13u)
+#define OBFH_CFLOW_TEMPLATE_14 OBFH_CFLOW_BASIC_EMIT(14u)
+#define OBFH_CFLOW_TEMPLATE_15 OBFH_CFLOW_BASIC_EMIT(15u)
+#define OBFH_CFLOW_TEMPLATE_16 OBFH_CFLOW_BASIC_EMIT(16u)
+#define OBFH_CFLOW_TEMPLATE_17 OBFH_CFLOW_BASIC_EMIT(17u)
+#define OBFH_CFLOW_TEMPLATE_18 OBFH_CFLOW_BASIC_EMIT(18u)
+#define OBFH_CFLOW_TEMPLATE_19 OBFH_CFLOW_BASIC_EMIT(19u)
+#define OBFH_CFLOW_TEMPLATE_20 OBFH_CFLOW_BASIC_EMIT(20u)
+#define OBFH_CFLOW_TEMPLATE_21 OBFH_CFLOW_BASIC_EMIT(21u)
+#define OBFH_CFLOW_TEMPLATE_22 OBFH_CFLOW_BASIC_EMIT(22u)
+#define OBFH_CFLOW_TEMPLATE_23 OBFH_CFLOW_BASIC_EMIT(23u)
+#define OBFH_CFLOW_TEMPLATE_24 OBFH_CFLOW_BASIC_EMIT(24u)
+#define OBFH_CFLOW_TEMPLATE_25 OBFH_CFLOW_BASIC_EMIT(25u)
+#define OBFH_CFLOW_TEMPLATE_26 OBFH_CFLOW_BASIC_EMIT(26u)
+#define OBFH_CFLOW_TEMPLATE_27 OBFH_CFLOW_BASIC_EMIT(27u)
+#define OBFH_CFLOW_TEMPLATE_28 OBFH_CFLOW_BASIC_EMIT(28u)
+#define OBFH_CFLOW_TEMPLATE_29 OBFH_CFLOW_BASIC_EMIT(29u)
+#define OBFH_CFLOW_TEMPLATE_30 OBFH_CFLOW_BASIC_EMIT(30u)
+#define OBFH_CFLOW_TEMPLATE_31 OBFH_CFLOW_BASIC_EMIT(31u)
+#define OBFH_CFLOW_TEMPLATE_32 OBFH_CFLOW_BASIC_EMIT(32u)
+#define OBFH_CFLOW_TEMPLATE_33 OBFH_CFLOW_BASIC_EMIT(33u)
+#define OBFH_CFLOW_TEMPLATE_34 OBFH_CFLOW_BASIC_EMIT(34u)
+#define OBFH_CFLOW_TEMPLATE_35 OBFH_CFLOW_BASIC_EMIT(35u)
+#define OBFH_CFLOW_TEMPLATE_36 OBFH_CFLOW_BASIC_EMIT(36u)
+#define OBFH_CFLOW_TEMPLATE_37 OBFH_CFLOW_BASIC_EMIT(37u)
+#define OBFH_CFLOW_TEMPLATE_38 OBFH_CFLOW_BASIC_EMIT(38u)
+#define OBFH_CFLOW_TEMPLATE_39 OBFH_CFLOW_BASIC_EMIT(39u)
+#define OBFH_CFLOW_TEMPLATE_40 OBFH_CFLOW_BASIC_EMIT(40u)
+#define OBFH_CFLOW_TEMPLATE_41 OBFH_CFLOW_BASIC_EMIT(41u)
+#define OBFH_CFLOW_TEMPLATE_42 OBFH_CFLOW_BASIC_EMIT(42u)
+#define OBFH_CFLOW_TEMPLATE_43 OBFH_CFLOW_BASIC_EMIT(43u)
+#define OBFH_CFLOW_TEMPLATE_44 OBFH_CFLOW_BASIC_EMIT(44u)
+#define OBFH_CFLOW_TEMPLATE_45 OBFH_CFLOW_BASIC_EMIT(45u)
+#define OBFH_CFLOW_TEMPLATE_46 OBFH_CFLOW_BASIC_EMIT(46u)
+#define OBFH_CFLOW_TEMPLATE_47 OBFH_CFLOW_BASIC_EMIT(47u)
+#define OBFH_CFLOW_TEMPLATE_48 OBFH_CFLOW_BASIC_EMIT(48u)
+#define OBFH_CFLOW_TEMPLATE_49 OBFH_CFLOW_BASIC_EMIT(49u)
+#define OBFH_CFLOW_TEMPLATE_50 OBFH_CFLOW_BASIC_EMIT(50u)
+#define OBFH_CFLOW_TEMPLATE_51 OBFH_CFLOW_BASIC_EMIT(51u)
+#define OBFH_CFLOW_TEMPLATE_52 OBFH_CFLOW_BASIC_EMIT(52u)
+#define OBFH_CFLOW_TEMPLATE_53 OBFH_CFLOW_BASIC_EMIT(53u)
+#define OBFH_CFLOW_TEMPLATE_54 OBFH_CFLOW_BASIC_EMIT(54u)
+#define OBFH_CFLOW_TEMPLATE_55 OBFH_CFLOW_BASIC_EMIT(55u)
+#define OBFH_CFLOW_TEMPLATE_56 OBFH_CFLOW_BASIC_EMIT(56u)
+#define OBFH_CFLOW_TEMPLATE_57 OBFH_CFLOW_BASIC_EMIT(57u)
+#define OBFH_CFLOW_TEMPLATE_58 OBFH_CFLOW_BASIC_EMIT(58u)
+#define OBFH_CFLOW_TEMPLATE_59 OBFH_CFLOW_BASIC_EMIT(59u)
+#define OBFH_CFLOW_TEMPLATE_60 OBFH_CFLOW_BASIC_EMIT(60u)
+#define OBFH_CFLOW_TEMPLATE_61 OBFH_CFLOW_BASIC_EMIT(61u)
+#define OBFH_CFLOW_TEMPLATE_62 OBFH_CFLOW_BASIC_EMIT(62u)
+#define OBFH_CFLOW_TEMPLATE_63 OBFH_CFLOW_BASIC_EMIT(63u)
+#define OBFH_CFLOW_TEMPLATE_64 OBFH_CFLOW_BASIC_EMIT(64u)
+#define OBFH_CFLOW_TEMPLATE_65 OBFH_CFLOW_BASIC_EMIT(65u)
+#define OBFH_CFLOW_TEMPLATE_66 OBFH_CFLOW_BASIC_EMIT(66u)
+#define OBFH_CFLOW_TEMPLATE_67 OBFH_CFLOW_BASIC_EMIT(67u)
+#define OBFH_CFLOW_TEMPLATE_68 OBFH_CFLOW_BASIC_EMIT(68u)
+#define OBFH_CFLOW_TEMPLATE_69 OBFH_CFLOW_BASIC_EMIT(69u)
+#define OBFH_CFLOW_TEMPLATE_70 OBFH_CFLOW_BASIC_EMIT(70u)
+#define OBFH_CFLOW_TEMPLATE_71 OBFH_CFLOW_BASIC_EMIT(71u)
+#define OBFH_CFLOW_TEMPLATE_72 OBFH_CFLOW_BASIC_EMIT(72u)
+#define OBFH_CFLOW_TEMPLATE_73 OBFH_CFLOW_BASIC_EMIT(73u)
+#define OBFH_CFLOW_TEMPLATE_74 OBFH_CFLOW_BASIC_EMIT(74u)
+#define OBFH_CFLOW_TEMPLATE_75 OBFH_CFLOW_BASIC_EMIT(75u)
+#define OBFH_CFLOW_TEMPLATE_76 OBFH_CFLOW_BASIC_EMIT(76u)
+#define OBFH_CFLOW_TEMPLATE_77 OBFH_CFLOW_BASIC_EMIT(77u)
+#define OBFH_CFLOW_TEMPLATE_78 OBFH_CFLOW_BASIC_EMIT(78u)
+#define OBFH_CFLOW_TEMPLATE_79 OBFH_CFLOW_BASIC_EMIT(79u)
+#define OBFH_CFLOW_TEMPLATE_80 OBFH_CFLOW_BASIC_EMIT(80u)
+#define OBFH_CFLOW_TEMPLATE_81 OBFH_CFLOW_BASIC_EMIT(81u)
+#define OBFH_CFLOW_TEMPLATE_82 OBFH_CFLOW_BASIC_EMIT(82u)
+#define OBFH_CFLOW_TEMPLATE_83 OBFH_CFLOW_BASIC_EMIT(83u)
+#define OBFH_CFLOW_TEMPLATE_84 OBFH_CFLOW_BASIC_EMIT(84u)
+#define OBFH_CFLOW_TEMPLATE_85 OBFH_CFLOW_BASIC_EMIT(85u)
 
 #define OBFH_CFLOW_TEMPLATE_86 \
     OBFH_CFLOW_LOCAL_JUNK_ASM("xorl %%eax, %%eax; jz 1f; .byte 0xE8; " OBFH_JUNK_PAYLOAD "1: movl $%c6, %%eax; roll $%c0, %%eax; xorl %%eax, %%edx;")
