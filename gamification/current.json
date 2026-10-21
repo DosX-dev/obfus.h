@@ -1,9 +1,9 @@
 {
   "version": 6,
   "generatorVersion": 8,
-  "date": "2026-10-20",
-  "round": 12,
-  "commit": "7e14dfc9e13ebdfb8b9546888667ae6dca279187",
+  "date": "2026-10-21",
+  "round": 13,
+  "commit": "cd5e6e3650d695855e408f5a3cd033298eaa8bef",
   "headerSha256": "f39f9e67844e6c68f157bd87a71141382135261bcbe89f10ddb5282d1641c2fa",
   "toolchain": {
     "repository": "DosX-dev/TinyCC-builder",
@@ -20,79 +20,79 @@
     }
   },
   "graphs": [
-    "93c383f97c7ae69c9b05b6fe9f5d795a4b5f3c69fcd93a5f32591a65494c62bf",
-    "13891f377d69ad7dd210c3238cccdf084fdab673d0891b52b75894d65d18fdd8",
-    "646e651c2f9dcc998c886bd628f61376b86bc61ce9d1bc7ca686254fce829208",
-    "b15655d0709f573f5e9bc05db48d8598b9fa7c02832c35422f2aaf3c6309d59c"
+    "95d2d48092eb9f7ce476e7affa77dc97763649ba886af4aec12725d36bddb3ca",
+    "6a7cf3f7c3d06252f1a180407a2b008af6e22168f66591abf1e921d2e51cef2e",
+    "1da8cdef3e54b02b96d19eb3fb6bcb006b75ff511fa1c42c800a9450f9618b7b",
+    "7b65434f8954a007a618821217646442fe632a38020b6188d5a20312570a61d2"
   ],
   "witnesses": [
-    "562306fcd9ff102c273be7ac9ac29a74b34795679dd88e7ca7316a3eaa1cd8eb",
-    "a010eff8092d1ac9db08606522b3705564c6f6426d904ecc45f58094b4f6aacc",
-    "4e8f20360d7bffc8905fc60a1a4afa266f7e051a36e926cf8f68b942e49972f9",
-    "b1df5f0dfe387763af2397d69b976253368b6ab0da7449c0b52550c2517a9b1c"
+    "869fe536fbecbee2f9f4ed32d2cb388d51e264e6c5d48114233ed664b47c3143",
+    "287525a304839e12f196557aba31dbc33ceae7296431e45232517864b5e3d9ec",
+    "7590c233ac00a5595f4a6fe917347a3557edb52c69e02f866b28538a3aa26f8a",
+    "e7720e02244b939c49d7a4a95082a57281aeeedcfca92c806bcddf3773779291"
   ],
   "shapes": [
-    "1ac38b213f12b3af6d5443dba8057ac2ca5d6c916baef0ec55fad0ea397c3e7b",
-    "0b31198b5cf3859ff83da2efeeb7ed162ed5da30fb2d296074e37b6eba4e57dd",
-    "8e3f830f4309a93b8db64f373b67985a7ffcb45bfc4ae612cebcad7ecc5dde11",
-    "be539fb681bcaa9ed039fd9e8095a2bda7f9890f7550aa92eaeb1ff8bb3e1619"
+    "1c53373e83cb5412f72608815f3b2606d0585358b58c12dcbe7a223512f6c55c",
+    "a8bb6e8a26a6630ea0104e0e539c759f7498274373897b3488075ab1986950c0",
+    "a4f3fb730757324726d2aab3ed31e67024331714ab844a06c124ab80ed55d4ad",
+    "18bd005f221c9a2e850da841b110c9cda4a8cf3f85a98035332709be2dc678a6"
   ],
-  "historyCount": 46,
+  "historyCount": 50,
   "previous": {
-    "date": "2026-10-19",
-    "round": 11,
+    "date": "2026-10-20",
+    "round": 12,
     "answers": {
-      "easy": "-90aO*#-96KK",
-      "medium": "Nf?b232pi!ItiFT=Ucpu4A?l",
-      "hardcore": "t+%#L$v4q_NAPY13+g39_C0LgprxQSf$",
-      "extreme": "W$8%66q%!KEcYXR4j4rz#Cm1J+pmUniF5v7GaYyfO_EM!Y90"
+      "easy": "51O=67Z0Ww40",
+      "medium": "0z5w-s-U7NRYKA2hnKP0ZbgT",
+      "hardcore": "7zl9vwO!=wKz%4lYK9BOGbbvR2#TiP#n",
+      "extreme": "M0VQS94artiF8AEDGl8sXcbfp_-ycsNDQGr*9g@nfPHo5IFT"
     }
   },
   "files": [
     {
-      "name": "obfus-crackme-2026-10-20-round-12-easy-x64.zip",
+      "name": "obfus-crackme-2026-10-21-round-13-easy-x64.zip",
       "role": "easy",
-      "sha256": "51587526fa437a5187f41044efd9b0c0ddfbb6bf24ddefe48cf8f28acfb2957d",
-      "size": 213588,
+      "sha256": "046950cea63aca0e09db808349fe3e52a1e1abe49cf21ca0a373facdf26a13ca",
+      "size": 220490,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-20-round-12-easy-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-21-round-13-easy-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-10-20-round-12-medium-x64.zip",
+      "name": "obfus-crackme-2026-10-21-round-13-medium-x64.zip",
       "role": "medium",
-      "sha256": "f5d74f6826e3119b6768898ed35000037263be1fd36751a1feb3566616b44545",
-      "size": 324983,
+      "sha256": "7ba0978d69c1d1b6bec50fd994788d6011b1b35ef566c84e2c538d1a7a4bf46d",
+      "size": 316026,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-20-round-12-medium-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-21-round-13-medium-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-10-20-round-12-hardcore-x64.zip",
+      "name": "obfus-crackme-2026-10-21-round-13-hardcore-x64.zip",
       "role": "hardcore",
-      "sha256": "4c9caf7ad10f45d838642e5f310244ed62627e0828338a790e0a54c6743a73be",
-      "size": 498143,
+      "sha256": "7ab088a1a09a40ae333109ff7f28a53cc0f520040fa481f4b49f20e50613a50c",
+      "size": 560221,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-20-round-12-hardcore-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-21-round-13-hardcore-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-10-20-round-12-extreme-x64.zip",
+      "name": "obfus-crackme-2026-10-21-round-13-extreme-x64.zip",
       "role": "extreme",
-      "sha256": "0f59b77ae3bb6e201944b1966a422dc34f09f079815596acd9243dbf90b853f8",
-      "size": 1032722,
+      "sha256": "ce25e5e832dbeb72df66384f25a17089b0f377fb4232d8eb902793d423e60531",
+      "size": 968799,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-20-round-12-extreme-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-10-21-round-13-extreme-x64.zip"
     },
     {
-      "name": "answers-2026-10-20-round-12.json",
+      "name": "answers-2026-10-21-round-13.json",
       "role": "answers",
-      "sha256": "ec8b2040456e0364ce5aa97f69bcb5a4be753f6e358606cf8399789b92c4d2f7",
+      "sha256": "560aa4221a332e49ce92dac0757773c0e845ae3df2449ab460634c2f6defa3ca",
       "size": 392,
       "storage": "private"
     },
     {
-      "name": "history-2026-10-20-round-12.json.gz",
+      "name": "history-2026-10-21-round-13.json.gz",
       "role": "history",
-      "sha256": "6507a62c1e1f9f4953f43900389e20d0ad1075c71a75ddc8ab0413584181f5c6",
-      "size": 1980858,
+      "sha256": "e65af200da13a35ace0fafbacacc0618d477430ccf4253ac268eaf91c7475c0a",
+      "size": 2189615,
       "storage": "private"
     }
   ]
