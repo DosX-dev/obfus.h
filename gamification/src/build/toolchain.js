@@ -80,7 +80,8 @@ export async function provision(explicit, { fetcher = fetch } = {}) {
     const relative = path.relative(root, expanded);
     if (!relative || path.isAbsolute(relative) || relative.startsWith('..') || (await fs.lstat(expanded).catch(() => null))?.isSymbolicLink()) throw new Error('Unsafe toolchain extraction directory');
     await fs.rm(expanded, { recursive: true, force: true });
-    const result = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(GAMIFICATION_ROOT, 'src/build/unpack.ps1'), '-Archive', zip, '-Destination', expanded]);
+    await fs.mkdir(expanded, { recursive: true });
+    const result = await run('tar.exe', ['-xf', zip, '-C', expanded]);
     if (result.code !== 0) throw new Error(`Toolchain extraction failed!\nSTDERR: ${result.stderr}\nSTDOUT: ${result.stdout}`);
     const directory = await find(expanded);
     if (!directory) throw new Error('Toolchain executables absent');
