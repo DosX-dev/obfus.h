@@ -1,98 +1,98 @@
 {
   "version": 6,
   "generatorVersion": 8,
-  "date": "2026-11-25",
-  "round": 46,
-  "commit": "3303802506cb669ffb5e6bc60705fdc593237500",
+  "date": "2026-11-26",
+  "round": 47,
+  "commit": "c07930e8342704784bbc10ccb9cb7a06fc8651d0",
   "headerSha256": "f39f9e67844e6c68f157bd87a71141382135261bcbe89f10ddb5282d1641c2fa",
   "toolchain": {
     "repository": "DosX-dev/TinyCC-builder",
-    "release": "2026-11-19",
-    "releaseId": 451264302,
-    "assetId": 767461790,
-    "name": "tinycc-windows-2026-11-19.zip",
-    "size": 9616420,
-    "url": "https://github.com/DosX-dev/TinyCC-builder/releases/download/2026-11-19/tinycc-windows-2026-11-19.zip",
-    "sha256": "fb873749e45052c6b301aac727b52b4c9df6c3eba16d2c3f1764d2055b2ddfe6",
+    "release": "2026-11-26",
+    "releaseId": 459390239,
+    "assetId": 795816889,
+    "name": "tinycc-windows-2026-11-26.zip",
+    "size": 9613715,
+    "url": "https://github.com/DosX-dev/TinyCC-builder/releases/download/2026-11-26/tinycc-windows-2026-11-26.zip",
+    "sha256": "c877e6e711825c941bf36de05690da3dd54876aa05541c56ec3d6ccd349a188a",
     "versions": {
-      "x64": "tcc version 0.9.28rc mob@0f004a0883c6 (x86_64 Windows)",
-      "x86": "tcc version 0.9.28rc mob@0f004a0883c6 (i386 Windows)"
+      "x64": "tcc version 0.9.28rc mob@857cbeb04bd8 (x86_64 Windows)",
+      "x86": "tcc version 0.9.28rc mob@857cbeb04bd8 (i386 Windows)"
     }
   },
   "graphs": [
-    "53b52a565d1487f7772d8ed467244c6acc2dc8ae02d9a7fd91066bdf812a1e7d",
-    "eaf115e5b2556ef9b53274fb2da6bd744c1f5b85482d7f37eb0094ae9b56811c",
-    "ffd6fe3822c4080374272bdd8a42b92facbfa75e54bc7e1d56887efef4a95385",
-    "e4ca9fbd439dc5cc755e62b7b8fd368bf832fd92743bab1d409680f56c90a875"
+    "a02fa326c7722479faaf2154b5507469a52928733162a719792ae91cbd6d49f9",
+    "c4a9fd0c5fb45d5e6c8ae6dff520cb5ae6bbfee51f7f01e872008b3d82e39083",
+    "169d63edc06df4a34c0e20360c778c716f61ce9faf94688bb79e086fbcbebfea",
+    "80eeb17ff417a1982a14937a87faf40bea7a5db4f0d1a38cb857ce31c0289995"
   ],
   "witnesses": [
-    "cb61230579922d5c157ca970f2b0f8f8e5011c9c9d089fe6458f6bb2a14cb593",
-    "34c6677ba16ad2cc8e9dbb8550e09c41ac64bd58a6723ede04ac2e315d12dc8c",
-    "71f9f724e8108fd32064d4516faf2fe3afc573cfcb08790367242d940cd50a64",
-    "7d134b02f3ce7c5b663ae496071a63d20beef364de3a08d956783828db51231e"
+    "1eaabd778f807f31f30ae334720e1871fbe81c0b2c8bdca090a851e7208e66ed",
+    "7e5b954c6387d808ba89d7efcfbc286b653e94d6b6a560d12d0a6eacfbb2d308",
+    "2e863c9a4623ae71b51c6670537052c93495aa50f6472b75909cfd6fc5d29a08",
+    "bd2c0da2a657ffb1e5cb32dad7206fb511d1acae6cd599c21ce5fc3ac6495862"
   ],
   "shapes": [
-    "91d63c619c37c230b7a97cb8dd3b749ce24b792f02ebc26f0b541b8b871724e6",
-    "7b0dbd3baefa29b201f0ac9ef365cac5ea244608dbeb7ba00aa4dbb5d62eaa85",
-    "96eee1f6152c412fc232caf86206e2299db9f11a113db070721f2fc6fe03e1d3",
-    "9ad8b0a526704d9b6fdeb2e7e86a55bfafe52f54d28a34b82fc7a0ed435ab771"
+    "cf6137d2046f0100c086f7e2039773f961da1652b1a2679d0e3d4f7c4f10ac10",
+    "2e36abeaae5a45ce719e4085950115d2b9eccccb6cff7fd3afc889d0203ecf23",
+    "51fa48c9f6ee2d6b4a556e59b585851942534c94335d842f8d19d14255b92a1c",
+    "ee92e9e473c1fb7214db834eca4707c636e6de992b7b38c444e3a1bfb9fe61af"
   ],
-  "historyCount": 182,
+  "historyCount": 186,
   "previous": {
-    "date": "2026-11-24",
-    "round": 45,
+    "date": "2026-11-25",
+    "round": 46,
     "answers": {
-      "easy": "Q#TMcBUiu#K@",
-      "medium": "?%*CgNaLLj-=f7sGp1=l!U#l",
-      "hardcore": "EBY7cm@SP-RoRHE2ZX&9gL*dUnLm-dv?",
-      "extreme": "gBULTs2m@z68axr!DWu3$P84rkSUoM=av&Hd?Z=Oer=CYweP"
+      "easy": "-X?kwn&p*Op2",
+      "medium": "6jgG9o34&5oG7mpj4%nsGbVo",
+      "hardcore": "Z9h7ZWrV&+k5PP@GhzNwtj@ch2ne0#=w",
+      "extreme": "Sx6d*AXGxw%_U5aB$R_7mAx!XpCj?Hm9DQ2q$sGY&j$Qj+l4"
     }
   },
   "files": [
     {
-      "name": "obfus-crackme-2026-11-25-round-46-easy-x64.zip",
+      "name": "obfus-crackme-2026-11-26-round-47-easy-x64.zip",
       "role": "easy",
-      "sha256": "e0b13fc04f0ed6dc3d82d73078fc4535019bc130c8607492a14153acffe4822b",
-      "size": 218939,
+      "sha256": "5bad51b472a4289e151444e6188f2c24b2e23a1e2f4accb9024398fc3131294d",
+      "size": 212573,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-25-round-46-easy-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-26-round-47-easy-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-11-25-round-46-medium-x64.zip",
+      "name": "obfus-crackme-2026-11-26-round-47-medium-x64.zip",
       "role": "medium",
-      "sha256": "2e2124c3c6baebb260dca82f583e8620a98227c4cec49f2c8f23cbedf67aeb52",
-      "size": 313849,
+      "sha256": "3eb255b41204a134378e36d9643f1e8a6b6286d25cfae0743b0388db866b0f3c",
+      "size": 338674,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-25-round-46-medium-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-26-round-47-medium-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-11-25-round-46-hardcore-x64.zip",
+      "name": "obfus-crackme-2026-11-26-round-47-hardcore-x64.zip",
       "role": "hardcore",
-      "sha256": "1317180a4f86f6144901a11b49a362c39484ce500f2b4f2ba9fcdf4b99350e21",
-      "size": 486555,
+      "sha256": "638b3fb1592379a12af1befe2949f32090921c9a0f49be5706b91ef35c0794e6",
+      "size": 522243,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-25-round-46-hardcore-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-26-round-47-hardcore-x64.zip"
     },
     {
-      "name": "obfus-crackme-2026-11-25-round-46-extreme-x64.zip",
+      "name": "obfus-crackme-2026-11-26-round-47-extreme-x64.zip",
       "role": "extreme",
-      "sha256": "116ebb0bae2ff233264bafa1f9ffbf682bf43fa91c4edb6f60575d446816939b",
-      "size": 934291,
+      "sha256": "46dcd405d4dd742375021dbb811b523f1ee627874ba9d598e5fa2aee13948921",
+      "size": 993438,
       "storage": "public",
-      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-25-round-46-extreme-x64.zip"
+      "url": "https://github.com/DosX-dev/obfus.h/releases/download/daily-crackme/obfus-crackme-2026-11-26-round-47-extreme-x64.zip"
     },
     {
-      "name": "answers-2026-11-25-round-46.json",
+      "name": "answers-2026-11-26-round-47.json",
       "role": "answers",
-      "sha256": "5af48711a851464a47754c0bed660cc0c2fa8161d2d9b5245523547ee39e9df9",
+      "sha256": "e308d51e72aae86a4d646919219236e603b4cc997f8f5d0621d773c6d6523ffb",
       "size": 392,
       "storage": "private"
     },
     {
-      "name": "history-2026-11-25-round-46.json.gz",
+      "name": "history-2026-11-26-round-47.json.gz",
       "role": "history",
-      "sha256": "973779906b0c9fcc5f70151a3c3aa92c890c027b1570624d6ef71d539d396ad8",
-      "size": 8643556,
+      "sha256": "4d62ae2420e4916568b95eae2490e4d478bea65d5425ed6abb3575ce8aa787a0",
+      "size": 8850084,
       "storage": "private"
     }
   ]
